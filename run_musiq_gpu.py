@@ -27,6 +27,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 import tensorflow as tf
+import tensorflow_hub as hub
 from PIL import Image
 
 
@@ -83,7 +84,8 @@ class MUSIQGPU:
         try:
             print(f"Loading MUSIQ model from TensorFlow Hub: {url}")
             with tf.device(self.device):
-                self.model = tf.keras.models.load_model(url)
+                # Use tensorflow_hub.hub.load() for proper TensorFlow Hub model loading
+                self.model = hub.load(url)
             return True
         except Exception as e:
             print(f"Failed to load from TensorFlow Hub: {e}")
@@ -200,28 +202,60 @@ class MUSIQGPU:
             print(f"Error preprocessing image: {e}")
             return None
     
-    def predict_quality(self, image_tensor: tf.Tensor) -> Optional[float]:
+    def predict_quality(self, image_path: str) -> Optional[float]:
         """Predict image quality score using GPU/CPU."""
         try:
             if self.model is None:
                 print("Model not loaded")
                 return None
             
-            # Ensure tensor is on correct device
-            with tf.device(self.device):
-                # Make prediction
-                predictions = self.model(image_tensor, training=False)
-                
-                # Extract score
-                if isinstance(predictions, dict):
-                    score = float(list(predictions.values())[0].numpy().squeeze())
+            # For TensorFlow Hub models, we need to read image bytes
+            # For simplified models, we pass the path directly
+            if hasattr(self.model, 'signatures'):
+                # TensorFlow Hub model - read image bytes
+                try:
+                    with open(image_path, 'rb') as f:
+                        image_bytes = f.read()
+                    
+                    # Ensure tensor is on correct device
+                    with tf.device(self.device):
+                        # TensorFlow Hub models expect image bytes as string tensor
+                        image_bytes_tensor = tf.constant(image_bytes)
+                        predictions = self.model.signatures['serving_default'](image_bytes_tensor=image_bytes_tensor)
+                except Exception as e:
+                    print(f"Error reading image file: {e}")
+                    return None
+            else:
+                # Simplified model - pass path directly (fallback)
+                with tf.device(self.device):
+                    image_path_tensor = tf.constant(image_path)
+                    predictions = self.model(image_path_tensor)
+            
+            # Extract score - TensorFlow Hub models typically return a dict
+            if isinstance(predictions, dict):
+                # Look for common output keys
+                if 'predictions' in predictions:
+                    score = float(predictions['predictions'].numpy().squeeze())
+                elif 'output' in predictions:
+                    score = float(predictions['output'].numpy().squeeze())
+                elif 'quality_score' in predictions:
+                    score = float(predictions['quality_score'].numpy().squeeze())
+                elif 'output_0' in predictions:
+                    # TensorFlow Hub MUSIQ models use 'output_0' key
+                    score = float(predictions['output_0'].numpy().squeeze())
                 else:
-                    score = float(predictions.numpy().squeeze())
-                
-                # Scale to appropriate range based on model variant
+                    # Take the first value if we don't recognize the key
+                    score = float(list(predictions.values())[0].numpy().squeeze())
+            else:
+                # Direct tensor output
+                score = float(predictions.numpy().squeeze())
+            
+            # For TensorFlow Hub models, the score might already be in the correct range
+            # Only scale for simplified models
+            if not hasattr(self.model, 'signatures'):
                 score = self._scale_score(score)
-                
-                return score
+            
+            return score
                 
         except Exception as e:
             print(f"Error during prediction: {e}")
@@ -252,13 +286,13 @@ class MUSIQGPU:
         
         try:
             with tf.device(self.device):
-                # Warmup
-                _ = self.model(image_tensor, training=False)
+                # Warmup - TensorFlow Hub models are callable directly
+                _ = self.model(image_tensor)
                 
                 # Benchmark
                 for _ in range(num_runs):
                     start_time = tf.timestamp()
-                    _ = self.model(image_tensor, training=False)
+                    _ = self.model(image_tensor)
                     end_time = tf.timestamp()
                     times.append((end_time - start_time).numpy())
             
@@ -320,21 +354,28 @@ GPU Requirements:
         print("Error: Failed to load MUSIQ model")
         sys.exit(1)
     
-    # Preprocess image
-    target_size = tuple(args.target_size)
-    image_tensor = scorer.preprocess_image(args.image, target_size, args.save_preprocessed)
-    if image_tensor is None:
-        print("Error: Failed to preprocess image")
-        sys.exit(1)
+    # For TensorFlow Hub models, we pass the image path directly
+    # For simplified models, we still need preprocessing
+    if scorer.model is not None and hasattr(scorer.model, 'signatures'):
+        # TensorFlow Hub model - pass path directly
+        image_path = args.image
+    else:
+        # Simplified model - preprocess first
+        target_size = tuple(args.target_size)
+        image_tensor = scorer.preprocess_image(args.image, target_size, args.save_preprocessed)
+        if image_tensor is None:
+            print("Error: Failed to preprocess image")
+            sys.exit(1)
+        image_path = args.image  # Still pass path for consistency
     
-    # Run benchmark if requested
-    if args.benchmark:
+    # Run benchmark if requested (only for simplified models)
+    if args.benchmark and not hasattr(scorer.model, 'signatures'):
         print("Running performance benchmark...")
         benchmark_results = scorer.benchmark_performance(image_tensor)
         print(f"Benchmark results: {json.dumps(benchmark_results, indent=2)}")
     
     # Predict quality
-    score = scorer.predict_quality(image_tensor)
+    score = scorer.predict_quality(image_path)
     if score is None:
         print("Error: Failed to predict image quality")
         sys.exit(1)
