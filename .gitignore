@@ -1,0 +1,124 @@
+# MUSIQ Image Scoring Project - .gitignore
+
+# Model Checkpoints (Large files - should be downloaded separately)
+musiq_original/checkpoints/*.npz
+musiq_original/checkpoints/*.ckpt
+musiq_original/checkpoints/*.h5
+musiq_original/checkpoints/*.pth
+musiq_original/checkpoints/*.pkl
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+.venve/
+musiq_env/
+musiq_gpu_env/
+musiq_gpu_env_*/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Test images and outputs
+test_images/
+output/
+results/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.webp
+!sample.jpg
+
+# Large data files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# CUDA and GPU related
+*.cubin
+*.fatbin
+*.ptx
+
+# TensorFlow
+*.pb
+*.pbtxt
+*.meta
+*.index
+*.data-*
+
+# Model files (except documentation)
+*.model
+*.weights
+*.bin
+
+# Keep documentation files
+!musiq_original/checkpoints/CHECKPOINTS_INFO.md
+!*.md
+!README*
+!LICENSE*
+!requirements*.txt

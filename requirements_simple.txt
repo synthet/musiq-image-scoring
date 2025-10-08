@@ -1,0 +1,7 @@
+# MUSIQ: Multi-scale Image Quality Transformer - Simple Implementation
+# Minimal dependencies for CPU-only inference
+
+# Core dependencies
+numpy==1.26.4
+Pillow==10.4.0
+scipy==1.16.2

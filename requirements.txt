@@ -1,0 +1,17 @@
+# MUSIQ: Multi-scale Image Quality Transformer - Minimal Dependencies
+# CPU-only installation for production use
+
+# Core ML framework (CPU-only)
+tensorflow-cpu==2.15.0
+
+# Image processing
+Pillow==10.4.0
+
+# Numerical computing
+numpy==1.24.4
+
+# Optional: TensorFlow Hub for model loading
+tensorflow-hub==0.16.1
+
+# Optional: For advanced model loading (if needed)
+# kagglehub==0.2.32

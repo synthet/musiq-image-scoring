@@ -1,0 +1,14 @@
+# Minimal WSL2 TensorFlow GPU Requirements
+# Essential packages for MUSIQ image scoring with GPU acceleration
+
+# Core ML Framework
+tensorflow==2.20.0
+
+# Image Processing
+opencv-python==4.12.0.88
+pillow==11.3.0
+scikit-image==0.25.2
+
+# Development Tools
+setuptools==80.9.0
+wheel==0.45.1
