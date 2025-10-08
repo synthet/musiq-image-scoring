@@ -22,7 +22,7 @@ class MultiModelMUSIQ:
     """Run multiple MUSIQ models on a single image."""
     
     # Version identifier for this implementation
-    VERSION = "1.0.0"
+    VERSION = "2.0.0"
     
     def __init__(self):
         self.device = None
@@ -60,6 +60,14 @@ class MultiModelMUSIQ:
         
         # Initialize GPU support
         self._setup_gpu()
+        
+        # Model weights for weighted scoring (based on statistical analysis)
+        self.model_weights = {
+            "koniq": 0.35,      # Best balance of discrimination and reliability
+            "spaq": 0.30,       # Best discrimination (widest range)
+            "paq2piq": 0.25,    # Most lenient, good for high-quality detection
+            "ava": 0.10         # Most conservative, narrow range
+        }
     
     def _setup_gpu(self):
         """Setup GPU configuration."""
@@ -225,6 +233,16 @@ class MultiModelMUSIQ:
         if normalized_scores:
             average_normalized = sum(normalized_scores) / len(normalized_scores)
             results["summary"]["average_normalized_score"] = round(average_normalized, 3)
+            
+            # Calculate advanced scoring methods
+            normalized_scores_dict = {}
+            for model_name, model_result in results["models"].items():
+                if model_result["status"] == "success":
+                    normalized_scores_dict[model_name] = model_result["normalized_score"]
+            
+            if normalized_scores_dict:
+                advanced_scores = self.calculate_advanced_scores(normalized_scores_dict)
+                results["summary"]["advanced_scoring"] = advanced_scores
         
         return results
     
@@ -252,6 +270,86 @@ class MultiModelMUSIQ:
         except Exception as e:
             print(f"Error checking existing results: {e}")
             return False
+    
+    def calculate_weighted_score(self, scores: Dict[str, float]) -> float:
+        """Calculate weighted average score."""
+        weighted_sum = 0.0
+        total_weight = 0.0
+        
+        for model, score in scores.items():
+            if model in self.model_weights:
+                weight = self.model_weights[model]
+                weighted_sum += score * weight
+                total_weight += weight
+        
+        return weighted_sum / total_weight if total_weight > 0 else 0.0
+    
+    def calculate_median_score(self, scores: Dict[str, float]) -> float:
+        """Calculate median score (robust to outliers)."""
+        valid_scores = [score for score in scores.values() if score is not None]
+        return np.median(valid_scores) if valid_scores else 0.0
+    
+    def calculate_trimmed_mean(self, scores: Dict[str, float], trim_percent: float = 0.1) -> float:
+        """Calculate trimmed mean (remove extreme values)."""
+        valid_scores = [score for score in scores.values() if score is not None]
+        if not valid_scores:
+            return 0.0
+        
+        valid_scores.sort()
+        n = len(valid_scores)
+        trim_count = int(n * trim_percent)
+        
+        if trim_count > 0:
+            trimmed_scores = valid_scores[trim_count:-trim_count]
+        else:
+            trimmed_scores = valid_scores
+        
+        return np.mean(trimmed_scores) if trimmed_scores else 0.0
+    
+    def detect_outliers(self, scores: Dict[str, float]) -> List[str]:
+        """Detect models with outlier scores using IQR method."""
+        valid_scores = [(model, score) for model, score in scores.items() if score is not None]
+        if len(valid_scores) < 3:
+            return []
+        
+        scores_only = [score for _, score in valid_scores]
+        q1 = np.percentile(scores_only, 25)
+        q3 = np.percentile(scores_only, 75)
+        iqr = q3 - q1
+        
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        
+        outliers = []
+        for model, score in valid_scores:
+            if score < lower_bound or score > upper_bound:
+                outliers.append(model)
+        
+        return outliers
+    
+    def calculate_advanced_scores(self, normalized_scores: Dict[str, float]) -> Dict[str, float]:
+        """Calculate advanced scoring methods."""
+        # Remove outliers
+        outliers = self.detect_outliers(normalized_scores)
+        filtered_scores = {k: v for k, v in normalized_scores.items() if k not in outliers}
+        
+        # Calculate different scoring methods
+        weighted = self.calculate_weighted_score(filtered_scores)
+        median = self.calculate_median_score(filtered_scores)
+        trimmed_mean = self.calculate_trimmed_mean(filtered_scores)
+        
+        # Combine methods (weighted average of methods)
+        final_score = (weighted * 0.5 + median * 0.3 + trimmed_mean * 0.2)
+        
+        return {
+            "weighted_score": round(weighted, 3),
+            "median_score": round(median, 3),
+            "trimmed_mean_score": round(trimmed_mean, 3),
+            "final_robust_score": round(final_score, 3),
+            "outliers_detected": outliers,
+            "outlier_count": len(outliers),
+            "models_used": len(filtered_scores)
+        }
     
     def save_results(self, results: Dict[str, any], output_path: str):
         """Save results to JSON file."""
@@ -345,6 +443,15 @@ Available Models:
     
     if results['summary']['average_normalized_score'] is not None:
         print(f"Average normalized score: {results['summary']['average_normalized_score']}")
+    
+    # Show advanced scoring if available
+    if 'advanced_scoring' in results['summary']:
+        advanced = results['summary']['advanced_scoring']
+        print(f"Weighted score: {advanced['weighted_score']}")
+        print(f"Median score: {advanced['median_score']}")
+        print(f"Final robust score: {advanced['final_robust_score']}")
+        if advanced['outlier_count'] > 0:
+            print(f"Outliers detected: {advanced['outliers_detected']}")
     
     if results['summary']['successful_predictions'] > 0:
         print("\nScores:")
