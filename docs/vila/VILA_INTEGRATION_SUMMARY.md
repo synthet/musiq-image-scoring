@@ -232,7 +232,7 @@ VILA models require Kaggle Hub authentication:
 2. Generate API token (kaggle.json)
 3. Place in `~/.kaggle/` or `%USERPROFILE%\.kaggle\`
 
-See README_VILA.md for detailed setup instructions.
+See docs/vila/README_VILA.md for detailed setup instructions.
 
 ## Testing
 

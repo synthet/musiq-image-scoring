@@ -11,10 +11,10 @@ Essential documentation for new users.
 | Document | Description | Read Time |
 |----------|-------------|-----------|
 | **[README.md](README.md)** | Main project documentation and quick start guide | 10 min |
-| **[README_simple.md](README_simple.md)** | Simplified guide for basic usage | 5 min |
+| **[README_simple.md](docs/getting-started/README_simple.md)** | Simplified guide for basic usage | 5 min |
 | **[CHANGELOG.md](CHANGELOG.md)** | Version history and release notes | 5 min |
-| **[VERSION_2.3.0_RELEASE_NOTES.md](VERSION_2.3.0_RELEASE_NOTES.md)** | ⭐ Current release highlights | 8 min |
-| **[COMPLETE_SESSION_SUMMARY.md](COMPLETE_SESSION_SUMMARY.md)** | ⭐ Complete development session summary | 12 min |
+| **[VERSION_2.3.0_RELEASE_NOTES.md](docs/getting-started/VERSION_2.3.0_RELEASE_NOTES.md)** | ⭐ Current release highlights | 8 min |
+| **[COMPLETE_SESSION_SUMMARY.md](docs/getting-started/COMPLETE_SESSION_SUMMARY.md)** | ⭐ Complete development session summary | 12 min |
 
 ---
 
@@ -25,24 +25,24 @@ Documentation specific to the VILA (Vision-Language) model integration.
 ### Quick Reference
 | Document | Description | Read Time |
 |----------|-------------|-----------|
-| **[VILA_QUICK_START.md](VILA_QUICK_START.md)** | Quick start guide for VILA | 3 min |
-| **[README_VILA.md](README_VILA.md)** | Complete VILA documentation | 15 min |
-| **[VILA_BATCH_FILES_GUIDE.md](VILA_BATCH_FILES_GUIDE.md)** | Guide for VILA batch scripts | 8 min |
+| **[VILA_QUICK_START.md](docs/vila/VILA_QUICK_START.md)** | Quick start guide for VILA | 3 min |
+| **[README_VILA.md](docs/vila/README_VILA.md)** | Complete VILA documentation | 15 min |
+| **[VILA_BATCH_FILES_GUIDE.md](docs/vila/VILA_BATCH_FILES_GUIDE.md)** | Guide for VILA batch scripts | 8 min |
 
 ### Integration & Fixes
 | Document | Description | Read Time |
 |----------|-------------|-----------|
-| **[VILA_INTEGRATION_SUMMARY.md](VILA_INTEGRATION_SUMMARY.md)** | Initial integration summary | 10 min |
-| **[VILA_ALL_FIXES_SUMMARY.md](VILA_ALL_FIXES_SUMMARY.md)** | ⭐ Complete summary of all VILA fixes | 15 min |
-| **[VILA_FIXES_SUMMARY.md](VILA_FIXES_SUMMARY.md)** | Technical fix documentation | 12 min |
-| **[VILA_COMPLETE_SUMMARY.md](VILA_COMPLETE_SUMMARY.md)** | Comprehensive VILA documentation | 20 min |
+| **[VILA_INTEGRATION_SUMMARY.md](docs/vila/VILA_INTEGRATION_SUMMARY.md)** | Initial integration summary | 10 min |
+| **[VILA_ALL_FIXES_SUMMARY.md](docs/vila/VILA_ALL_FIXES_SUMMARY.md)** | ⭐ Complete summary of all VILA fixes | 15 min |
+| **[VILA_FIXES_SUMMARY.md](docs/vila/VILA_FIXES_SUMMARY.md)** | Technical fix documentation | 12 min |
+| **[VILA_COMPLETE_SUMMARY.md](docs/vila/VILA_COMPLETE_SUMMARY.md)** | Comprehensive VILA documentation | 20 min |
 
 ### Specific Fixes
 | Document | Description | Read Time |
 |----------|-------------|-----------|
-| **[VILA_MODEL_PATH_FIX.md](VILA_MODEL_PATH_FIX.md)** | Model path and parameter fixes | 10 min |
-| **[VILA_PARAMETER_FIX.md](VILA_PARAMETER_FIX.md)** | Parameter name fix details | 5 min |
-| **[VILA_SCORE_RANGE_CORRECTION.md](VILA_SCORE_RANGE_CORRECTION.md)** | Score range correction (0-10 → 0-1) | 12 min |
+| **[VILA_MODEL_PATH_FIX.md](docs/vila/VILA_MODEL_PATH_FIX.md)** | Model path and parameter fixes | 10 min |
+| **[VILA_PARAMETER_FIX.md](docs/vila/VILA_PARAMETER_FIX.md)** | Parameter name fix details | 5 min |
+| **[VILA_SCORE_RANGE_CORRECTION.md](docs/vila/VILA_SCORE_RANGE_CORRECTION.md)** | Score range correction (0-10 → 0-1) | 12 min |
 
 ---
 
@@ -52,10 +52,10 @@ Documentation for creating and using image galleries.
 
 | Document | Description | Read Time |
 |----------|-------------|-----------|
-| **[GALLERY_GENERATOR_README.md](GALLERY_GENERATOR_README.md)** | Gallery generator documentation | 8 min |
-| **[GALLERY_README.md](GALLERY_README.md)** | Gallery features and usage | 6 min |
-| **[GALLERY_VILA_UPDATE.md](GALLERY_VILA_UPDATE.md)** | VILA integration in gallery | 10 min |
-| **[GALLERY_SORTING_FIX.md](GALLERY_SORTING_FIX.md)** | ⭐ Filename and date sorting fixes | 8 min |
+| **[GALLERY_GENERATOR_README.md](docs/gallery/GALLERY_GENERATOR_README.md)** | Gallery generator documentation | 8 min |
+| **[GALLERY_README.md](docs/gallery/GALLERY_README.md)** | Gallery features and usage | 6 min |
+| **[GALLERY_VILA_UPDATE.md](docs/gallery/GALLERY_VILA_UPDATE.md)** | VILA integration in gallery | 10 min |
+| **[GALLERY_SORTING_FIX.md](docs/gallery/GALLERY_SORTING_FIX.md)** | ⭐ Filename and date sorting fixes | 8 min |
 
 ---
 
@@ -65,8 +65,8 @@ Documentation for processing multiple images.
 
 | Document | Description | Read Time |
 |----------|-------------|-----------|
-| **[BATCH_PROCESSING_SUMMARY.md](BATCH_PROCESSING_SUMMARY.md)** | Batch processing guide | 10 min |
-| **[README_MULTI_MODEL.md](README_MULTI_MODEL.md)** | Multi-model processing documentation | 12 min |
+| **[BATCH_PROCESSING_SUMMARY.md](docs/technical/BATCH_PROCESSING_SUMMARY.md)** | Batch processing guide | 10 min |
+| **[README_MULTI_MODEL.md](docs/technical/README_MULTI_MODEL.md)** | Multi-model processing documentation | 12 min |
 
 ---
 
@@ -76,13 +76,13 @@ Documentation about scoring methodology and model information.
 
 | Document | Description | Read Time |
 |----------|-------------|-----------|
-| **[WEIGHTED_SCORING_STRATEGY.md](WEIGHTED_SCORING_STRATEGY.md)** | Weighted scoring methodology | 15 min |
-| **[MODELS_SUMMARY.md](MODELS_SUMMARY.md)** | Information about all models | 8 min |
-| **[MODEL_FALLBACK_MECHANISM.md](MODEL_FALLBACK_MECHANISM.md)** | TFHub → Kaggle Hub fallback system | 12 min |
-| **[TRIPLE_FALLBACK_SYSTEM.md](TRIPLE_FALLBACK_SYSTEM.md)** | ⭐ Triple fallback: TFHub → Kaggle → Local | 15 min |
-| **[MODEL_SOURCE_TESTING.md](MODEL_SOURCE_TESTING.md)** | ⭐ Test script for verifying all model sources | 10 min |
-| **[CHECKPOINT_STATUS.md](CHECKPOINT_STATUS.md)** | ⭐ Checkpoint files inventory and status | 8 min |
-| **[ANALYSIS_SCRIPT_DOCUMENTATION.md](ANALYSIS_SCRIPT_DOCUMENTATION.md)** | Analysis scripts documentation | 10 min |
+| **[WEIGHTED_SCORING_STRATEGY.md](docs/technical/WEIGHTED_SCORING_STRATEGY.md)** | Weighted scoring methodology | 15 min |
+| **[MODELS_SUMMARY.md](docs/technical/MODELS_SUMMARY.md)** | Information about all models | 8 min |
+| **[MODEL_FALLBACK_MECHANISM.md](docs/technical/MODEL_FALLBACK_MECHANISM.md)** | TFHub → Kaggle Hub fallback system | 12 min |
+| **[TRIPLE_FALLBACK_SYSTEM.md](docs/technical/TRIPLE_FALLBACK_SYSTEM.md)** | ⭐ Triple fallback: TFHub → Kaggle → Local | 15 min |
+| **[MODEL_SOURCE_TESTING.md](docs/technical/MODEL_SOURCE_TESTING.md)** | ⭐ Test script for verifying all model sources | 10 min |
+| **[CHECKPOINT_STATUS.md](docs/technical/CHECKPOINT_STATUS.md)** | ⭐ Checkpoint files inventory and status | 8 min |
+| **[ANALYSIS_SCRIPT_DOCUMENTATION.md](docs/technical/ANALYSIS_SCRIPT_DOCUMENTATION.md)** | Analysis scripts documentation | 10 min |
 
 ---
 
@@ -93,25 +93,25 @@ Documentation for setting up the development environment.
 ### Windows Scripts
 | Document | Description | Read Time |
 |----------|-------------|-----------|
-| **[WINDOWS_SCRIPTS_README.md](WINDOWS_SCRIPTS_README.md)** | Windows batch and PowerShell scripts | 8 min |
+| **[WINDOWS_SCRIPTS_README.md](docs/setup/WINDOWS_SCRIPTS_README.md)** | Windows batch and PowerShell scripts | 8 min |
 
 ### WSL & Linux Setup
 | Document | Description | Read Time |
 |----------|-------------|-----------|
-| **[WSL2_SETUP_COMPLETE.md](WSL2_SETUP_COMPLETE.md)** | Complete WSL2 setup guide | 20 min |
-| **[WSL2_TENSORFLOW_GPU_SETUP.md](WSL2_TENSORFLOW_GPU_SETUP.md)** | TensorFlow GPU setup in WSL2 | 25 min |
-| **[WSL_WRAPPER_VERIFICATION.md](WSL_WRAPPER_VERIFICATION.md)** | WSL wrapper verification | 8 min |
-| **[WSL_PYTHON_ENVIRONMENT_STATUS.md](WSL_PYTHON_ENVIRONMENT_STATUS.md)** | Python environment status | 5 min |
-| **[WSL_PYTHON_PACKAGES.md](WSL_PYTHON_PACKAGES.md)** | Python packages in WSL | 3 min |
-| **[WSL_UBUNTU_PACKAGES.md](WSL_UBUNTU_PACKAGES.md)** | Ubuntu packages in WSL | 3 min |
+| **[WSL2_SETUP_COMPLETE.md](docs/setup/WSL2_SETUP_COMPLETE.md)** | Complete WSL2 setup guide | 20 min |
+| **[WSL2_TENSORFLOW_GPU_SETUP.md](docs/setup/WSL2_TENSORFLOW_GPU_SETUP.md)** | TensorFlow GPU setup in WSL2 | 25 min |
+| **[WSL_WRAPPER_VERIFICATION.md](docs/setup/WSL_WRAPPER_VERIFICATION.md)** | WSL wrapper verification | 8 min |
+| **[WSL_PYTHON_ENVIRONMENT_STATUS.md](docs/setup/WSL_PYTHON_ENVIRONMENT_STATUS.md)** | Python environment status | 5 min |
+| **[WSL_PYTHON_PACKAGES.md](docs/setup/WSL_PYTHON_PACKAGES.md)** | Python packages in WSL | 3 min |
+| **[WSL_UBUNTU_PACKAGES.md](docs/setup/WSL_UBUNTU_PACKAGES.md)** | Ubuntu packages in WSL | 3 min |
 
 ### GPU & CUDA Setup
 | Document | Description | Read Time |
 |----------|-------------|-----------|
-| **[README_gpu.md](README_gpu.md)** | GPU usage guide | 12 min |
-| **[GPU_SETUP_STATUS.md](GPU_SETUP_STATUS.md)** | GPU setup status | 5 min |
-| **[GPU_IMPLEMENTATION_SUMMARY.md](GPU_IMPLEMENTATION_SUMMARY.md)** | GPU implementation details | 10 min |
-| **[install_cuda.md](install_cuda.md)** | CUDA installation guide | 15 min |
+| **[README_gpu.md](docs/setup/README_gpu.md)** | GPU usage guide | 12 min |
+| **[GPU_SETUP_STATUS.md](docs/setup/GPU_SETUP_STATUS.md)** | GPU setup status | 5 min |
+| **[GPU_IMPLEMENTATION_SUMMARY.md](docs/setup/GPU_IMPLEMENTATION_SUMMARY.md)** | GPU implementation details | 10 min |
+| **[install_cuda.md](docs/setup/install_cuda.md)** | CUDA installation guide | 15 min |
 
 ---
 
@@ -121,9 +121,9 @@ Documentation about project structure and cleanup.
 
 | Document | Description | Read Time |
 |----------|-------------|-----------|
-| **[PROJECT_STRUCTURE_ANALYSIS.md](PROJECT_STRUCTURE_ANALYSIS.md)** | Project structure overview | 12 min |
-| **[CLEANUP_SUMMARY.md](CLEANUP_SUMMARY.md)** | Cleanup operations summary | 5 min |
-| **[ENVIRONMENT_CLEANUP_SUMMARY.md](ENVIRONMENT_CLEANUP_SUMMARY.md)** | Environment cleanup details | 5 min |
+| **[PROJECT_STRUCTURE_ANALYSIS.md](docs/technical/PROJECT_STRUCTURE_ANALYSIS.md)** | Project structure overview | 12 min |
+| **[CLEANUP_SUMMARY.md](docs/maintenance/CLEANUP_SUMMARY.md)** | Cleanup operations summary | 5 min |
+| **[ENVIRONMENT_CLEANUP_SUMMARY.md](docs/maintenance/ENVIRONMENT_CLEANUP_SUMMARY.md)** | Environment cleanup details | 5 min |
 
 ---
 
@@ -143,71 +143,71 @@ Documentation for the original MUSIQ implementation.
 ### By Topic
 
 #### Authentication & Credentials
-- [README_VILA.md](README_VILA.md) - Kaggle authentication setup
-- [WSL2_SETUP_COMPLETE.md](WSL2_SETUP_COMPLETE.md) - System credentials
+- [README_VILA.md](docs/vila/README_VILA.md) - Kaggle authentication setup
+- [WSL2_SETUP_COMPLETE.md](docs/setup/WSL2_SETUP_COMPLETE.md) - System credentials
 
 #### Troubleshooting
-- [VILA_ALL_FIXES_SUMMARY.md](VILA_ALL_FIXES_SUMMARY.md) - All VILA issues and fixes
-- [README_VILA.md](README_VILA.md) - VILA troubleshooting section
-- [GPU_SETUP_STATUS.md](GPU_SETUP_STATUS.md) - GPU issues
+- [VILA_ALL_FIXES_SUMMARY.md](docs/vila/VILA_ALL_FIXES_SUMMARY.md) - All VILA issues and fixes
+- [README_VILA.md](docs/vila/README_VILA.md) - VILA troubleshooting section
+- [GPU_SETUP_STATUS.md](docs/setup/GPU_SETUP_STATUS.md) - GPU issues
 
 #### Performance & Optimization
-- [WEIGHTED_SCORING_STRATEGY.md](WEIGHTED_SCORING_STRATEGY.md) - Scoring optimization
-- [GPU_IMPLEMENTATION_SUMMARY.md](GPU_IMPLEMENTATION_SUMMARY.md) - GPU acceleration
-- [BATCH_PROCESSING_SUMMARY.md](BATCH_PROCESSING_SUMMARY.md) - Batch optimization
+- [WEIGHTED_SCORING_STRATEGY.md](docs/technical/WEIGHTED_SCORING_STRATEGY.md) - Scoring optimization
+- [GPU_IMPLEMENTATION_SUMMARY.md](docs/setup/GPU_IMPLEMENTATION_SUMMARY.md) - GPU acceleration
+- [BATCH_PROCESSING_SUMMARY.md](docs/technical/BATCH_PROCESSING_SUMMARY.md) - Batch optimization
 
 #### Model Information
-- [MODELS_SUMMARY.md](MODELS_SUMMARY.md) - All model details
-- [README_VILA.md](README_VILA.md) - VILA model specifics
-- [VILA_SCORE_RANGE_CORRECTION.md](VILA_SCORE_RANGE_CORRECTION.md) - Score ranges
+- [MODELS_SUMMARY.md](docs/technical/MODELS_SUMMARY.md) - All model details
+- [README_VILA.md](docs/vila/README_VILA.md) - VILA model specifics
+- [VILA_SCORE_RANGE_CORRECTION.md](docs/vila/VILA_SCORE_RANGE_CORRECTION.md) - Score ranges
 
 ### By User Type
 
 #### For End Users
 1. [README.md](README.md) - Start here
-2. [VILA_QUICK_START.md](VILA_QUICK_START.md) - Quick VILA guide
-3. [VILA_BATCH_FILES_GUIDE.md](VILA_BATCH_FILES_GUIDE.md) - Using batch files
-4. [GALLERY_GENERATOR_README.md](GALLERY_GENERATOR_README.md) - Creating galleries
+2. [VILA_QUICK_START.md](docs/vila/VILA_QUICK_START.md) - Quick VILA guide
+3. [VILA_BATCH_FILES_GUIDE.md](docs/vila/VILA_BATCH_FILES_GUIDE.md) - Using batch files
+4. [GALLERY_GENERATOR_README.md](docs/gallery/GALLERY_GENERATOR_README.md) - Creating galleries
 
 #### For Developers
-1. [PROJECT_STRUCTURE_ANALYSIS.md](PROJECT_STRUCTURE_ANALYSIS.md) - Code structure
-2. [VILA_INTEGRATION_SUMMARY.md](VILA_INTEGRATION_SUMMARY.md) - Integration details
-3. [WEIGHTED_SCORING_STRATEGY.md](WEIGHTED_SCORING_STRATEGY.md) - Scoring algorithms
-4. [ANALYSIS_SCRIPT_DOCUMENTATION.md](ANALYSIS_SCRIPT_DOCUMENTATION.md) - Script APIs
+1. [PROJECT_STRUCTURE_ANALYSIS.md](docs/technical/PROJECT_STRUCTURE_ANALYSIS.md) - Code structure
+2. [VILA_INTEGRATION_SUMMARY.md](docs/vila/VILA_INTEGRATION_SUMMARY.md) - Integration details
+3. [WEIGHTED_SCORING_STRATEGY.md](docs/technical/WEIGHTED_SCORING_STRATEGY.md) - Scoring algorithms
+4. [ANALYSIS_SCRIPT_DOCUMENTATION.md](docs/technical/ANALYSIS_SCRIPT_DOCUMENTATION.md) - Script APIs
 
 #### For System Administrators
-1. [WSL2_SETUP_COMPLETE.md](WSL2_SETUP_COMPLETE.md) - Environment setup
-2. [GPU_SETUP_STATUS.md](GPU_SETUP_STATUS.md) - GPU configuration
-3. [WSL_WRAPPER_VERIFICATION.md](WSL_WRAPPER_VERIFICATION.md) - Verification steps
-4. [ENVIRONMENT_CLEANUP_SUMMARY.md](ENVIRONMENT_CLEANUP_SUMMARY.md) - Maintenance
+1. [WSL2_SETUP_COMPLETE.md](docs/setup/WSL2_SETUP_COMPLETE.md) - Environment setup
+2. [GPU_SETUP_STATUS.md](docs/setup/GPU_SETUP_STATUS.md) - GPU configuration
+3. [WSL_WRAPPER_VERIFICATION.md](docs/setup/WSL_WRAPPER_VERIFICATION.md) - Verification steps
+4. [ENVIRONMENT_CLEANUP_SUMMARY.md](docs/maintenance/ENVIRONMENT_CLEANUP_SUMMARY.md) - Maintenance
 
 ---
 
 ## 📋 Document Status
 
 ### Most Recent Documents (2025-10-09)
-- ⭐ [COMPLETE_SESSION_SUMMARY.md](COMPLETE_SESSION_SUMMARY.md) - NEW (Full session summary)
-- ⭐ [VERSION_2.3.0_RELEASE_NOTES.md](VERSION_2.3.0_RELEASE_NOTES.md) - NEW (Release highlights)
-- ⭐ [TRIPLE_FALLBACK_SYSTEM.md](TRIPLE_FALLBACK_SYSTEM.md) - NEW (v2.3.0 feature)
-- ⭐ [CHECKPOINT_STATUS.md](CHECKPOINT_STATUS.md) - NEW (Checkpoint inventory)
-- ⭐ [MODEL_SOURCE_TESTING.md](MODEL_SOURCE_TESTING.md) - NEW (Testing guide)
-- ⭐ [MODEL_FALLBACK_MECHANISM.md](MODEL_FALLBACK_MECHANISM.md) - NEW (v2.2.0 feature)
-- ⭐ [GALLERY_SORTING_FIX.md](GALLERY_SORTING_FIX.md) - NEW (Gallery fixes)
+- ⭐ [COMPLETE_SESSION_SUMMARY.md](docs/getting-started/COMPLETE_SESSION_SUMMARY.md) - NEW (Full session summary)
+- ⭐ [VERSION_2.3.0_RELEASE_NOTES.md](docs/getting-started/VERSION_2.3.0_RELEASE_NOTES.md) - NEW (Release highlights)
+- ⭐ [TRIPLE_FALLBACK_SYSTEM.md](docs/technical/TRIPLE_FALLBACK_SYSTEM.md) - NEW (v2.3.0 feature)
+- ⭐ [CHECKPOINT_STATUS.md](docs/technical/CHECKPOINT_STATUS.md) - NEW (Checkpoint inventory)
+- ⭐ [MODEL_SOURCE_TESTING.md](docs/technical/MODEL_SOURCE_TESTING.md) - NEW (Testing guide)
+- ⭐ [MODEL_FALLBACK_MECHANISM.md](docs/technical/MODEL_FALLBACK_MECHANISM.md) - NEW (v2.2.0 feature)
+- ⭐ [GALLERY_SORTING_FIX.md](docs/gallery/GALLERY_SORTING_FIX.md) - NEW (Gallery fixes)
 - ⭐ [CHANGELOG.md](CHANGELOG.md) - NEW (Updated with v2.3.0)
 - ⭐ [INDEX.md](INDEX.md) - NEW (this file)
-- [VILA_SCORE_RANGE_CORRECTION.md](VILA_SCORE_RANGE_CORRECTION.md)
-- [VILA_ALL_FIXES_SUMMARY.md](VILA_ALL_FIXES_SUMMARY.md)
-- [WSL_WRAPPER_VERIFICATION.md](WSL_WRAPPER_VERIFICATION.md)
-- [VILA_BATCH_FILES_GUIDE.md](VILA_BATCH_FILES_GUIDE.md)
+- [VILA_SCORE_RANGE_CORRECTION.md](docs/vila/VILA_SCORE_RANGE_CORRECTION.md)
+- [VILA_ALL_FIXES_SUMMARY.md](docs/vila/VILA_ALL_FIXES_SUMMARY.md)
+- [WSL_WRAPPER_VERIFICATION.md](docs/setup/WSL_WRAPPER_VERIFICATION.md)
+- [VILA_BATCH_FILES_GUIDE.md](docs/vila/VILA_BATCH_FILES_GUIDE.md)
 
 ### Frequently Updated
 - [README.md](README.md) - Updated with each version
-- [README_VILA.md](README_VILA.md) - Updated with VILA changes
-- [VILA_FIXES_SUMMARY.md](VILA_FIXES_SUMMARY.md) - Updated with fixes
+- [README_VILA.md](docs/vila/README_VILA.md) - Updated with VILA changes
+- [VILA_FIXES_SUMMARY.md](docs/vila/VILA_FIXES_SUMMARY.md) - Updated with fixes
 
 ### Reference Documents (Stable)
-- [WEIGHTED_SCORING_STRATEGY.md](WEIGHTED_SCORING_STRATEGY.md)
-- [MODELS_SUMMARY.md](MODELS_SUMMARY.md)
+- [WEIGHTED_SCORING_STRATEGY.md](docs/technical/WEIGHTED_SCORING_STRATEGY.md)
+- [MODELS_SUMMARY.md](docs/technical/MODELS_SUMMARY.md)
 - [musiq_original/README.md](musiq_original/README.md)
 
 ---
@@ -216,38 +216,38 @@ Documentation for the original MUSIQ implementation.
 
 ### Path 1: Quick Start (30 minutes)
 1. [README.md](README.md) - 10 min
-2. [VILA_QUICK_START.md](VILA_QUICK_START.md) - 3 min
-3. [VILA_BATCH_FILES_GUIDE.md](VILA_BATCH_FILES_GUIDE.md) - 8 min
-4. [GALLERY_GENERATOR_README.md](GALLERY_GENERATOR_README.md) - 8 min
+2. [VILA_QUICK_START.md](docs/vila/VILA_QUICK_START.md) - 3 min
+3. [VILA_BATCH_FILES_GUIDE.md](docs/vila/VILA_BATCH_FILES_GUIDE.md) - 8 min
+4. [GALLERY_GENERATOR_README.md](docs/gallery/GALLERY_GENERATOR_README.md) - 8 min
 
 ### Path 2: Complete Understanding (2 hours)
 1. [README.md](README.md) - 10 min
-2. [README_VILA.md](README_VILA.md) - 15 min
-3. [VILA_ALL_FIXES_SUMMARY.md](VILA_ALL_FIXES_SUMMARY.md) - 15 min
-4. [WEIGHTED_SCORING_STRATEGY.md](WEIGHTED_SCORING_STRATEGY.md) - 15 min
-5. [BATCH_PROCESSING_SUMMARY.md](BATCH_PROCESSING_SUMMARY.md) - 10 min
-6. [GALLERY_GENERATOR_README.md](GALLERY_GENERATOR_README.md) - 8 min
-7. [WSL2_SETUP_COMPLETE.md](WSL2_SETUP_COMPLETE.md) - 20 min
-8. [GPU_IMPLEMENTATION_SUMMARY.md](GPU_IMPLEMENTATION_SUMMARY.md) - 10 min
-9. [PROJECT_STRUCTURE_ANALYSIS.md](PROJECT_STRUCTURE_ANALYSIS.md) - 12 min
+2. [README_VILA.md](docs/vila/README_VILA.md) - 15 min
+3. [VILA_ALL_FIXES_SUMMARY.md](docs/vila/VILA_ALL_FIXES_SUMMARY.md) - 15 min
+4. [WEIGHTED_SCORING_STRATEGY.md](docs/technical/WEIGHTED_SCORING_STRATEGY.md) - 15 min
+5. [BATCH_PROCESSING_SUMMARY.md](docs/technical/BATCH_PROCESSING_SUMMARY.md) - 10 min
+6. [GALLERY_GENERATOR_README.md](docs/gallery/GALLERY_GENERATOR_README.md) - 8 min
+7. [WSL2_SETUP_COMPLETE.md](docs/setup/WSL2_SETUP_COMPLETE.md) - 20 min
+8. [GPU_IMPLEMENTATION_SUMMARY.md](docs/setup/GPU_IMPLEMENTATION_SUMMARY.md) - 10 min
+9. [PROJECT_STRUCTURE_ANALYSIS.md](docs/technical/PROJECT_STRUCTURE_ANALYSIS.md) - 12 min
 10. [CHANGELOG.md](CHANGELOG.md) - 5 min
 
 ### Path 3: VILA Focus (1 hour)
-1. [VILA_QUICK_START.md](VILA_QUICK_START.md) - 3 min
-2. [README_VILA.md](README_VILA.md) - 15 min
-3. [VILA_ALL_FIXES_SUMMARY.md](VILA_ALL_FIXES_SUMMARY.md) - 15 min
-4. [VILA_SCORE_RANGE_CORRECTION.md](VILA_SCORE_RANGE_CORRECTION.md) - 12 min
-5. [VILA_BATCH_FILES_GUIDE.md](VILA_BATCH_FILES_GUIDE.md) - 8 min
-6. [GALLERY_VILA_UPDATE.md](GALLERY_VILA_UPDATE.md) - 10 min
+1. [VILA_QUICK_START.md](docs/vila/VILA_QUICK_START.md) - 3 min
+2. [README_VILA.md](docs/vila/README_VILA.md) - 15 min
+3. [VILA_ALL_FIXES_SUMMARY.md](docs/vila/VILA_ALL_FIXES_SUMMARY.md) - 15 min
+4. [VILA_SCORE_RANGE_CORRECTION.md](docs/vila/VILA_SCORE_RANGE_CORRECTION.md) - 12 min
+5. [VILA_BATCH_FILES_GUIDE.md](docs/vila/VILA_BATCH_FILES_GUIDE.md) - 8 min
+6. [GALLERY_VILA_UPDATE.md](docs/gallery/GALLERY_VILA_UPDATE.md) - 10 min
 
 ### Path 4: Setup & Configuration (1.5 hours)
 1. [README.md](README.md) - 10 min
-2. [WSL2_SETUP_COMPLETE.md](WSL2_SETUP_COMPLETE.md) - 20 min
-3. [WSL2_TENSORFLOW_GPU_SETUP.md](WSL2_TENSORFLOW_GPU_SETUP.md) - 25 min
-4. [GPU_SETUP_STATUS.md](GPU_SETUP_STATUS.md) - 5 min
-5. [README_VILA.md](README_VILA.md) - 15 min (Kaggle auth)
-6. [WSL_WRAPPER_VERIFICATION.md](WSL_WRAPPER_VERIFICATION.md) - 8 min
-7. [WINDOWS_SCRIPTS_README.md](WINDOWS_SCRIPTS_README.md) - 8 min
+2. [WSL2_SETUP_COMPLETE.md](docs/setup/WSL2_SETUP_COMPLETE.md) - 20 min
+3. [WSL2_TENSORFLOW_GPU_SETUP.md](docs/setup/WSL2_TENSORFLOW_GPU_SETUP.md) - 25 min
+4. [GPU_SETUP_STATUS.md](docs/setup/GPU_SETUP_STATUS.md) - 5 min
+5. [README_VILA.md](docs/vila/README_VILA.md) - 15 min (Kaggle auth)
+6. [WSL_WRAPPER_VERIFICATION.md](docs/setup/WSL_WRAPPER_VERIFICATION.md) - 8 min
+7. [WINDOWS_SCRIPTS_README.md](docs/setup/WINDOWS_SCRIPTS_README.md) - 8 min
 
 ---
 
@@ -304,22 +304,22 @@ GPU_IMPLEMENTATION_SUMMARY.md (GPU)
 ### Common Questions
 
 **Q: Where do I start?**  
-A: [README.md](README.md) for overview, then [VILA_QUICK_START.md](VILA_QUICK_START.md) for VILA.
+A: [README.md](README.md) for overview, then [VILA_QUICK_START.md](docs/vila/VILA_QUICK_START.md) for VILA.
 
 **Q: How do I fix VILA errors?**  
-A: [VILA_ALL_FIXES_SUMMARY.md](VILA_ALL_FIXES_SUMMARY.md) has all solutions.
+A: [VILA_ALL_FIXES_SUMMARY.md](docs/vila/VILA_ALL_FIXES_SUMMARY.md) has all solutions.
 
 **Q: How do I set up Kaggle authentication?**  
-A: [README_VILA.md](README_VILA.md), section "Setup Requirements".
+A: [README_VILA.md](docs/vila/README_VILA.md), section "Setup Requirements".
 
 **Q: How do I create a gallery?**  
-A: [GALLERY_GENERATOR_README.md](GALLERY_GENERATOR_README.md) has complete instructions.
+A: [GALLERY_GENERATOR_README.md](docs/gallery/GALLERY_GENERATOR_README.md) has complete instructions.
 
 **Q: What's new in the latest version?**  
 A: [CHANGELOG.md](CHANGELOG.md) has all version changes.
 
 **Q: How do I set up GPU support?**  
-A: [WSL2_TENSORFLOW_GPU_SETUP.md](WSL2_TENSORFLOW_GPU_SETUP.md) for complete setup.
+A: [WSL2_TENSORFLOW_GPU_SETUP.md](docs/setup/WSL2_TENSORFLOW_GPU_SETUP.md) for complete setup.
 
 ---
 

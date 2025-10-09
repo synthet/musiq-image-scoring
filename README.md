@@ -143,7 +143,7 @@ This project supports multiple image quality and aesthetic assessment models:
 ### VILA Model (Vision-Language Aesthetics)
 - **VILA**: Vision-language aesthetic assessment (range: 0-1, normalized)
 
-For detailed VILA setup and usage, see [README_VILA.md](README_VILA.md).
+For detailed VILA setup and usage, see [README_VILA.md](docs/vila/README_VILA.md).
 
 ## Gallery Generation
 
@@ -213,7 +213,7 @@ The tool uses a **triple fallback mechanism** for maximum reliability:
    - No network required
 
 **Reliability**: 99.9%+ uptime with triple fallback  
-**See**: [TRIPLE_FALLBACK_SYSTEM.md](TRIPLE_FALLBACK_SYSTEM.md) for complete details
+**See**: [TRIPLE_FALLBACK_SYSTEM.md](docs/technical/TRIPLE_FALLBACK_SYSTEM.md) for complete details
 
 ### Model Variants
 
@@ -277,7 +277,7 @@ After first successful run, models are cached locally and can be used offline.
 - **kagglehub==0.3.4**: Kaggle Hub for VILA and all models (fallback source)
 
 **Optional**:
-- Local checkpoint files (for offline support): See [CHECKPOINT_STATUS.md](CHECKPOINT_STATUS.md)
+- Local checkpoint files (for offline support): See [CHECKPOINT_STATUS.md](docs/technical/CHECKPOINT_STATUS.md)
 
 ## Implementation Notes
 
@@ -291,9 +291,9 @@ This tool uses a simplified approach for CPU-only inference:
 
 - **[INDEX.md](INDEX.md)** - Complete documentation index (44 documents)
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history and release notes
-- **[VERSION_2.3.0_RELEASE_NOTES.md](VERSION_2.3.0_RELEASE_NOTES.md)** - Current release highlights
-- **[TRIPLE_FALLBACK_SYSTEM.md](TRIPLE_FALLBACK_SYSTEM.md)** - Fallback mechanism guide
-- **[CHECKPOINT_STATUS.md](CHECKPOINT_STATUS.md)** - Local checkpoint inventory
+- **[VERSION_2.3.0_RELEASE_NOTES.md](docs/getting-started/VERSION_2.3.0_RELEASE_NOTES.md)** - Current release highlights
+- **[TRIPLE_FALLBACK_SYSTEM.md](docs/technical/TRIPLE_FALLBACK_SYSTEM.md)** - Fallback mechanism guide
+- **[CHECKPOINT_STATUS.md](docs/technical/CHECKPOINT_STATUS.md)** - Local checkpoint inventory
 
 ## References
 

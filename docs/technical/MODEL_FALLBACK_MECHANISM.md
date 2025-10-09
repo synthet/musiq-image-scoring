@@ -247,7 +247,7 @@ Loading CUSTOM model from Kaggle Hub: google/custom/tensorFlow2/model
 ✗ Failed to load CUSTOM model from Kaggle Hub: 404 Not Found
 
 Note: Kaggle Hub models require authentication.
-See README_VILA.md for Kaggle setup instructions.
+See docs/vila/README_VILA.md for Kaggle setup instructions.
 
 ✗ Failed to load CUSTOM model: No available sources succeeded
 ```
@@ -390,9 +390,9 @@ self.model_sources = {
 ## Related Documents
 
 - [CHANGELOG.md](CHANGELOG.md) - Version 2.2.0 release notes
-- [README_VILA.md](README_VILA.md) - Kaggle authentication setup
-- [WSL_WRAPPER_VERIFICATION.md](WSL_WRAPPER_VERIFICATION.md) - Environment verification
-- [VILA_ALL_FIXES_SUMMARY.md](VILA_ALL_FIXES_SUMMARY.md) - Complete VILA integration history
+- [README_VILA.md](docs/vila/README_VILA.md) - Kaggle authentication setup
+- [WSL_WRAPPER_VERIFICATION.md](docs/setup/WSL_WRAPPER_VERIFICATION.md) - Environment verification
+- [VILA_ALL_FIXES_SUMMARY.md](docs/vila/VILA_ALL_FIXES_SUMMARY.md) - Complete VILA integration history
 
 ---
 

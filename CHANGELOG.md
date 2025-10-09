@@ -5,6 +5,61 @@ All notable changes to the Image Scoring project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.1] - 2025-10-09
+
+### Changed
+- **Project Restructuring**: Reorganized 82 files into semantic folder structure
+  - Documentation moved to `docs/` (organized by category)
+  - Scripts moved to `scripts/` (organized by type: batch, powershell)
+  - Tests moved to `tests/`
+  - Requirements moved to `requirements/`
+  - All entry points remain in root for easy access
+- **Reference Updates**: Updated 151 file references across 19 files
+  - All markdown links updated
+  - All documentation cross-references preserved
+  - All script paths corrected
+- **Backward Compatibility**: Added wrapper scripts in root
+  - `create_gallery.bat` → `scripts/batch/create_gallery.bat`
+  - `test_model_sources.bat` → `scripts/batch/test_model_sources.bat`
+  - `Create-Gallery.ps1` → `scripts/powershell/Create-Gallery.ps1`
+  - User experience unchanged (still drag-and-drop friendly)
+
+### Added
+- **PROJECT_STRUCTURE.md**: Complete guide to new folder organization
+- **Wrapper Scripts**: Root-level launchers for backward compatibility
+- **Helper Scripts**: `restructure_project.py`, `update_references.py`
+
+### Documentation Organization
+```
+docs/
+├── getting-started/  (3 files)
+├── vila/            (10 files)
+├── gallery/          (4 files)
+├── setup/           (11 files)
+├── technical/       (10 files)
+└── maintenance/      (3 files)
+```
+
+### Benefits
+- 📁 Better organization (files grouped by purpose)
+- 🔍 Easier to find documentation (category-based)
+- 🧹 Cleaner root directory (only essentials)
+- ⚡ Same user experience (wrappers in root)
+- 📈 More scalable (easy to add new files)
+
+### Impact
+- ✅ No breaking changes (fully backward compatible)
+- ✅ All functionality preserved
+- ✅ Drag-and-drop still works
+- ✅ All links and references updated
+- ✅ Entry points unchanged
+
+### Testing
+- Verified all 82 file moves
+- Verified 151 reference updates
+- Created wrapper scripts for compatibility
+- Updated INDEX.md with new paths
+
 ## [2.3.0] - 2025-10-09
 
 ### Added

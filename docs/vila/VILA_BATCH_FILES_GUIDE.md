@@ -70,7 +70,7 @@ Handles all drive letters automatically:
 Running VILA model on: D:\Photos\sample.jpg
 
 Note: VILA model requires Kaggle authentication.
-If not configured, see README_VILA.md for setup instructions.
+If not configured, see docs/vila/README_VILA.md for setup instructions.
 
 Using WSL environment for VILA processing...
 

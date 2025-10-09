@@ -504,8 +504,8 @@ Triple fallback:
 ## Related Documents
 
 - [CHANGELOG.md](CHANGELOG.md) - Version 2.3.0 release notes
-- [MODEL_FALLBACK_MECHANISM.md](MODEL_FALLBACK_MECHANISM.md) - Dual fallback documentation
-- [MODEL_SOURCE_TESTING.md](MODEL_SOURCE_TESTING.md) - Testing guide
+- [MODEL_FALLBACK_MECHANISM.md](docs/technical/MODEL_FALLBACK_MECHANISM.md) - Dual fallback documentation
+- [MODEL_SOURCE_TESTING.md](docs/technical/MODEL_SOURCE_TESTING.md) - Testing guide
 - [CHECKPOINTS_INFO.md](musiq_original/checkpoints/CHECKPOINTS_INFO.md) - Checkpoint details
 
 ---

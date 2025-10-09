@@ -197,7 +197,7 @@ Updated the following documentation:
    - Added gallery features list
    - Mentioned filename sorting works
 
-2. **[GALLERY_SORTING_FIX.md](GALLERY_SORTING_FIX.md)**: This document
+2. **[GALLERY_SORTING_FIX.md](docs/gallery/GALLERY_SORTING_FIX.md)**: This document
 
 ## User Impact
 
@@ -234,8 +234,8 @@ This fix is included in:
 
 ## Related Documents
 
-- [GALLERY_GENERATOR_README.md](GALLERY_GENERATOR_README.md) - Gallery documentation
-- [GALLERY_VILA_UPDATE.md](GALLERY_VILA_UPDATE.md) - VILA integration in gallery
+- [GALLERY_GENERATOR_README.md](docs/gallery/GALLERY_GENERATOR_README.md) - Gallery documentation
+- [GALLERY_VILA_UPDATE.md](docs/gallery/GALLERY_VILA_UPDATE.md) - VILA integration in gallery
 - [README.md](README.md) - Main project documentation
 
 ---

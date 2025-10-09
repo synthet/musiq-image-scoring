@@ -316,7 +316,7 @@ create_gallery.bat "D:\Photos\YourFolder"
 - Kaggle Hub fallback needs auth
 - VILA local SavedModel needs auth for first download
 
-**Solution**: See [README_VILA.md](README_VILA.md) for setup
+**Solution**: See [README_VILA.md](docs/vila/README_VILA.md) for setup
 
 ---
 
@@ -429,7 +429,7 @@ create_gallery.bat "D:\Photos\YourFolder"
 → Use test scripts to verify setup  
 
 ### Developers
-→ Review [TRIPLE_FALLBACK_SYSTEM.md](TRIPLE_FALLBACK_SYSTEM.md)  
+→ Review [TRIPLE_FALLBACK_SYSTEM.md](docs/technical/TRIPLE_FALLBACK_SYSTEM.md)  
 → Understand fallback flow  
 → Use [INDEX.md](INDEX.md) for navigation  
 
@@ -447,8 +447,8 @@ create_gallery.bat "D:\Photos\YourFolder"
 - **Getting Started**: [README.md](README.md)
 - **Full Documentation**: [INDEX.md](INDEX.md)
 - **Version History**: [CHANGELOG.md](CHANGELOG.md)
-- **VILA Setup**: [README_VILA.md](README_VILA.md)
-- **Troubleshooting**: [VILA_ALL_FIXES_SUMMARY.md](VILA_ALL_FIXES_SUMMARY.md)
+- **VILA Setup**: [README_VILA.md](docs/vila/README_VILA.md)
+- **Troubleshooting**: [VILA_ALL_FIXES_SUMMARY.md](docs/vila/VILA_ALL_FIXES_SUMMARY.md)
 
 ### Testing & Verification
 

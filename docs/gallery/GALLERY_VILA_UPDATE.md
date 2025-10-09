@@ -38,7 +38,7 @@ Step 1: Running image quality assessment...
 
 Note: VILA models require Kaggle authentication.
 If not configured, VILA will be skipped (MUSIQ will still work).
-See README_VILA.md for Kaggle setup instructions.
+See docs/vila/README_VILA.md for Kaggle setup instructions.
 ```
 
 ### 4. Updated Success Messages
@@ -153,7 +153,7 @@ Step 1: Running image quality assessment...
 
 Note: VILA models require Kaggle authentication.
 If not configured, VILA will be skipped (MUSIQ will still work).
-See README_VILA.md for Kaggle setup instructions.
+See docs/vila/README_VILA.md for Kaggle setup instructions.
 
 This may take a while depending on the number of images...
 
@@ -202,7 +202,7 @@ Images are sorted by weighted score from all available models.
    - Run scripts as usual
    - See note about VILA during processing
    - Gallery will show 4 MUSIQ models
-   - Optionally: Set up Kaggle auth (see README_VILA.md)
+   - Optionally: Set up Kaggle auth (see docs/vila/README_VILA.md)
 
 ## Conclusion
 

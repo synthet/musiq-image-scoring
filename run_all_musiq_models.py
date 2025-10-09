@@ -206,7 +206,7 @@ class MultiModelMUSIQ:
             print("\nNote: For VILA model:")
             print("  - TF Hub: No authentication needed")
             print("  - Kaggle Hub: Requires kaggle.json authentication")
-            print("  See README_VILA.md for setup instructions.")
+            print("  See docs/vila/README_VILA.md for setup instructions.")
         else:
             print("\nNote: For MUSIQ models:")
             print("  - TF Hub: No authentication needed (recommended)")

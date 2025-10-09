@@ -272,8 +272,8 @@ Verifies all 3 fallback levels work
 
 ## Related Documents
 
-- [TRIPLE_FALLBACK_SYSTEM.md](TRIPLE_FALLBACK_SYSTEM.md) - Triple fallback mechanism
-- [MODEL_SOURCE_TESTING.md](MODEL_SOURCE_TESTING.md) - Testing guide
+- [TRIPLE_FALLBACK_SYSTEM.md](docs/technical/TRIPLE_FALLBACK_SYSTEM.md) - Triple fallback mechanism
+- [MODEL_SOURCE_TESTING.md](docs/technical/MODEL_SOURCE_TESTING.md) - Testing guide
 - [musiq_original/checkpoints/CHECKPOINTS_INFO.md](musiq_original/checkpoints/CHECKPOINTS_INFO.md) - Original checkpoint docs
 - [CHANGELOG.md](CHANGELOG.md) - Version 2.3.0 notes
 

@@ -296,7 +296,7 @@ Added detailed WSL and environment setup instructions to `README.md`:
 4. Report any issues found
 
 ### Developers
-1. Review [GALLERY_SORTING_FIX.md](GALLERY_SORTING_FIX.md) for implementation details
+1. Review [GALLERY_SORTING_FIX.md](docs/gallery/GALLERY_SORTING_FIX.md) for implementation details
 2. Check [CHANGELOG.md](CHANGELOG.md) before making changes
 3. Update [INDEX.md](INDEX.md) when adding new documents
 4. Follow WSL setup for development environment
@@ -308,14 +308,14 @@ Added detailed WSL and environment setup instructions to `README.md`:
 ### This Session's Work
 - [CHANGELOG.md](CHANGELOG.md) - Version history
 - [INDEX.md](INDEX.md) - Documentation index
-- [GALLERY_SORTING_FIX.md](GALLERY_SORTING_FIX.md) - Sorting fixes
+- [GALLERY_SORTING_FIX.md](docs/gallery/GALLERY_SORTING_FIX.md) - Sorting fixes
 - [README.md](README.md) - Updated with WSL instructions
 
 ### Previous Work
-- [VILA_SCORE_RANGE_CORRECTION.md](VILA_SCORE_RANGE_CORRECTION.md) - Score range fix
-- [VILA_ALL_FIXES_SUMMARY.md](VILA_ALL_FIXES_SUMMARY.md) - Complete VILA fixes
-- [VILA_MODEL_PATH_FIX.md](VILA_MODEL_PATH_FIX.md) - Path and parameter fixes
-- [WSL_WRAPPER_VERIFICATION.md](WSL_WRAPPER_VERIFICATION.md) - WSL verification
+- [VILA_SCORE_RANGE_CORRECTION.md](docs/vila/VILA_SCORE_RANGE_CORRECTION.md) - Score range fix
+- [VILA_ALL_FIXES_SUMMARY.md](docs/vila/VILA_ALL_FIXES_SUMMARY.md) - Complete VILA fixes
+- [VILA_MODEL_PATH_FIX.md](docs/vila/VILA_MODEL_PATH_FIX.md) - Path and parameter fixes
+- [WSL_WRAPPER_VERIFICATION.md](docs/setup/WSL_WRAPPER_VERIFICATION.md) - WSL verification
 
 ---
 

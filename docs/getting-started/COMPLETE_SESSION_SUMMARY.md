@@ -574,12 +574,12 @@ wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring
    - Environment comparison table
    - Quick start instructions
 
-2. **[VERSION_2.3.0_RELEASE_NOTES.md](VERSION_2.3.0_RELEASE_NOTES.md)**
+2. **[VERSION_2.3.0_RELEASE_NOTES.md](docs/getting-started/VERSION_2.3.0_RELEASE_NOTES.md)**
    - This version's highlights
    - What's new and improved
    - Migration guide
 
-3. **[TRIPLE_FALLBACK_SYSTEM.md](TRIPLE_FALLBACK_SYSTEM.md)**
+3. **[TRIPLE_FALLBACK_SYSTEM.md](docs/technical/TRIPLE_FALLBACK_SYSTEM.md)**
    - How fallback works
    - Complete technical reference
    - Scenarios and examples
@@ -666,10 +666,10 @@ A: Drag folder onto `create_gallery.bat`
 A: Run `test_model_sources.py` to diagnose
 
 **Q: How do I set up VILA?**  
-A: [README_VILA.md](README_VILA.md) has complete guide
+A: [README_VILA.md](docs/vila/README_VILA.md) has complete guide
 
 **Q: What's new in this version?**  
-A: [VERSION_2.3.0_RELEASE_NOTES.md](VERSION_2.3.0_RELEASE_NOTES.md)
+A: [VERSION_2.3.0_RELEASE_NOTES.md](docs/getting-started/VERSION_2.3.0_RELEASE_NOTES.md)
 
 **Q: Where's the documentation?**  
 A: [INDEX.md](INDEX.md) lists all 43 documents

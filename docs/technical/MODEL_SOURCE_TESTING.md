@@ -244,7 +244,7 @@ cp /mnt/c/Users/YourName/Downloads/kaggle.json ~/.kaggle/
 chmod 600 ~/.kaggle/kaggle.json
 ```
 
-See [README_VILA.md](README_VILA.md) for detailed setup.
+See [README_VILA.md](docs/vila/README_VILA.md) for detailed setup.
 
 ### "Network Error"
 
@@ -337,9 +337,9 @@ fi
 
 ## Related Documents
 
-- [MODEL_FALLBACK_MECHANISM.md](MODEL_FALLBACK_MECHANISM.md) - Fallback system details
-- [README_VILA.md](README_VILA.md) - Kaggle authentication setup
-- [WSL_WRAPPER_VERIFICATION.md](WSL_WRAPPER_VERIFICATION.md) - Environment verification
+- [MODEL_FALLBACK_MECHANISM.md](docs/technical/MODEL_FALLBACK_MECHANISM.md) - Fallback system details
+- [README_VILA.md](docs/vila/README_VILA.md) - Kaggle authentication setup
+- [WSL_WRAPPER_VERIFICATION.md](docs/setup/WSL_WRAPPER_VERIFICATION.md) - Environment verification
 - [CHANGELOG.md](CHANGELOG.md) - Version history
 
 ---

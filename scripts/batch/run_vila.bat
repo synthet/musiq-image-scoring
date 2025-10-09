@@ -3,15 +3,14 @@ setlocal enabledelayedexpansion
 
 echo ========================================
 echo    VILA Image Aesthetic Assessment
-echo          (Drag and Drop)
 echo ========================================
 echo.
 
-REM Check if image path is provided via drag-and-drop
+REM Check if image path is provided
 if "%~1"=="" (
-    echo No image file detected!
+    echo Usage: run_vila.bat "C:\Path\To\Image.jpg"
     echo.
-    echo Usage: Drag and drop an image file onto this batch file
+    echo Example: run_vila.bat "D:\Photos\sample.jpg"
     echo.
     pause
     exit /b 1
@@ -27,10 +26,10 @@ if not exist "%IMAGE_PATH%" (
     exit /b 1
 )
 
-echo Processing: %IMAGE_PATH%
+echo Running VILA model on: %IMAGE_PATH%
 echo.
 echo Note: VILA model requires Kaggle authentication.
-echo If not configured, see README_VILA.md for setup instructions.
+echo If not configured, see docs/vila/README_VILA.md for setup instructions.
 echo.
 
 REM Check if we're in WSL environment or Windows
@@ -89,10 +88,6 @@ if %errorlevel% == 0 (
     python "%SCRIPT_DIR%run_vila.py" --image "%IMAGE_PATH%"
 )
 
-echo.
-echo ========================================
-echo Processing complete!
-echo ========================================
 echo.
 echo Press any key to exit...
 pause >nul
