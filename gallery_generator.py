@@ -374,8 +374,8 @@ def generate_html_with_embedded_data(image_data: List[Dict[str, Any]], output_pa
                     <option value="ava_score">AVA Score</option>
                     <option value="koniq_score">KONIQ Score</option>
                     <option value="paq2piq_score">PAQ2PIQ Score</option>
+                    <option value="vila_score">VILA Score</option>
                     <option value="filename">Filename (A-Z)</option>
-                    <option value="date">Date (Newest First)</option>
                 </select>
             </div>
             <div class="control-group">
@@ -461,10 +461,13 @@ def generate_html_with_embedded_data(image_data: List[Dict[str, Any]], output_pa
                     return image.models?.koniq?.normalized_score || 0;
                 case 'paq2piq_score':
                     return image.models?.paq2piq?.normalized_score || 0;
+                case 'vila_score':
+                    return image.models?.vila?.normalized_score || 0;
                 case 'filename':
                     return image.image_name || '';
                 case 'date':
-                    return new Date(image.image_path || 0).getTime();
+                    // Use file modification date from stats if available, otherwise return 0
+                    return 0;
                 default:
                     return 0;
             }
@@ -477,15 +480,22 @@ def generate_html_with_embedded_data(image_data: List[Dict[str, Any]], output_pa
                 const scoreB = getScore(b, currentSort);
                 
                 if (currentSort === 'filename') {
+                    // String comparison for filename
+                    const nameA = scoreA || '';
+                    const nameB = scoreB || '';
                     return currentOrder === 'asc' ? 
-                        scoreA.localeCompare(scoreB) : 
-                        scoreB.localeCompare(scoreA);
+                        nameA.localeCompare(nameB) : 
+                        nameB.localeCompare(nameA);
                 }
                 
+                // Numeric comparison for all other sorts
+                const numA = parseFloat(scoreA) || 0;
+                const numB = parseFloat(scoreB) || 0;
+                
                 if (currentOrder === 'asc') {
-                    return scoreA - scoreB;
+                    return numA - numB;
                 } else {
-                    return scoreB - scoreA;
+                    return numB - numA;
                 }
             });
         }
@@ -551,6 +561,10 @@ def generate_html_with_embedded_data(image_data: List[Dict[str, Any]], output_pa
                             <span class="score-label">PAQ2PIQ</span>
                             <span class="score-value">${(models.paq2piq?.normalized_score || 0).toFixed(3)}</span>
                         </div>
+                        <div class="score-item">
+                            <span class="score-label">VILA</span>
+                            <span class="score-value">${(models.vila?.normalized_score || 0).toFixed(3)}</span>
+                        </div>
                     </div>
                     <div class="metadata">
                         <span>#${index + 1}</span>
@@ -578,8 +592,8 @@ def generate_html_with_embedded_data(image_data: List[Dict[str, Any]], output_pa
                 'ava_score': 'AVA',
                 'koniq_score': 'KONIQ',
                 'paq2piq_score': 'PAQ2PIQ',
-                'filename': 'Name',
-                'date': 'Date'
+                'vila_score': 'VILA',
+                'filename': 'Name'
             };
             return labels[metric] || 'Score';
         }

@@ -7,7 +7,8 @@ param(
 )
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "    MUSIQ Image Gallery Generator" -ForegroundColor Cyan
+Write-Host " Image Quality Gallery Generator" -ForegroundColor Cyan
+Write-Host " MUSIQ + VILA Multi-Model Scoring" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -28,15 +29,27 @@ if (-not (Test-Path $InputFolder)) {
 Write-Host "Creating gallery for images in: $InputFolder" -ForegroundColor Green
 Write-Host ""
 
-# Step 1: Run MUSIQ models on all images in the folder
-Write-Host "Step 1: Running MUSIQ models on all images..." -ForegroundColor Yellow
+Write-Host "Models used:" -ForegroundColor Cyan
+Write-Host "  - MUSIQ models: SPAQ, AVA, KONIQ, PAQ2PIQ" -ForegroundColor White
+Write-Host "  - VILA model: VILA (if Kaggle auth configured)" -ForegroundColor White
+Write-Host ""
+
+# Step 1: Run all models on all images in the folder
+Write-Host "Step 1: Running image quality assessment..." -ForegroundColor Yellow
+Write-Host "  - Processing with MUSIQ models (SPAQ, AVA, KONIQ, PAQ2PIQ)" -ForegroundColor White
+Write-Host "  - Processing with VILA model (VILA)" -ForegroundColor White
+Write-Host ""
+Write-Host "Note: VILA models require Kaggle authentication." -ForegroundColor Cyan
+Write-Host "If not configured, VILA will be skipped (MUSIQ will still work)." -ForegroundColor Cyan
+Write-Host "See README_VILA.md for Kaggle setup instructions." -ForegroundColor Cyan
+Write-Host ""
 Write-Host "This may take a while depending on the number of images..." -ForegroundColor Yellow
 Write-Host ""
 
 # Check if we're in WSL environment or Windows
 try {
     $wslCheck = Get-Command wsl -ErrorAction Stop
-    Write-Host "Using WSL environment for MUSIQ processing..." -ForegroundColor Green
+    Write-Host "Using WSL environment for multi-model processing..." -ForegroundColor Green
     
     # Convert Windows path to WSL path
     $wslPath = $InputFolder -replace '^([A-Z]):', '/mnt/$($matches[1].ToLower())' -replace '\\', '/'
@@ -44,7 +57,7 @@ try {
     # Run batch processing in WSL
     wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python batch_process_images.py --input-dir '$wslPath' --output-dir '$wslPath'"
 } catch {
-    Write-Host "Using Windows Python environment for MUSIQ processing..." -ForegroundColor Green
+    Write-Host "Using Windows Python environment for multi-model processing..." -ForegroundColor Green
     
     # Run batch processing in Windows
     $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -740,14 +753,21 @@ if (Test-Path $OutputFile) {
     Write-Host "✅ SUCCESS: Gallery created successfully!" -ForegroundColor Green
     Write-Host "📁 Output file: $OutputFile" -ForegroundColor Yellow
     Write-Host ""
+    Write-Host "Gallery includes scores from:" -ForegroundColor Cyan
+    Write-Host "  ✓ MUSIQ models (always included)" -ForegroundColor Green
+    Write-Host "  ✓ VILA model (if Kaggle auth configured)" -ForegroundColor Green
+    Write-Host ""
     Write-Host "Opening gallery in your default web browser..." -ForegroundColor Green
     Start-Process $OutputFile
     Write-Host ""
     Write-Host "Gallery opened! You can now browse your images with quality scores." -ForegroundColor Green
+    Write-Host "Images are sorted by weighted score from all available models." -ForegroundColor Cyan
 } else {
     Write-Host ""
     Write-Host "❌ ERROR: Failed to create gallery" -ForegroundColor Red
     Write-Host "Please check that the folder contains JSON files with image data." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "If VILA models failed to load, check README_VILA.md for setup." -ForegroundColor Cyan
 }
 
 # Clean up temporary file

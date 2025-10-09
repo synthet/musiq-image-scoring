@@ -13,5 +13,5 @@ numpy==1.24.4
 # Optional: TensorFlow Hub for model loading
 tensorflow-hub==0.16.1
 
-# Optional: For advanced model loading (if needed)
-# kagglehub==0.2.32
+# Kaggle Hub for advanced model loading (KONIQ, VILA)
+kagglehub==0.3.4

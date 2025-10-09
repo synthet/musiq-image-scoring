@@ -19,43 +19,69 @@ from PIL import Image
 
 
 class MultiModelMUSIQ:
-    """Run multiple MUSIQ models on a single image."""
+    """Run multiple MUSIQ and VILA models on a single image."""
     
     # Version identifier for this implementation
-    VERSION = "2.0.0"
+    VERSION = "2.3.0"  # Triple fallback: TFHub → Kaggle Hub → Local Checkpoints
     
     def __init__(self):
         self.device = None
         self.gpu_available = False
         self.models = {}
         
-        # Available MUSIQ model variants
-        # TensorFlow Hub models
-        self.tfhub_models = {
-            "spaq": "https://tfhub.dev/google/musiq/spaq/1",
-            "ava": "https://tfhub.dev/google/musiq/ava/1", 
-            "paq2piq": "https://tfhub.dev/google/musiq/paq2piq/1"
-        }
+        # Model availability on different platforms
+        # All models with TensorFlow Hub, Kaggle Hub, and local checkpoint paths
+        # Format: {"model": {"tfhub": "url", "kaggle": "path", "local": "checkpoint_file"}}
+        # Fallback order: TF Hub → Kaggle Hub → Local Checkpoints
         
-        # Kaggle Hub models
-        self.kaggle_models = {
-            "koniq": "google/musiq/tensorFlow2/koniq-10k"
-        }
+        # Get base directory for local checkpoints
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        checkpoint_dir = os.path.join(base_dir, "musiq_original", "checkpoints")
         
-        # Combined model sources
         self.model_sources = {
-            "spaq": "tfhub",
-            "ava": "tfhub", 
-            "koniq": "kaggle",
-            "paq2piq": "tfhub"
+            "spaq": {
+                "tfhub": "https://tfhub.dev/google/musiq/spaq/1",
+                "kaggle": "google/musiq/tensorFlow2/spaq",
+                "local": os.path.join(checkpoint_dir, "spaq_ckpt.npz")
+            },
+            "ava": {
+                "tfhub": "https://tfhub.dev/google/musiq/ava/1",
+                "kaggle": "google/musiq/tensorFlow2/ava",
+                "local": os.path.join(checkpoint_dir, "ava_ckpt.npz")
+            },
+            "koniq": {
+                "tfhub": None,  # Not available on TF Hub
+                "kaggle": "google/musiq/tensorFlow2/koniq-10k",
+                "local": os.path.join(checkpoint_dir, "koniq_ckpt.npz")
+            },
+            "paq2piq": {
+                "tfhub": "https://tfhub.dev/google/musiq/paq2piq/1",
+                "kaggle": "google/musiq/tensorFlow2/paq2piq",
+                "local": os.path.join(checkpoint_dir, "paq2piq_ckpt.npz")
+            },
+            "vila": {
+                "tfhub": "https://tfhub.dev/google/vila/image/1",
+                "kaggle": "google/vila/tensorFlow2/image",
+                "local": os.path.join(checkpoint_dir, "vila-tensorflow2-image-v1")  # SavedModel format
+            }
         }
         
-        # Model score ranges for reference (from Kaggle documentation)
+        # Model types (for processing logic)
+        self.model_types = {
+            "spaq": "musiq",
+            "ava": "musiq",
+            "koniq": "musiq",
+            "paq2piq": "musiq",
+            "vila": "vila"
+        }
+        
+        # Model score ranges for reference (from official documentation)
         self.model_ranges = {
             "spaq": (0.0, 100.0),      # SPAQ dataset: 0-100
             "ava": (1.0, 10.0),        # AVA dataset: 1-10
             "koniq": (0.0, 100.0),     # KONIQ-10k dataset: 0-100
-            "paq2piq": (0.0, 100.0)    # PAQ2PIQ dataset: 0-100
+            "paq2piq": (0.0, 100.0),   # PAQ2PIQ dataset: 0-100
+            "vila": (0.0, 1.0)         # VILA aesthetic score: 0-1 (official range)
         }
         
         # Initialize GPU support
@@ -63,9 +89,10 @@ class MultiModelMUSIQ:
         
         # Model weights for weighted scoring (based on statistical analysis)
         self.model_weights = {
-            "koniq": 0.35,      # Best balance of discrimination and reliability
-            "spaq": 0.30,       # Best discrimination (widest range)
-            "paq2piq": 0.25,    # Most lenient, good for high-quality detection
+            "koniq": 0.30,      # Best balance of discrimination and reliability
+            "spaq": 0.25,       # Best discrimination (widest range)
+            "paq2piq": 0.20,    # Most lenient, good for high-quality detection
+            "vila": 0.15,       # Vision-language aesthetics assessment
             "ava": 0.10         # Most conservative, narrow range
         }
     
@@ -91,25 +118,40 @@ class MultiModelMUSIQ:
             self.device = '/CPU:0'
     
     def load_model(self, model_name: str) -> bool:
-        """Load a specific MUSIQ model from TensorFlow Hub or Kaggle Hub."""
+        """
+        Load a model with triple fallback mechanism:
+        1. TensorFlow Hub (fast, no auth) 
+        2. Kaggle Hub (requires auth)
+        3. Local checkpoints (offline fallback)
+        
+        This provides maximum reliability across different network conditions,
+        authentication states, and offline scenarios.
+        """
         if model_name not in self.model_sources:
             print(f"Error: Unknown model variant '{model_name}'")
             return False
         
-        source = self.model_sources[model_name]
+        sources = self.model_sources[model_name]
+        tfhub_url = sources.get("tfhub")
+        kaggle_path = sources.get("kaggle")
+        local_path = sources.get("local")
         
-        try:
-            if source == "tfhub":
-                url = self.tfhub_models[model_name]
-                print(f"Loading {model_name.upper()} model from TensorFlow Hub: {url}")
+        # Try TensorFlow Hub first (preferred - no auth needed, usually faster)
+        if tfhub_url:
+            try:
+                print(f"Loading {model_name.upper()} model from TensorFlow Hub: {tfhub_url}")
                 with tf.device(self.device):
-                    model = hub.load(url)
+                    model = hub.load(tfhub_url)
                     self.models[model_name] = model
-                    print(f"{model_name.upper()} model loaded successfully from TensorFlow Hub")
+                    print(f"✓ {model_name.upper()} model loaded successfully from TensorFlow Hub")
                     return True
-                    
-            elif source == "kaggle":
-                kaggle_path = self.kaggle_models[model_name]
+            except Exception as e:
+                print(f"⚠ TensorFlow Hub failed for {model_name.upper()}: {str(e)[:80]}...")
+                print(f"  Falling back to Kaggle Hub...")
+        
+        # Fall back to Kaggle Hub (requires authentication)
+        if kaggle_path:
+            try:
                 print(f"Loading {model_name.upper()} model from Kaggle Hub: {kaggle_path}")
                 
                 # Download model from Kaggle Hub
@@ -120,12 +162,58 @@ class MultiModelMUSIQ:
                 with tf.device(self.device):
                     model = tf.saved_model.load(model_path)
                     self.models[model_name] = model
-                    print(f"{model_name.upper()} model loaded successfully from Kaggle Hub")
+                    print(f"✓ {model_name.upper()} model loaded successfully from Kaggle Hub")
                     return True
                     
-        except Exception as e:
-            print(f"Failed to load {model_name.upper()} model: {e}")
-            return False
+            except Exception as e:
+                print(f"⚠ Kaggle Hub failed for {model_name.upper()}: {str(e)[:80]}...")
+                print(f"  Falling back to local checkpoint...")
+        
+        # Fall back to local checkpoint (offline, no network needed)
+        if local_path and os.path.exists(local_path):
+            try:
+                print(f"Loading {model_name.upper()} model from local checkpoint: {local_path}")
+                
+                with tf.device(self.device):
+                    # Check if it's a SavedModel directory or .npz file
+                    if os.path.isdir(local_path):
+                        # Load SavedModel (VILA cached model)
+                        model = tf.saved_model.load(local_path)
+                        self.models[model_name] = model
+                        print(f"✓ {model_name.upper()} model loaded successfully from local SavedModel")
+                        return True
+                    elif local_path.endswith('.npz'):
+                        # Load .npz checkpoint (MUSIQ models)
+                        # Note: .npz files require the original MUSIQ loading code
+                        # For now, try loading as SavedModel if conversion exists
+                        print(f"⚠ .npz checkpoint loading not yet implemented for {model_name.upper()}")
+                        print(f"  Checkpoint available at: {local_path}")
+                        print(f"  Consider using TF Hub or Kaggle Hub sources instead")
+                        return False
+                    else:
+                        print(f"⚠ Unknown local checkpoint format: {local_path}")
+                        return False
+                        
+            except Exception as e:
+                print(f"✗ Failed to load {model_name.upper()} model from local checkpoint: {str(e)[:80]}...")
+        elif local_path:
+            print(f"⚠ Local checkpoint not found: {local_path}")
+            print(f"  Download checkpoints from: https://storage.googleapis.com/gresearch/musiq/")
+        
+        # All sources failed or unavailable
+        print(f"✗ Failed to load {model_name.upper()} model: All available sources failed")
+        if "vila" in model_name.lower():
+            print("\nNote: For VILA model:")
+            print("  - TF Hub: No authentication needed")
+            print("  - Kaggle Hub: Requires kaggle.json authentication")
+            print("  See README_VILA.md for setup instructions.")
+        else:
+            print("\nNote: For MUSIQ models:")
+            print("  - TF Hub: No authentication needed (recommended)")
+            print("  - Kaggle Hub: Requires kaggle.json authentication")
+            print("  - Local .npz: Download from https://storage.googleapis.com/gresearch/musiq/")
+        
+        return False
     
     def load_all_models(self) -> Dict[str, bool]:
         """Load all available MUSIQ models."""
@@ -141,6 +229,7 @@ class MultiModelMUSIQ:
             return None
         
         model = self.models[model_name]
+        model_type = self.model_types.get(model_name, "musiq")
         
         try:
             # Read image bytes
@@ -149,22 +238,45 @@ class MultiModelMUSIQ:
             
             # Ensure tensor is on correct device
             with tf.device(self.device):
-                # TensorFlow Hub models expect image bytes as string tensor
+                # TensorFlow Hub/Kaggle models expect image bytes as string tensor
                 image_bytes_tensor = tf.constant(image_bytes)
-                predictions = model.signatures['serving_default'](image_bytes_tensor=image_bytes_tensor)
-            
-            # Extract score
-            if isinstance(predictions, dict):
-                if 'output_0' in predictions:
-                    score = float(predictions['output_0'].numpy().squeeze())
-                elif 'predictions' in predictions:
-                    score = float(predictions['predictions'].numpy().squeeze())
-                elif 'output' in predictions:
-                    score = float(predictions['output'].numpy().squeeze())
+                
+                # Determine correct parameter name for model
+                # VILA models use 'image_bytes', MUSIQ models use 'image_bytes_tensor'
+                if model_type == "vila":
+                    predictions = model.signatures['serving_default'](image_bytes=image_bytes_tensor)
                 else:
-                    score = float(list(predictions.values())[0].numpy().squeeze())
+                    predictions = model.signatures['serving_default'](image_bytes_tensor=image_bytes_tensor)
+            
+            # Extract score based on model type
+            if model_type == "vila":
+                # VILA models may have different output structure
+                if isinstance(predictions, dict):
+                    # Try common output names for aesthetic scores
+                    if 'aesthetic_score' in predictions:
+                        score = float(predictions['aesthetic_score'].numpy().squeeze())
+                    elif 'score' in predictions:
+                        score = float(predictions['score'].numpy().squeeze())
+                    elif 'output_0' in predictions:
+                        score = float(predictions['output_0'].numpy().squeeze())
+                    else:
+                        # Use first numeric output
+                        score = float(list(predictions.values())[0].numpy().squeeze())
+                else:
+                    score = float(predictions.numpy().squeeze())
             else:
-                score = float(predictions.numpy().squeeze())
+                # MUSIQ models
+                if isinstance(predictions, dict):
+                    if 'output_0' in predictions:
+                        score = float(predictions['output_0'].numpy().squeeze())
+                    elif 'predictions' in predictions:
+                        score = float(predictions['predictions'].numpy().squeeze())
+                    elif 'output' in predictions:
+                        score = float(predictions['output'].numpy().squeeze())
+                    else:
+                        score = float(list(predictions.values())[0].numpy().squeeze())
+                else:
+                    score = float(predictions.numpy().squeeze())
             
             return score
             
@@ -370,19 +482,24 @@ def main():
 Examples:
   python run_all_musiq_models.py --image sample.jpg
   python run_all_musiq_models.py --image /path/to/image.jpg --output-dir /path/to/output/
-  python run_all_musiq_models.py --image sample.jpg --models spaq ava
+  python run_all_musiq_models.py --image sample.jpg --models spaq ava vila
 
 Available Models:
-  - spaq: SPAQ dataset model (range: 1-5)
+  MUSIQ Models (Image Quality):
+  - spaq: SPAQ dataset model (range: 0-100)
   - ava: AVA dataset model (range: 1-10) 
-  - koniq: KONIQ-10K dataset model (range: 1-5)
-  - paq2piq: PAQ2PIQ dataset model (range: 1-5)
+  - koniq: KONIQ-10K dataset model (range: 0-100)
+  - paq2piq: PAQ2PIQ dataset model (range: 0-100)
+  
+  VILA Model (Vision-Language Aesthetics):
+  - vila: VILA aesthetic assessment (range: 0-1)
         """
     )
     
     parser.add_argument('--image', required=True, help='Path to input image')
     parser.add_argument('--output-dir', help='Output directory for JSON file (default: same as image directory)')
-    parser.add_argument('--models', nargs='+', choices=['spaq', 'ava', 'koniq', 'paq2piq'],
+    parser.add_argument('--models', nargs='+', 
+                       choices=['spaq', 'ava', 'koniq', 'paq2piq', 'vila'],
                        help='Specific models to run (default: all models)')
     
     args = parser.parse_args()
