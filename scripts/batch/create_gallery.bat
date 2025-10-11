@@ -114,8 +114,8 @@ if exist "%OUTPUT_FILE%" (
     echo Output file: %OUTPUT_FILE%
     echo.
     echo Gallery includes scores from:
-    echo   + MUSIQ models (always included)
-    echo   + VILA model (if Kaggle auth configured)
+    echo   + MUSIQ models ^(always included^)
+    echo   + VILA model ^(if Kaggle auth configured^)
     echo.
     echo Opening gallery in your default web browser...
     start "" "%OUTPUT_FILE%"

@@ -22,7 +22,22 @@ class MultiModelMUSIQ:
     """Run multiple MUSIQ and VILA models on a single image."""
     
     # Version identifier for this implementation
-    VERSION = "2.3.0"  # Triple fallback: TFHub → Kaggle Hub → Local Checkpoints
+    VERSION = "2.3.1"  # Fixed: Windows path conversion for browser compatibility
+    
+    @staticmethod
+    def wsl_to_windows_path(path: str) -> str:
+        """Convert WSL path to Windows path for browser compatibility."""
+        if path.startswith('/mnt/'):
+            # Extract drive letter and path: /mnt/d/Path/To/File -> D:/Path/To/File
+            parts = path[5:].split('/', 1)  # Remove '/mnt/' prefix
+            if len(parts) == 2:
+                drive_letter = parts[0].upper()
+                rest_of_path = parts[1]
+                return f"{drive_letter}:/{rest_of_path}"
+            elif len(parts) == 1:
+                # Just drive letter
+                return f"{parts[0].upper()}:/"
+        return path
     
     def __init__(self):
         self.device = None
@@ -286,9 +301,12 @@ class MultiModelMUSIQ:
     
     def run_all_models(self, image_path: str) -> Dict[str, any]:
         """Run all loaded models on the image and return results."""
+        # Convert WSL path to Windows path for browser compatibility
+        browser_path = self.wsl_to_windows_path(image_path)
+        
         results = {
             "version": self.VERSION,
-            "image_path": image_path,
+            "image_path": browser_path,
             "image_name": os.path.basename(image_path),
             "device": "GPU" if self.gpu_available else "CPU",
             "gpu_available": self.gpu_available,
@@ -581,3 +599,4 @@ Available Models:
 
 if __name__ == "__main__":
     main()
+

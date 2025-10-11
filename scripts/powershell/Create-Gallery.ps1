@@ -100,10 +100,15 @@ def load_json_data(directory: str) -> List[Dict[str, Any]]:
             if 'image_path' in data and 'models' in data:
                 # Convert paths to relative paths for web display
                 image_path = data['image_path']
-                if image_path.startswith('/mnt/d/'):
+                if image_path.startswith('/mnt/'):
                     # Convert WSL path to Windows path for web access
-                    image_path = image_path.replace('/mnt/d/', 'D:/')
-                elif image_path.startswith('D:/'):
+                    # /mnt/d/Path/To/File -> D:/Path/To/File
+                    parts = image_path[5:].split('/', 1)  # Remove '/mnt/' prefix
+                    if len(parts) >= 1:
+                        drive_letter = parts[0].upper()
+                        rest_of_path = parts[1] if len(parts) == 2 else ''
+                        image_path = f"{drive_letter}:/{rest_of_path}" if rest_of_path else f"{drive_letter}:/"
+                elif ':\\' in image_path or ':/' in image_path:
                     # Already Windows path
                     pass
                 else:

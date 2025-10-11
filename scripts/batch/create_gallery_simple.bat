@@ -55,9 +55,15 @@ echo             if any(skip in filename.lower() for skip in ['analysis', 'batch
 echo                 continue >> temp_script.py
 echo             if 'image_path' in data and 'models' in data: >> temp_script.py
 echo                 image_path = data['image_path'] >> temp_script.py
-echo                 if image_path.startswith('/mnt/d/'): >> temp_script.py
-echo                     image_path = image_path.replace('/mnt/d/', 'D:/') >> temp_script.py
-echo                 elif not image_path.startswith('D:/'): >> temp_script.py
+echo                 if image_path.startswith('/mnt/'): >> temp_script.py
+echo                     parts = image_path[5:].split('/', 1) >> temp_script.py
+echo                     if len(parts) ^>= 1: >> temp_script.py
+echo                         drive = parts[0].upper() >> temp_script.py
+echo                         rest = parts[1] if len(parts) == 2 else '' >> temp_script.py
+echo                         image_path = f"{drive}:/{rest}" if rest else f"{drive}:/" >> temp_script.py
+echo                 elif ':\\' in image_path or ':/' in image_path: >> temp_script.py
+echo                     pass >> temp_script.py
+echo                 else: >> temp_script.py
 echo                     image_path = os.path.basename(image_path) >> temp_script.py
 echo                 data['image_path'] = image_path >> temp_script.py
 echo                 image_data.append(data) >> temp_script.py
