@@ -30,7 +30,7 @@ if %errorlevel% == 0 (
     :end_parse
     
     REM Run test in WSL with TensorFlow virtual environment
-    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python test_model_sources.py !ARGS!"
+    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python tests/test_model_sources.py !ARGS!"
 ) else (
     echo Using Windows Python environment for testing...
     echo Warning: TensorFlow may not be properly configured in Windows.
@@ -38,7 +38,7 @@ if %errorlevel% == 0 (
     echo.
     
     REM Run test with Windows Python
-    python "%SCRIPT_DIR%test_model_sources.py" %*
+    python "%~dp0..\..\tests\test_model_sources.py" %*
 )
 
 echo.

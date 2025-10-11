@@ -27,7 +27,7 @@ Write-Host ""
 $WslDirectory = $Directory -replace '^D:', '/mnt/d' -replace '\\', '/'
 
 # Build command
-$Command = "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python analyze_json_results.py --directory '$WslDirectory'"
+$Command = "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python scripts/analysis/analyze_json_results.py --directory '$WslDirectory'"
 
 if (-not [string]::IsNullOrEmpty($OutputFile)) {
     $Command += " --output '$OutputFile'"

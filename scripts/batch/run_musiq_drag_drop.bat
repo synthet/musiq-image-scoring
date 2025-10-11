@@ -57,7 +57,7 @@ echo Starting MUSIQ GPU inference...
 echo ========================================
 
 REM Run MUSIQ through WSL2
-wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python run_musiq_gpu.py --image '%WSL_PATH%'"
+wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python scripts/python/run_musiq_gpu.py --image '%WSL_PATH%'"
 
 echo.
 echo ========================================

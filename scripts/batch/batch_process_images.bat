@@ -38,7 +38,7 @@ echo All output will be logged to: %LOG_FILE%
 echo.
 
 REM Run the batch processor through WSL2 and redirect all output to log file
-wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python batch_process_images.py --input-dir '/mnt/d/Photos/Export/2025' --output-dir '/mnt/d/Photos/Export/2025' --log-file '%LOG_FILE%'" > "%LOG_FILE%" 2>&1
+wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python scripts/python/batch_process_images.py --input-dir '/mnt/d/Photos/Export/2025' --output-dir '/mnt/d/Photos/Export/2025' --log-file '%LOG_FILE%'" > "%LOG_FILE%" 2>&1
 
 REM Check if the log file was created and show the last few lines
 if exist "%LOG_FILE%" (

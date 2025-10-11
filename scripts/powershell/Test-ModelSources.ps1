@@ -33,7 +33,7 @@ try {
     
     # Run test in WSL with TensorFlow virtual environment
     $argsString = $args -join " "
-    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python test_model_sources.py $argsString"
+    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python tests/test_model_sources.py $argsString"
 } catch {
     Write-Host "Using Windows Python environment for testing..." -ForegroundColor Yellow
     Write-Host "Warning: TensorFlow may not be properly configured in Windows." -ForegroundColor Yellow
@@ -42,7 +42,7 @@ try {
     
     # Run test with Windows Python
     $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    python "$ScriptDir\test_model_sources.py" @args
+    python "$PSScriptRoot\..\..\tests\test_model_sources.py" @args
 }
 
 Write-Host ""

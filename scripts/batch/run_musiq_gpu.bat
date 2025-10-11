@@ -49,7 +49,7 @@ echo ========================================
 echo.
 
 REM Run MUSIQ through WSL2
-wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python run_musiq_gpu.py --image '%WSL_IMAGE_PATH%'"
+wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python scripts/python/run_musiq_gpu.py --image '%WSL_IMAGE_PATH%'"
 
 echo.
 echo ========================================

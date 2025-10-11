@@ -13,6 +13,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import List
 
+# Add project root to Python path
+project_root = Path(__file__).resolve().parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 # Import our multi-model MUSIQ class
 from run_all_musiq_models import MultiModelMUSIQ
 

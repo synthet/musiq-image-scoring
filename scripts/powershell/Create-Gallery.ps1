@@ -55,13 +55,13 @@ try {
     $wslPath = $InputFolder -replace '^([A-Z]):', '/mnt/$($matches[1].ToLower())' -replace '\\', '/'
     
     # Run batch processing in WSL
-    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python batch_process_images.py --input-dir '$wslPath' --output-dir '$wslPath'"
+    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python scripts/python/batch_process_images.py --input-dir '$wslPath' --output-dir '$wslPath'"
 } catch {
     Write-Host "Using Windows Python environment for multi-model processing..." -ForegroundColor Green
     
     # Run batch processing in Windows
     $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    python "$ScriptDir\batch_process_images.py" --input-dir $InputFolder --output-dir $InputFolder
+    python "$PSScriptRoot\..\..\scripts\python\batch_process_images.py" --input-dir $InputFolder --output-dir $InputFolder
 }
 
 Write-Host ""
@@ -427,7 +427,7 @@ def generate_html_with_embedded_data(image_data: List[Dict[str, Any]], output_pa
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎨 MUSIQ Image Quality Gallery</h1>
+            <h1>&#9733; MUSIQ Image Quality Gallery</h1>
             <p>Browse your images sorted by different quality metrics</p>
         </div>
 

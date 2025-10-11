@@ -6,7 +6,7 @@ echo.
 echo This script tests the VILA model integration.
 echo.
 
-python test_vila.py
+python "%~dp0..\..\tests\test_vila.py"
 
 echo.
 echo Press any key to exit...

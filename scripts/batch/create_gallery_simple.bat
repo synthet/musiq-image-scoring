@@ -102,7 +102,7 @@ echo ^</head^> >> temp_script.py
 echo ^<body^> >> temp_script.py
 echo     ^<div class="container"^> >> temp_script.py
 echo         ^<div class="header"^> >> temp_script.py
-echo             ^<h1^>🎨 MUSIQ Image Quality Gallery^</h1^> >> temp_script.py
+echo             ^<h1^>&#9733; MUSIQ Image Quality Gallery^</h1^> >> temp_script.py
 echo             ^<p^>Browse your images sorted by quality metrics^</p^> >> temp_script.py
 echo         ^</div^> >> temp_script.py
 echo         ^<div class="controls"^> >> temp_script.py
@@ -215,11 +215,11 @@ echo ^</body^> >> temp_script.py
 echo ^</html^>""" >> temp_script.py
 echo     with open(output_path, 'w', encoding='utf-8') as f: >> temp_script.py
 echo         f.write(html_content) >> temp_script.py
-echo     print(f"✅ Generated HTML gallery: {output_path}") >> temp_script.py
+echo     print(f"[OK] Generated HTML gallery: {output_path}") >> temp_script.py
 echo     if image_data: >> temp_script.py
 echo         scores = [img.get('summary', {}).get('advanced_scoring', {}).get('final_robust_score', 0) for img in image_data if img.get('summary', {}).get('advanced_scoring', {}).get('final_robust_score', 0) ^> 0] >> temp_script.py
 echo         if scores: >> temp_script.py
-echo             print(f"📊 Statistics: {len(image_data)} images, avg: {sum(scores)/len(scores):.3f}, best: {max(scores):.3f}, worst: {min(scores):.3f}") >> temp_script.py
+echo             print(f"[STATS] {len(image_data)} images, avg: {sum(scores)/len(scores):.3f}, best: {max(scores):.3f}, worst: {min(scores):.3f}") >> temp_script.py
 echo. >> temp_script.py
 echo if __name__ == "__main__": >> temp_script.py
 echo     main() >> temp_script.py
@@ -230,8 +230,8 @@ python temp_script.py "%INPUT_FOLDER%"
 REM Check if gallery was created successfully
 if exist "%OUTPUT_FILE%" (
     echo.
-    echo ✅ SUCCESS: Gallery created successfully!
-    echo 📁 Output file: %OUTPUT_FILE%
+    echo [SUCCESS] Gallery created successfully!
+    echo Output file: %OUTPUT_FILE%
     echo.
     echo Opening gallery in your default web browser...
     start "" "%OUTPUT_FILE%"
@@ -239,7 +239,7 @@ if exist "%OUTPUT_FILE%" (
     echo Gallery opened! You can now browse your images with quality scores.
 ) else (
     echo.
-    echo ❌ ERROR: Failed to create gallery
+    echo [ERROR] Failed to create gallery
     echo Please check that the folder contains JSON files with image data.
 )
 

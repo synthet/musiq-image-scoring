@@ -76,7 +76,7 @@ if %errorlevel% == 0 (
     set "WSL_PATH=!WSL_PATH:/mnt/Z/=/mnt/z/!"
     
     REM Run VILA in WSL with TensorFlow virtual environment
-    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python run_vila.py --image '!WSL_PATH!'"
+    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python scripts/python/run_vila.py --image '!WSL_PATH!'"
 ) else (
     echo Using Windows Python environment for VILA processing...
     echo Warning: VILA may not work without proper TensorFlow setup in Windows.
@@ -86,7 +86,7 @@ if %errorlevel% == 0 (
     set "SCRIPT_DIR=%~dp0"
     
     REM Run VILA with default model
-    python "%SCRIPT_DIR%run_vila.py" --image "%IMAGE_PATH%"
+    python "%~dp0..\..\scripts\python\run_vila.py" --image "%IMAGE_PATH%"
 )
 
 echo.

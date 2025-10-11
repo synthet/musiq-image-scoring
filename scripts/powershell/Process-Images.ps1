@@ -37,14 +37,14 @@ try {
     $wslPath = $InputFolder -replace '^([A-Z]):', '/mnt/$($matches[1].ToLower())' -replace '\\', '/'
     
     # Run batch processing in WSL
-    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python batch_process_images.py --input-dir '$wslPath' --output-dir '$wslPath'"
+    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python scripts/python/batch_process_images.py --input-dir '$wslPath' --output-dir '$wslPath'"
 } catch {
     Write-Host "Using Windows Python environment for MUSIQ processing..." -ForegroundColor Green
     Write-Host ""
     
     # Run batch processing in Windows
     $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    python "$ScriptDir\batch_process_images.py" --input-dir $InputFolder --output-dir $InputFolder
+    python "$PSScriptRoot\..\..\scripts\python\batch_process_images.py" --input-dir $InputFolder --output-dir $InputFolder
 }
 
 Write-Host ""

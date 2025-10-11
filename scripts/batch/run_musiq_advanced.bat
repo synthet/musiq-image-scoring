@@ -130,7 +130,7 @@ echo Starting MUSIQ GPU inference...
 echo ========================================
 
 REM Run MUSIQ
-wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python run_musiq_gpu.py --image '!WSL_IMAGE_PATH!'"
+wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python scripts/python/run_musiq_gpu.py --image '!WSL_IMAGE_PATH!'"
 
 echo.
 echo ========================================
@@ -170,7 +170,7 @@ echo Starting batch MUSIQ GPU inference...
 echo ========================================
 
 REM Run MUSIQ on all images in folder
-wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && for img in '!WSL_FOLDER_PATH!'/*.{jpg,jpeg,png,bmp,tiff}; do if [ -f \"\$img\" ]; then echo \"Processing: \$img\"; python run_musiq_gpu.py --image \"\$img\"; echo; fi; done"
+wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && for img in '!WSL_FOLDER_PATH!'/*.{jpg,jpeg,png,bmp,tiff}; do if [ -f \"\$img\" ]; then echo \"Processing: \$img\"; python scripts/python/run_musiq_gpu.py --image \"\$img\"; echo; fi; done"
 
 echo.
 echo ========================================

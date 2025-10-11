@@ -93,10 +93,10 @@ if %errorlevel% == 0 (
     set "WSL_PATH=!WSL_PATH:/mnt/X/=/mnt/x/!"
     set "WSL_PATH=!WSL_PATH:/mnt/Y/=/mnt/y/!"
     set "WSL_PATH=!WSL_PATH:/mnt/Z/=/mnt/z/!"
-    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python batch_process_images.py --input-dir '!WSL_PATH!' --output-dir '!WSL_PATH!'"
+    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python scripts/python/batch_process_images.py --input-dir '!WSL_PATH!' --output-dir '!WSL_PATH!'"
 ) else (
     echo Using Windows Python environment for multi-model processing...
-    python "%SCRIPT_DIR%batch_process_images.py" --input-dir "%INPUT_FOLDER%" --output-dir "%INPUT_FOLDER%"
+    python "%~dp0..\..\scripts\python\batch_process_images.py" --input-dir "%INPUT_FOLDER%" --output-dir "%INPUT_FOLDER%"
 )
 
 echo.
@@ -105,17 +105,17 @@ echo.
 
 REM Run the Python gallery generator
 echo Running gallery generator...
-python "%SCRIPT_DIR%gallery_generator.py" "%INPUT_FOLDER%"
+python "%~dp0..\..\scripts\python\gallery_generator.py" "%INPUT_FOLDER%"
 
 REM Check if gallery was created successfully
 if exist "%OUTPUT_FILE%" (
     echo.
-    echo ✅ SUCCESS: Gallery created successfully!
-    echo 📁 Output file: %OUTPUT_FILE%
+    echo [SUCCESS] Gallery created successfully!
+    echo Output file: %OUTPUT_FILE%
     echo.
     echo Gallery includes scores from:
-    echo   ✓ MUSIQ models (always included)
-    echo   ✓ VILA model (if Kaggle auth configured)
+    echo   + MUSIQ models (always included)
+    echo   + VILA model (if Kaggle auth configured)
     echo.
     echo Opening gallery in your default web browser...
     start "" "%OUTPUT_FILE%"
@@ -124,7 +124,7 @@ if exist "%OUTPUT_FILE%" (
     echo Images are sorted by weighted score from all available models.
 ) else (
     echo.
-    echo ❌ ERROR: Failed to create gallery
+    echo [ERROR] Failed to create gallery
     echo Please check that the folder contains JSON files with image data.
     echo Make sure Python is installed and accessible from command line.
     echo.

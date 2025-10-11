@@ -41,7 +41,7 @@ $WslInputDir = $InputDir -replace '^D:', '/mnt/d' -replace '\\', '/'
 $WslOutputDir = $OutputDir -replace '^D:', '/mnt/d' -replace '\\', '/'
 
 # Run the batch processor through WSL2 and redirect all output to log file
-$Command = "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python batch_process_images.py --input-dir '$WslInputDir' --output-dir '$WslOutputDir' --log-file '$LogFile'"
+$Command = "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python scripts/python/batch_process_images.py --input-dir '$WslInputDir' --output-dir '$WslOutputDir' --log-file '$LogFile'"
 
 try {
     Write-Host "Executing batch processing command..." -ForegroundColor Cyan

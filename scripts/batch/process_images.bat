@@ -80,11 +80,11 @@ if %errorlevel% == 0 (
     set "WSL_PATH=!WSL_PATH:/mnt/X/=/mnt/x/!"
     set "WSL_PATH=!WSL_PATH:/mnt/Y/=/mnt/y/!"
     set "WSL_PATH=!WSL_PATH:/mnt/Z/=/mnt/z/!"
-    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python batch_process_images.py --input-dir '!WSL_PATH!' --output-dir '!WSL_PATH!'"
+    wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python scripts/python/batch_process_images.py --input-dir '!WSL_PATH!' --output-dir '!WSL_PATH!'"
 ) else (
     echo Using Windows Python environment for MUSIQ processing...
     echo.
-    python "%SCRIPT_DIR%batch_process_images.py" --input-dir "%INPUT_FOLDER%" --output-dir "%INPUT_FOLDER%"
+    python "%~dp0..\..\scripts\python\batch_process_images.py" --input-dir "%INPUT_FOLDER%" --output-dir "%INPUT_FOLDER%"
 )
 
 echo.

@@ -23,7 +23,7 @@ echo Analyzing directory: %ANALYZE_DIR%
 echo.
 
 REM Run the analysis through WSL2
-wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python analyze_json_results.py --directory '%ANALYZE_DIR%'"
+wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python scripts/analysis/analyze_json_results.py --directory '%ANALYZE_DIR%'"
 
 echo.
 echo Analysis complete!

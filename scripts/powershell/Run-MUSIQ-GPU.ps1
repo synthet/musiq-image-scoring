@@ -110,7 +110,7 @@ function Process-SingleImage {
     Write-Host "========================================" -ForegroundColor Cyan
     
     try {
-        $result = wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python run_musiq_gpu.py --image '$wslPath'"
+        $result = wsl bash -c "source ~/.venvs/tf/bin/activate && cd /mnt/d/Projects/image-scoring && python scripts/python/run_musiq_gpu.py --image '$wslPath'"
         Write-Host $result
     }
     catch {

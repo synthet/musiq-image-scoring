@@ -358,7 +358,7 @@ def generate_html_with_embedded_data(image_data: List[Dict[str, Any]], output_pa
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎨 MUSIQ Image Quality Gallery</h1>
+            <h1>&#9733; MUSIQ Image Quality Gallery</h1>
             <p>Browse your images sorted by different quality metrics</p>
         </div>
 
