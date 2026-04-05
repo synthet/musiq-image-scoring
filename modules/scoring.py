@@ -10,6 +10,7 @@ from modules import pipeline
 from modules.events import event_manager, broadcast_run_log_line
 from modules import score_normalization as snorm
 from modules.phases import PhaseCode, normalize_phase_codes
+from modules.indexing_policy import passes_nikon_nef_policy
 
 # Ensure paths are set up to import scripts
 project_root = Path(__file__).resolve().parent.parent
@@ -202,14 +203,23 @@ class ScoringRunner:
                     event_manager.broadcast_threadsafe("job_completed", {"job_id": job_id, "status": "completed"})
                     return
 
-                conn = db.get_db()
-                cur = conn.cursor()
                 placeholders = ",".join("?" * len(resolved_image_ids))
-                cur.execute(f"SELECT id, file_path FROM images WHERE id IN ({placeholders})", tuple(resolved_image_ids))
-                rows = cur.fetchall()
-                conn.close()
+                rows = db.get_connector().query(
+                    f"SELECT id, file_path, file_type FROM images WHERE id IN ({placeholders})",
+                    tuple(resolved_image_ids),
+                )
 
-                id_to_path = {int(r[0]): r[1] for r in rows if r[1] and os.path.exists(r[1])}
+                id_to_path = {}
+                for r in rows:
+                    fp = r.get("file_path")
+                    if not fp or not os.path.exists(fp):
+                        continue
+                    if not passes_nikon_nef_policy(fp, r.get("file_type")):
+                        continue
+                    try:
+                        id_to_path[int(r["id"])] = fp
+                    except (TypeError, ValueError, KeyError):
+                        continue
                 jobs = [
                     pipeline.ImageJob(
                         image_path=id_to_path[i],

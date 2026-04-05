@@ -142,3 +142,37 @@ class FakeClusteringRunner(FakePhaseRunner):
         if job_id is None:
             return "Error: job_id required for FakeClusteringRunner."
         return super().start_batch(input_path, job_id, **kwargs)
+
+
+class FakeSelectionRunner(FakePhaseRunner):
+    """Selection/culling-shaped start_batch(input_path, job_id, force_rescan=False)."""
+
+    def start_batch(
+        self,
+        input_path: str,
+        job_id: int = None,
+        force_rescan: bool = False,
+        **kwargs: Any,
+    ) -> str:
+        if job_id is None:
+            return "Error: job_id required for FakeSelectionRunner."
+        return super().start_batch(input_path, job_id, **kwargs)
+
+
+class FakeBirdSpeciesRunner(FakePhaseRunner):
+    """Bird-species-shaped start_batch."""
+
+    def start_batch(
+        self,
+        input_path: str,
+        job_id: int = None,
+        candidate_species=None,
+        threshold: float = 0.1,
+        top_k: int = 3,
+        overwrite: bool = False,
+        resolved_image_ids=None,
+        **kwargs: Any,
+    ) -> str:
+        if job_id is None:
+            return "Error: job_id required for FakeBirdSpeciesRunner."
+        return super().start_batch(input_path, job_id, **kwargs)

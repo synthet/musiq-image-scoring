@@ -6,6 +6,7 @@ from modules import db, thumbnails, xmp, exif_extractor
 from modules.version import APP_VERSION
 from modules.phases import PhaseCode, PhaseStatus
 from modules.events import event_manager, broadcast_run_log_line
+from modules.indexing_policy import filter_image_rows_for_nef_policy
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +129,7 @@ class MetadataRunner:
                  fail_terminal("Error Path")
                  return
 
+        all_images = filter_image_rows_for_nef_policy(all_images)
         log(f"Found {len(all_images)} images to potentially process.")
         self.total_count = len(all_images)
         self.current_count = 0

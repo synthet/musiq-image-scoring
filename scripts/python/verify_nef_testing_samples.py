@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Verify Nikon NEF samples under TestingSamples (exifread + rawpy).
+Verify Nikon NEF samples under tests/fixtures/testing_samples (exifread + rawpy).
 
 Optional --exiftool prints Make/Model/BitsPerSample/NEFCompression/Compression/ImageSize
 when the exiftool binary is on PATH.
@@ -9,7 +9,7 @@ See NEF_TESTING_SAMPLES_URLS.md; use build_nef_testing_manifest.py for manifest.
 
   python scripts/python/verify_nef_testing_samples.py
   python scripts/python/verify_nef_testing_samples.py --exiftool
-  python scripts/python/verify_nef_testing_samples.py "D:\\Photos\\TestingSamples"
+  python scripts/python/verify_nef_testing_samples.py "<repo>\\tests\\fixtures\\testing_samples"
 """
 
 from __future__ import annotations
@@ -21,6 +21,12 @@ from pathlib import Path
 
 import exifread
 import rawpy
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from modules.testing_samples_paths import default_testing_samples_root  # noqa: E402
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -71,12 +77,12 @@ def verify_nef(file_path: str, *, with_exiftool: bool) -> None:
 
 
 def default_root() -> str:
-    return os.environ.get("NEF_TEST_SAMPLES_ROOT", r"D:\Photos\TestingSamples")
+    return os.environ.get("NEF_TEST_SAMPLES_ROOT", default_testing_samples_root())
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify NEF samples (exifread, rawpy, optional exiftool).")
-    parser.add_argument("root", nargs="?", default=None, help="TestingSamples root")
+    parser.add_argument("root", nargs="?", default=None, help="Testing samples root (default: repo tests/fixtures/testing_samples)")
     parser.add_argument("--exiftool", action="store_true", help="Also print ExifTool Nikon RAW tags")
     args = parser.parse_args()
 

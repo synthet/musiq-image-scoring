@@ -5,4 +5,4 @@ Imported by pipeline workers and phase status writers to stamp
 which app version produced a given result.
 """
 
-APP_VERSION = "6.4.1"
+APP_VERSION = "6.5.0"

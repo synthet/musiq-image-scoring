@@ -1,17 +1,19 @@
 """
-Discover image files under the local TestingSamples tree (NEF/JPEG/PNG/etc.).
+Discover image files under the local testing samples tree (NEF/JPEG/PNG/etc.).
 
-Default root: ``NEF_TEST_SAMPLES_ROOT`` env var, else ``D:\\Photos\\TestingSamples``
-(see ``scripts/python/NEF_TESTING_SAMPLES_URLS.md``).
+Default root: ``NEF_TEST_SAMPLES_ROOT`` env var, else ``tests/fixtures/testing_samples``
+under the repository root (see ``modules/testing_samples_paths.py``).
 """
 from __future__ import annotations
 
 import os
 from typing import List
 
-DEFAULT_TESTING_SAMPLES_ROOT = r"D:\Photos\TestingSamples"
+from modules.testing_samples_paths import default_testing_samples_root
 
-# Extensions commonly used under TestingSamples + generic rasters for mixed trees
+DEFAULT_TESTING_SAMPLES_ROOT = default_testing_samples_root()
+
+# Extensions commonly used under the fixtures tree + generic rasters for mixed trees
 SAMPLE_IMAGE_EXTENSIONS = frozenset(
     {
         ".nef",
@@ -58,7 +60,7 @@ def require_sample_files(min_count: int = 1) -> List[str]:
     paths = list_sample_image_files()
     root = testing_samples_root()
     if not os.path.isdir(root):
-        pytest.skip(f"TestingSamples root not found: {root}")
+        pytest.skip(f"Testing samples root not found: {root}")
     if len(paths) < min_count:
         pytest.skip(
             f"Need at least {min_count} sample image(s) under {root}; "

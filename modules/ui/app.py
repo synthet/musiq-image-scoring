@@ -1,5 +1,4 @@
-"""
-Main application orchestrator for the WebUI.
+"""Main application orchestrator for the WebUI.
 
 Initializes DB, runners, and the PipelineOrchestrator, then builds the
 operator status Gradio app mounted at /app.  The primary product UI is
@@ -9,9 +8,12 @@ create_ui() returns the same 9-tuple as before so webui.py and MCP
 wiring remain unchanged; pipeline_components, gallery_components, and
 settings_components are empty dicts and main_tabs is None.
 """
+import logging
 import os
 import platform
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from modules import scoring, db, tagging, config, thumbnails, utils, pipeline_orchestrator
 from modules.selection_runner import SelectionRunner
@@ -51,6 +53,11 @@ def _init_webui_engines(clustering_runner=None):
         enable_background_tick=True,
     )
     recovery_info = orchestrator.recover_interrupted_jobs()
+    try:
+        n_orphan = db.reconcile_stale_running_phases_for_terminal_jobs(limit=5000)
+        recovery_info["reconciled_terminal_job_phase_rows"] = n_orphan
+    except Exception:
+        logger.exception("reconcile_stale_running_phases_for_terminal_jobs on startup failed")
     app_config["job_recovery"] = recovery_info
 
     phase_executors.register_all(

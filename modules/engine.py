@@ -6,6 +6,11 @@ import threading
 import logging
 from datetime import datetime
 from modules import pipeline, db, config
+from modules.indexing_policy import (
+    discovery_extensions,
+    path_is_indexing_excluded,
+    prune_indexing_excluded_walk_dirs,
+)
 
 class BatchImageProcessor:
     """
@@ -78,7 +83,7 @@ class BatchImageProcessor:
         # 2. Find Images
         # 2. Find Images (using os.walk for folder-level control)
         # import glob # No longer used
-        extensions = {'.jpg', '.jpeg', '.png', '.nef', '.nrw', '.dng', '.cr2', '.arw'}
+        extensions = discovery_extensions()
         files = []
         visited_folders = set()
         
@@ -86,6 +91,7 @@ class BatchImageProcessor:
         input_dir = os.path.normpath(input_dir)
         
         for root, dirs, filenames in os.walk(input_dir):
+            prune_indexing_excluded_walk_dirs(root, dirs)
             # Check folder flag if we are skipping existing
             if self.skip_existing:
                 try:
@@ -107,9 +113,11 @@ class BatchImageProcessor:
             visited_folders.add(root)
             
             for filename in filenames:
-                ext = os.path.splitext(filename)[1]
-                if ext.lower() in extensions:
-                    file_path = os.path.join(root, filename)
+                file_path = os.path.join(root, filename)
+                if path_is_indexing_excluded(file_path):
+                    continue
+                ext = os.path.splitext(filename)[1].lower()
+                if ext in extensions:
                     files.append(file_path)
                     # Broadcast image discovery
                     try:

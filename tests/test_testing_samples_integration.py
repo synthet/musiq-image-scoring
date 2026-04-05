@@ -1,5 +1,5 @@
 """
-Integration tests using real files under ``D:\\Photos\\TestingSamples`` (or ``NEF_TEST_SAMPLES_ROOT``).
+Integration tests using real files under ``tests/fixtures/testing_samples`` (or ``NEF_TEST_SAMPLES_ROOT``).
 
 Uses mock engines so CI/dev machines without GPU still exercise real paths + DB + pipeline.
 Skips automatically when the samples directory is missing or empty.

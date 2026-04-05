@@ -10,6 +10,7 @@ from modules.events import event_manager
 from modules.phases import PhaseCode, PhaseStatus
 from modules.phases_policy import explain_phase_run_decision
 from modules.version import APP_VERSION
+from modules.indexing_policy import filter_image_rows_for_nef_policy
 
 TAGGER_VERSION = "1.0.0"  # bump when CLIP model or tagging logic changes
 
@@ -490,6 +491,8 @@ class TaggingRunner:
             log(f"Input path not found or not a directory: {input_path}")
             fail_terminal("Error Path")
             return
+
+        all_images = filter_image_rows_for_nef_policy(all_images)
 
         # Filtering logic for phase policy
         final_images = []

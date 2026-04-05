@@ -17,11 +17,11 @@ The Image Scoring project provides an MCP server that enables AI agents (like Cu
 
 This repo vendors **[agent-sdlc](https://github.com/synthet/agent-sdlc)**-style Cursor rules (`.cursor/rules/`), slash commands (`.cursor/commands/`), and project skills (`.cursor/skills/`). **This `AGENTS.md` file** remains the source of truth for canonical commands, repository layout, and boundaries.
 
-**Cursor slash commands** (type `/` in chat): **`/spec`**, **`/plan`**, **`/implement`**, **`/test-and-fix`**, **`/pr-ready`**, **`/release-notes`**. This repo also defines **`/release`** (semver release for this backend). **Claude Code** mirrors the agent-sdlc commands under `.claude/commands/`.
+**Cursor slash commands** (type `/` in chat): **`/spec`**, **`/plan`**, **`/implement`**, **`/test-and-fix`**, **`/pr-ready`**, **`/release-notes`**, **`/backup-db`**. This repo also defines **`/release`** (semver release for this backend). **Claude Code** mirrors the agent-sdlc commands under `.claude/commands/`.
 
 ## MCP servers (Image Scoring)
 
-The same FastMCP app exposes **43** tools; Cursor can attach it in two ways (separate `mcpServers` entries).
+The same FastMCP app exposes **44** tools; Cursor can attach it in two ways (separate `mcpServers` entries).
 
 **Unique server names:** Each repo’s `.cursor/mcp.json` uses a workspace prefix so keys do not collide when Cursor merges configs: **`imgscore-py-*`** (Python / `image-scoring` workspace), **`imgscore-el-*`** (`electron-image-scoring` workspace). Shared tools such as Playwright or Firebird use the same prefix (`imgscore-py-playwright`, `imgscore-el-firebird`, …).
 
@@ -99,7 +99,7 @@ ENABLE_MCP_SERVER=1 python webui.py
 
 ## Available Tools
 
-The MCP server registers **43** tools (see [`modules/mcp_server.py`](modules/mcp_server.py)). Summary:
+The MCP server registers **44** tools (see [`modules/mcp_server.py`](modules/mcp_server.py)). Summary:
 
 ### Diagnostic
 
@@ -109,6 +109,7 @@ The MCP server registers **43** tools (see [`modules/mcp_server.py`](modules/mcp
 | `check_database_health` | Data integrity (orphans, duplicates, inconsistencies) |
 | `get_model_status` | GPU / PyTorch / TensorFlow / model load status |
 | `diagnose_phase_consistency` | Per-image vs folder phase status mismatches |
+| `get_stale_running_phase_status` | `image_phase_status` rows stuck in `running` (age filter) |
 | `get_migration_parity` | Firebird↔Postgres parity snapshot (when applicable) |
 | `verify_environment` | Host, Python, and key dependency sanity check |
 

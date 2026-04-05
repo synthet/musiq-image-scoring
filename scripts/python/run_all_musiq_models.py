@@ -159,7 +159,9 @@ class MultiModelMUSIQ:
         if output_dir is None and resolution_override is None:
             cache_path = self._get_cache_path(file_path)
             if cache_path and os.path.exists(cache_path):
-                logging.getLogger(__name__).debug("Cache hit: %s", cache_path)
+                logging.getLogger(__name__).info(
+                    "preprocess_image: method=cache_hit path=%s cache=%s", file_path, cache_path
+                )
                 return cache_path
 
         if output_dir is not None:
@@ -173,21 +175,36 @@ class MultiModelMUSIQ:
             pil_image = None
             
             # RAW: use config conversion order (preferred method first)
+            decode_method: Optional[str] = None
             if self.is_raw_file(file_path):
-                try_exiftool = lambda: self._extract_jpeg_exiftool(file_path)
                 try_rawpy = lambda: self._extract_jpeg_rawpy(file_path)
                 if conversion_prefer == "rawpy_half":
                     pil_image = try_rawpy()
+                    decode_method = "rawpy_half" if pil_image is not None else None
                     if pil_image is None:
-                        pil_image = try_exiftool()
+                        pil_image, em = self._extract_jpeg_exiftool(file_path)
+                        decode_method = em
                 else:
-                    pil_image = try_exiftool()
+                    pil_image, em = self._extract_jpeg_exiftool(file_path)
+                    decode_method = em
                     if pil_image is None:
                         pil_image = try_rawpy()
+                        decode_method = "rawpy_half" if pil_image is not None else None
+                if pil_image is not None and decode_method:
+                    logging.getLogger(__name__).info(
+                        "preprocess_image: method=%s path=%s", decode_method, file_path
+                    )
             else:
-                pil_image = Image.open(file_path).convert('RGB')
-            
+                pil_image = Image.open(file_path).convert("RGB")
+                logging.getLogger(__name__).info(
+                    "preprocess_image: method=pil_open path=%s", file_path
+                )
+
             if pil_image is None:
+                if self.is_raw_file(file_path):
+                    logging.getLogger(__name__).warning(
+                        "preprocess_image: failed (no RAW decoder succeeded) path=%s", file_path
+                    )
                 return None
 
             if pil_image.size == (target_size, target_size):
@@ -221,20 +238,47 @@ class MultiModelMUSIQ:
             logging.getLogger(__name__).error(f"Preprocessing failed: {e}")
             return None
 
-    def _extract_jpeg_exiftool(self, file_path: str):
-        """Extract embedded JPEG via exiftool. Returns PIL Image or None."""
+    def _exiftool_extract_preview_bytes(self, raw_path: str) -> Optional[Tuple[str, bytes]]:
+        """
+        Pull embedded preview bytes via ExifTool (tags ordered largest-first intent).
+        Returns (tag_name, data) for JPEG or TIFF/other raster ExifTool exposes.
+        """
+        if shutil.which("exiftool") is None:
+            return None
+        min_len = 500
+        for tag in ("JpgFromRaw", "PreviewImage", "OtherImage", "ThumbnailImage"):
+            try:
+                cmd = ["exiftool", "-b", f"-{tag}", raw_path]
+                result = subprocess.run(cmd, capture_output=True, text=False, timeout=10)
+            except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+                continue
+            if result.returncode != 0 or len(result.stdout) < min_len:
+                continue
+            data = result.stdout
+            if data.startswith(b"\xff\xd8"):
+                return (tag, data)
+            try:
+                img = Image.open(io.BytesIO(data))
+                img.load()
+                img.close()
+                return (tag, data)
+            except Exception:
+                continue
+        return None
+
+    def _extract_jpeg_exiftool(self, file_path: str) -> Tuple[Optional[Image.Image], Optional[str]]:
+        """Extract embedded preview via exiftool. Returns (PIL Image, method label e.g. exiftool:JpgFromRaw)."""
         try:
-            cmd = ['exiftool', '-b', '-JpgFromRaw', file_path]
-            result = subprocess.run(cmd, capture_output=True, timeout=5)
-            if result.returncode == 0 and len(result.stdout) > 0:
-                return Image.open(io.BytesIO(result.stdout)).convert('RGB')
-            cmd = ['exiftool', '-b', '-PreviewImage', file_path]
-            result = subprocess.run(cmd, capture_output=True, timeout=5)
-            if result.returncode == 0 and len(result.stdout) > 1000 and result.stdout.startswith(b'\xff\xd8'):
-                return Image.open(io.BytesIO(result.stdout)).convert('RGB')
+            pair = self._exiftool_extract_preview_bytes(file_path)
+            if not pair:
+                return None, None
+            tag, data = pair
+            img = Image.open(io.BytesIO(data))
+            img.load()
+            return img.convert("RGB"), f"exiftool:{tag}"
         except Exception as e:
             logging.getLogger(__name__).debug(f"ExifTool extraction failed: {e}")
-        return None
+        return None, None
 
     def _extract_jpeg_rawpy(self, file_path: str):
         """Extract JPEG via rawpy half-size. Returns PIL Image or None."""
@@ -463,7 +507,7 @@ class MultiModelMUSIQ:
                  pass
 
             # Robust approach: Use JSON
-            cmd = ['exiftool', '-Model', '-Compression', '-j', raw_path] 
+            cmd = ["exiftool", "-Model", "-Compression", "-NEFCompression", "-j", raw_path]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=2.0)
             if result.returncode == 0:
                 import json
@@ -472,65 +516,47 @@ class MultiModelMUSIQ:
                     info = data[0]
                     model = info.get("Model", "")
                     compression = info.get("Compression", "")
-                    
+                    nef_compression = info.get("NEFCompression", "") or ""
+
                     # 1. Explicit HE detection
                     if "Nikon HE" in compression:
                         return False
-                        
+
+                    # 1b. NEFCompression often names High Efficiency* explicitly
+                    nef_l = nef_compression.lower()
+                    if "high efficiency" in nef_l:
+                        return False
+
                     # 2. Ambiguous Z8/Z9 Compressed detection
                     # "Nikon NEF Compressed" on Z8/Z9 often fails in LibRaw (TicoRAW?)
                     if "Z 8" in model or "Z 9" in model:
                         if "Nikon NEF Compressed" in compression:
                             return False
-            
+
             return True
         except Exception as e:
             # If check fails, default to trying rawpy
             return True
 
-    def _convert_with_exiftool(self, raw_path: str, output_path: str) -> bool:
+    def _convert_with_exiftool(self, raw_path: str, output_path: str) -> Tuple[bool, Optional[str]]:
         """
         Convert RAW using exiftool to extract embedded JPEG.
         This is often the most robust method for modern proprietary formats like Z8/Z9 HE*.
         """
         try:
-            if shutil.which("exiftool") is None:
-                return False
-
-            # -b: binary output
-            # -JpgFromRaw: tag to extract
-            # -w!: overwrite output file, %0f means original filename
-            # But here we want specific output path. 
-            # exiftool -b -JpgFromRaw source > destination is simplest standard shell way, 
-            # but acts differently on windows vs linux potentially with redirects.
-            # safer: use -W (capital) or just write to stdout and capture.
-            
-            cmd = ['exiftool', '-b', '-JpgFromRaw', raw_path]
-            result = subprocess.run(cmd, capture_output=True, text=False, timeout=10)
-            
-            if result.returncode == 0 and len(result.stdout) > 1000:
-                if result.stdout.startswith(b'\xff\xd8'):
-                    with open(output_path, 'wb') as f:
-                        f.write(result.stdout)
-                    logging.getLogger(__name__).info(f"✓ Extracted embedded JPEG via ExifTool")
-                    return True
-            
-            # Try PreviewImage if JpgFromRaw fails
-            cmd = ['exiftool', '-b', '-PreviewImage', raw_path]
-            result = subprocess.run(cmd, capture_output=True, text=False, timeout=10)
-            
-            if result.returncode == 0 and len(result.stdout) > 1000:
-                 if result.stdout.startswith(b'\xff\xd8'):
-                    with open(output_path, 'wb') as f:
-                        f.write(result.stdout)
-                    logging.getLogger(__name__).info(f"✓ Extracted embedded JPEG (PreviewImage) via ExifTool")
-                    return True
-                    
-            return False
-            
-        except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
-            # logging.getLogger(__name__).warning(f"exiftool conversion failed: {e}")
-            return False
+            pair = self._exiftool_extract_preview_bytes(raw_path)
+            if not pair:
+                return False, None
+            tag, data = pair
+            if data.startswith(b"\xff\xd8"):
+                with open(output_path, "wb") as f:
+                    f.write(data)
+            else:
+                img = Image.open(io.BytesIO(data)).convert("RGB")
+                img.save(output_path, "JPEG", quality=85, optimize=True)
+            return True, f"exiftool:{tag}"
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+            return False, None
 
     def convert_raw_to_jpeg(self, raw_path: str) -> Optional[str]:
         """Convert RAW file to temporary JPEG for processing."""
@@ -564,9 +590,13 @@ class MultiModelMUSIQ:
 
         for method in conversion_methods:
             try:
-                if method(raw_path, temp_jpeg):
+                ok, used = method(raw_path, temp_jpeg)
+                if ok:
                     self.temp_files.append(temp_jpeg)
-                    logging.getLogger(__name__).info(f"✓ RAW conversion successful: {temp_jpeg}")
+                    label = used or method.__name__.replace("_convert_with_", "")
+                    logging.getLogger(__name__).info(
+                        "✓ RAW conversion successful path=%s method=%s", temp_jpeg, label
+                    )
                     return temp_jpeg
             except Exception as e:
                 msg = str(e).lower()
@@ -579,7 +609,7 @@ class MultiModelMUSIQ:
         logging.getLogger(__name__).error(f"✗ All RAW conversion methods failed for: {raw_path}")
         return None
     
-    def _convert_with_rawpy(self, raw_path: str, output_path: str) -> bool:
+    def _convert_with_rawpy(self, raw_path: str, output_path: str) -> Tuple[bool, Optional[str]]:
         """Convert RAW using rawpy library (best quality)."""
         try:
             import rawpy
@@ -596,10 +626,10 @@ class MultiModelMUSIQ:
                 from PIL import Image
                 img = Image.fromarray(rgb)
                 img.save(output_path, 'JPEG', quality=85, optimize=True)
-                return True
+                return True, "rawpy_half"
         except ImportError:
             print("rawpy not available - install with: pip install rawpy")
-            return False
+            return False, None
         except Exception as e:
             msg = str(e).lower()
             if "corrupted" in msg or "unsupported" in msg:
@@ -607,16 +637,16 @@ class MultiModelMUSIQ:
                 logging.getLogger(__name__).info("  Attempting fallback to dcraw/magick...")
             else:
                 logging.getLogger(__name__).warning(f"rawpy conversion failed: {e}")
-            return False
+            return False, None
     
-    def _convert_with_dcraw(self, raw_path: str, output_path: str) -> bool:
+    def _convert_with_dcraw(self, raw_path: str, output_path: str) -> Tuple[bool, Optional[str]]:
         """
         Convert RAW using dcraw command line tool.
         Prioritizes extracting embedded JPEG (fast, correct colors) over full decode.
         """
         try:
             if shutil.which("dcraw") is None:
-                return False
+                return False, None
                 
             # Method 1: Extraction (-e) - Fast & Compatible with Z8
             cmd_extract = ['dcraw', '-e', '-c', raw_path] 
@@ -628,8 +658,7 @@ class MultiModelMUSIQ:
                     try:
                         with open(output_path, 'wb') as f:
                             f.write(res_extract.stdout)
-                        logging.getLogger(__name__).info(f"✓ Extracted embedded JPEG")
-                        return True
+                        return True, "dcraw:embedded_jpeg"
                     except Exception as e:
                         logging.getLogger(__name__).warning(f"Failed to write extracted JPEG: {e}")
             
@@ -651,18 +680,20 @@ class MultiModelMUSIQ:
                 jpeg_cmd = ['convert', '-', '-quality', '85', output_path]
                 convert_result = subprocess.run(jpeg_cmd, input=result.stdout, 
                                              capture_output=True, text=False, timeout=30)
-                return convert_result.returncode == 0
-            return False
+                if convert_result.returncode == 0:
+                    return True, "dcraw:full_decode+convert"
+                return False, None
+            return False, None
         except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
             logging.getLogger(__name__).warning(f"dcraw conversion failed: {e}")
-            return False
+            return False, None
     
-    def _convert_with_imagemagick(self, raw_path: str, output_path: str) -> bool:
+    def _convert_with_imagemagick(self, raw_path: str, output_path: str) -> Tuple[bool, Optional[str]]:
         """Convert RAW using ImageMagick."""
         try:
             # Check if magick is available first to avoid noise
             if shutil.which("magick") is None:
-                return False
+                return False, None
 
             cmd = [
                 'magick',
@@ -673,12 +704,14 @@ class MultiModelMUSIQ:
             ]
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-            return result.returncode == 0 and os.path.exists(output_path)
+            if result.returncode == 0 and os.path.exists(output_path):
+                return True, "imagemagick:magick_resize50"
+            return False, None
         except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
             # logging.getLogger(__name__).debug(f"ImageMagick conversion failed: {e}") # Debug only
-            return False
+            return False, None
     
-    def _convert_with_pillow(self, raw_path: str, output_path: str) -> bool:
+    def _convert_with_pillow(self, raw_path: str, output_path: str) -> Tuple[bool, Optional[str]]:
         """Convert RAW using Pillow (limited RAW support)."""
         try:
             # Pillow has limited RAW support, mainly for DNG
@@ -689,10 +722,10 @@ class MultiModelMUSIQ:
             # Resize for speed
             img.thumbnail((img.width // 2, img.height // 2), Image.Resampling.LANCZOS)
             img.save(output_path, 'JPEG', quality=85, optimize=True)
-            return True
+            return True, "pillow:open"
         except Exception as e:
             print(f"Pillow conversion failed: {e}")
-            return False
+            return False, None
     
     def __init__(self, skip_gpu: bool = False):
         self.device = None

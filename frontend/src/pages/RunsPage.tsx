@@ -7,8 +7,9 @@ import { useWsStore } from '@/stores/wsStore'
 import { useUiStore } from '@/stores/uiStore'
 import { Plus, Inbox } from 'lucide-react'
 import type { Run } from '@/types/api'
+import { RunsToolsTab } from '@/components/runs/RunsToolsTab'
 
-type TabFilter = 'active' | 'queue' | 'history'
+type TabFilter = 'active' | 'queue' | 'history' | 'tools'
 
 export function RunsPage() {
   const { openNewRun } = useUiStore()
@@ -39,10 +40,12 @@ export function RunsPage() {
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-lg font-semibold text-[#cccccc]">Runs</h1>
-        <Button variant="primary" size="sm" onClick={() => openNewRun()}>
-          <Plus size={13} />
-          New Run
-        </Button>
+        {tab !== 'tools' && (
+          <Button variant="primary" size="sm" onClick={() => openNewRun()}>
+            <Plus size={13} />
+            New Run
+          </Button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -50,21 +53,26 @@ export function RunsPage() {
         <TabButton label="Active" count={active.length} active={tab === 'active'} onClick={() => setTab('active')} />
         <TabButton label="Queued" count={queued.length} active={tab === 'queue'} onClick={() => setTab('queue')} />
         <TabButton label="History" count={history.length} active={tab === 'history'} onClick={() => setTab('history')} />
+        <TabButton label="Tools" active={tab === 'tools'} onClick={() => setTab('tools')} />
       </div>
 
-      {isLoading && (
+      {tab === 'tools' && <RunsToolsTab />}
+
+      {tab !== 'tools' && isLoading && (
         <div className="text-sm text-[#6d6d6d]">Loading…</div>
       )}
 
-      {!isLoading && displayed.length === 0 && (
+      {tab !== 'tools' && !isLoading && displayed.length === 0 && (
         <EmptyState tab={tab} onNewRun={() => openNewRun()} />
       )}
 
-      <div className="space-y-3">
-        {displayed.map((run) => (
-          <RunCard key={run.id} run={run} />
-        ))}
-      </div>
+      {tab !== 'tools' && (
+        <div className="space-y-3">
+          {displayed.map((run) => (
+            <RunCard key={run.id} run={run} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -73,7 +81,7 @@ function TabButton({
   label, count, active, onClick,
 }: {
   label: string
-  count: number
+  count?: number
   active: boolean
   onClick: () => void
 }) {
@@ -89,7 +97,7 @@ function TabButton({
       `}
     >
       {label}
-      {count > 0 && (
+      {typeof count === 'number' && count > 0 && (
         <span className="bg-[#474747] text-[#9d9d9d] text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
           {count}
         </span>
@@ -98,8 +106,8 @@ function TabButton({
   )
 }
 
-function EmptyState({ tab, onNewRun }: { tab: TabFilter; onNewRun: () => void }) {
-  const messages: Record<TabFilter, string> = {
+function EmptyState({ tab, onNewRun }: { tab: Exclude<TabFilter, 'tools'>; onNewRun: () => void }) {
+  const messages: Record<Exclude<TabFilter, 'tools'>, string> = {
     active: 'No active runs. Start a new run to begin processing.',
     queue: 'Queue is empty.',
     history: 'No completed runs yet.',

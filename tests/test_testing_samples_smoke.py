@@ -1,4 +1,4 @@
-"""Lightweight checks on ``D:\\Photos\\TestingSamples`` (no Firebird)."""
+"""Lightweight checks on ``tests/fixtures/testing_samples`` (no Firebird)."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def test_testing_samples_root_lists_files_or_skip():
     paths = list_sample_image_files()
     root = testing_samples_root()
     if not os.path.isdir(root):
-        pytest.skip(f"TestingSamples root not found: {root}")
+        pytest.skip(f"Testing samples root not found: {root}")
     assert len(paths) >= 1, (
         f"Expected image files under {root}; none found. "
         "Run scripts/python/download_nef_testing_samples.py per NEF_TESTING_SAMPLES_URLS.md"
@@ -28,9 +28,9 @@ def test_nef_samples_decode_with_rawpy_when_installed():
     nef_paths = [p for p in list_sample_image_files() if p.lower().endswith(".nef")]
     root = testing_samples_root()
     if not os.path.isdir(root):
-        pytest.skip(f"TestingSamples root not found: {root}")
+        pytest.skip(f"Testing samples root not found: {root}")
     if not nef_paths:
-        pytest.skip("No .NEF files under TestingSamples")
+        pytest.skip("No .NEF files under testing samples root")
 
     rawpy = pytest.importorskip("rawpy")
     with rawpy.imread(nef_paths[0]) as raw:

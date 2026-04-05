@@ -714,6 +714,17 @@ def check_database_health() -> dict:
             if empty_stacks > 0:
                 health["warnings"].append(f"{empty_stacks} stacks with no images")
 
+            try:
+                stale_ph = db.list_stale_running_image_phase_rows(min_age_seconds=3600, limit=1)
+                n_stale = int(stale_ph.get("count_estimate") or 0)
+                if n_stale > 0:
+                    health["warnings"].append(
+                        f"{n_stale} image_phase_status row(s) stuck in running >3600s "
+                        "(folder phase badges may drift; MCP tool get_stale_running_phase_status)"
+                    )
+            except Exception:
+                pass
+
             health["summary"] = {
                 "total_issues": len(health["issues"]),
                 "total_warnings": len(health["warnings"])
@@ -907,6 +918,19 @@ def diagnose_phase_consistency(image_id: int, folder_path: Optional[str] = None)
     except Exception as e:
         result["error"] = str(e)
     return result
+
+
+@mcp.tool(annotations=_RO)
+@_require_db
+def get_stale_running_phase_status(min_age_seconds: int = 3600, limit: int = 50) -> dict:
+    """Find image_phase_status rows stuck in ``running`` longer than ``min_age_seconds`` (folder rollup drift).
+
+    Use after crashes or forced stops when folder badges still show ``running`` but jobs are terminal.
+    """
+    return db.list_stale_running_image_phase_rows(
+        min_age_seconds=min_age_seconds,
+        limit=limit,
+    )
 
 
 # ============================================================

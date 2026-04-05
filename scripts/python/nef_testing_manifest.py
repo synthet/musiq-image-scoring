@@ -1,5 +1,5 @@
 """
-Build manifest.json (+ optional README) for the Nikon NEF TestingSamples tree.
+Build manifest.json (+ optional README) for the Nikon NEF testing samples tree.
 
 SHA-256 for every .NEF; optional ExifTool JSON for Nikon RAW tags.
 """
@@ -21,6 +21,18 @@ README_TEMPLATE_NAME = "NEF_TESTING_SAMPLES_README.md"
 
 def _script_dir() -> Path:
     return Path(__file__).resolve().parent
+
+
+def _repo_root() -> Path:
+    return _script_dir().parents[1]
+
+
+def _manifest_root_field(root: Path) -> str:
+    root = root.resolve()
+    try:
+        return root.relative_to(_repo_root()).as_posix()
+    except ValueError:
+        return str(root)
 
 
 def sha256_file(path: Path) -> str:
@@ -104,7 +116,7 @@ def build_manifest(root: Path, *, use_exiftool: bool) -> dict:
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "root": str(root),
+        "root": _manifest_root_field(root),
         "exiftool_used": bool(et_ok),
         "files": files,
     }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Download curated Nikon NEF test samples into the TestingSamples folder tree.
+Download curated Nikon NEF test samples into ``tests/fixtures/testing_samples`` (or a custom root).
 
 Targets only hosts that serve raw .NEF bytes over HTTP(S) without a browser session.
 See NEF_TESTING_SAMPLES_URLS.md for full list (galleries / Google Drive = manual).
@@ -10,7 +10,7 @@ See NEF_TESTING_SAMPLES_URLS.md for full list (galleries / Google Drive = manual
   python scripts/python/download_nef_testing_samples.py --force
   python scripts/python/download_nef_testing_samples.py --no-manifest
 
-Root directory: NEF_TEST_SAMPLES_ROOT or D:\\Photos\\TestingSamples
+Root directory: NEF_TEST_SAMPLES_ROOT or repo ``tests/fixtures/testing_samples``
 
 After a successful run (unless --dry-run / --no-manifest), writes manifest.json
 and README.md (if missing) via nef_testing_manifest.refresh_testing_samples_artifacts.
@@ -25,6 +25,12 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from modules.testing_samples_paths import default_testing_samples_root  # noqa: E402
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -41,7 +47,7 @@ MIN_NEF_BYTES = 50_000
 
 def default_root() -> Path:
     env = os.environ.get("NEF_TEST_SAMPLES_ROOT")
-    return Path(env) if env else Path(r"D:\Photos\TestingSamples")
+    return Path(env) if env else Path(default_testing_samples_root())
 
 
 def _is_probably_html(head: bytes) -> bool:
@@ -91,8 +97,8 @@ def download_one(url: str, dest: Path, *, dry_run: bool, force: bool) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Download Nikon NEF samples into TestingSamples folders.")
-    parser.add_argument("root", nargs="?", default=None, help="Override root (default: env or D:\\Photos\\TestingSamples)")
+    parser = argparse.ArgumentParser(description="Download Nikon NEF samples into the testing samples tree.")
+    parser.add_argument("root", nargs="?", default=None, help="Override root (default: env or tests/fixtures/testing_samples)")
     parser.add_argument("--dry-run", action="store_true", help="Print planned downloads only")
     parser.add_argument("--force", action="store_true", help="Re-download even if file already exists")
     parser.add_argument(

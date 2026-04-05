@@ -27,7 +27,7 @@ class SelectionRunner:
     def __init__(self):
         self._service = SelectionService()
         self._lock = threading.Lock()
-        self._is_running = False
+        self.is_running = False
         self._log_history: list[str] = []
         self._status_message = "Idle"
         self._current_count = 0
@@ -39,7 +39,7 @@ class SelectionRunner:
         with self._lock:
             log_text = "\n".join(self._log_history)
             return (
-                self._is_running,
+                self.is_running,
                 log_text,
                 self._status_message,
                 self._current_count,
@@ -49,10 +49,10 @@ class SelectionRunner:
     def start_batch(self, input_path: str, job_id: int = None, force_rescan: bool = False) -> str:
         """Starts Selection in a background thread. Non-blocking."""
         with self._lock:
-            if self._is_running:
+            if self.is_running:
                 return "Error: Already running."
 
-            self._is_running = True
+            self.is_running = True
             self._log_history = []
             self._status_message = "Starting..."
             self._current_count = 0
@@ -70,7 +70,7 @@ class SelectionRunner:
                     self._status_message = "Failed"
             finally:
                 with self._lock:
-                    self._is_running = False
+                    self.is_running = False
 
         self._thread = threading.Thread(target=target, daemon=True)
         self._thread.start()

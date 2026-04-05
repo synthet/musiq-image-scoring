@@ -19,6 +19,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     ca-certificates \
     curl \
     gnupg \
+    libimage-exiftool-perl \
     libgl1 \
     libsm6 \
     libxext6 \

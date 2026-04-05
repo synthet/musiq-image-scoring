@@ -1,6 +1,6 @@
 # Free Nikon NEF sample files — URLs for testing
 
-Curated links for **D300**, **D90**, **Z6 II**, and **Z8** (no-login sources where possible). Use with `D:\Photos\TestingSamples` subfolders: `D300`, `D90`, `Z6II`, `Z8`.
+Curated links for **D300**, **D90**, **Z6 II**, and **Z8** (no-login sources where possible). Use with repo **`tests/fixtures/testing_samples`** subfolders: `D300`, `D90`, `Z6II`, `Z8`.
 
 **Automation:** Run `python scripts/python/download_nef_testing_samples.py` to fetch from **rawsamples.ch** and **raw.pixls.us** (reliable for scripts). That step also writes **`manifest.json`** and **`README.md`** (if missing) unless you pass **`--no-manifest`**. Regenerate the manifest any time with `python scripts/python/build_nef_testing_manifest.py` (`--no-exiftool` for SHA-256 only; `--force-readme` to replace README). Imaging Resource FULLRES and raw-files.com links below are often **404** or HTML for scripts—use a browser or raw.pixls.us. Verify with `python scripts/python/verify_nef_testing_samples.py` and optional **`--exiftool`** when ExifTool is installed.
 

@@ -26,5 +26,11 @@
       "/mnt/"
     ],
     "log_dir": ".cursor"
+  },
+  "indexing": {
+    "excluded_paths": [],
+    "photos_prune_root": "D:\\Photos",
+    "photos_prune_top_segment_whitelist": [],
+    "photos_prune_top_segment_allow_regex": null
   }
 }

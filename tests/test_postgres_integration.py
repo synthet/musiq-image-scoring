@@ -90,3 +90,42 @@ def test_insert_folder_and_image_with_embedding():
     assert row["file_name"] == "a.jpg"
     assert abs(row["score"] - 0.42) < 1e-9
     assert row["folder_id"] == folder_id
+
+
+def test_upsert_image_re_resolves_stale_folder_id():
+    """Stale ``folder_id`` in payload must not violate ``images_folder_id_fkey``."""
+    from modules import db
+
+    image_path = os.path.normpath(
+        os.path.abspath(os.path.join("integration", "stale_folder_id_upsert_test", "x.jpg"))
+    )
+    bogus_id = 9_999_999
+    result = {
+        "image_path": image_path,
+        "image_name": "x.jpg",
+        "folder_id": bogus_id,
+        "score": 0.5,
+        "score_general": 0.5,
+        "score_technical": 0.5,
+        "score_aesthetic": 0.5,
+        "summary": {
+            "weighted_scores": {
+                "general": 0.5,
+                "technical": 0.5,
+                "aesthetic": 0.5,
+            }
+        },
+        "models": {},
+    }
+    db.upsert_image(job_id=None, result=result)
+
+    row = db.get_connector().query_one(
+        "SELECT folder_id FROM images WHERE file_path = ?",
+        (image_path,),
+    )
+    assert row is not None
+    fid = row["folder_id"]
+    assert fid is not None
+    assert fid != bogus_id
+    ok = db.get_connector().query_one("SELECT 1 AS ok FROM folders WHERE id = ?", (fid,))
+    assert ok is not None

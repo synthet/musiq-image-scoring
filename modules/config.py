@@ -325,6 +325,10 @@ def validate_config() -> dict:
     if cb is not None and (not isinstance(cb, int) or cb <= 0):
         issues.append(f"processing.clustering_batch_size must be a positive integer (got {cb!r})")
 
+    sjv = proc.get("strict_job_completion_verify")
+    if sjv is not None and not isinstance(sjv, bool):
+        issues.append(f"processing.strict_job_completion_verify must be a boolean when set (got {sjv!r})")
+
     db_sec = data.get("database") or {}
     engine = get_database_engine()
 
@@ -346,6 +350,14 @@ def validate_config() -> dict:
     log_dir = (data.get("system") or {}).get("log_dir")
     if log_dir and not os.path.isdir(os.path.abspath(log_dir)):
         warnings.append(f"system.log_dir is not an existing directory: {log_dir}")
+
+    idx = data.get("indexing") or {}
+    if idx.get("nikon_nef_only") is not None and not isinstance(idx.get("nikon_nef_only"), bool):
+        issues.append("indexing.nikon_nef_only must be a boolean when set")
+    excl = idx.get("excluded_paths")
+    if excl is not None:
+        if not isinstance(excl, list) or any(not isinstance(x, str) for x in excl):
+            issues.append("indexing.excluded_paths must be a list of strings when set")
 
     return {
         "ok": len(issues) == 0,

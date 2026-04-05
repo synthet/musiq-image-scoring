@@ -5,7 +5,7 @@ Tests ExifTool, dcraw, and rawpy extraction on various Nikon RAW formats.
 
 Usage:
     python tests/test_raw_extraction.py <path_to_nef_file>
-    python tests/test_raw_extraction.py /mnt/d/Photos/Z8/DSC_6008.NEF
+    python tests/test_raw_extraction.py /mnt/d/Projects/image-scoring-backend/tests/fixtures/testing_samples/Z8/example.NEF
 """
 
 import os

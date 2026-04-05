@@ -3504,8 +3504,24 @@ def create_api_router() -> APIRouter:
         """
         from modules import db
         from modules.exif_extractor import extract_exif
+        from modules.indexing_runner import INDEXING_VERSION
         from modules.phases import PhaseCode, PhaseStatus
         from modules.version import APP_VERSION
+
+        def _ensure_import_indexing_phase_done(image_id: int) -> None:
+            """Backfill indexing (Discovery) done when import skips an already-registered image."""
+            st = db.get_image_phase_status(image_id, PhaseCode.INDEXING)
+            if st and st.get("status") == PhaseStatus.RUNNING:
+                return
+            if st and st.get("status") == PhaseStatus.DONE:
+                return
+            db.set_image_phase_status(
+                image_id,
+                PhaseCode.INDEXING,
+                PhaseStatus.DONE,
+                app_version=APP_VERSION,
+                executor_version=INDEXING_VERSION,
+            )
 
         folder_id = db.get_or_create_folder(folder_path)
         if not folder_id:
@@ -3544,7 +3560,9 @@ def create_api_router() -> APIRouter:
             file_type = ext.lstrip(".") or "unknown"
 
             try:
-                if db.find_image_id_by_path(fp):
+                existing_by_path = db.find_image_id_by_path(fp)
+                if existing_by_path:
+                    _ensure_import_indexing_phase_done(int(existing_by_path))
                     skipped += 1
                 else:
                     image_uuid = None
@@ -3554,7 +3572,9 @@ def create_api_router() -> APIRouter:
                             uid = exif_data.get("image_unique_id")
                             if uid and isinstance(uid, str) and uid.strip():
                                 image_uuid = uid.strip()
-                                if db.find_image_id_by_uuid(image_uuid):
+                                existing_by_uuid = db.find_image_id_by_uuid(image_uuid)
+                                if existing_by_uuid:
+                                    _ensure_import_indexing_phase_done(int(existing_by_uuid))
                                     skipped += 1
                                     image_uuid = "ALREADY_IN_DB"
                     except Exception:
@@ -3565,8 +3585,15 @@ def create_api_router() -> APIRouter:
                         if image_id:
                             if was_new:
                                 added += 1
-                                db.set_image_phase_status(image_id, PhaseCode.INDEXING, PhaseStatus.DONE, app_version=APP_VERSION)
+                                db.set_image_phase_status(
+                                    image_id,
+                                    PhaseCode.INDEXING,
+                                    PhaseStatus.DONE,
+                                    app_version=APP_VERSION,
+                                    executor_version=INDEXING_VERSION,
+                                )
                             else:
+                                _ensure_import_indexing_phase_done(int(image_id))
                                 skipped += 1
                         else:
                             errors.append(f"{file_name}: insert failed")
@@ -4807,13 +4834,13 @@ def create_api_router() -> APIRouter:
                         continue
                     thread = getattr(runner, "_thread", None)
                     thread_alive = thread is not None and thread.is_alive()
-                    # Selection runner uses _is_running behind a lock
+                    # Selection runner uses is_running behind a lock
                     if name == "selection":
                         lock = getattr(runner, "_lock", None)
                         if lock:
                             with lock:
-                                if runner._is_running and not thread_alive:
-                                    runner._is_running = False
+                                if runner.is_running and not thread_alive:
+                                    runner.is_running = False
                                     cleared.append(name)
                     else:
                         if getattr(runner, "is_running", False) and not thread_alive:
@@ -5070,8 +5097,6 @@ def create_api_router() -> APIRouter:
         paths: List[str]
         recursive: bool = True
 
-    _SCOPE_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".nef", ".arw", ".cr2", ".dng", ".heic", ".webp", ".tiff", ".tif", ".raw", ".orf", ".rw2", ".nrw", ".cr3"}
-
     def _normalize_scope_path_input(raw: str) -> str:
         """Trim and strip trailing slashes; keep Windows drive roots (e.g. D:\\) as directory paths."""
         s = (raw or "").strip()
@@ -5131,21 +5156,30 @@ def create_api_router() -> APIRouter:
 
     def _scope_count_images_on_disk(local_path: str, recursive: bool) -> tuple[int, int]:
         """Count images and folders on disk. Returns (image_count, folder_count)."""
+        from modules.indexing_policy import discovery_extensions
+
+        exts = discovery_extensions()
         if not os.path.isdir(local_path):
             return (0, 0)
         img_count = 0
         folder_count = 0
         if recursive:
+            from modules.indexing_policy import path_is_indexing_excluded, prune_indexing_excluded_walk_dirs
+
             for root, dirs, files in os.walk(local_path):
+                prune_indexing_excluded_walk_dirs(root, dirs)
                 folder_count += 1
                 for f in files:
-                    if os.path.splitext(f)[1].lower() in _SCOPE_IMAGE_EXTENSIONS:
+                    fp = os.path.join(root, f)
+                    if path_is_indexing_excluded(fp):
+                        continue
+                    if os.path.splitext(f)[1].lower() in exts:
                         img_count += 1
         else:
             folder_count = 1
             for f in os.listdir(local_path):
                 fp = os.path.join(local_path, f)
-                if os.path.isfile(fp) and os.path.splitext(f)[1].lower() in _SCOPE_IMAGE_EXTENSIONS:
+                if os.path.isfile(fp) and os.path.splitext(f)[1].lower() in exts:
                     img_count += 1
         return (img_count, folder_count)
 
@@ -5356,7 +5390,53 @@ def create_api_router() -> APIRouter:
             data={"updated_images": updated}
         )
 
+    @router.get(
+        "/maintenance/stale-running-phases",
+        summary="Diagnostic: image_phase_status rows stuck in running",
+        description=(
+            "Returns a count and sample of per-image phase rows still `running` older than "
+            "`min_age_seconds`. Use before POST /api/maintenance/reconcile-terminal-job-phases."
+        ),
+        tags=["General API"],
+    )
+    async def get_stale_running_phases(
+        min_age_seconds: int = Query(3600, ge=0, le=604800),
+        limit: int = Query(50, ge=1, le=200),
+    ):
+        from modules import db
 
+        return db.list_stale_running_image_phase_rows(
+            min_age_seconds=min_age_seconds,
+            limit=limit,
+        )
+
+    @router.post(
+        "/maintenance/reconcile-terminal-job-phases",
+        response_model=ApiResponse,
+        summary="Reconcile stuck phases for finished jobs",
+        description=(
+            "Marks `image_phase_status` rows as failed when the parent job is already terminal "
+            "(completed/failed/canceled) but a per-image row stayed `running`. "
+            "Safe self-help for UI/badge drift after crashes or restarts."
+        ),
+        tags=["General API"],
+    )
+    async def reconcile_terminal_job_phases(
+        limit: int = Query(5000, ge=1, le=50000),
+    ):
+        from modules.ui.security import _check_rate_limit
+        from modules import db
+
+        _check_rate_limit("maintenance_reconcile_terminal_phases")
+        try:
+            n = db.reconcile_stale_running_phases_for_terminal_jobs(limit=limit)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        return ApiResponse(
+            success=True,
+            message=f"Reconciled {n} stuck phase row(s) tied to terminal jobs",
+            data={"reconciled_rows": n},
+        )
 
     @router.post(
         "/ipc/bridge",

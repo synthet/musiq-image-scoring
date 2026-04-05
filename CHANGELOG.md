@@ -29,6 +29,31 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 3. Monitor logs for deprecation warnings when Phase 4c ships
 4. Complete migration before v7.0 (July 2026)
 
+## [6.5.0] - 2026-04-04
+
+### Added
+
+- **Indexing policy** (`modules/indexing_policy.py`): optional **`indexing.nikon_nef_only`** (NEF-only discovery for walks and downstream phase filtering); **`indexing.excluded_paths`** to skip directory subtrees during indexing, scope disk preview counts, and scoring batch walks. Config validation for these keys in `validate_config()`.
+- **REST API**: **`GET /api/maintenance/stale-running-phases`** and **`POST /api/maintenance/reconcile-terminal-job-phases`** to inspect and fix `image_phase_status` rows stuck in `running` when the parent job is already terminal.
+- **Database**: helpers to list stale running phase rows and reconcile them against terminal jobs; optional **`processing.strict_job_completion_verify`** to fail completion when queued image IDs are not terminal for the phase (see `docs/technical/RUNS_QUEUE_AND_RESTART.md`).
+- **MCP**: **`get_stale_running_phase_status`**; **`check_database_health`** warns when long-running stale phase rows are present.
+- **React `/ui` Runs**: **Tools** tab (`RunsToolsTab`) for maintenance actions from the Runs page.
+- **Maintenance scripts** (under `scripts/maintenance/`): preview/prune folder trees (`preview_photos_prune_folders`, `prune_folders_without_nef`, `prune_photos_keep_camera_folders`, `purge_images_under_prefixes`); supporting modules `photos_top_segment_prune.py`, `folder_prune_nef.py`, `testing_samples_paths.py`.
+- **Tests**: indexing / NEF folder policy, phase reconcile, photos top-segment prune, pipeline matrix helpers, and related fixtures.
+
+### Fixed
+
+- **Bulk import stream**: when a path or camera UUID already exists, ensure the **indexing (Discovery)** phase is marked **done** (with **executor** version) so multi-phase workflows do not stall; new rows stamp **`INDEXING_VERSION`** on indexing completion.
+- **API runner watchdog**: selection runner stale-thread cleanup uses the public **`is_running`** flag consistently.
+
+### Changed
+
+- **Scope / disk preview** image counting uses the same discovery extension set and excluded-path rules as the indexer.
+- **Runner pipeline**: indexing runner and related phases align with indexing policy; metadata/scoring/tagging/clustering/selection honor NEF-only filtering for in-DB rows.
+- **`environment.example.json`**: documents **`indexing.excluded_paths`** and photos-prune-related keys for local overrides.
+- **Built `/ui` static assets** refreshed (`static/app/assets/*`, `static/app/index.html`).
+- **Docs / agent references**: runs queue and restart notes; MCP tools reference; NEF testing sample script path handling.
+
 ## [6.4.1] - 2026-04-04
 
 ### Fixed

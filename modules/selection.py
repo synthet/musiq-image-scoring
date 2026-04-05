@@ -15,6 +15,7 @@ from typing import Callable, Optional
 from modules import db, clustering, utils
 from modules.selection_policy import classify_sorted_ids, POLICY_VERSION
 from modules.selection_metadata import write_selection_metadata
+from modules.indexing_policy import filter_image_rows_for_nef_policy
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +141,7 @@ class SelectionService:
                 # --- Per-folder processing ---
                 
                 # 1. Get images
-                images = db.get_images_by_folder(folder)
+                images = filter_image_rows_for_nef_policy(db.get_images_by_folder(folder))
                 if not images:
                     continue
                     
@@ -169,7 +170,7 @@ class SelectionService:
                     break
                     
                 # 3. Reload images with stack_ids
-                images = db.get_images_by_folder(folder)
+                images = filter_image_rows_for_nef_policy(db.get_images_by_folder(folder))
                 if not images:
                     continue
                     

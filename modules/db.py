@@ -3466,8 +3466,10 @@ def check_and_update_folder_status(folder_path):
     if not path.exists() or not path.is_dir():
         return False
         
-    extensions = {'.jpg', '.jpeg', '.png', '.nef', '.nrw', '.dng', '.cr2', '.arw'}
-    
+    from modules.indexing_policy import discovery_extensions
+
+    extensions = discovery_extensions()
+
     try:
         files = [p for p in path.iterdir() if p.is_file() and p.suffix.lower() in extensions]
     except (PermissionError, OSError) as e:
@@ -3916,6 +3918,14 @@ def get_running_job_for_phase_continuation():
 
 
 def update_job_status(job_id, status, log=None, current_phase=None, next_phase_index=None, runner_state=None):
+    effect_status = (status or "").strip().lower()
+    effect_log = log
+    if effect_status == "completed":
+        strict_fail = _strict_verify_resolved_ids_terminal_for_phase(job_id)
+        if strict_fail:
+            effect_status = "failed"
+            effect_log = strict_fail if log is None else f"{log}\n{strict_fail}"
+
     def _tx(tx):
         row = tx.query_one(
             "SELECT status, current_phase, next_phase_index, runner_state, log, phase_id, job_type FROM jobs WHERE id = ?",
@@ -3925,13 +3935,13 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
             raise ValueError(f"Job not found: {job_id}")
 
         old_status = (row["status"] or "pending").strip().lower()
-        new_status = (status or "").strip().lower()
+        new_status = effect_status
 
         allowed_next = JOB_ALLOWED_TRANSITIONS.get(old_status)
         if allowed_next is not None and old_status != new_status and new_status not in allowed_next:
             raise ValueError(f"Invalid job status transition: {old_status} -> {new_status} (job_id={job_id})")
 
-        final_log = log
+        final_log = effect_log
         # Keep existing cursor values unless caller explicitly overrides
         final_phase = current_phase if current_phase is not None else row["current_phase"]
         final_next_idx = next_phase_index if next_phase_index is not None else row["next_phase_index"]
@@ -3968,7 +3978,7 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
                     job_id,
                     multi,
                     phase_state,
-                    error_message=log if new_status in {"failed", "interrupted"} else None,
+                    error_message=effect_log if new_status in {"failed", "interrupted"} else None,
                     tx=tx,
                 )
 
@@ -3979,7 +3989,7 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
                 return (p.get("state") or "").strip().lower() in terminal_states
 
             all_terminal = (not phases) or all(_phase_terminal(p) for p in phases)
-            eff_log = log if log is not None else row.get("log")
+            eff_log = effect_log if effect_log is not None else row.get("log")
 
             if not all_terminal:
                 active = next(
@@ -4061,7 +4071,7 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
                         job_id,
                         multi,
                         phase_state,
-                        error_message=log if new_status in {"failed", "interrupted"} else None,
+                        error_message=effect_log if new_status in {"failed", "interrupted"} else None,
                         tx=tx,
                     )
             elif phase_code and not (n_phases > 1):
@@ -4069,7 +4079,7 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
                     job_id,
                     phase_code,
                     phase_state,
-                    error_message=log if new_status in {"failed", "interrupted"} else None,
+                    error_message=effect_log if new_status in {"failed", "interrupted"} else None,
                     tx=tx,
                 )
         except Exception as e:
@@ -4124,6 +4134,21 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
         event_manager.broadcast_threadsafe(f"job_{broadcast_status}", payload)
     except Exception:
         pass
+
+    if broadcast_status in ("completed", "failed", "canceled", "cancelled", "interrupted"):
+        try:
+            n_ips = reconcile_stale_running_phases_for_jobs(
+                [job_id],
+                error_message=f"{STALE_RUNNING_RECONCILED_MSG}:job_{broadcast_status}",
+            )
+            if n_ips:
+                logger.info(
+                    "update_job_status: reconciled %s stale image_phase_status rows for job %s",
+                    n_ips,
+                    job_id,
+                )
+        except Exception:
+            logger.exception("update_job_status: image_phase_status reconcile failed for job %s", job_id)
 
 
 def enqueue_job(input_path, phase_code, job_type=None, queue_payload=None):
@@ -4812,7 +4837,276 @@ def recover_running_jobs(mark_as="interrupted"):
                 [mark_as, now] + recovered,
             )
         get_connector().run_transaction(_tx)
+        try:
+            n = reconcile_stale_running_phases_for_jobs(
+                recovered,
+                error_message=f"stale_running_reconciled:job_{mark_as}",
+            )
+            if n:
+                logger.info("recover_running_jobs: reconciled %s stale image_phase_status rows", n)
+        except Exception:
+            logger.exception("recover_running_jobs: image_phase_status reconcile failed")
     return recovered
+
+
+STALE_RUNNING_RECONCILED_MSG = "stale_running_reconciled"
+
+
+def reconcile_stale_running_phases_for_jobs(job_ids, error_message=None):
+    """
+    Mark image_phase_status rows still ``running`` for the given job id(s) as ``failed``.
+
+    Used when a job is interrupted/canceled/failed/completed so folder aggregates do not
+    stay stuck on ``running`` after the run row is no longer active.
+
+    Returns:
+        int: number of rows updated (best-effort; may be 0 if unknown on some connectors).
+    """
+    msg = (error_message or STALE_RUNNING_RECONCILED_MSG).strip() or STALE_RUNNING_RECONCILED_MSG
+    if not job_ids:
+        return 0
+    job_ids = [int(x) for x in job_ids]
+    placeholders = ",".join("?" * len(job_ids))
+
+    folder_rows = get_connector().query(
+        f"""
+        SELECT DISTINCT i.folder_id AS folder_id
+        FROM image_phase_status ips
+        JOIN images i ON i.id = ips.image_id
+        WHERE ips.job_id IN ({placeholders}) AND ips.status = 'running'
+        """,
+        job_ids,
+    )
+    folder_ids = [r["folder_id"] for r in folder_rows if r and r.get("folder_id") is not None]
+
+    params = [msg, datetime.datetime.now(), datetime.datetime.now()] + job_ids
+    rowcount = get_connector().execute(
+        f"""
+        UPDATE image_phase_status
+        SET status = 'failed', last_error = ?, finished_at = ?, updated_at = ?
+        WHERE job_id IN ({placeholders}) AND status = 'running'
+        """,
+        params,
+    )
+    try:
+        rc = int(rowcount) if rowcount is not None else 0
+    except (TypeError, ValueError):
+        rc = 0
+
+    for fid in folder_ids:
+        try:
+            invalidate_folder_phase_aggregates(folder_id=fid)
+        except Exception:
+            logger.debug("invalidate_folder_phase_aggregates after reconcile failed for folder_id=%s", fid)
+
+    return rc
+
+
+def reconcile_stale_running_phases_for_terminal_jobs(limit=5000):
+    """
+    Fix ``image_phase_status`` rows stuck in ``running`` while the linked ``jobs`` row
+    is already terminal (completed/failed/canceled/interrupted).
+
+    Returns:
+        int: approximate rows updated (connector-dependent).
+    """
+    terminal = ("completed", "failed", "canceled", "cancelled", "interrupted")
+    try:
+        limit = max(1, int(limit))
+    except (TypeError, ValueError):
+        limit = 5000
+
+    ph = ",".join("?" * len(terminal))
+    rows = get_connector().query(
+        f"""
+        SELECT ips.id AS row_id, i.folder_id AS folder_id
+        FROM image_phase_status ips
+        JOIN jobs j ON j.id = ips.job_id
+        LEFT JOIN images i ON i.id = ips.image_id
+        WHERE ips.status = 'running'
+          AND LOWER(TRIM(CAST(j.status AS VARCHAR(64)))) IN ({ph})
+        FETCH FIRST ? ROWS ONLY
+        """,
+        list(terminal) + [limit],
+    )
+    if not rows:
+        return 0
+
+    row_ids = [int(r["row_id"]) for r in rows if r and r.get("row_id") is not None]
+    folder_ids = list({r["folder_id"] for r in rows if r and r.get("folder_id") is not None})
+    if not row_ids:
+        return 0
+
+    placeholders = ",".join("?" * len(row_ids))
+    now = datetime.datetime.now()
+    msg = f"{STALE_RUNNING_RECONCILED_MSG}:terminal_job"
+    rc = get_connector().execute(
+        f"""
+        UPDATE image_phase_status
+        SET status = 'failed', last_error = ?, finished_at = ?, updated_at = ?
+        WHERE id IN ({placeholders})
+        """,
+        [msg, now, now] + row_ids,
+    )
+    try:
+        out = int(rc) if rc is not None else len(row_ids)
+    except (TypeError, ValueError):
+        out = len(row_ids)
+
+    for fid in folder_ids:
+        try:
+            invalidate_folder_phase_aggregates(folder_id=fid)
+        except Exception:
+            logger.debug("invalidate_folder_phase_aggregates after terminal-job reconcile failed folder_id=%s", fid)
+
+    return out
+
+
+def list_stale_running_image_phase_rows(min_age_seconds=3600, limit=100):
+    """
+    Diagnostic: ``image_phase_status`` rows still ``running`` older than ``min_age_seconds``.
+
+    Returns:
+        dict with ``count_estimate``, ``sample`` (list of row dicts), ``min_age_seconds``.
+    """
+    try:
+        min_age_seconds = max(0, int(min_age_seconds))
+    except (TypeError, ValueError):
+        min_age_seconds = 3600
+    try:
+        limit = max(1, min(500, int(limit)))
+    except (TypeError, ValueError):
+        limit = 100
+
+    cutoff = datetime.datetime.now() - datetime.timedelta(seconds=min_age_seconds)
+    rows = get_connector().query(
+        """
+        SELECT ips.image_id, ips.job_id, ips.phase_id, ips.started_at, ips.last_error,
+               pp.code AS phase_code, i.file_path
+        FROM image_phase_status ips
+        JOIN pipeline_phases pp ON pp.id = ips.phase_id
+        LEFT JOIN images i ON i.id = ips.image_id
+        WHERE ips.status = 'running'
+          AND (ips.started_at IS NULL OR ips.started_at < ?)
+        ORDER BY ips.started_at NULLS FIRST
+        FETCH FIRST ? ROWS ONLY
+        """,
+        (cutoff, limit),
+    )
+    cnt_row = get_connector().query_one(
+        """
+        SELECT COUNT(*) AS c
+        FROM image_phase_status ips
+        WHERE ips.status = 'running'
+          AND (ips.started_at IS NULL OR ips.started_at < ?)
+        """,
+        (cutoff,),
+    )
+    total = int((cnt_row or {}).get("c") or 0)
+    sample = []
+    for r in rows or []:
+        sample.append({
+            "image_id": r.get("image_id"),
+            "job_id": r.get("job_id"),
+            "phase_id": r.get("phase_id"),
+            "phase_code": (r.get("phase_code") or "").strip(),
+            "started_at": str(r.get("started_at")) if r.get("started_at") else None,
+            "last_error": r.get("last_error"),
+            "file_path": r.get("file_path"),
+        })
+    return {
+        "min_age_seconds": min_age_seconds,
+        "count_estimate": total,
+        "sample": sample,
+    }
+
+
+def _strict_verify_resolved_ids_terminal_for_phase(job_id):
+    """
+    When ``processing.strict_job_completion_verify`` is true and the job has a single ``job_phases``
+    row, ensure every ``resolved_image_ids`` entry has a terminal ``image_phase_status`` for that phase.
+
+    Returns:
+        None if OK or skipped; str error message if the job should be marked failed instead of completed.
+    """
+    if not config.get_config_value("processing.strict_job_completion_verify", False):
+        return None
+
+    cnt = get_connector().query_one("SELECT COUNT(*) AS c FROM job_phases WHERE job_id = ?", (job_id,))
+    n_phases = int((cnt or {}).get("c") or 0)
+    if n_phases != 1:
+        return None
+
+    row = get_connector().query_one("SELECT queue_payload, phase_id, job_type FROM jobs WHERE id = ?", (job_id,))
+    if not row:
+        return None
+    raw = row.get("queue_payload")
+    payload = {}
+    if raw:
+        try:
+            payload = json.loads(raw) if isinstance(raw, str) else {}
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+        except Exception:
+            payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+
+    resolved = payload.get("resolved_image_ids")
+    if not resolved or not isinstance(resolved, (list, tuple)):
+        return None
+    image_ids = []
+    for x in resolved:
+        try:
+            image_ids.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    if not image_ids:
+        return None
+
+    phase_code = None
+    pid = row.get("phase_id")
+    if pid:
+        prow = get_connector().query_one("SELECT code FROM pipeline_phases WHERE id = ?", (pid,))
+        if prow and prow.get("code"):
+            phase_code = str(prow["code"]).strip().lower()
+    if not phase_code:
+        jt = (row.get("job_type") or "").strip().lower()
+        phase_code = {
+            "tagging": "keywords",
+            "selection": "culling",
+            "scoring": "scoring",
+            "score": "scoring",
+            "metadata": "metadata",
+            "indexing": "indexing",
+            "clustering": "culling",
+            "cluster": "culling",
+            "bird_species": "bird_species",
+        }.get(jt, jt)
+    if not phase_code:
+        return None
+
+    phase_id = get_phase_id(phase_code)
+    if phase_id is None:
+        return None
+
+    terminal = ("done", "failed", "skipped")
+    bad = 0
+    for iid in image_ids:
+        srow = get_connector().query_one(
+            "SELECT status FROM image_phase_status WHERE image_id = ? AND phase_id = ?",
+            (iid, phase_id),
+        )
+        st = (srow.get("status") or "not_started").strip().lower() if srow else "not_started"
+        if st not in terminal:
+            bad += 1
+
+    if bad:
+        return (
+            f"strict_job_completion_verify: {bad}/{len(image_ids)} images non-terminal "
+            f"for phase {phase_code!r} (job {job_id})"
+        )
+    return None
 
 
 def get_interrupted_jobs(job_type=None, limit=100):
@@ -4957,6 +5251,40 @@ def sync_folder_to_db(folder_path, job_id=None):
     if count > 0:
         event_manager.broadcast_threadsafe("folder_scanned", {"folder_path": folder_path, "new_images": count})
     return count
+
+
+def _validate_folder_id_or_from_path(folder_id, image_path):
+    """
+    Ensure ``folder_id`` references a row in ``folders`` before upserting ``images``.
+
+    Stale IDs (deleted folder rows, races with maintenance) are replaced by
+    ``get_or_create_folder(dirname(image_path))``. Non-integer values are treated as missing.
+    """
+    if folder_id is None or not image_path:
+        return folder_id
+    try:
+        i = int(folder_id)
+    except (TypeError, ValueError):
+        logger.debug("upsert_image: invalid folder_id %r; deriving from path", folder_id)
+        i = None
+    if i is not None:
+        try:
+            row = get_connector().query_one("SELECT 1 AS ok FROM folders WHERE id = ?", (i,))
+            if row:
+                return i
+        except Exception:
+            logger.exception("upsert_image: folder existence check failed for id=%s", i)
+        logger.info(
+            "upsert_image: folder_id=%s not in folders; re-resolving from path %s",
+            i,
+            image_path,
+        )
+    try:
+        return get_or_create_folder(os.path.dirname(image_path))
+    except Exception as e:
+        logger.error("upsert_image: folder re-resolve failed for %s: %s", image_path, e)
+        return None
+
 
 def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
     """
@@ -5114,10 +5442,15 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
     # Resolve Folder ID
     folder_id = None
     if image_path:
-        try:
-             folder_id = get_or_create_folder(os.path.dirname(image_path))
-        except Exception as e:
-             logging.error(f"Error resolving folder for {image_path}: {e}")
+        if "folder_id" in result:
+            folder_id = result.get("folder_id")
+        else:
+            try:
+                folder_id = get_or_create_folder(os.path.dirname(image_path))
+            except Exception as e:
+                logging.error(f"Error resolving folder for {image_path}: {e}")
+        if folder_id is not None:
+            folder_id = _validate_folder_id_or_from_path(folder_id, image_path)
 
     existing_image = None
     if image_path:
@@ -5558,6 +5891,113 @@ def delete_image(file_path, delete_related: bool = True):
         except Exception:
             pass
     return True, f"Removed DB record for: {file_path}"
+
+
+def purge_images_under_path_prefixes(
+    prefixes: list,
+    *,
+    dry_run: bool = True,
+    purge_folder_cache: bool = True,
+):
+    """
+    Delete DB rows for images under any of the given directory prefixes (segment-precise).
+
+    Uses ``delete_image`` per path so stacks, thumbnails, and related rows stay consistent.
+    When ``purge_folder_cache`` is true, also removes matching ``folders`` cache subtrees
+    via ``delete_folder_cache_entry`` for each raw prefix.
+    """
+    from modules.indexing_policy import (
+        logical_roots_from_user_prefixes,
+        path_is_under_logical_roots,
+        sql_like_prefixes_for_path_purge,
+    )
+
+    raw_list = [str(p).strip() for p in (prefixes or []) if str(p).strip()]
+    if not raw_list:
+        return {
+            "success": True,
+            "dry_run": dry_run,
+            "matched": 0,
+            "deleted": 0,
+            "message": "No prefixes given.",
+        }
+
+    roots = logical_roots_from_user_prefixes(raw_list)
+    patterns = sql_like_prefixes_for_path_purge(raw_list)
+    if not patterns:
+        return {
+            "success": True,
+            "dry_run": dry_run,
+            "matched": 0,
+            "deleted": 0,
+            "message": "No path patterns resolved.",
+        }
+
+    placeholders = " OR ".join(["file_path LIKE ?"] * len(patterns))
+    sql = f"SELECT file_path FROM images WHERE {placeholders}"
+    try:
+        rows = get_connector().query(sql, tuple(patterns))
+    except Exception as exc:
+        return {
+            "success": False,
+            "dry_run": dry_run,
+            "matched": 0,
+            "deleted": 0,
+            "message": str(exc),
+        }
+
+    paths: list[str] = []
+    seen: set[str] = set()
+    for row in rows or []:
+        fp = row.get("file_path") if isinstance(row, dict) else None
+        if not fp or fp in seen:
+            continue
+        if not path_is_under_logical_roots(str(fp), roots):
+            continue
+        seen.add(fp)
+        paths.append(str(fp))
+
+    out = {
+        "success": True,
+        "dry_run": dry_run,
+        "matched": len(paths),
+        "deleted": 0,
+        "examples": paths[:15],
+        "folder_cache": [],
+    }
+
+    if dry_run:
+        out["message"] = f"Dry-run: {len(paths)} image path(s) would be removed."
+        return out
+
+    deleted = 0
+    errors: list[str] = []
+    for fp in paths:
+        ok, msg = delete_image(fp, delete_related=True)
+        if ok:
+            deleted += 1
+        else:
+            errors.append(f"{fp}: {msg}")
+
+    out["deleted"] = deleted
+    out["errors"] = errors[:20]
+    if errors:
+        out["success"] = False
+        out["message"] = f"Removed {deleted} image(s); {len(errors)} error(s)."
+    else:
+        out["message"] = f"Removed {deleted} image(s)."
+
+    if purge_folder_cache:
+        fc_results = []
+        for p in raw_list:
+            try:
+                fc_results.append(delete_folder_cache_entry(p, delete_descendants=True))
+            except Exception as exc:
+                fc_results.append({"success": False, "message": str(exc)})
+        out["folder_cache"] = fc_results
+
+    return out
+
 
 def backup_database(max_backups=5):
     """

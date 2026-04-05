@@ -1,6 +1,8 @@
 import json
+import threading
 
 from modules.job_dispatcher import JobDispatcher
+from modules.selection_runner import SelectionRunner
 
 
 class DummyRunner:
@@ -50,6 +52,31 @@ def test_dispatcher_treats_selection_runner_as_busy(monkeypatch):
     assert dispatcher._any_runner_busy() is True
     assert dispatcher._get_active_runner() == "selection"
     dispatcher._tick()
+
+
+def test_dispatcher_sees_real_selection_runner_busy(monkeypatch):
+    """SelectionRunner must expose is_running so JobDispatcher does not double-dispatch culling."""
+    hold = threading.Event()
+
+    def fake_run_internal(self, input_path, force_rescan, job_id=None):
+        hold.wait()
+
+    monkeypatch.setattr(SelectionRunner, "_run_internal", fake_run_internal)
+
+    selection_runner = SelectionRunner()
+    dispatcher = JobDispatcher(selection_runner=selection_runner)
+
+    assert dispatcher._any_runner_busy() is False
+    assert selection_runner.start_batch("/tmp/fake_scope", job_id=999, force_rescan=False) == "Started"
+    assert selection_runner.is_running is True
+    assert dispatcher._any_runner_busy() is True
+    assert dispatcher._get_active_runner() == "selection"
+
+    hold.set()
+    assert selection_runner._thread is not None
+    selection_runner._thread.join(timeout=5.0)
+    assert selection_runner.is_running is False
+    assert dispatcher._any_runner_busy() is False
 
 
 def test_dispatcher_supports_culling_alias(monkeypatch):

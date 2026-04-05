@@ -73,6 +73,13 @@ def clean_postgres(postgres_test_session):
     from modules import db_postgres
 
     db_postgres.truncate_app_tables()
+    db_postgres.reset_pool()
+    try:
+        from modules.db_connector import reset_connector
+
+        reset_connector()
+    except Exception:
+        pass
     yield
 
 

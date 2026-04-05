@@ -70,10 +70,32 @@ Only phases that were **`running`** for those job IDs are updated. Completed/pen
 
 `webui.py` `main()` → `create_ui()` → `_init_webui_engines()` → `db.init_db()` then `orchestrator.recover_interrupted_jobs()` → **`db.recover_running_jobs('interrupted')`** → optional pipeline auto-resume → later `api.set_runners()` → `_job_dispatcher.start()`.
 
+## Per-image phase status (`image_phase_status`)
+
+`recover_running_jobs` still does **not** infer per-image progress from `jobs` alone, but after it marks runs interrupted it calls **`reconcile_stale_running_phases_for_jobs`** so rows still **`running`** for those job ids are flipped to **`failed`** with `last_error` `stale_running_reconciled:job_interrupted`. That prevents folder phase rollups from staying stuck on “running” after a crash.
+
+On WebUI init, **`reconcile_stale_running_phases_for_terminal_jobs`** (see [`modules/db.py`](../../modules/db.py)) also fixes **`running`** rows whose **`jobs`** row is already terminal (completed/failed/canceled/interrupted). Count is surfaced under `job_recovery.reconciled_terminal_job_phase_rows` in config loaded from [`modules/ui/app.py`](../../modules/ui/app.py).
+
+When a job reaches a terminal status via **`update_job_status`**, the same reconcile runs for that **`job_id`** so user-stopped batches (e.g. metadata runner `stop` after setting **`running`** on an image) do not leave stale **`running`** rows.
+
+Optional: set **`processing.strict_job_completion_verify`** to **`true`** in `config.json` to fail single-phase jobs at completion time when **`queue_payload.resolved_image_ids`** is set and any listed image is not terminal for that phase (guards “green run” vs incomplete per-image state).
+
+Diagnostics: MCP **`get_stale_running_phase_status`** lists long-**`running`** `image_phase_status` rows; **`check_database_health`** warns when the count > 0 (older than 1 hour).
+
+### Runner exit audit (brief)
+
+| Runner | `update_job_status` on success path | Notes |
+|--------|-------------------------------------|--------|
+| [`IndexingRunner`](../../modules/indexing_runner.py) | `completed` / `failed` | User **stop** still ends with **`completed`** (same as metadata). |
+| [`MetadataRunner`](../../modules/metadata_runner.py) | `completed` / `failed` | Mid-loop **stop** can leave last image **`running`** until job-level reconcile. |
+| [`ScoringRunner`](../../modules/scoring.py) | `completed` / `failed` | Multiple entry paths set terminal status. |
+| [`TaggingRunner`](../../modules/tagging.py) | `completed` / `failed` | |
+| [`SelectionRunner`](../../modules/selection_runner.py) / clustering | `completed` via `_complete_phase_and_advance` | Uses **`set_job_phase_state`** for culling. |
+| [`ClusteringRunner`](../../modules/clustering.py) | `completed` / `failed` | |
+
 ## Out of scope for this recovery
 
 - FastAPI **`lifespan`** in [`webui.py`](../../webui.py) (event loop / loop monitor only) does **not** modify `jobs`.
-- **Per-image phase status** (`image_phase_status` table) is separate and not cleaned up by `recover_running_jobs`.
 
 ## Related code
 

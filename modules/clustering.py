@@ -14,6 +14,7 @@ from modules.phases import PhaseCode, PhaseStatus
 from modules.phases_policy import explain_phase_run_decision
 from modules.version import APP_VERSION
 from modules.engines.base import IClusteringEngine
+from modules.indexing_policy import filter_image_rows_for_nef_policy
 
 logger = logging.getLogger(__name__)
 
@@ -439,7 +440,8 @@ class ClusteringEngine(IClusteringEngine):
             rows = db.get_all_images(limit=-1)
             selected_ids = {int(i) for i in target_image_ids}
             images_rows = [row for row in rows if row.get('id') in selected_ids]
-            
+            images_rows = filter_image_rows_for_nef_policy(images_rows)
+
             if not images_rows:
                 yield update_status("No images matched target IDs.", 0, 0)
                 return
@@ -456,7 +458,7 @@ class ClusteringEngine(IClusteringEngine):
 
         elif target_folder:
             # --- Single folder mode ---
-            images_rows = db.get_images_by_folder(target_folder)
+            images_rows = filter_image_rows_for_nef_policy(db.get_images_by_folder(target_folder))
             if not images_rows:
                 yield update_status(f"No images found in folder: {target_folder}", 0, 0)
                 return
@@ -509,7 +511,7 @@ class ClusteringEngine(IClusteringEngine):
             by_folder = {}
             images_rows = []  # Aggregate for total count tracking
             for i, folder_path in enumerate(folders_to_process):
-                folder_images = db.get_images_by_folder(folder_path)
+                folder_images = filter_image_rows_for_nef_policy(db.get_images_by_folder(folder_path))
                 if folder_images:
                     by_folder[folder_path] = folder_images
                     images_rows.extend(folder_images)

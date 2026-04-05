@@ -1,11 +1,17 @@
 import os
 import threading
 import logging
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 from modules import db
 from modules.version import APP_VERSION
 from modules.phases import PhaseCode, PhaseStatus
 from modules.events import event_manager, broadcast_run_log_line
+from modules.indexing_policy import (
+    discovery_extensions,
+    path_is_indexing_excluded,
+    prune_indexing_excluded_walk_dirs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +21,71 @@ SUPPORTED_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.tif',
     '.nef', '.nrw', '.arw', '.cr2', '.cr3', '.dng'
 }
+
+
+def _path_under_or_equal(child: str, ancestor: str) -> bool:
+    c = os.path.normpath(child)
+    a = os.path.normpath(ancestor)
+    if c == a:
+        return True
+    prefix = a if a.endswith(os.sep) else a + os.sep
+    return c.startswith(prefix)
+
+
+def _dir_directly_contains_nef(dir_path: str, cache: Dict[str, bool]) -> bool:
+    if dir_path in cache:
+        return cache[dir_path]
+    try:
+        with os.scandir(dir_path) as it:
+            for entry in it:
+                if entry.is_file() and entry.name.lower().endswith(".nef"):
+                    cache[dir_path] = True
+                    return True
+    except OSError:
+        cache[dir_path] = False
+        return False
+    cache[dir_path] = False
+    return False
+
+
+def _resolve_nef_folder_path(file_path: str, scan_stop: Optional[str], cache: Dict[str, bool]) -> Optional[str]:
+    """
+    Deepest directory at or above dirname(file_path) that directly contains a .nef file.
+    When scan_stop is set (normalized directory), do not walk above it.
+    """
+    cur = os.path.normpath(os.path.dirname(file_path))
+    stop = os.path.normpath(scan_stop) if scan_stop else None
+    while cur:
+        if stop and not _path_under_or_equal(cur, stop):
+            break
+        if _dir_directly_contains_nef(cur, cache):
+            return cur
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            break
+        if stop and not _path_under_or_equal(parent, stop):
+            break
+        cur = parent
+    return None
+
+
+def _assign_indexing_folder_id(image_id: int, file_path: str, scan_stop: Optional[str], nef_cache: Dict[str, bool]) -> None:
+    resolved = _resolve_nef_folder_path(file_path, scan_stop, nef_cache)
+    new_fid = db.get_or_create_folder(resolved) if resolved else None
+    try:
+        row_old = db.get_connector().query_one("SELECT folder_id FROM images WHERE id = ?", (image_id,))
+        old_fid = row_old["folder_id"] if row_old else None
+        if old_fid == new_fid:
+            return
+        db.get_connector().execute("UPDATE images SET folder_id = ? WHERE id = ?", (new_fid, image_id))
+        if new_fid:
+            db.invalidate_folder_phase_aggregates(folder_id=new_fid)
+        if old_fid and old_fid != new_fid:
+            db.invalidate_folder_phase_aggregates(folder_id=old_fid)
+        db.invalidate_folder_images_cache(os.path.dirname(file_path))
+    except Exception:
+        logger.exception("Indexing: failed to update folder_id for image_id=%s path=%s", image_id, file_path)
+
 
 class IndexingRunner:
     """
@@ -67,17 +138,31 @@ class IndexingRunner:
 
     def discover_files(self, directory: str) -> List[str]:
         valid_files = []
+        exts = discovery_extensions()
         if os.path.isfile(directory):
-             ext = os.path.splitext(directory)[1].lower()
-             if ext in SUPPORTED_EXTENSIONS:
-                 valid_files.append(directory)
-             return valid_files
+            if path_is_indexing_excluded(directory):
+                return valid_files
+            ext = os.path.splitext(directory)[1].lower()
+            if ext in exts:
+                valid_files.append(directory)
+            return valid_files
 
-        for root, _, files in os.walk(directory):
+        try:
+            norm_dir = os.path.normpath(directory)
+        except (OSError, ValueError):
+            norm_dir = directory
+        if os.path.isdir(norm_dir) and path_is_indexing_excluded(norm_dir):
+            return valid_files
+
+        for root, dirs, files in os.walk(directory):
+            prune_indexing_excluded_walk_dirs(root, dirs)
             for file in files:
+                fp = os.path.join(root, file)
+                if path_is_indexing_excluded(fp):
+                    continue
                 ext = os.path.splitext(file)[1].lower()
-                if ext in SUPPORTED_EXTENSIONS:
-                    valid_files.append(os.path.join(root, file))
+                if ext in exts:
+                    valid_files.append(fp)
         return valid_files
 
     def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None):
@@ -96,6 +181,8 @@ class IndexingRunner:
 
         self.stop_event.clear()
         log(f"Starting Indexing process on {input_path or 'Selected Images'}...")
+        if discovery_extensions() == frozenset({".nef"}):
+            log("NEF-only indexing enabled (config indexing.nikon_nef_only).")
         self.status_message = "Running..."
         
         if job_id:
@@ -142,6 +229,14 @@ class IndexingRunner:
         log(f"Found {len(all_files)} files to potentially index.")
         self.total_count = len(all_files)
         self.current_count = 0
+
+        scan_stop: Optional[str] = None
+        nef_cache: Dict[str, bool] = {}
+        if resolved_image_ids is None and input_path and os.path.exists(input_path):
+            if os.path.isdir(input_path):
+                scan_stop = os.path.normpath(input_path)
+            elif os.path.isfile(input_path):
+                scan_stop = os.path.normpath(os.path.dirname(input_path))
         
         processed_count = 0
         skipped_count = 0
@@ -174,13 +269,16 @@ class IndexingRunner:
                 if existing:
                     image_id = existing.get('id')
                     db.register_image_path(image_id, file_path)
+                    _assign_indexing_folder_id(image_id, file_path, scan_stop, nef_cache)
                 else:
                     # Create new placeholder record
                     # We upsert an empty payload since scoring comes later
+                    resolved_folder = _resolve_nef_folder_path(file_path, scan_stop, nef_cache)
+                    folder_id = db.get_or_create_folder(resolved_folder) if resolved_folder else None
                     image_id = db.upsert_image(job_id, {
                         "file_path": file_path,
                         "image_hash": image_hash,
-                        "folder_id": None
+                        "folder_id": folder_id,
                     })
                 
                 # Set Phase Status

@@ -6,7 +6,7 @@ Used by download_nef_testing_samples.py and nef_testing_manifest.py.
 
 from __future__ import annotations
 
-# (subdir under TestingSamples root, local filename, URL)
+# (subdir under tests/fixtures/testing_samples root, local filename, URL)
 SAMPLES: list[tuple[str, str, str]] = [
     # D300 — rawsamples + raw.pixls.us
     ("D300", "RAW_NIKON_D300.NEF", "http://www.rawsamples.ch/raws/nikon/d300/RAW_NIKON_D300.NEF"),

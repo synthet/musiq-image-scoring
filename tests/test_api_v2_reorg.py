@@ -164,3 +164,58 @@ def test_import_register_legacy(monkeypatch):
     assert data["success"] is True
     assert "Import complete" in data["message"]
     assert data["data"]["added"] == 1
+
+
+def test_import_register_backfills_indexing_on_existing_path(monkeypatch):
+    """Re-importing the same path should mark indexing (Discovery) done if it was missing."""
+    phase_calls = []
+
+    def capture_set(*args, **kwargs):
+        phase_calls.append({"args": args, "kwargs": kwargs})
+
+    monkeypatch.setattr(os.path, "isdir", lambda x: True)
+    monkeypatch.setattr(os, "listdir", lambda x: ["dup.jpg"])
+    monkeypatch.setattr(os.path, "isfile", lambda x: True)
+    monkeypatch.setattr(db, "get_or_create_folder", lambda x: 1)
+    monkeypatch.setattr(db, "find_image_id_by_path", lambda x: 99)
+    monkeypatch.setattr(db, "get_image_phase_status", lambda image_id, phase: None)
+    monkeypatch.setattr(db, "set_image_phase_status", capture_set)
+    monkeypatch.setattr("modules.ui.security._check_rate_limit", lambda x: None)
+    monkeypatch.setattr("modules.exif_extractor.extract_exif", lambda x: {})
+
+    with _build_client() as client:
+        response = client.post("/api/import/register", json={"folder_path": "test/path"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["data"]["added"] == 0
+    assert body["data"]["skipped"] == 1
+    assert len(phase_calls) == 1
+    assert phase_calls[0]["kwargs"].get("executor_version") == "1.0.0"
+
+
+def test_import_register_no_backfill_when_indexing_already_done(monkeypatch):
+    phase_calls = []
+
+    def capture_set(*args, **kwargs):
+        phase_calls.append({"args": args, "kwargs": kwargs})
+
+    monkeypatch.setattr(os.path, "isdir", lambda x: True)
+    monkeypatch.setattr(os, "listdir", lambda x: ["dup.jpg"])
+    monkeypatch.setattr(os.path, "isfile", lambda x: True)
+    monkeypatch.setattr(db, "get_or_create_folder", lambda x: 1)
+    monkeypatch.setattr(db, "find_image_id_by_path", lambda x: 99)
+    monkeypatch.setattr(
+        db,
+        "get_image_phase_status",
+        lambda image_id, phase: {"status": PhaseStatus.DONE},
+    )
+    monkeypatch.setattr(db, "set_image_phase_status", capture_set)
+    monkeypatch.setattr("modules.ui.security._check_rate_limit", lambda x: None)
+    monkeypatch.setattr("modules.exif_extractor.extract_exif", lambda x: {})
+
+    with _build_client() as client:
+        response = client.post("/api/import/register", json={"folder_path": "test/path"})
+
+    assert response.status_code == 200
+    assert len(phase_calls) == 0

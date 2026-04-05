@@ -1,6 +1,6 @@
 # MCP Tools Quick Reference for AI Agents
 
-This document tracks the tools registered in [`modules/mcp_server.py`](../modules/mcp_server.py) (**43** tools).
+This document tracks the tools registered in [`modules/mcp_server.py`](../modules/mcp_server.py) (**44** tools).
 
 ## Connection modes
 
@@ -19,6 +19,7 @@ This document tracks the tools registered in [`modules/mcp_server.py`](../module
 | **`check_database_health`** | Integrity issues (orphans, duplicates, …) |
 | **`get_model_status`** | GPU / CUDA / model load |
 | **`diagnose_phase_consistency`** | `image_id` (+ optional `folder_path`): folder vs image phase mismatch |
+| **`get_stale_running_phase_status`** | Long-`running` `image_phase_status` rows (`min_age_seconds`, `limit`) |
 | **`get_migration_parity`** | Firebird↔Postgres parity snapshot (when configured) |
 | **`verify_environment`** | Host / venv / key deps sanity check |
 
