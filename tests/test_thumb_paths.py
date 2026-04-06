@@ -22,6 +22,10 @@ def test_collapse_malformed_thumbnail_segments():
 
 def test_thumbnail_pair_needs_repair_docker_and_incomplete():
     assert thumbnails.thumbnail_pair_needs_repair(
+        "../image-scoring/thumbnails/ab/file.jpg",
+        r"D:\Projects\image-scoring-backend\thumbnails\ab\file.jpg",
+    )
+    assert thumbnails.thumbnail_pair_needs_repair(
         "/app/thumbnails/e7/e7fb2c22547e5e312201223617a6d771.jpg",
         r"\app\thumbnails\e7\e7fb2c22547e5e312201223617a6d771.jpg",
     )

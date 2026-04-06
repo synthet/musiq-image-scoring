@@ -90,6 +90,12 @@ export function RunsToolsTab() {
     onError: (e) => setLastAction({ ok: false, text: formatToolError(e) }),
   })
 
+  const repairThumbDeepMut = useMutation({
+    mutationFn: () => toolsApi.repairThumbnailPaths({ repairAll: true }),
+    onSuccess: (r) => setFromEnvelope('Thumbnail paths (deep)', r),
+    onError: (e) => setLastAction({ ok: false, text: formatToolError(e) }),
+  })
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
@@ -194,7 +200,9 @@ export function RunsToolsTab() {
         title="Thumbnails"
         description={
           'Regenerate missing: up to 500 images where the DB thumbnail path does not resolve — may take several minutes on RAW libraries. ' +
-          'Repair broken paths: normalize up to 1,000 malformed thumbnail_path / thumbnail_path_win values (no pixel regeneration). Repeat either action as needed.'
+          'Repair broken paths: normalize up to 1,000 row updates per click (no pixel regeneration). ' +
+          'Quick repair targets Docker /app paths, repo-relative leaks, and one-sided columns (Postgres). ' +
+          'Deep normalize rescans the full table for any path pair that would change — use if quick repair reports no updates but paths still look wrong. Repeat as needed.'
         }
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -213,6 +221,14 @@ export function RunsToolsTab() {
             loading={repairThumbMut.isPending}
           >
             Repair broken paths
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => repairThumbDeepMut.mutate()}
+            loading={repairThumbDeepMut.isPending}
+          >
+            Deep normalize paths
           </Button>
         </div>
       </ToolSection>

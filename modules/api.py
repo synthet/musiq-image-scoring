@@ -1179,6 +1179,9 @@ def _stop_runner_for_phase(phase: str) -> bool:
     if phase_norm == "metadata" and _metadata_runner is not None:
         _metadata_runner.stop()
         return True
+    if phase_norm in ("bird_species", "bird-species") and _bird_species_runner is not None:
+        _bird_species_runner.stop()
+        return True
     return False
 
 
@@ -4778,17 +4781,19 @@ def create_api_router() -> APIRouter:
                 if status == "running":
                     state = _job_dispatcher.get_state()
                     active = state.get("active_runner")
-                    runner = None
-                    if active == "scoring" and _scoring_runner:
-                        runner = _scoring_runner
-                    elif active == "tagging" and _tagging_runner:
-                        runner = _tagging_runner
-                    elif active == "clustering" and _clustering_runner:
-                        runner = _clustering_runner
-                    elif active == "selection" and _selection_runner:
-                        runner = _selection_runner
-                    if runner and getattr(runner, "is_running", False):
-                        runner.stop()
+                    stopped = _stop_runner_for_phase(active) if active else False
+                    if not stopped:
+                        for ph in (
+                            "indexing",
+                            "metadata",
+                            "scoring",
+                            "tagging",
+                            "clustering",
+                            "selection",
+                            "bird_species",
+                        ):
+                            if _stop_runner_for_phase(ph):
+                                break
             else:
                 raise HTTPException(status_code=400, detail=f"Cannot cancel run with status={status}")
             return {"success": True, "message": f"Run {run_id} canceled"}
@@ -5510,26 +5515,49 @@ def create_api_router() -> APIRouter:
         response_model=ApiResponse,
         summary="Repair malformed thumbnail path columns (global batch)",
         description=(
-            "Normalizes up to 1000 thumbnail_path / thumbnail_path_win rows that need repair. "
+            "Normalizes up to 1000 thumbnail_path / thumbnail_path_win row updates per call. "
+            "Default (repair_all=false): Postgres scans only likely-bad rows (Docker /app paths, "
+            "repo-relative fragments, single-column pairs). "
+            "repair_all=true: full-table scan; normalizes any row where values change (slower). "
             "Does not regenerate image pixels. Safe to repeat."
         ),
         tags=["General API"],
     )
-    async def maintenance_repair_thumbnail_paths():
+    async def maintenance_repair_thumbnail_paths(
+        repair_all: bool = Query(
+            False,
+            description="Full scan: normalize every row where normalize_stored_thumbnail_pair changes values",
+        ),
+    ):
         from modules.ui.security import _check_rate_limit
         from modules import thumbnail_maintenance
 
         _check_rate_limit("maintenance_repair_thumbnail_paths")
         try:
-            stats = thumbnail_maintenance.repair_thumbnail_paths_batch(limit=1000)
+            stats = thumbnail_maintenance.repair_thumbnail_paths_batch(
+                limit=1000,
+                repair_all_pairs=repair_all,
+            )
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
+        parts = [
+            f"{stats['repaired']} updated",
+            f"{stats['unchanged']} unchanged",
+            f"{stats['scanned']} rows scanned",
+        ]
+        if stats.get("used_candidate_filter"):
+            parts.append("quick filter")
+        msg = "Thumbnail path repair: " + ", ".join(parts)
+        if not repair_all and stats["repaired"] == 0 and stats.get("used_candidate_filter") and stats["scanned"] == 0:
+            msg += (
+                ". No candidate rows (DB likely clean for common issues). "
+                "Retry with repair_all=true for a deep normalize pass."
+            )
+        elif not repair_all and stats["repaired"] == 0 and stats["scanned"] > 0:
+            msg += ". Candidate rows normalized with no changes; try repair_all=true if paths still look wrong."
         return ApiResponse(
             success=True,
-            message=(
-                f"Thumbnail path repair: {stats['repaired']} updated, "
-                f"{stats['unchanged']} unchanged, {stats['scanned']} rows scanned"
-            ),
+            message=msg,
             data=dict(stats),
         )
 

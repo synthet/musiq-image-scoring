@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from modules import db  # noqa: E402
 from modules.thumbnail_maintenance import repair_thumbnail_paths_batch  # noqa: E402
 
-logging.basicConfig(level=logging.INFO, format="%(level)s %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
 

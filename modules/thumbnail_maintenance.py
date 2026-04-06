@@ -12,7 +12,7 @@ import platform
 import re
 from typing import Optional, TypedDict
 
-from modules import db, thumbnails
+from modules import config, db, thumbnails
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +25,11 @@ class RegenerateBatchResult(TypedDict):
     failed: int
 
 
-class RepairBatchResult(TypedDict):
+class RepairBatchResult(TypedDict, total=False):
     scanned: int
     repaired: int
     unchanged: int
+    used_candidate_filter: bool
 
 
 def filesystem_path_for_image(db_file_path: str) -> str | None:
@@ -193,22 +194,47 @@ def repair_thumbnail_paths_batch(
         except (TypeError, ValueError):
             cap = 1000
 
-    conn = db.get_db()
-    cur = conn.cursor()
-    cur.execute(
+    use_candidate_filter = not repair_all_pairs and config.get_database_engine() == "postgres"
+    base_where = "(thumbnail_path IS NOT NULL OR thumbnail_path_win IS NOT NULL)"
+    if use_candidate_filter:
+        # Skip full-table scans when the library is mostly clean: only rows that commonly
+        # need repair (Docker /app paths, static leaks, repo-relative, or a missing column).
+        thumb_where = f"""
+        {base_where}
+        AND (
+            COALESCE(thumbnail_path, '') ILIKE '%/app/thumbnails%'
+            OR COALESCE(thumbnail_path, '') ILIKE '%thumbnails/app/thumbnails%'
+            OR COALESCE(thumbnail_path, '') ILIKE '%static/app/thumbnails%'
+            OR COALESCE(thumbnail_path, '') ILIKE '%../image-scoring%thumbnails%'
+            OR REPLACE(COALESCE(thumbnail_path_win, ''), E'\\\\', '/') ILIKE '%/app/thumbnails%'
+            OR (thumbnail_path IS NOT NULL AND thumbnail_path_win IS NULL)
+            OR (thumbnail_path_win IS NOT NULL AND thumbnail_path IS NULL)
+        )
         """
+        sql = f"""
         SELECT id, thumbnail_path, thumbnail_path_win
         FROM images
-        WHERE thumbnail_path IS NOT NULL OR thumbnail_path_win IS NOT NULL
+        WHERE {thumb_where}
         ORDER BY id
         """
-    )
+    else:
+        sql = f"""
+        SELECT id, thumbnail_path, thumbnail_path_win
+        FROM images
+        WHERE {base_where}
+        ORDER BY id
+        """
+
+    conn = db.get_db()
+    cur = conn.cursor()
+    cur.execute(sql)
     rows = cur.fetchall()
     conn.close()
 
     scanned = 0
     repaired = 0
     unchanged = 0
+    skip_needs_check = repair_all_pairs or use_candidate_filter
 
     for row in rows:
         if cap is not None and repaired >= cap:
@@ -218,8 +244,10 @@ def repair_thumbnail_paths_batch(
         tp = row["thumbnail_path"] if hasattr(row, "keys") else row[1]
         tw = row["thumbnail_path_win"] if hasattr(row, "keys") else row[2]
         scanned += 1
+        if scanned % 5000 == 0:
+            logger.info("Repair scan progress: scanned=%s repaired=%s", scanned, repaired)
 
-        if not repair_all_pairs and not thumbnails.thumbnail_pair_needs_repair(tp, tw):
+        if not skip_needs_check and not thumbnails.thumbnail_pair_needs_repair(tp, tw):
             unchanged += 1
             continue
 
@@ -238,4 +266,11 @@ def repair_thumbnail_paths_batch(
             db.update_image_thumbnail_paths(int(rid), new_tp, new_tw)
         repaired += 1
 
-    return RepairBatchResult(scanned=scanned, repaired=repaired, unchanged=unchanged)
+    out: RepairBatchResult = {
+        "scanned": scanned,
+        "repaired": repaired,
+        "unchanged": unchanged,
+    }
+    if use_candidate_filter:
+        out["used_candidate_filter"] = True
+    return out

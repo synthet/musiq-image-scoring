@@ -40,7 +40,11 @@ export const toolsApi = {
 
   regenerateThumbnails: () => api.post<ApiEnvelope>('/maintenance/regenerate-thumbnails'),
 
-  repairThumbnailPaths: () => api.post<ApiEnvelope>('/maintenance/repair-thumbnail-paths'),
+  /** @param repairAll Full-table deep normalize (slower); default uses Postgres quick candidate filter */
+  repairThumbnailPaths: (opts?: { repairAll?: boolean }) => {
+    const q = opts?.repairAll ? '?repair_all=true' : ''
+    return api.post<ApiEnvelope>(`/maintenance/repair-thumbnail-paths${q}`)
+  },
 }
 
 export function formatToolError(err: unknown): string {

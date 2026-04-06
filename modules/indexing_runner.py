@@ -329,7 +329,10 @@ class IndexingRunner:
             logger.exception("IndexingRunner: invalidate_folder_phase_aggregates after batch failed")
 
         if job_id:
-            db.update_job_status(job_id, "completed")
+            job = db.get_job(job_id)
+            st = (job.get("status") or "").strip().lower() if job else ""
+            if st not in db.JOB_TERMINAL_STATES:
+                db.update_job_status(job_id, "completed")
 
     def stop(self):
         self.stop_event.set()

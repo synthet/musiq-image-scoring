@@ -29,6 +29,24 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 3. Monitor logs for deprecation warnings when Phase 4c ships
 4. Complete migration before v7.0 (July 2026)
 
+## [6.7.0] - 2026-04-06
+
+### Added
+
+- **`POST /api/maintenance/repair-thumbnail-paths`**: optional query **`repair_all`** for a full-table deep normalize; default on Postgres uses a **quick candidate filter** (Docker `/app` paths, duplicated `thumbnails/app/thumbnails`, `static/app/thumbnails`, repo-relative leaks, one-sided path columns) so mostly-clean libraries avoid a full scan. Response messages hint when **`repair_all=true`** may be needed.
+- **React `/ui` Runs → Tools**: **Deep normalize paths** button (calls **`repair_all=true`**); **Repair broken paths** and API client pass through the quick-filter mode.
+
+### Changed
+
+- **`modules/thumbnails.py`**: collapse `thumbnails/static/app/thumbnails`; normalize leading slashes before Docker/static remaps; **`thumbnail_pair_needs_repair`** treats **`../image-scoring/thumbnails`** like the **`-backend`** variant.
+- **Run cancel**: stops the **`bird_species`** runner when active; if the active runner cannot be stopped, iterates known phases until one stops.
+- **`requirements/requirements_wsl_gpu.txt`**: pin **`open-clip-torch`** for the tagging / CLIP stack.
+
+### Fixed
+
+- **Indexing / metadata runners**: do not set the parent job to **completed** when it is already in a **terminal** state (e.g. canceled).
+- **`scripts/maintenance/repair_thumbnail_path_columns.py`**: logging format uses **`%(levelname)s`** (was invalid **`level`**).
+
 ## [6.6.0] - 2026-04-05
 
 ### Added

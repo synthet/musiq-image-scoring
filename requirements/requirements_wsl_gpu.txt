@@ -46,6 +46,7 @@ triton==3.6.0
 # PyTorch (tagging: BLIP, CLIP; LIQE scoring)
 torch==2.10.0
 torchvision==0.25.0
+open-clip-torch==3.3.0
 pyiqa>=0.1.14
 transformers==5.3.0
 safetensors==0.7.0

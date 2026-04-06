@@ -37,7 +37,7 @@ def collapse_malformed_thumbnail_segments(path: str) -> str:
     prev = None
     while s != prev:
         prev = s
-        s = re.sub(r"(?i)thumbnails[/\\]app[/\\]thumbnails", "thumbnails", s)
+        s = re.sub(r"(?i)thumbnails[/\\](?:static[/\\])?app[/\\]thumbnails", "thumbnails", s)
     return s
 
 
@@ -52,7 +52,9 @@ def remap_container_thumbnail_path_to_host(path: str) -> Optional[str]:
     if not path or not str(path).strip():
         return None
     s = collapse_malformed_thumbnail_segments(str(path).strip()).replace("\\", "/")
-    m = re.search(r"(?i)(?:^|/)app/thumbnails/(.+)$", s)
+    # Remove any extra leading slashes so logic handles //app/thumbnails/ safely
+    s = re.sub(r"^/+", "/", s)
+    m = re.search(r"(?i)(?:^|/)(?:static/)?app/thumbnails/(.+)$", s)
     if not m:
         return None
     rel = m.group(1).strip("/")
@@ -166,7 +168,8 @@ def _synthetic_app_thumbnail_db_pair(
         if not p:
             continue
         s = collapse_malformed_thumbnail_segments(str(p).strip()).replace("\\", "/")
-        m = re.search(r"(?i)(?:^|/)app/thumbnails/(.+)$", s)
+        s = re.sub(r"^/+", "/", s)
+        m = re.search(r"(?i)(?:^|/)(?:static/)?app/thumbnails/(.+)$", s)
         if m:
             rel = m.group(1).strip("/")
             break
@@ -343,9 +346,11 @@ def thumbnail_pair_needs_repair(
         return True
     if "thumbnails/app/thumbnails" in blob or "static/app/thumbnails" in blob:
         return True
-    if "../image-scoring-backend/thumbnails" in tp.replace("\\", "/").lower():
+    tp_n = tp.replace("\\", "/").lower()
+    tw_n = tw.replace("\\", "/").lower()
+    if "../image-scoring-backend/thumbnails" in tp_n or "../image-scoring/thumbnails" in tp_n:
         return True
-    if "../image-scoring-backend/thumbnails" in tw.replace("\\", "/").lower():
+    if "../image-scoring-backend/thumbnails" in tw_n or "../image-scoring/thumbnails" in tw_n:
         return True
 
     for p in (tp, tw):
