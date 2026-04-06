@@ -129,6 +129,43 @@ def test_dispatcher_scoring_selector_payload_preserves_none_input_path(monkeypat
     assert kwargs["resolved_image_ids"] == []
 
 
+def test_dispatcher_scoring_fix_incomplete_resolves_image_ids(monkeypatch):
+    scoring_runner = DummyRunner()
+    dispatcher = JobDispatcher(scoring_runner=scoring_runner)
+
+    queued_job = {
+        "id": 90,
+        "job_type": "scoring",
+        "input_path": "D:/Photos/batch",
+        "queue_payload": json.dumps({
+            "input_path": "D:/Photos/batch",
+            "skip_existing": True,
+            "fix_incomplete_stages": True,
+            "scope_paths": ["D:/Photos/batch", "D:/Photos/other"],
+        }),
+    }
+
+    def fake_incomplete_ids(path: str):
+        return [101] if "batch" in path else [202]
+
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.get_incomplete_image_ids_under_folder",
+        fake_incomplete_ids,
+    )
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *args, **kwargs: None)
+
+    dispatcher._tick()
+
+    assert len(scoring_runner.calls) == 1
+    args, kwargs = scoring_runner.calls[0]
+    assert args[0] == "D:/Photos/batch"
+    assert args[1] == 90
+    assert args[2] is False
+    assert kwargs["resolved_image_ids"] == [101, 202]
+    assert kwargs["target_phases"] is None
+
+
 def test_dispatcher_scoring_preserves_target_phases(monkeypatch):
     scoring_runner = DummyRunner()
     dispatcher = JobDispatcher(scoring_runner=scoring_runner)

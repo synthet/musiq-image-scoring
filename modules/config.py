@@ -285,7 +285,7 @@ def get_default_allowed_paths():
     Returns:
         List of paths safe to allow by default.
     """
-    allowed = [os.path.abspath("."), os.path.abspath("thumbnails")]
+    allowed = [os.path.abspath("."), str(BASE_DIR / "thumbnails")]
     
     # Add all detected system drives
     drives = get_system_drives()

@@ -5983,6 +5983,14 @@ components:
           type: boolean
           title: Force Rerun
           default: false
+        fix_incomplete_stages:
+          type: boolean
+          title: Fix Incomplete Stages
+          description: >-
+            When true, scoring targets only images under the scope that match
+            incomplete-record criteria (missing scores, rating, or label), and
+            forces those rows to be processed.
+          default: false
       type: object
       required:
       - scope_paths

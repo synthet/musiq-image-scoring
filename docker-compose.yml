@@ -40,6 +40,9 @@ services:
       - POSTGRES_DB=image_scoring
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
+      # Thumbnail paths in Postgres: map container /app to host (set in `.env`; see .env.example).
+      - IMAGE_SCORING_HOST_PROJECT_WSL=${IMAGE_SCORING_HOST_PROJECT_WSL:-}
+      - IMAGE_SCORING_HOST_PROJECT_WIN=${IMAGE_SCORING_HOST_PROJECT_WIN:-}
     volumes:
       - .:/app
       # Host folder → /mnt/d/Photos inside the container (keep UI paths as /mnt/d/Photos/...).

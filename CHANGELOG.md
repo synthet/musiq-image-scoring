@@ -29,6 +29,30 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 3. Monitor logs for deprecation warnings when Phase 4c ships
 4. Complete migration before v7.0 (July 2026)
 
+## [6.6.0] - 2026-04-05
+
+### Added
+
+- **`modules/thumbnail_maintenance.py`**: bounded global batch **regenerate missing thumbnails** and **repair thumbnail path columns** (shared with CLI maintenance scripts).
+- **REST API**: **`POST /api/maintenance/backfill-index-meta`** (query `limit`, default 1000, max 10000); **`POST /api/maintenance/regenerate-thumbnails`** (batch 500); **`POST /api/maintenance/repair-thumbnail-paths`** (batch 1000); rate limits on each. **`GET /api/maintenance/stale-running-phases`** now includes **`reconcilable_count`** (running phase rows on terminal jobs; matches reconcile semantics, not age-filtered).
+- **Database**: **`count_reconcilable_terminal_job_phases()`**, **`update_image_thumbnail_paths()`**; thumbnail path normalization when loading image details; **`_incomplete_images_where_sql`** helper for incomplete-image queries.
+- **Runs submit** (`POST /api/runs/submit`): optional **`fix_incomplete_stages`** to reconcile incomplete stage rows when enqueueing a run.
+- **Maintenance scripts** (under `scripts/maintenance/`): **`regenerate_missing_thumbnails.py`**, **`repair_thumbnail_path_columns.py`**, **`fix_app_thumbnails.py`**, **`schedule_incomplete_scope_runs.py`** (CLI wrappers / operators).
+- **Tests**: `tests/test_thumbnail_maintenance.py`; expanded thumbnail path and job-dispatcher coverage.
+
+### Changed
+
+- **React `/ui` Runs → Tools**: global-only actions (no folder path on tab); **Stuck phase rows** shows stale (age-filtered) and **reconcilable** counts; **Backfill** up to 1,000; **Thumbnails** regenerate / repair buttons; folder-scoped backfill and single-file metadata fix removed from the tab (**`POST /api/scoring/fix-image`** and **`POST /api/pipeline/phase/backfill-index-meta`** unchanged for API callers).
+- **React `/ui` new-run modal** (`ScopeSelector`): default stage selection includes **all** pipeline stages; run options are **Skip completed** / **Force re-run all** / **Fix non-completed stages** (maps to **`fix_incomplete_stages`**); **Escape** closes the modal.
+- **`modules/thumbnails.py`**: normalization and stored-path repair helpers used by API, DB, and maintenance batch.
+- **`POST /api/images/generate-thumbnail`**: prefers **`update_image_thumbnail_paths`** / normalized pairs when the image row is known.
+- **Built `/ui` static assets** refreshed (`static/app/assets/*`, `static/app/index.html`).
+- **OpenAPI** (`docs/reference/api/openapi.yaml`), **`config.example.json`**, **`.env.example`**, and **`docker-compose.yml`** updated for new options and wiring.
+- **Gradio `/app` gallery**: **RAW Preview** accordion (extract full preview via `generate_preview` for common RAW extensions).
+- **Thumbnail persistence**: **metadata runner**, **scoring “fix” path**, and **pipeline** (`skipped` scoring jobs) call **`update_image_thumbnail_paths`** so DB columns stay normalized with generated files.
+- **Paths / security**: **`webui.py` allowed paths**, **`get_default_allowed_paths()`**, and **diagnostics** report thumbnails under **`BASE_DIR / "thumbnails"`** (not CWD-relative).
+- **EXIF / XMP**: **ExifTool** subprocess timeouts are configurable (`exif.exiftool_read_timeout_seconds`, `exif.exiftool_write_timeout_seconds`).
+
 ## [6.5.0] - 2026-04-04
 
 ### Added

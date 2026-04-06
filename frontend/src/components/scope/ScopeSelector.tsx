@@ -12,6 +12,8 @@ import type { StageCode, ScopePreviewResult } from '@/types/api'
 
 const ALL_STAGES: StageCode[] = ['indexing', 'metadata', 'scoring', 'culling', 'keywords', 'bird_species']
 
+type RunOptionsMode = 'skip_completed' | 'force_all' | 'fix_incomplete'
+
 /** Trim and strip trailing `/` or `\\`; keep Windows drive roots (e.g. `D:\\`). */
 function normalizeScopePathInput(p: string): string {
   let s = p.trim()
@@ -30,9 +32,8 @@ export function ScopeSelector() {
 
   const [scopeType, setScopeType] = useState<'folder_recursive' | 'folder' | 'file'>('folder_recursive')
   const [paths, setPaths] = useState<string[]>([''])
-  const [stages, setStages] = useState<Set<StageCode>>(new Set(['indexing', 'metadata', 'scoring']))
-  const [skipDone, setSkipDone] = useState(true)
-  const [forceRerun, setForceRerun] = useState(false)
+  const [stages, setStages] = useState<Set<StageCode>>(new Set(ALL_STAGES))
+  const [runOptionsMode, setRunOptionsMode] = useState<RunOptionsMode>('skip_completed')
   const [preview, setPreview] = useState<ScopePreviewResult | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -49,7 +50,17 @@ export function ScopeSelector() {
     }
     setPreview(null)
     setPreviewError(null)
+    setRunOptionsMode('skip_completed')
   }, [newRunModalOpen, newRunInitialPath])
+
+  useEffect(() => {
+    if (!newRunModalOpen) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setNewRunModalOpen(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [newRunModalOpen, setNewRunModalOpen])
 
   const validPaths = paths
     .map((p) => p.trim())
@@ -88,12 +99,16 @@ export function ScopeSelector() {
   function submit() {
     // Pipeline order (not Set iteration order — checkbox order would scramble stages).
     const stagesOrdered = ALL_STAGES.filter((code) => stages.has(code))
+    const skip_done = runOptionsMode !== 'force_all'
+    const force_rerun = runOptionsMode === 'force_all'
+    const fix_incomplete_stages = runOptionsMode === 'fix_incomplete'
     submitMut.mutate({
       scope_type: scopeType,
       scope_paths: validPaths,
       stages: stagesOrdered,
-      skip_done: skipDone,
-      force_rerun: forceRerun,
+      skip_done,
+      force_rerun,
+      fix_incomplete_stages,
     })
   }
 
@@ -265,21 +280,51 @@ export function ScopeSelector() {
               Options
             </label>
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm text-[#9d9d9d] cursor-pointer">
+              <label className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer">
                 <input
-                  type="checkbox"
-                  checked={skipDone}
-                  onChange={(e) => setSkipDone(e.target.checked)}
+                  type="radio"
+                  name="run-options"
+                  className="mt-1"
+                  checked={runOptionsMode === 'skip_completed'}
+                  onChange={() => setRunOptionsMode('skip_completed')}
                 />
-                Skip already completed stages
+                <span>
+                  <span className="text-[#cccccc]">Skip already completed stages</span>
+                  <span className="block text-xs text-[#6d6d6d] mt-0.5">
+                    Default incremental run; reuse work that is already done.
+                  </span>
+                </span>
               </label>
-              <label className="flex items-center gap-2 text-sm text-[#9d9d9d] cursor-pointer">
+              <label className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer">
                 <input
-                  type="checkbox"
-                  checked={forceRerun}
-                  onChange={(e) => setForceRerun(e.target.checked)}
+                  type="radio"
+                  name="run-options"
+                  className="mt-1"
+                  checked={runOptionsMode === 'force_all'}
+                  onChange={() => setRunOptionsMode('force_all')}
                 />
-                Force re-run all stages
+                <span>
+                  <span className="text-[#cccccc]">Force re-run all stages</span>
+                  <span className="block text-xs text-[#6d6d6d] mt-0.5">
+                    Reprocess images even when scores and metadata already exist.
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer">
+                <input
+                  type="radio"
+                  name="run-options"
+                  className="mt-1"
+                  checked={runOptionsMode === 'fix_incomplete'}
+                  onChange={() => setRunOptionsMode('fix_incomplete')}
+                />
+                <span>
+                  <span className="text-[#cccccc]">Fix non-completed stages</span>
+                  <span className="block text-xs text-[#6d6d6d] mt-0.5">
+                    For quality scoring, only images missing scores, rating, or label under the
+                    selected paths (other stages use normal skip rules).
+                  </span>
+                </span>
               </label>
             </div>
           </div>

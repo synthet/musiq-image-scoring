@@ -331,7 +331,12 @@ class ResultWorker(PipelineWorker):
         if job.status == "skipped":
             if self.progress_callback:
                 self.progress_callback(f"Skipped: {job.image_path}")
-            # Metadata cache removed from here as it's now in PrepWorker/Metadata phase
+            if job.image_id and _is_phase_targeted(job.target_phases, PhaseCode.SCORING):
+                thumb = job.thumbnail_path
+                if not thumb or not os.path.isfile(thumb):
+                    thumb = thumbnails.get_thumb_path(job.image_path)
+                if thumb and os.path.isfile(thumb):
+                    db.update_image_thumbnail_paths(job.image_id, thumb, None)
 
         elif job.status == "failed":
             if self.progress_callback:

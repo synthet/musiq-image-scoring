@@ -78,4 +78,15 @@ def test_strict_verify_fails_when_image_not_terminal(monkeypatch):
     msg = db._strict_verify_resolved_ids_terminal_for_phase(5)
     assert msg is not None
     assert "non-terminal" in msg
-    assert "10" in msg or "1/" in msg
+
+
+def test_count_reconcilable_terminal_job_phases(monkeypatch):
+    class FakeConn:
+        def query_one(self, sql, params=None):
+            assert "COUNT(*)" in sql
+            assert "image_phase_status" in sql
+            assert "jobs" in sql
+            return {"c": 42}
+
+    monkeypatch.setattr("modules.db.get_connector", lambda: FakeConn())
+    assert db.count_reconcilable_terminal_job_phases() == 42

@@ -2565,31 +2565,37 @@ def create_api_router() -> APIRouter:
             if not thumb_path or not os.path.exists(thumb_path):
                 raise HTTPException(status_code=500, detail="Thumbnail generation failed")
 
-            # Compute both path formats for DB
-            thumb_wsl = thumbnails.thumb_path_to_wsl(thumb_path)
             thumb_win = thumbnails.thumb_path_to_win(thumb_path)
 
-            # Update DB
+            # Update DB (normalized thumbnail_path / thumbnail_path_win)
             try:
-                conn = db.get_db()
-                cursor = conn.cursor()
-                try:
-                    cursor.execute(
-                        "UPDATE images SET thumbnail_path=?, thumbnail_path_win=? WHERE file_path=?",
-                        (thumb_wsl, thumb_win, file_path),
-                    )
-                    if cursor.rowcount == 0:
-                        # Try matching by resolved path
+                row = db.get_image_details(decoded_path) or db.get_image_details(decoded_path.replace("\\", "/"))
+                if not row or not row.get("id"):
+                    row = db.get_image_details(file_path)
+                if row and row.get("id"):
+                    db.update_image_thumbnail_paths(int(row["id"]), thumb_path, None)
+                else:
+                    conn = db.get_db()
+                    cursor = conn.cursor()
+                    try:
+                        tp, tw = thumbnails.normalize_stored_thumbnail_pair(thumb_path, None)
+                        if not tw and tp:
+                            tw = thumbnails.thumb_path_to_win(tp)
                         cursor.execute(
                             "UPDATE images SET thumbnail_path=?, thumbnail_path_win=? WHERE file_path=?",
-                            (thumb_wsl, thumb_win, decoded_path),
+                            (tp, tw, file_path),
                         )
-                    conn.commit()
-                except Exception as e:
-                    conn.rollback()
-                    print(f"Warning: thumbnail generated but DB update failed: {e}")
-                finally:
-                    conn.close()
+                        if cursor.rowcount == 0:
+                            cursor.execute(
+                                "UPDATE images SET thumbnail_path=?, thumbnail_path_win=? WHERE file_path=?",
+                                (tp, tw, decoded_path),
+                            )
+                        conn.commit()
+                    except Exception as e:
+                        conn.rollback()
+                        print(f"Warning: thumbnail generated but DB update failed: {e}")
+                    finally:
+                        conn.close()
             except Exception as e:
                 print(f"Warning: could not update DB with thumbnail path: {e}")
 
@@ -4593,6 +4599,7 @@ def create_api_router() -> APIRouter:
         stages: Optional[List[str]] = None
         skip_done: bool = True
         force_rerun: bool = False
+        fix_incomplete_stages: bool = False
 
     @router.post("/runs/submit", summary="Submit a new Run")
     async def submit_run(request: RunSubmitRequest):
@@ -4673,6 +4680,7 @@ def create_api_router() -> APIRouter:
             "skip_done": request.skip_done,
             "skip_existing": request.skip_done,
             "force_rerun": request.force_rerun,
+            "fix_incomplete_stages": bool(request.fix_incomplete_stages),
             "phases": phase_values,
             "target_phases": phase_values,
         }
@@ -5405,10 +5413,12 @@ def create_api_router() -> APIRouter:
     ):
         from modules import db
 
-        return db.list_stale_running_image_phase_rows(
+        result = db.list_stale_running_image_phase_rows(
             min_age_seconds=min_age_seconds,
             limit=limit,
         )
+        result["reconcilable_count"] = db.count_reconcilable_terminal_job_phases()
+        return result
 
     @router.post(
         "/maintenance/reconcile-terminal-job-phases",
@@ -5436,6 +5446,91 @@ def create_api_router() -> APIRouter:
             success=True,
             message=f"Reconciled {n} stuck phase row(s) tied to terminal jobs",
             data={"reconciled_rows": n},
+        )
+
+    @router.post(
+        "/maintenance/backfill-index-meta",
+        response_model=ApiResponse,
+        summary="Global backfill Index/Meta phase status (batched)",
+        description=(
+            "Sets INDEXING=DONE and METADATA=DONE for up to `limit` images that have SCORING=DONE "
+            "but lack those phase rows. Same semantics as backfill_index_meta_global; repeat to drain large DBs."
+        ),
+        tags=["General API"],
+    )
+    async def maintenance_backfill_index_meta(
+        limit: int = Query(1000, ge=1, le=10000),
+    ):
+        from modules.ui.security import _check_rate_limit
+        from modules import db
+
+        _check_rate_limit("maintenance_backfill_index_meta")
+        try:
+            updated = db.backfill_index_meta_global(limit=limit)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        return ApiResponse(
+            success=True,
+            message=f"Backfilled Index/Meta for {updated} image(s)",
+            data={"updated_images": updated},
+        )
+
+    @router.post(
+        "/maintenance/regenerate-thumbnails",
+        response_model=ApiResponse,
+        summary="Regenerate missing thumbnails (global batch)",
+        description=(
+            "Regenerates up to 500 thumbnails globally where the DB path does not resolve to a file. "
+            "May take several minutes on RAW-heavy libraries. Safe to repeat."
+        ),
+        tags=["General API"],
+    )
+    async def maintenance_regenerate_thumbnails():
+        from modules.ui.security import _check_rate_limit
+        from modules import thumbnail_maintenance
+
+        _check_rate_limit("maintenance_regenerate_thumbnails")
+        try:
+            stats = thumbnail_maintenance.regenerate_missing_thumbnails_batch(limit=500)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        return ApiResponse(
+            success=True,
+            message=(
+                f"Thumbnail batch done: {stats['regenerated']} regenerated, "
+                f"{stats['skipped_thumb_ok']} skipped (OK), "
+                f"{stats['skipped_missing_original']} missing original, "
+                f"{stats['failed']} failed"
+            ),
+            data=dict(stats),
+        )
+
+    @router.post(
+        "/maintenance/repair-thumbnail-paths",
+        response_model=ApiResponse,
+        summary="Repair malformed thumbnail path columns (global batch)",
+        description=(
+            "Normalizes up to 1000 thumbnail_path / thumbnail_path_win rows that need repair. "
+            "Does not regenerate image pixels. Safe to repeat."
+        ),
+        tags=["General API"],
+    )
+    async def maintenance_repair_thumbnail_paths():
+        from modules.ui.security import _check_rate_limit
+        from modules import thumbnail_maintenance
+
+        _check_rate_limit("maintenance_repair_thumbnail_paths")
+        try:
+            stats = thumbnail_maintenance.repair_thumbnail_paths_batch(limit=1000)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        return ApiResponse(
+            success=True,
+            message=(
+                f"Thumbnail path repair: {stats['repaired']} updated, "
+                f"{stats['unchanged']} unchanged, {stats['scanned']} rows scanned"
+            ),
+            data=dict(stats),
         )
 
     @router.post(

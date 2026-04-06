@@ -25,6 +25,24 @@ def _get_exiftool_path():
     return _EXIFTOOL_PATH
 
 
+def get_exiftool_timeout_seconds(*, write: bool = False) -> int:
+    """
+    Subprocess timeout for exiftool. Writes (especially large RAW on slow mounts)
+    need more time than read-only JSON extraction.
+    Override via config: exif.exiftool_read_timeout_seconds / exif.exiftool_write_timeout_seconds.
+    """
+    from modules.config import get_config_value
+
+    key = "exif.exiftool_write_timeout_seconds" if write else "exif.exiftool_read_timeout_seconds"
+    default = 120 if write else 30
+    raw = get_config_value(key, default)
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return max(5, min(n, 3600))
+
+
 # ExifTool tag names -> our IMAGE_EXIF column names
 _EXIF_TAG_MAP = {
     "Make": "make",
@@ -86,7 +104,9 @@ def extract_exif(image_path: str, image_id: int = None) -> dict | None:
 
     try:
         cmd = [exiftool, "-j", "-s"] + [f"-{t}" for t in tags_to_fetch] + [resolved]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=get_exiftool_timeout_seconds(write=False)
+        )
         if result.returncode != 0:
             logger.debug("exiftool failed for %s: %s", image_path, result.stderr)
             return None
@@ -158,7 +178,9 @@ def write_image_unique_id(image_path: str, uuid_str: str) -> bool:
         # -overwrite_original avoids creating .original backup files
         # ImageUniqueID is a standard EXIF tag
         cmd = [exiftool, "-overwrite_original", f"-ImageUniqueID={uuid_str}", local_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=get_exiftool_timeout_seconds(write=True)
+        )
         return result.returncode == 0
     except Exception as e:
         logger.error(f"Failed to write ImageUniqueID to {image_path}: {e}")

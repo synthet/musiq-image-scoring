@@ -7,6 +7,8 @@ export interface RunSubmitRequest {
   stages?: string[]
   skip_done?: boolean
   force_rerun?: boolean
+  /** When true, backend limits scoring to incomplete images under scope (see API docs). */
+  fix_incomplete_stages?: boolean
 }
 
 export interface RunsListResponse {

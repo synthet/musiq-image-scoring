@@ -184,7 +184,9 @@ class MetadataRunner:
                     generated = thumbnails.generate_thumbnail(file_path)
                     if generated:
                         thumb = generated
-                
+                if thumb and os.path.isfile(thumb):
+                    db.update_image_thumbnail_paths(image_id, thumb, None)
+
                 # 5. Update Status
                 db.set_image_phase_status(
                     image_id,

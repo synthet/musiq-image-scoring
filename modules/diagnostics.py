@@ -108,7 +108,7 @@ def get_diagnostics() -> Dict[str, Any]:
     # 4. FileSystem Information
     fs_info = {
         "root_dir": os.path.abspath("."),
-        "thumbnails_dir": os.path.abspath("thumbnails"),
+        "thumbnails_dir": str(config.BASE_DIR / "thumbnails"),
         "free_space_gb": 0,
     }
     

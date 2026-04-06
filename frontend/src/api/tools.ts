@@ -9,6 +9,7 @@ export interface ApiEnvelope {
 export interface StaleRunningPhasesResponse {
   min_age_seconds: number
   count_estimate: number
+  reconcilable_count: number
   sample: Array<{
     image_id: number | null
     job_id: number | null
@@ -32,11 +33,14 @@ export const toolsApi = {
 
   fixDatabase: () => api.post<ApiEnvelope>('/scoring/fix-db'),
 
-  backfillIndexMeta: (inputPath: string) =>
-    api.post<ApiEnvelope>('/pipeline/phase/backfill-index-meta', { input_path: inputPath }),
+  backfillIndexMeta: (limit = 1000) =>
+    api.post<ApiEnvelope>(
+      `/maintenance/backfill-index-meta?limit=${encodeURIComponent(String(limit))}`,
+    ),
 
-  fixImageMetadata: (filePath: string) =>
-    api.post<ApiEnvelope>('/scoring/fix-image', { file_path: filePath }),
+  regenerateThumbnails: () => api.post<ApiEnvelope>('/maintenance/regenerate-thumbnails'),
+
+  repairThumbnailPaths: () => api.post<ApiEnvelope>('/maintenance/repair-thumbnail-paths'),
 }
 
 export function formatToolError(err: unknown): string {

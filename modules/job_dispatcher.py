@@ -186,11 +186,26 @@ class JobDispatcher:
             )
 
         if phase in ("score", "scoring"):
+            skip_existing_val = bool(payload.get("skip_existing", True))
+            resolved = payload.get("resolved_image_ids")
+            if bool(payload.get("fix_incomplete_stages")) and not resolved:
+                paths = payload.get("scope_paths")
+                if not isinstance(paths, list) or not paths:
+                    paths = [payload.get("input_path", input_path)]
+                id_set: set[int] = set()
+                for p in paths:
+                    if not p:
+                        continue
+                    for i in db.get_incomplete_image_ids_under_folder(str(p)):
+                        id_set.add(int(i))
+                resolved = sorted(id_set) if id_set else []
+                if resolved:
+                    skip_existing_val = False
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id,
-                bool(payload.get("skip_existing", True)),
-                resolved_image_ids=payload.get("resolved_image_ids"),
+                skip_existing_val,
+                resolved_image_ids=resolved,
                 target_phases=payload.get("target_phases"),
             )
 

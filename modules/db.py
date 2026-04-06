@@ -3023,6 +3023,35 @@ def update_image_uuid(image_id: int, image_uuid: str) -> bool:
     return update_image_field(image_id, "image_uuid", image_uuid)
 
 
+def update_image_thumbnail_paths(
+    image_id: int,
+    thumbnail_path: str | None,
+    thumbnail_path_win: str | None,
+) -> bool:
+    """
+    Persist thumbnail_path / thumbnail_path_win with normalization (fixes malformed stored paths).
+    Either column may be None; skips DB write if both normalize to empty.
+    """
+    from modules.thumbnails import normalize_stored_thumbnail_pair
+
+    tp, tw = normalize_stored_thumbnail_pair(thumbnail_path, thumbnail_path_win)
+    if not tp and not tw:
+        return False
+    if tp and not tw:
+        from modules.thumbnails import thumb_path_to_win
+
+        tw = thumb_path_to_win(tp)
+    try:
+        get_connector().execute(
+            "UPDATE images SET thumbnail_path = ?, thumbnail_path_win = ? WHERE id = ?",
+            (tp, tw, int(image_id)),
+        )
+        return True
+    except Exception as e:
+        logger.warning("update_image_thumbnail_paths failed for id=%s: %s", image_id, e)
+        return False
+
+
 def update_image_folder_id(image_hash=None, image_id=None):
     """
     Helper to update folder_id for a single image.
@@ -5021,6 +5050,27 @@ def list_stale_running_image_phase_rows(min_age_seconds=3600, limit=100):
     }
 
 
+def count_reconcilable_terminal_job_phases():
+    """
+    Count ``image_phase_status`` rows still ``running`` whose parent ``jobs`` row
+    is already terminal — same predicate as ``reconcile_stale_running_phases_for_terminal_jobs``
+    (no ``started_at`` / age filter).
+    """
+    terminal = ("completed", "failed", "canceled", "cancelled", "interrupted")
+    ph = ",".join("?" * len(terminal))
+    cnt_row = get_connector().query_one(
+        f"""
+        SELECT COUNT(*) AS c
+        FROM image_phase_status ips
+        JOIN jobs j ON j.id = ips.job_id
+        WHERE ips.status = 'running'
+          AND LOWER(TRIM(CAST(j.status AS VARCHAR(64)))) IN ({ph})
+        """,
+        list(terminal),
+    )
+    return int((cnt_row or {}).get("c") or 0)
+
+
 def _strict_verify_resolved_ids_terminal_for_phase(job_id):
     """
     When ``processing.strict_job_completion_verify`` is true and the job has a single ``job_phases``
@@ -5394,9 +5444,13 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
 
 
     
-    thumbnail_path = result.get("thumbnail_path")
-    from modules.thumbnails import thumb_path_to_win, thumb_path_to_wsl
-    thumbnail_path_win = result.get("thumbnail_path_win") or thumb_path_to_win(thumbnail_path)
+    from modules.thumbnails import normalize_stored_thumbnail_pair, thumb_path_to_win
+
+    raw_tp = result.get("thumbnail_path")
+    raw_tw = result.get("thumbnail_path_win")
+    thumbnail_path, thumbnail_path_win = normalize_stored_thumbnail_pair(raw_tp, raw_tw)
+    if thumbnail_path_win is None and thumbnail_path:
+        thumbnail_path_win = thumb_path_to_win(thumbnail_path)
 
     # Extract Version
     model_version = "0.0.0"
@@ -6066,6 +6120,26 @@ def update_image_metadata(file_path, keywords, title, description, rating, label
         logging.error(f"Failed to update metadata for {file_path}: {e}")
         return False
 
+
+def _incomplete_images_where_sql(table_alias: str = "") -> str:
+    """SQL fragment: image row qualifies as incomplete (scores / rating / label)."""
+    prefix = f"{table_alias}." if table_alias else ""
+    score_checks = [
+        f"{prefix}score_general IS NULL OR {prefix}score_general <= 0",
+        f"{prefix}score_technical IS NULL OR {prefix}score_technical <= 0",
+    ]
+    models = ['spaq', 'ava', 'koniq', 'paq2piq', 'liqe']
+    for m in models:
+        score_checks.append(f"{prefix}score_{m} IS NULL OR {prefix}score_{m} <= 0")
+    score_cond = " OR ".join(score_checks)
+    return f"""(
+            ({prefix}score IS NULL OR {prefix}score <= 0) OR
+            ({prefix}rating IS NULL OR {prefix}rating <= 0) OR
+            ({prefix}label IS NULL OR TRIM({prefix}label) = '') OR
+            ({score_cond})
+        )"""
+
+
 def get_incomplete_records(limit: int | None = None):
     """
     Retrieves records that have missing scores or metadata.
@@ -6076,29 +6150,54 @@ def get_incomplete_records(limit: int | None = None):
     - Rating <= 0 or NULL
     - Label empty or NULL
     """
-    score_checks = [
-        "score_general IS NULL OR score_general <= 0",
-        "score_technical IS NULL OR score_technical <= 0",
-    ]
-    models = ['spaq', 'ava', 'koniq', 'paq2piq', 'liqe']
-    for m in models:
-        score_checks.append(f"score_{m} IS NULL OR score_{m} <= 0")
-
-    score_cond = " OR ".join(score_checks)
-
+    inc = _incomplete_images_where_sql("")
     query = f"""
         SELECT * FROM images
-        WHERE
-            (score IS NULL OR score <= 0) OR
-            (rating IS NULL OR rating <= 0) OR
-            (label IS NULL OR TRIM(label) = '') OR
-            ({score_cond})
+        WHERE {inc}
         ORDER BY created_at DESC NULLS LAST
     """
     if limit is not None and limit > 0:
         query = query.strip() + f"\n        FETCH FIRST {int(limit)} ROWS ONLY"
 
     return list(get_connector().query(query))
+
+
+def get_incomplete_image_ids_under_folder(folder_path: str, limit: int | None = None):
+    """
+    Image IDs under a folder tree (recursive) that match get_incomplete_records criteria.
+    Used when queuing a run with fix_incomplete_stages so scoring targets gaps only.
+    """
+    from modules import utils
+
+    if not folder_path:
+        return []
+
+    wsl_path = utils.convert_path_to_wsl(folder_path) if hasattr(utils, 'convert_path_to_wsl') else folder_path
+    target_path = wsl_path if wsl_path else folder_path
+    path_like_unix = target_path + "/%"
+    path_like_win = target_path + "\\%"
+
+    inc = _incomplete_images_where_sql("i")
+    query = f"""
+        SELECT i.id
+        FROM images i
+        JOIN folders f ON f.id = i.folder_id
+        WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+        AND {inc}
+        ORDER BY i.id
+    """
+    if limit is not None and limit > 0:
+        query = query.strip() + f"\n        FETCH FIRST {int(limit)} ROWS ONLY"
+
+    rows = get_connector().query(query, (target_path, path_like_unix, path_like_win))
+    out = []
+    for r in rows or []:
+        try:
+            out.append(int(r["id"]))
+        except (TypeError, ValueError, KeyError):
+            continue
+    return out
+
 
 def export_db_to_json(output_path, folder_path=None, keyword_filter=None, rating_filter=None,
                       label_filter=None, min_score_general=0, min_score_aesthetic=0,

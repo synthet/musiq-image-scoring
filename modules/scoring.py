@@ -505,29 +505,15 @@ class ScoringRunner:
             )
             
             # 6. Regenerate Thumbnail (User Request)
+            new_thumb = None
             try:
                 thumb_path = thumbnails.get_thumb_path(file_path)
                 if os.path.exists(thumb_path):
                     os.remove(thumb_path)
                 
                 new_thumb = thumbnails.generate_thumbnail(file_path)
-                if new_thumb:
-                     # Update DB with new thumb path (ensure it is set)
-                     # Paths in DB are usually WSL format if running in WSL, 
-                     # but thumbnails.py returns local path. 
-                     # For now, let's assume we store what generate_thumbnail returns 
-                     # or rely on utils.convert_path_to_wsl if needed.
-                     # But DB usually stores what is generated.
-                     
-                     # Actually, db.py usually handles path conversion or we store whatever we get.
-                     # Let's just update it.
-                     thumb_win = thumbnails.thumb_path_to_win(new_thumb)
-                     conn = db.get_db()
-                     c = conn.cursor()
-                     c.execute("UPDATE images SET thumbnail_path = ?, thumbnail_path_win = ? WHERE file_path = ?",
-                               (new_thumb, thumb_win, file_path))
-                     conn.commit()
-                     conn.close()
+                if new_thumb and details.get("id"):
+                    db.update_image_thumbnail_paths(int(details["id"]), new_thumb, None)
             except Exception as e:
                 print(f"Error regenerating thumbnail: {e}")
                 # Don't fail the whole fix for this, but append to msg

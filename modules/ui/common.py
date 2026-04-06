@@ -194,5 +194,8 @@ def get_empty_details():
         gr.update(visible=False),       # fix_status
         gr.update(visible=False),       # rerun_score_btn
         gr.update(visible=False),       # rerun_tags_btn
-        None                            # current_selection_index (State)
+        None,                           # current_selection_index (State)
+        gr.update(visible=False),       # extract_preview_btn
+        gr.update(value=None, visible=False), # preview_image
+        gr.update(value="", visible=False)    # preview_status
     ]

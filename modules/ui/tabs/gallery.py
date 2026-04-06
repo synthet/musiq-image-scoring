@@ -450,13 +450,17 @@ def display_details(raw_paths, evt: gr.SelectData = None, forced_index=None):
         image_id = details.get('id')
         local_p = utils.resolve_file_path(file_path, image_id) or utils.convert_path_to_local(file_path)
         show_fix = local_p and os.path.exists(local_p)
+        
+        # RAW Preview logic
+        is_raw = os.path.splitext(file_path)[1].lower() in ['.nef', '.nrw', '.cr2', '.cr3', '.arw', '.dng', '.orf', '.rw2']
 
         return [
             res_info, gen_label, weighted_label, models_label, details,
             gr.update(visible=show_delete), title, desc, keywords_highlighted,
             rating_val, label_val, gr.update(visible=False), 
             file_path, culling_html, gr.update(visible=show_fix), 
-            gr.update(visible=False), gr.update(visible=show_fix), gr.update(visible=show_fix), index
+            gr.update(visible=False), gr.update(visible=show_fix), gr.update(visible=show_fix), index,
+            gr.update(visible=is_raw), gr.update(value=None, visible=False), gr.update(value="", visible=False)
         ]
 
     except Exception as e:
@@ -465,6 +469,30 @@ def display_details(raw_paths, evt: gr.SelectData = None, forced_index=None):
         empty = common.get_empty_details()
         empty[0] = f"**SYSTEM ERROR in display_details:**\n\n{str(e)}\n\nSee console for traceback."
         return empty
+
+# --- RAW Preview Action ---
+def extract_preview_action(path):
+    import gradio as gr
+    if not path:
+        return gr.update(visible=True, value="No image selected"), gr.update(visible=False)
+    
+    from modules.thumbnails import generate_preview
+    import os
+    try:
+        # Convert path to WSL if running within container
+        from modules import utils
+        import platform
+        if platform.system() != 'Windows':
+            # Best attempt to rewrite path for generation logic if provided path is Windows format
+            path = utils.convert_path_to_local(path)
+
+        preview_path = generate_preview(path)
+        if preview_path and os.path.exists(preview_path):
+            return gr.update(visible=False, value=""), gr.update(value=preview_path, visible=True)
+        else:
+            return gr.update(visible=True, value="Failed to generate preview."), gr.update(visible=False)
+    except Exception as e:
+        return gr.update(visible=True, value=f"Error: {e}"), gr.update(visible=False)
 
 # --- Component Creation ---
 
@@ -705,6 +733,11 @@ def create_tab(shared_state, current_folder_state, current_stack_state, runner, 
                     remove_db_btn = gr.Button("🗑️ Remove from DB", variant="stop", visible=True, size="sm")
                     delete_btn = gr.Button("🗑️ Delete NEF", variant="stop", visible=False, size="sm")
                 
+                with gr.Accordion("🖼️ RAW Preview", open=False):
+                    extract_preview_btn = gr.Button("Extract Full Preview", variant="primary", visible=False)
+                    preview_status = gr.Textbox(label="Status", visible=False)
+                    preview_image = gr.Image(label="Preview", interactive=False, visible=False)
+                
                 with gr.Accordion("🔍 Similar Images", open=False) as similar_accordion:
                     similar_gallery = gr.Gallery(label="Similar", columns=5, height=200, object_fit="cover", allow_preview=True)
                     similar_status = gr.Markdown(value="")
@@ -739,7 +772,8 @@ def create_tab(shared_state, current_folder_state, current_stack_state, runner, 
                 res_info, d_score_gen, d_score_weighted, d_score_models, image_details,
                 delete_btn, d_title, d_desc, d_keywords, d_rating, d_label, save_status,
                 gallery_selected_path, d_culling_status, fix_btn, fix_status,
-                rerun_score_btn, rerun_tags_btn, current_selection_index
+                rerun_score_btn, rerun_tags_btn, current_selection_index,
+                extract_preview_btn, preview_image, preview_status
             ]
             for i, comp in enumerate(components):
                 if comp is None:
@@ -748,7 +782,7 @@ def create_tab(shared_state, current_folder_state, current_stack_state, runner, 
                                    f"d_score_models, image_details, delete_btn, d_title, d_desc, "
                                    f"d_keywords, d_rating, d_label, save_status, gallery_selected_path, "
                                    f"d_culling_status, fix_btn, fix_status, rerun_score_btn, "
-                                   f"rerun_tags_btn, current_selection_index")
+                                   f"rerun_tags_btn, current_selection_index, extract_preview_btn, preview_image, preview_status")
             return components
 
         # Definition of detail_outputs for wiring
@@ -885,6 +919,12 @@ def create_tab(shared_state, current_folder_state, current_stack_state, runner, 
             fn=remove_from_db_and_refresh,
             inputs=[image_details, current_page] + filter_inputs_base,
             outputs=[current_page, gallery, page_label, current_paths] + detail_outputs
+        )
+        
+        extract_preview_btn.click(
+            fn=extract_preview_action,
+            inputs=[gallery_selected_path],
+            outputs=[preview_status, preview_image]
         )
         
         # Export

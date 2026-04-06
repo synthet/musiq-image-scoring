@@ -321,7 +321,7 @@ def main():
         allowed_paths.extend(config_allowed)
         # Always ensure current dir and thumbnails are allowed
         allowed_paths.append(os.path.abspath("."))
-        allowed_paths.append(os.path.abspath("thumbnails"))
+        allowed_paths.append(str(config.BASE_DIR / "thumbnails"))
     else:
         # Fallback to dynamic defaults if config is empty
         allowed_paths = config.get_default_allowed_paths()

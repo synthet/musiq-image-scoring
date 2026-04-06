@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { toolsApi, formatToolError, type ApiEnvelope } from '@/api/tools'
 
 const STALE_MIN_AGE = 3600
+const BACKFILL_LIMIT = 1000
 
 function ToolSection({
   title,
@@ -39,8 +40,6 @@ function ResultBanner({ text, ok }: { text: string; ok: boolean }) {
 
 export function RunsToolsTab() {
   const queryClient = useQueryClient()
-  const [folderPath, setFolderPath] = useState('')
-  const [imagePath, setImagePath] = useState('')
   const [lastAction, setLastAction] = useState<{ ok: boolean; text: string } | null>(null)
 
   const staleQuery = useQuery({
@@ -74,14 +73,20 @@ export function RunsToolsTab() {
   })
 
   const backfillMut = useMutation({
-    mutationFn: (path: string) => toolsApi.backfillIndexMeta(path.trim()),
+    mutationFn: () => toolsApi.backfillIndexMeta(BACKFILL_LIMIT),
     onSuccess: (r) => setFromEnvelope('Backfill', r),
     onError: (e) => setLastAction({ ok: false, text: formatToolError(e) }),
   })
 
-  const fixImageMut = useMutation({
-    mutationFn: (path: string) => toolsApi.fixImageMetadata(path.trim()),
-    onSuccess: (r) => setFromEnvelope('Fix image', r),
+  const regenThumbMut = useMutation({
+    mutationFn: () => toolsApi.regenerateThumbnails(),
+    onSuccess: (r) => setFromEnvelope('Thumbnails', r),
+    onError: (e) => setLastAction({ ok: false, text: formatToolError(e) }),
+  })
+
+  const repairThumbMut = useMutation({
+    mutationFn: () => toolsApi.repairThumbnailPaths(),
+    onSuccess: (r) => setFromEnvelope('Thumbnail paths', r),
     onError: (e) => setLastAction({ ok: false, text: formatToolError(e) }),
   })
 
@@ -109,10 +114,11 @@ export function RunsToolsTab() {
       {lastAction && <ResultBanner ok={lastAction.ok} text={lastAction.text} />}
 
       <ToolSection
-        title="Stuck phase rows (finished jobs)"
+        title="Stuck phase rows"
         description={
-          'Lists per-image phase rows still marked running after at least 1 hour. ' +
-          'Reconcile marks rows failed when the parent job already ended (crash/restart drift).'
+          'Stale (>1h): per-image phase rows still running after the probe window. ' +
+          'Reconcilable (terminal job): rows the Reconcile button can fix — parent job already finished ' +
+          '(not filtered by age). Reconcile marks those rows failed (crash/restart drift).'
         }
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -140,8 +146,13 @@ export function RunsToolsTab() {
         )}
         {staleQuery.data && (
           <p className="text-xs text-[#9d9d9d] mt-2">
-            Older than {staleQuery.data.min_age_seconds}s: about{' '}
-            <span className="text-[#cccccc] font-medium">{staleQuery.data.count_estimate}</span> row(s).
+            Stale (&gt;{staleQuery.data.min_age_seconds}s):{' '}
+            <span className="text-[#cccccc] font-medium">{staleQuery.data.count_estimate}</span> row(s).{' '}
+            Reconcilable (terminal job):{' '}
+            <span className="text-[#cccccc] font-medium">
+              {staleQuery.data.reconcilable_count ?? '—'}
+            </span>
+            .
             {staleQuery.data.sample.length > 0 && (
               <span className="block mt-1 font-mono text-[#6d6d6d] break-all">
                 Sample:{' '}
@@ -170,55 +181,38 @@ export function RunsToolsTab() {
       <ToolSection
         title="Backfill Discovery / Inspection phase status"
         description={
-          'For a folder: set indexing and metadata phase to done on images that already have scoring done ' +
-          'but are missing those phase rows (legacy import gap).'
+          'Global: set indexing and metadata phase to done on up to 1,000 images that already have scoring done ' +
+          'but are missing those phase rows (legacy import gap). Repeat to drain the library.'
         }
       >
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="text"
-            value={folderPath}
-            onChange={(e) => setFolderPath(e.target.value)}
-            placeholder="Folder path (e.g. D:/Photos/2024 or /mnt/d/Photos/2024)"
-            className="flex-1 rounded-md border border-[#474747] bg-[#1e1e1e] text-[#cccccc] text-xs px-3 py-2 placeholder:text-[#6d6d6d]"
-          />
-          <Button
-            variant="primary"
-            size="sm"
-            className="shrink-0"
-            disabled={!folderPath.trim()}
-            loading={backfillMut.isPending}
-            onClick={() => backfillMut.mutate(folderPath)}
-          >
-            Backfill folder
-          </Button>
-        </div>
+        <Button variant="primary" size="sm" onClick={() => backfillMut.mutate()} loading={backfillMut.isPending}>
+          Backfill (up to {BACKFILL_LIMIT.toLocaleString()})
+        </Button>
       </ToolSection>
 
       <ToolSection
-        title="Recalculate metadata from existing scores (one file)"
+        title="Thumbnails"
         description={
-          'Fast path: no neural inference. Recomputes weighted scores and rating/label from DB, updates sidecar/thumbnail. ' +
-          'File must exist on disk and be registered in the database.'
+          'Regenerate missing: up to 500 images where the DB thumbnail path does not resolve — may take several minutes on RAW libraries. ' +
+          'Repair broken paths: normalize up to 1,000 malformed thumbnail_path / thumbnail_path_win values (no pixel regeneration). Repeat either action as needed.'
         }
       >
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="text"
-            value={imagePath}
-            onChange={(e) => setImagePath(e.target.value)}
-            placeholder="Full path to image file"
-            className="flex-1 rounded-md border border-[#474747] bg-[#1e1e1e] text-[#cccccc] text-xs px-3 py-2 placeholder:text-[#6d6d6d]"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => regenThumbMut.mutate()}
+            loading={regenThumbMut.isPending}
+          >
+            Regenerate missing thumbnails
+          </Button>
           <Button
             variant="secondary"
             size="sm"
-            className="shrink-0"
-            disabled={!imagePath.trim()}
-            loading={fixImageMut.isPending}
-            onClick={() => fixImageMut.mutate(imagePath)}
+            onClick={() => repairThumbMut.mutate()}
+            loading={repairThumbMut.isPending}
           >
-            Fix image
+            Repair broken paths
           </Button>
         </div>
       </ToolSection>

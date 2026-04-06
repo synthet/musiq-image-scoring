@@ -811,7 +811,11 @@ def _write_metadata_embedded(image_path: str,
     cmd.append(local_path)
     
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        from modules.exif_extractor import get_exiftool_timeout_seconds
+
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=get_exiftool_timeout_seconds(write=True)
+        )
         if result.returncode == 0:
             logger.info(f"Wrote embedded metadata to {local_path}")
             return True
