@@ -29,6 +29,21 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 3. Monitor logs for deprecation warnings when Phase 4c ships
 4. Complete migration before v7.0 (July 2026)
 
+## [6.8.0] - 2026-04-10
+
+### Added
+
+- **`modules/thumbnails.open_image_for_ml()`**: Open images for ML inference (CLIP, BLIP, BioCLIP, etc.). Raster formats use PIL directly; camera RAW (`.nef`, `.nrw`, `.cr2`, `.dng`, `.arw`, `.orf`, `.cr3`, `.rw2`) uses the same decode chain as thumbnail generation (embedded JPEG → **rawpy** → **ImageMagick**) when no thumbnail row exists yet.
+
+### Changed
+
+- **`modules/tagging.py`**: Keyword CLIP scoring and BLIP captioning use **`open_image_for_ml`** instead of **`PIL.Image.open`**.
+- **`modules/bird_species.py`**: BioCLIP classification uses **`open_image_for_ml`** for the input image.
+
+### Fixed
+
+- **`modules/phases.normalize_phase_codes()`**: Skip the string **`bird_species`** (separate job type / API surface, not a **`PhaseCode`** enum value) so mixed phase lists do not mis-parse.
+
 ## [6.7.0] - 2026-04-06
 
 ### Added

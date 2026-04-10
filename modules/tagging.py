@@ -3,7 +3,6 @@ import torch
 import logging
 import threading
 import queue
-from PIL import Image
 from typing import List, Dict, Optional, Tuple
 from modules import db, thumbnails, xmp
 from modules.events import event_manager
@@ -257,8 +256,10 @@ class KeywordScorer:
         prompts = [f"a photo of {k}" for k in target_keywords]
         
         try:
-            image = Image.open(image_path)
-            
+            from modules.thumbnails import open_image_for_ml
+
+            image = open_image_for_ml(image_path)
+
             inputs = self.processor(text=prompts, images=image, return_tensors="pt", padding=True)
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
             
@@ -311,7 +312,9 @@ class CaptionGenerator:
     def generate(self, image_path: str) -> str:
         self.load_model()
         try:
-            image = Image.open(image_path).convert('RGB')
+            from modules.thumbnails import open_image_for_ml
+
+            image = open_image_for_ml(image_path).convert("RGB")
             inputs = self.processor(image, return_tensors="pt").to(self.device)
             # Load max_new_tokens from config
             from modules import config

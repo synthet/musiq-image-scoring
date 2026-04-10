@@ -149,11 +149,12 @@ class BioCLIPClassifier:
             Returns [] on error.
         """
         import torch
-        from PIL import Image as PILImage
+
+        from modules.thumbnails import open_image_for_ml
 
         self.load_model()
         try:
-            img = PILImage.open(image_path).convert("RGB")
+            img = open_image_for_ml(image_path).convert("RGB")
             img_tensor = self.preprocess(img).unsqueeze(0).to(self.device)
 
             text_features = self._get_text_features(candidate_species)

@@ -104,6 +104,9 @@ def normalize_phase_codes(phase_codes: Optional[List[Any]]) -> List[PhaseCode]:
             if raw.startswith("PhaseCode."):
                 raw = raw.split(".", 1)[1]
             raw = PHASE_CODE_ALIASES.get(raw.lower(), raw.lower())
+            # Separate job type (API / job_phases), not a PhaseCode enum value.
+            if raw == "bird_species":
+                continue
             try:
                 candidate = PhaseCode(raw)
             except ValueError:

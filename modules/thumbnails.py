@@ -429,6 +429,52 @@ def extract_embedded_jpeg(image_path: str, min_size: int = 100) -> Optional[Imag
     
     return None
 
+
+# Extensions treated as camera RAW for ML inference (same set as generate_thumbnail).
+_RAW_EXT_ML = frozenset({".nef", ".nrw", ".cr2", ".dng", ".arw", ".orf", ".cr3", ".rw2"})
+
+
+def open_image_for_ml(read_path: str) -> Image.Image:
+    """
+    Open a file as PIL for ML inference (CLIP, BLIP, BioCLIP, etc.).
+
+    Raster formats use :func:`PIL.Image.open` directly. RAW files use the same decode
+    chain as thumbnail generation (embedded JPEG → rawpy → ImageMagick) so tagging
+    and similar jobs work when no thumbnail row/path exists yet.
+    """
+    read_path = str(read_path)
+    ext = Path(read_path).suffix.lower()
+    if ext not in _RAW_EXT_ML:
+        return Image.open(read_path)
+
+    img = extract_embedded_jpeg(read_path, min_size=1000)
+    if img is None:
+        try:
+            import rawpy
+
+            with rawpy.imread(read_path) as raw:
+                rgb = raw.postprocess(use_camera_wb=True, bright=1.0, user_sat=None)
+                img = Image.fromarray(rgb)
+        except ImportError:
+            pass
+        except Exception:
+            pass
+    if img is None and shutil.which("magick"):
+        try:
+            cmd = ["magick", read_path, "-resize", "2048x2048>", "jpeg:-"]
+            res = subprocess.run(cmd, capture_output=True, text=False, timeout=60)
+            if res.returncode == 0 and len(res.stdout) > 100 and res.stdout.startswith(b"\xff\xd8"):
+                img = Image.open(io.BytesIO(res.stdout))
+                img.load()
+        except Exception:
+            pass
+    if img is None:
+        from PIL import UnidentifiedImageError
+
+        raise UnidentifiedImageError(f"cannot identify or decode RAW image file {read_path!r}")
+    return img
+
+
 def _thumb_hash(image_path):
     return hashlib.md5(str(image_path).encode('utf-8')).hexdigest()
 
