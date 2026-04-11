@@ -5634,6 +5634,275 @@ def create_api_router() -> APIRouter:
         )
 
     @router.post(
+        "/maintenance/recalculate-status-from-data",
+        response_model=ApiResponse,
+        summary="Recalculate derivable per-image status and folder aggregates",
+        description=(
+            "Repairs derivable per-image phase status drift (index/meta, keywords, culling), "
+            "then rebuilds folder phase aggregates and legacy flags. Supports all-db or selected-folder scope."
+        ),
+        tags=["General API"],
+    )
+    async def maintenance_recalculate_status_from_data(
+        scope: str = Query("selected_folder", pattern="^(all|selected_folder)$"),
+        scope_path: Optional[str] = Query(
+            None,
+            description="Required when scope=selected_folder. Uses folder + descendants.",
+        ),
+    ):
+        from modules.ui.security import _check_rate_limit
+        from modules import db, utils
+
+        _check_rate_limit("maintenance_recalculate_status_from_data")
+
+        selected_scope = (scope or "selected_folder").strip().lower()
+        if selected_scope == "selected_folder" and not (scope_path and scope_path.strip()):
+            raise HTTPException(status_code=400, detail="scope_path is required when scope=selected_folder")
+
+        target_scope_path = None
+        target_folder_paths: List[str] = []
+        if selected_scope == "selected_folder":
+            wsl_path = (
+                utils.convert_path_to_wsl(scope_path.strip())
+                if hasattr(utils, "convert_path_to_wsl")
+                else scope_path.strip()
+            )
+            target_scope_path = wsl_path or scope_path.strip()
+            target_folder_paths = db.list_folder_paths_under_scope(target_scope_path)
+            if not target_folder_paths:
+                row = db.get_connector().query_one("SELECT path FROM folders WHERE path = ?", (target_scope_path,))
+                if row and row.get("path"):
+                    target_folder_paths = [row["path"]]
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Scope folder not found in folders cache: {scope_path}",
+                    )
+        else:
+            rows = db.get_connector().query("SELECT path FROM folders")
+            target_folder_paths = [r["path"] for r in rows if r and r.get("path")]
+
+        connector = db.get_connector()
+        image_scope_sql = ""
+        image_scope_params: List[Any] = []
+        if selected_scope == "selected_folder":
+            placeholders = ",".join(["?"] * len(target_folder_paths))
+            image_scope_sql = f" AND i.folder_id IN (SELECT id FROM folders WHERE path IN ({placeholders}))"
+            image_scope_params = list(target_folder_paths)
+
+        before = {
+            "missing_indexing_or_metadata_with_scoring_done": 0,
+            "missing_keywords_status_with_keywords_data": 0,
+            "culling_failed_with_data_present": 0,
+        }
+        after = dict(before)
+        warnings: List[str] = []
+
+        before_idx_meta_sql = (
+            """
+            SELECT COUNT(*) AS cnt
+            FROM images i
+            JOIN pipeline_phases p_score ON LOWER(TRIM(p_score.code)) = 'scoring'
+            JOIN image_phase_status ips_score ON ips_score.image_id = i.id
+                AND ips_score.phase_id = p_score.id
+                AND LOWER(TRIM(ips_score.status)) = 'done'
+            WHERE (
+                NOT EXISTS (
+                    SELECT 1 FROM image_phase_status ips_i
+                    JOIN pipeline_phases p_i ON p_i.id = ips_i.phase_id
+                    WHERE ips_i.image_id = i.id
+                      AND LOWER(TRIM(p_i.code)) = 'indexing'
+                      AND LOWER(TRIM(ips_i.status)) = 'done'
+                )
+                OR NOT EXISTS (
+                    SELECT 1 FROM image_phase_status ips_m
+                    JOIN pipeline_phases p_m ON p_m.id = ips_m.phase_id
+                    WHERE ips_m.image_id = i.id
+                      AND LOWER(TRIM(p_m.code)) = 'metadata'
+                      AND LOWER(TRIM(ips_m.status)) = 'done'
+                )
+            )
+            """
+            + image_scope_sql
+        )
+        before["missing_indexing_or_metadata_with_scoring_done"] = int(
+            (connector.query_one(before_idx_meta_sql, tuple(image_scope_params)) or {}).get("cnt", 0)
+        )
+
+        kw_sql = (
+            """
+            SELECT COUNT(*) AS cnt
+            FROM images i
+            WHERE EXISTS (SELECT 1 FROM image_keywords ik WHERE ik.image_id = i.id)
+              AND NOT EXISTS (
+                SELECT 1 FROM image_phase_status ips
+                JOIN pipeline_phases pp ON pp.id = ips.phase_id
+                WHERE ips.image_id = i.id
+                  AND LOWER(TRIM(pp.code)) = 'keywords'
+              )
+            """
+            + image_scope_sql
+        )
+        before["missing_keywords_status_with_keywords_data"] = int(
+            (connector.query_one(kw_sql, tuple(image_scope_params)) or {}).get("cnt", 0)
+        )
+
+        has_culling_data_expr = (
+            "i.stack_id IS NOT NULL OR EXISTS (SELECT 1 FROM image_embeddings ie WHERE ie.image_id = i.id)"
+            if getattr(connector, "type", "") == "postgres"
+            else "i.stack_id IS NOT NULL OR i.image_embedding IS NOT NULL"
+        )
+
+        culling_sql = (
+            """
+            SELECT COUNT(*) AS cnt
+            FROM image_phase_status ips
+            JOIN pipeline_phases pp ON pp.id = ips.phase_id
+            JOIN images i ON i.id = ips.image_id
+            WHERE LOWER(TRIM(pp.code)) = 'culling'
+              AND LOWER(TRIM(ips.status)) = 'failed'
+              AND (
+            """
+            + has_culling_data_expr
+            + """
+              )
+            """
+            + image_scope_sql
+        )
+        before["culling_failed_with_data_present"] = int(
+            (connector.query_one(culling_sql, tuple(image_scope_params)) or {}).get("cnt", 0)
+        )
+
+        if selected_scope == "selected_folder":
+            idx_meta_changed = int(db.backfill_index_meta_for_folder(target_scope_path))
+        else:
+            idx_meta_changed = int(db.backfill_index_meta_global(limit=1_000_000))
+
+        kw_rows = connector.query(
+            (
+                """
+                SELECT DISTINCT i.id AS image_id
+                FROM images i
+                WHERE EXISTS (SELECT 1 FROM image_keywords ik WHERE ik.image_id = i.id)
+                  AND NOT EXISTS (
+                    SELECT 1 FROM image_phase_status ips
+                    JOIN pipeline_phases pp ON pp.id = ips.phase_id
+                    WHERE ips.image_id = i.id
+                      AND LOWER(TRIM(pp.code)) = 'keywords'
+                  )
+                """
+                + image_scope_sql
+            ),
+            tuple(image_scope_params),
+        )
+        kw_backfilled = 0
+        for row in kw_rows:
+            db.set_image_phase_status(int(row["image_id"]), "keywords", "done")
+            kw_backfilled += 1
+
+        culling_rows = connector.query(
+            (
+                """
+                SELECT ips.id AS ips_id
+                FROM image_phase_status ips
+                JOIN pipeline_phases pp ON pp.id = ips.phase_id
+                JOIN images i ON i.id = ips.image_id
+                WHERE LOWER(TRIM(pp.code)) = 'culling'
+                  AND LOWER(TRIM(ips.status)) = 'failed'
+                  AND (
+                """
+                + has_culling_data_expr
+                + """
+                  )
+                """
+                + image_scope_sql
+            ),
+            tuple(image_scope_params),
+        )
+        culling_ids = [int(r["ips_id"]) for r in culling_rows]
+        if culling_ids:
+            now = datetime.now()
+
+            def _repair_culling_tx(tx):
+                for ips_id in culling_ids:
+                    tx.execute(
+                        """
+                        UPDATE image_phase_status
+                        SET status = 'done',
+                            last_error = NULL,
+                            finished_at = COALESCE(finished_at, ?),
+                            updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (now, now, ips_id),
+                    )
+
+            connector.run_transaction(_repair_culling_tx)
+
+        folders_recomputed = 0
+        keywords_flag_updates = 0
+        for path in target_folder_paths:
+            try:
+                db.invalidate_folder_phase_aggregates(folder_path=path)
+                db.get_folder_phase_summary(path, force_refresh=True)
+                folders_recomputed += 1
+                if db.check_and_update_folder_keywords_status(path):
+                    keywords_flag_updates += 1
+            except Exception as folder_err:
+                warnings.append(f"Folder aggregate rebuild failed for {path}: {folder_err}")
+
+        if selected_scope == "all" and not target_folder_paths:
+            warnings.append("No folders found; aggregate rebuild skipped.")
+
+        after["missing_indexing_or_metadata_with_scoring_done"] = int(
+            (connector.query_one(before_idx_meta_sql, tuple(image_scope_params)) or {}).get("cnt", 0)
+        )
+        after["missing_keywords_status_with_keywords_data"] = int(
+            (connector.query_one(kw_sql, tuple(image_scope_params)) or {}).get("cnt", 0)
+        )
+        after["culling_failed_with_data_present"] = int(
+            (connector.query_one(culling_sql, tuple(image_scope_params)) or {}).get("cnt", 0)
+        )
+
+        target_images_row = connector.query_one(
+            (
+                "SELECT COUNT(*) AS cnt FROM images i WHERE 1=1"
+                + image_scope_sql
+            ),
+            tuple(image_scope_params),
+        )
+        target_images = int((target_images_row or {}).get("cnt", 0))
+
+        summary = {
+            "scope": selected_scope,
+            "scope_path": target_scope_path if selected_scope == "selected_folder" else None,
+            "target_images": target_images,
+            "per_image_changes": {
+                "indexing_metadata_backfilled_images": idx_meta_changed,
+                "keywords_phase_backfilled_rows": kw_backfilled,
+                "culling_failed_to_done_rows": len(culling_ids),
+                "total_rows_changed_estimate": (idx_meta_changed * 2) + kw_backfilled + len(culling_ids),
+            },
+            "folder_aggregate_changes": {
+                "folders_recomputed": folders_recomputed,
+                "folders_marked_keywords_processed": keywords_flag_updates,
+            },
+            "before": before,
+            "after": after,
+            "warnings": warnings,
+        }
+
+        return ApiResponse(
+            success=True,
+            message=(
+                "Status recalculation finished: "
+                f"{summary['per_image_changes']['total_rows_changed_estimate']} per-image row changes "
+                f"(estimated), {folders_recomputed} folder aggregate(s) rebuilt."
+            ),
+            data={"summary": summary},
+        )
+
+    @router.post(
         "/maintenance/backfill-exif-dates",
         response_model=ApiResponse,
         summary="Re-extract EXIF dates for rows with NULL date_time_original",
