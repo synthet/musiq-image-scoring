@@ -5988,8 +5988,10 @@ components:
           title: Fix Incomplete Stages
           description: >-
             When true, scoring targets only images under the scope that match
-            incomplete-record criteria (missing scores, rating, or label), and
-            forces those rows to be processed.
+            incomplete-record criteria (missing scoring fields, rating, or
+            label), and forces those rows to be processed. This selector is
+            currently scoring-only; metadata/tagging/culling still use normal
+            stage skip/re-run behavior.
           default: false
       type: object
       required:

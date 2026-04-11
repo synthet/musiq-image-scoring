@@ -36,11 +36,11 @@ const RUN_OPTION_COPY_BY_MODE = {
       'Does not preserve previous stage outputs for selected stages; existing results are replaced.',
   },
   fix_incomplete: {
-    title: 'Validate & Repair existing data',
+    title: 'Fix incomplete scoring data',
     whatThisDoes:
       'For quality scoring, targets images missing scores, rating, or label so incomplete records can be fixed.',
     whatThisDoesNotDo:
-      'Does not force a full re-run of complete images; non-quality stages still follow normal skip behavior.',
+      'Does not force a full re-run of complete images; metadata, tagging, and culling still follow normal skip/re-run rules.',
   },
 } satisfies Record<RunOptionsMode, RunOptionCopy>
 
@@ -315,6 +315,7 @@ export function ScopeSelector() {
             <div className="space-y-2">
               {RUN_OPTION_ORDER.map((mode) => {
                 const option = RUN_OPTION_COPY_BY_MODE[mode]
+                const isFixIncomplete = mode === 'fix_incomplete'
                 return (
                   <label
                     key={mode}
@@ -326,15 +327,29 @@ export function ScopeSelector() {
                       className="mt-1"
                       checked={runOptionsMode === mode}
                       onChange={() => setRunOptionsMode(mode)}
+                      {...(isFixIncomplete ? { 'aria-describedby': 'fix-incomplete-help' } : {})}
                     />
                     <span>
-                      <span className="text-[#cccccc]">{option.title}</span>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="text-[#cccccc]">{option.title}</span>
+                        {isFixIncomplete && (
+                          <span className="rounded border border-[#007acc]/40 bg-[#003f6e]/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#4fc1ff]">
+                            Scoring only
+                          </span>
+                        )}
+                      </span>
                       <span className="block text-xs text-[#6d6d6d] mt-0.5">
                         What this does: {option.whatThisDoes}
                       </span>
                       <span className="block text-xs text-[#6d6d6d] mt-0.5">
                         What this does not do: {option.whatThisDoesNotDo}
                       </span>
+                      {isFixIncomplete && (
+                        <span id="fix-incomplete-help" className="block text-xs text-[#6d6d6d] mt-0.5">
+                          Targets only images missing scores, rating, or label under selected paths (other
+                          stages use normal skip rules).
+                        </span>
+                      )}
                     </span>
                   </label>
                 )
