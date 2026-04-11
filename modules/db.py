@@ -6447,15 +6447,6 @@ def get_incomplete_image_ids_under_folder(folder_path: str, limit: int | None = 
     return out
 
 
-def _scoped_path_predicate_sql(path_count: int, folder_col: str = "f.path") -> tuple[str, list]:
-    """Build `(f.path = ? OR f.path LIKE ? ...)` SQL and params for one or more root paths."""
-    clauses = []
-    params: list[str] = []
-    for _ in range(max(0, int(path_count or 0))):
-        clauses.append(f"({folder_col} = ? OR {folder_col} LIKE ? OR {folder_col} LIKE ?)")
-    return (" OR ".join(clauses)) if clauses else "1=0", params
-
-
 def _normalize_scope_paths_for_sql(scope_paths: list[str]) -> list[str]:
     from modules import utils
 
@@ -6601,14 +6592,22 @@ def build_validation_repair_plan(
         )
         issue_counts["culling_non_terminal"] = len(ids)
         stage_queues["culling"] = ids
+        # Keep clustering alias in sync for dispatcher-level phase normalization.
+        stage_queues["clustering"] = list(ids)
+        issue_counts["clustering_non_terminal"] = len(ids)
 
     repaired = 0
     skipped = 0
     failed = 0
+    unique_issue_ids: set[int] = set()
+    for ids in stage_queues.values():
+        unique_issue_ids.update(int(i) for i in ids)
     if dry_run:
-        skipped = sum(issue_counts.values())
+        skipped = len(unique_issue_ids)
     else:
         try:
+            # Intentionally global: this maintenance action repairs stale rows tied to terminal jobs
+            # regardless of path and is reused as a safety pre-flight before scoped queue execution.
             actions["reconciled_rows"] = int(reconcile_stale_running_phases_for_terminal_jobs(limit=5000))
             repaired += actions["reconciled_rows"]
         except Exception:
@@ -6626,6 +6625,7 @@ def build_validation_repair_plan(
         "issue_counts": issue_counts,
         "stage_queues": stage_queues,
         "actions": actions,
+        "issue_hits": int(sum(issue_counts.values())),
         "repaired": repaired,
         "skipped": skipped,
         "failed": failed,

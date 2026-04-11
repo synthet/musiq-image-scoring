@@ -183,14 +183,23 @@ class JobDispatcher:
 
     def _dispatch_to_runner(self, phase: str, runner, job_id: int, input_path: str, payload: Dict[str, Any]) -> str:
         """Call the appropriate start_batch method on the runner. Returns the result string."""
+        phase_key = str(phase).strip().lower()
+        phase_alias = {
+            "score": "scoring",
+            "tagging": "keywords",
+            "tag": "keywords",
+            "selection": "culling",
+            "cluster": "clustering",
+        }
+        queue_key = phase_alias.get(phase_key, phase_key)
         stage_queues = payload.get("resolved_image_ids_by_stage")
         scoped_resolved = payload.get("resolved_image_ids")
         if isinstance(stage_queues, dict):
-            per_stage = stage_queues.get(str(phase).strip().lower())
+            per_stage = stage_queues.get(queue_key)
             if isinstance(per_stage, list):
                 scoped_resolved = per_stage
 
-        if phase == "indexing":
+        if phase_key == "indexing":
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
@@ -198,7 +207,7 @@ class JobDispatcher:
                 resolved_image_ids=scoped_resolved,
             )
 
-        if phase == "metadata":
+        if phase_key == "metadata":
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
@@ -206,7 +215,7 @@ class JobDispatcher:
                 resolved_image_ids=scoped_resolved,
             )
 
-        if phase in ("score", "scoring"):
+        if phase_key in ("score", "scoring"):
             skip_existing_val = bool(payload.get("skip_existing", True))
             resolved = scoped_resolved
             if bool(payload.get("fix_incomplete_stages")) and not resolved:
@@ -230,7 +239,7 @@ class JobDispatcher:
                 target_phases=payload.get("target_phases"),
             )
 
-        if phase in ("tag", "tagging", "keywords"):
+        if phase_key in ("tag", "tagging", "keywords"):
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
@@ -240,7 +249,7 @@ class JobDispatcher:
                 resolved_image_ids=scoped_resolved,
             )
 
-        if phase in ("cluster", "clustering"):
+        if phase_key in ("cluster", "clustering"):
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 threshold=payload.get("threshold"),
@@ -250,14 +259,20 @@ class JobDispatcher:
                 resolved_image_ids=scoped_resolved,
             )
 
-        if phase in ("selection", "culling"):
+        if phase_key in ("selection", "culling"):
+            if scoped_resolved:
+                logger.info(
+                    "Selection runner does not accept resolved_image_ids yet; "
+                    "culling queue constraints are advisory only (job_id=%s)",
+                    job_id,
+                )
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
                 force_rescan=bool(payload.get("force_rescan", False)),
             )
 
-        if phase in ("bird_species", "bird-species"):
+        if phase_key in ("bird_species", "bird-species"):
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
@@ -265,7 +280,7 @@ class JobDispatcher:
                 threshold=float(payload.get("threshold", 0.1)),
                 top_k=int(payload.get("top_k", 3)),
                 overwrite=bool(payload.get("overwrite", False)),
-                resolved_image_ids=payload.get("resolved_image_ids"),
+                resolved_image_ids=scoped_resolved,
             )
 
         return f"No dispatch handler for phase '{phase}'"

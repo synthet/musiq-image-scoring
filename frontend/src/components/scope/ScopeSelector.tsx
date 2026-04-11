@@ -372,7 +372,8 @@ export function ScopeSelector() {
                         Actions: reconcile={repairPreview.actions.reconciled_rows}, backfill={repairPreview.actions.backfilled_index_meta}, scoring_targets={repairPreview.actions.scoring_fix_targets}
                       </div>
                       <div>
-                        Summary: repaired={repairPreview.repaired}, skipped={repairPreview.skipped}, failed={repairPreview.failed}
+                        Summary: repaired={repairPreview.repaired}, skipped(images)={repairPreview.skipped}, failed={repairPreview.failed}
+                        {typeof repairPreview.issue_hits === 'number' ? `, issue_hits=${repairPreview.issue_hits}` : ''}
                       </div>
                     </div>
                   )}

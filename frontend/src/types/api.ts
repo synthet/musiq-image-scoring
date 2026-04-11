@@ -123,6 +123,7 @@ export interface ScopePreviewResult {
 export interface ValidationRepairPreview {
   issue_counts: Record<string, number>
   stage_queues: Record<string, number[]>
+  issue_hits?: number
   actions: {
     reconciled_rows: number
     backfilled_index_meta: number
