@@ -15,6 +15,37 @@ const ALL_STAGES: StageCode[] = [...FULL_PIPELINE_STAGE_CODES]
 
 type RunOptionsMode = 'skip_completed' | 'force_all' | 'fix_incomplete'
 
+type RunOptionCopy = {
+  title: string
+  whatThisDoes: string
+  whatThisDoesNotDo: string
+}
+
+const RUN_OPTION_COPY_BY_MODE = {
+  skip_completed: {
+    title: 'Process NEW / NOT processed',
+    whatThisDoes:
+      'Runs selected stages only where results are missing, while reusing already completed work.',
+    whatThisDoesNotDo:
+      'Does not recompute stages that are already marked done for an image.',
+  },
+  force_all: {
+    title: 'Process ALL (overwrite existing results)',
+    whatThisDoes: 'Re-runs selected stages for every image in scope, even when prior results exist.',
+    whatThisDoesNotDo:
+      'Does not preserve previous stage outputs for selected stages; existing results are replaced.',
+  },
+  fix_incomplete: {
+    title: 'Fix incomplete scoring data',
+    whatThisDoes:
+      'For quality scoring, targets images missing scores, rating, or label so incomplete records can be fixed.',
+    whatThisDoesNotDo:
+      'Does not force a full re-run of complete images; metadata, tagging, and culling still follow normal skip/re-run rules.',
+  },
+} satisfies Record<RunOptionsMode, RunOptionCopy>
+
+const RUN_OPTION_ORDER: RunOptionsMode[] = ['skip_completed', 'force_all', 'fix_incomplete']
+
 /** Trim and strip trailing `/` or `\\`; keep Windows drive roots (e.g. `D:\\`). */
 function normalizeScopePathInput(p: string): string {
   let s = p.trim()
@@ -75,6 +106,7 @@ export function ScopeSelector() {
     try {
       const res = await scopeApi.preview(validPaths, scopeType === 'folder_recursive')
       setPreview(res)
+      qc.invalidateQueries({ queryKey: ['folders-tree'] })
     } catch (e) {
       setPreview(null)
       const msg = e instanceof ApiError ? parseApiErrorDetail(e.message) : String(e)
@@ -281,58 +313,47 @@ export function ScopeSelector() {
               Options
             </label>
             <div className="space-y-2">
-              <label className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer">
-                <input
-                  type="radio"
-                  name="run-options"
-                  className="mt-1"
-                  checked={runOptionsMode === 'skip_completed'}
-                  onChange={() => setRunOptionsMode('skip_completed')}
-                />
-                <span>
-                  <span className="text-[#cccccc]">Skip already completed stages</span>
-                  <span className="block text-xs text-[#6d6d6d] mt-0.5">
-                    Default incremental run; reuse work that is already done.
-                  </span>
-                </span>
-              </label>
-              <label className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer">
-                <input
-                  type="radio"
-                  name="run-options"
-                  className="mt-1"
-                  checked={runOptionsMode === 'force_all'}
-                  onChange={() => setRunOptionsMode('force_all')}
-                />
-                <span>
-                  <span className="text-[#cccccc]">Force re-run all stages</span>
-                  <span className="block text-xs text-[#6d6d6d] mt-0.5">
-                    Reprocess images even when scores and metadata already exist.
-                  </span>
-                </span>
-              </label>
-              <label className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer">
-                <input
-                  type="radio"
-                  name="run-options"
-                  className="mt-1"
-                  checked={runOptionsMode === 'fix_incomplete'}
-                  onChange={() => setRunOptionsMode('fix_incomplete')}
-                  aria-describedby="fix-incomplete-help"
-                />
-                <span>
-                  <span className="flex items-center gap-2">
-                    <span className="text-[#cccccc]">Fix incomplete scoring data</span>
-                    <span className="rounded border border-[#007acc]/40 bg-[#003f6e]/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#4fc1ff]">
-                      Scoring only
+              {RUN_OPTION_ORDER.map((mode) => {
+                const option = RUN_OPTION_COPY_BY_MODE[mode]
+                const isFixIncomplete = mode === 'fix_incomplete'
+                return (
+                  <label
+                    key={mode}
+                    className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="run-options"
+                      className="mt-1"
+                      checked={runOptionsMode === mode}
+                      onChange={() => setRunOptionsMode(mode)}
+                      {...(isFixIncomplete ? { 'aria-describedby': 'fix-incomplete-help' } : {})}
+                    />
+                    <span>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="text-[#cccccc]">{option.title}</span>
+                        {isFixIncomplete && (
+                          <span className="rounded border border-[#007acc]/40 bg-[#003f6e]/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#4fc1ff]">
+                            Scoring only
+                          </span>
+                        )}
+                      </span>
+                      <span className="block text-xs text-[#6d6d6d] mt-0.5">
+                        What this does: {option.whatThisDoes}
+                      </span>
+                      <span className="block text-xs text-[#6d6d6d] mt-0.5">
+                        What this does not do: {option.whatThisDoesNotDo}
+                      </span>
+                      {isFixIncomplete && (
+                        <span id="fix-incomplete-help" className="block text-xs text-[#6d6d6d] mt-0.5">
+                          Targets only images missing scores, rating, or label under selected paths (other
+                          stages use normal skip rules).
+                        </span>
+                      )}
                     </span>
-                  </span>
-                  <span id="fix-incomplete-help" className="block text-xs text-[#6d6d6d] mt-0.5">
-                    Targets only images missing scores, rating, or label under selected paths
-                    (other stages use normal skip rules).
-                  </span>
-                </span>
-              </label>
+                  </label>
+                )
+              })}
             </div>
           </div>
         </div>
