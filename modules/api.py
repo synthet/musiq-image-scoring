@@ -4749,9 +4749,13 @@ def create_api_router() -> APIRouter:
         skip_done: Optional[bool] = None
         force_rerun: Optional[bool] = None
         fix_incomplete_stages: Optional[bool] = None
+        validation_repair_mode: bool = False
+        validation_repair_dry_run: bool = False
 
         @model_validator(mode="after")
         def _normalize_run_mode_and_legacy_flags(self):
+            if self.validation_repair_mode:
+                return self
             self.run_mode = infer_run_mode(
                 self.run_mode,
                 run_mode_explicit=("run_mode" in self.model_fields_set),
@@ -4760,6 +4764,27 @@ def create_api_router() -> APIRouter:
                 fix_incomplete_stages=self.fix_incomplete_stages,
             )
             return self
+
+    class ValidationRepairPreviewRequest(BaseModel):
+        scope_paths: List[str]
+        stages: Optional[List[str]] = None
+
+    @router.post("/runs/validation-repair/preview", summary="Preview validation-repair issues for scope")
+    async def preview_validation_repair(request: ValidationRepairPreviewRequest):
+        scope_paths = [_normalize_scope_path_input(p) for p in request.scope_paths]
+        scope_paths = [p for p in scope_paths if p]
+        if not scope_paths:
+            raise HTTPException(status_code=400, detail="scope_paths must not be empty")
+        try:
+            result = await asyncio.to_thread(
+                db.build_validation_repair_plan,
+                scope_paths,
+                request.stages or [],
+                True,
+            )
+            return result
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
     @router.post("/runs/submit", summary="Submit a new Run")
     async def submit_run(request: RunSubmitRequest):
@@ -4849,6 +4874,25 @@ def create_api_router() -> APIRouter:
             "phases": phase_values,
             "target_phases": phase_values,
         }
+        if request.validation_repair_mode:
+            try:
+                repair_plan = await asyncio.to_thread(
+                    db.build_validation_repair_plan,
+                    scope_paths,
+                    phase_values or [],
+                    bool(request.validation_repair_dry_run),
+                )
+                payload["validation_repair_summary"] = repair_plan
+                payload["resolved_image_ids_by_stage"] = repair_plan.get("stage_queues", {})
+                # Keep current runner contract for first phase as a fallback.
+                if phase_values:
+                    first = str(phase_values[0]).strip().lower()
+                    first_ids = (repair_plan.get("stage_queues", {}) or {}).get(first)
+                    if isinstance(first_ids, list):
+                        payload["resolved_image_ids"] = first_ids
+                payload["skip_existing"] = False
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"validation-repair planning failed: {e}") from e
         try:
             job_id, position = await asyncio.wait_for(
                 asyncio.to_thread(

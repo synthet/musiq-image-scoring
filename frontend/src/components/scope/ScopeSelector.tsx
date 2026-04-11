@@ -8,12 +8,12 @@ import { scopeApi } from '@/api/scope'
 import { Button } from '@/components/ui/button'
 import { useUiStore } from '@/stores/uiStore'
 import { STAGE_DISPLAY } from '@/types/api'
-import type { StageCode, ScopePreviewResult } from '@/types/api'
+import type { StageCode, ScopePreviewResult, ValidationRepairPreview } from '@/types/api'
 import { FULL_PIPELINE_STAGE_CODES } from '@/constants/pipeline'
 
 const ALL_STAGES: StageCode[] = [...FULL_PIPELINE_STAGE_CODES]
 
-type RunOptionsMode = 'skip_completed' | 'force_all' | 'fix_incomplete'
+type RunOptionsMode = 'skip_completed' | 'force_all' | 'fix_incomplete' | 'validation_repair'
 
 type RunOptionCopy = {
   title: string
@@ -42,9 +42,21 @@ const RUN_OPTION_COPY_BY_MODE = {
     whatThisDoesNotDo:
       'Does not force a full re-run of complete images; metadata, tagging, and culling still follow normal skip/re-run rules.',
   },
+  validation_repair: {
+    title: 'Validation-repair pipeline',
+    whatThisDoes:
+      'Scans selected scope for invalid, missing, or out-of-range fields, applies minimal safe repairs where configured, and builds stage-specific repair queues.',
+    whatThisDoesNotDo:
+      'Does not replace reviewing the dry-run preview before applying; use Refresh in Preview to inspect counts and queues first.',
+  },
 } satisfies Record<RunOptionsMode, RunOptionCopy>
 
-const RUN_OPTION_ORDER: RunOptionsMode[] = ['skip_completed', 'force_all', 'fix_incomplete']
+const RUN_OPTION_ORDER: RunOptionsMode[] = [
+  'skip_completed',
+  'force_all',
+  'fix_incomplete',
+  'validation_repair',
+]
 
 /** Trim and strip trailing `/` or `\\`; keep Windows drive roots (e.g. `D:\\`). */
 function normalizeScopePathInput(p: string): string {
@@ -69,6 +81,8 @@ export function ScopeSelector() {
   const [preview, setPreview] = useState<ScopePreviewResult | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [repairPreview, setRepairPreview] = useState<ValidationRepairPreview | null>(null)
+  const [repairPreviewLoading, setRepairPreviewLoading] = useState(false)
 
   // Modal stays mounted while closed (`return null`); reset local state whenever it opens
   // so preview is not left from a previous folder and paths re-apply even if `newRunInitialPath`
@@ -82,6 +96,7 @@ export function ScopeSelector() {
     }
     setPreview(null)
     setPreviewError(null)
+    setRepairPreview(null)
     setRunOptionsMode('skip_completed')
   }, [newRunModalOpen, newRunInitialPath])
 
@@ -107,12 +122,20 @@ export function ScopeSelector() {
       const res = await scopeApi.preview(validPaths, scopeType === 'folder_recursive')
       setPreview(res)
       qc.invalidateQueries({ queryKey: ['folders-tree'] })
+      if (runOptionsMode === 'validation_repair') {
+        setRepairPreviewLoading(true)
+        const stagesOrdered = ALL_STAGES.filter((code) => stages.has(code))
+        const rep = await scopeApi.validationRepairPreview(validPaths, stagesOrdered)
+        setRepairPreview(rep)
+      }
     } catch (e) {
       setPreview(null)
+      setRepairPreview(null)
       const msg = e instanceof ApiError ? parseApiErrorDetail(e.message) : String(e)
       setPreviewError(msg)
     } finally {
       setPreviewLoading(false)
+      setRepairPreviewLoading(false)
     }
   }
 
@@ -135,6 +158,7 @@ export function ScopeSelector() {
     const skip_done = runOptionsMode !== 'force_all'
     const force_rerun = runOptionsMode === 'force_all'
     const fix_incomplete_stages = runOptionsMode === 'fix_incomplete'
+    const validation_repair_mode = runOptionsMode === 'validation_repair'
     submitMut.mutate({
       scope_type: scopeType,
       scope_paths: validPaths,
@@ -142,6 +166,8 @@ export function ScopeSelector() {
       skip_done,
       force_rerun,
       fix_incomplete_stages,
+      validation_repair_mode,
+      validation_repair_dry_run: false,
     })
   }
 
@@ -316,6 +342,7 @@ export function ScopeSelector() {
               {RUN_OPTION_ORDER.map((mode) => {
                 const option = RUN_OPTION_COPY_BY_MODE[mode]
                 const isFixIncomplete = mode === 'fix_incomplete'
+                const isValidationRepair = mode === 'validation_repair'
                 return (
                   <label
                     key={mode}
@@ -331,17 +358,35 @@ export function ScopeSelector() {
                     />
                     <span>
                       <span className="flex flex-wrap items-center gap-2">
-                        <span className="text-[#cccccc]">{option.title}</span>
+                        <span
+                          className={
+                            isValidationRepair ? 'text-[#ffcc66] font-semibold' : 'text-[#cccccc]'
+                          }
+                        >
+                          {option.title}
+                        </span>
                         {isFixIncomplete && (
                           <span className="rounded border border-[#007acc]/40 bg-[#003f6e]/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#4fc1ff]">
                             Scoring only
                           </span>
                         )}
                       </span>
-                      <span className="block text-xs text-[#6d6d6d] mt-0.5">
+                      <span
+                        className={
+                          isValidationRepair
+                            ? 'block text-xs text-[#f2a65a] mt-0.5'
+                            : 'block text-xs text-[#6d6d6d] mt-0.5'
+                        }
+                      >
                         What this does: {option.whatThisDoes}
                       </span>
-                      <span className="block text-xs text-[#6d6d6d] mt-0.5">
+                      <span
+                        className={
+                          isValidationRepair
+                            ? 'block text-xs text-[#f2a65a] mt-0.5'
+                            : 'block text-xs text-[#6d6d6d] mt-0.5'
+                        }
+                      >
                         What this does not do: {option.whatThisDoesNotDo}
                       </span>
                       {isFixIncomplete && (
@@ -354,6 +399,32 @@ export function ScopeSelector() {
                   </label>
                 )
               })}
+              {runOptionsMode === 'validation_repair' && (
+                <div className="ml-6 rounded border border-[#f2a65a]/40 bg-[#2f2418] p-3 text-xs text-[#ffcc99] space-y-1">
+                  <div className="font-semibold">Dry-run repair preview</div>
+                  <div>
+                    Click <span className="text-[#ffffff]">Refresh</span> in Preview to scan issue
+                    counts and stage repair queues.
+                  </div>
+                  {repairPreviewLoading && <div className="text-[#d7ba7d]">Scanning…</div>}
+                  {repairPreview && (
+                    <div className="space-y-1">
+                      <div>
+                        Actions: reconcile={repairPreview.actions.reconciled_rows}, backfill=
+                        {repairPreview.actions.backfilled_index_meta}, scoring_targets=
+                        {repairPreview.actions.scoring_fix_targets}
+                      </div>
+                      <div>
+                        Summary: repaired={repairPreview.repaired}, skipped(images)={repairPreview.skipped},
+                        failed={repairPreview.failed}
+                        {typeof repairPreview.issue_hits === 'number'
+                          ? `, issue_hits=${repairPreview.issue_hits}`
+                          : ''}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
