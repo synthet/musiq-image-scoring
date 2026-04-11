@@ -27,7 +27,9 @@ jobs:
       - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # Python 3.12 CI: avoid requirements.txt (pins tensorflow-cpu<2.16, unavailable for py3.12)
+          grep -Ev '^(nvidia-|cuda-bindings|cuda-pathfinder|triton==)' requirements/requirements_wsl_gpu.txt > /tmp/requirements-ci.txt
+          pip install -r /tmp/requirements-ci.txt
           pip install pytest-cov coverage
 
       - name: Run backend coverage
@@ -60,6 +62,7 @@ jobs:
             | tee ../artifacts/coverage/frontend/vitest-term.txt
 
       - name: Upload backend coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: backend-coverage-artifacts
@@ -70,6 +73,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload frontend coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: frontend-coverage-artifacts
