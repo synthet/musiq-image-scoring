@@ -1,0 +1,78 @@
+name: Coverage Artifacts
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov coverage
+
+      - name: Run backend coverage
+        run: |
+          mkdir -p artifacts/coverage/backend
+          python -m pytest \
+            -m "not gpu and not db and not ml and not firebird" \
+            --ignore=tests/test_probe.py \
+            --ignore=tests/test_exifread.py \
+            --cov=modules \
+            --cov-branch \
+            --cov-report=term-missing \
+            --cov-report=xml:artifacts/coverage/backend/coverage.xml \
+            --junitxml=artifacts/coverage/backend/pytest-junit.xml \
+            | tee artifacts/coverage/backend/pytest-term.txt
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend coverage
+        run: |
+          mkdir -p artifacts/coverage/frontend
+          cd frontend
+          npx vitest run --coverage \
+            --coverage.reporter=text \
+            --coverage.reporter=json-summary \
+            --coverage.reporter=lcov \
+            --coverage.reportsDirectory=../artifacts/coverage/frontend \
+            | tee ../artifacts/coverage/frontend/vitest-term.txt
+
+      - name: Upload backend coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-artifacts
+          path: |
+            artifacts/coverage/backend/pytest-junit.xml
+            artifacts/coverage/backend/pytest-term.txt
+            artifacts/coverage/backend/coverage.xml
+          if-no-files-found: error
+
+      - name: Upload frontend coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-artifacts
+          path: |
+            artifacts/coverage/frontend
+          if-no-files-found: error

@@ -198,6 +198,49 @@ low cost:
 
 ---
 
+
+## Canonical Baseline Commands (Backend + Gallery)
+
+Use these exact commands when capturing comparable baseline coverage artifacts.
+
+### Backend baseline (pytest)
+
+```bash
+mkdir -p artifacts/coverage/backend
+python -m pytest \
+  -m "not gpu and not db and not ml and not firebird" \
+  --ignore=tests/test_probe.py \
+  --ignore=tests/test_exifread.py \
+  --cov=modules \
+  --cov-branch \
+  --cov-report=term-missing \
+  --cov-report=xml:artifacts/coverage/backend/coverage.xml \
+  --junitxml=artifacts/coverage/backend/pytest-junit.xml \
+  | tee artifacts/coverage/backend/pytest-term.txt
+```
+
+### Gallery baseline (Vitest)
+
+```bash
+mkdir -p artifacts/coverage/frontend
+cd frontend
+npm ci
+npx vitest run --coverage \
+  --coverage.reporter=text \
+  --coverage.reporter=json-summary \
+  --coverage.reporter=lcov \
+  --coverage.reportsDirectory=../artifacts/coverage/frontend \
+  | tee ../artifacts/coverage/frontend/vitest-term.txt
+```
+
+### How to refresh baseline quickly
+
+1. Run both commands above.
+2. Update `docs/testing/COVERAGE_BASELINE.md` with the new date and metric values.
+3. Keep command lines unchanged so results stay comparable across runs.
+
+---
+
 ## Running the New Tests
 
 ```bash
