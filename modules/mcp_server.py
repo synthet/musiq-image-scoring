@@ -37,7 +37,7 @@ except ImportError:
 if __name__ == "__main__":
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from modules import db, config
+from modules import db, config, utils
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,12 @@ def _env_flag(name: str, default: bool = False) -> bool:
 
 def _sanitize_for_mcp(obj: Any) -> Any:
     """Make dict/list values JSON-safe for MCP responses (e.g. strip BLOB bytes)."""
+    # Handle RowWrapper or other dict-like objects
+    if hasattr(obj, "to_dict"):
+        return _sanitize_for_mcp(obj.to_dict())
+    if hasattr(obj, "keys") and not isinstance(obj, dict):
+        return {k: _sanitize_for_mcp(obj[k]) for k in obj.keys()}
+    
     if isinstance(obj, dict):
         return {k: _sanitize_for_mcp(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
@@ -379,7 +385,11 @@ def execute_sql(query: str, params: list = None) -> dict:
 
             rows = c.fetchall()
             columns = [description[0] for description in c.description] if c.description else []
-            results = [dict(zip(columns, row)) for row in rows]
+            # RowWrapper iterates as (key, value) pairs — do not use dict(zip(columns, row)).
+            results = [
+                row.to_dict() if hasattr(row, "to_dict") else dict(zip(columns, row))
+                for row in rows
+            ]
 
             return {
                 "columns": columns,
@@ -1334,41 +1344,62 @@ def set_image_metadata(file_path: str, rating: Optional[int] = None, label: Opti
 @_require_db
 def prune_missing_files(dry_run: bool = True) -> dict:
     """Remove database records for images whose files no longer exist on disk."""
-    with db.connection() as conn:
-        c = conn.cursor()
-        try:
-            c.execute("SELECT id, file_path FROM images")
-            rows = c.fetchall()
-            to_prune = []  # List of (id, path)
+    from modules import utils
+    try:
+        rows = db.get_connector().query("SELECT id, file_path FROM images")
+        to_prune = []  # List of (id, path)
 
-            for image_id, file_path in rows:
-                if not file_path or not os.path.exists(file_path):
-                    to_prune.append((image_id, file_path))
+        for row in rows:
+            # Robust row access: handle both dict and RowWrapper (which might iterate as tuples)
+            if hasattr(row, 'get'):
+                image_id = row.get("id")
+                file_path = row.get("file_path")
+            elif isinstance(row, (list, tuple)) and len(row) >= 2:
+                # Fallback for raw tuples
+                image_id, file_path = row[0], row[1]
+            else:
+                try:
+                    image_id = row["id"]
+                    file_path = row["file_path"]
+                except Exception:
+                    continue
 
-            if dry_run:
-                return {
-                    "dry_run": True,
-                    "to_prune_count": len(to_prune),
-                    "examples": [p for i, p in to_prune][:10]
-                }
+            if not file_path:
+                to_prune.append((image_id, file_path))
+                continue
+            
+            # Ensure file_path is a string (defensive)
+            if isinstance(file_path, (list, tuple)) and len(file_path) > 0:
+                file_path = file_path[0]
+            
+            # Use resolve_file_path for consistent resolution across the app
+            resolved = utils.resolve_file_path(file_path, image_id)
+            if not resolved:
+                to_prune.append((image_id, file_path))
 
-            if not to_prune:
-                return {"success": True, "pruned_count": 0}
+        if dry_run:
+            return {
+                "dry_run": True,
+                "to_prune_count": len(to_prune),
+                "examples": [p for _, p in to_prune][:10]
+            }
 
-            # Batch delete using the existing delete_image which handles relations
-            count = 0
-            for mid, mpath in to_prune:
-                if mpath:
-                    db.delete_image(mpath)
-                else:
-                    # If path is null, we need to delete by ID manually
-                    c.execute("DELETE FROM images WHERE id = ?", (mid,))
-                count += 1
+        if not to_prune:
+            return {"success": True, "pruned_count": 0}
 
-            conn.commit()
-            return {"success": True, "pruned_count": count}
-        except Exception as e:
-            return {"error": str(e)}
+        # Batch delete using the existing delete_image which handles relations
+        count = 0
+        for mid, mpath in to_prune:
+            if mpath:
+                db.delete_image(mpath)
+            else:
+                # If path is null, delete by ID directly
+                db.get_connector().execute("DELETE FROM images WHERE id = ?", (mid,))
+            count += 1
+
+        return {"success": True, "pruned_count": count}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool(annotations=_RO)

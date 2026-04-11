@@ -29,6 +29,21 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 3. Monitor logs for deprecation warnings when Phase 4c ships
 4. Complete migration before v7.0 (July 2026)
 
+## [6.9.1] - 2026-04-10
+
+### Changed
+
+- **EXIF date backfill** (`POST /maintenance/backfill-exif-dates`): Response `data` stats now use **`skipped_no_file`** and **`skipped_no_date`** instead of a single **`skipped`** count; API message reflects the breakdown.
+
+### Fixed
+
+- **`POST /shutdown`**: JSON payload uses boolean **`true`** correctly (`success` was invalid Python `true`).
+- **`resolve_windows_path`**: When the same path already exists as **`WSL`**, update that **`file_paths`** row to **`WIN`** instead of inserting a duplicate (respects **`uq_file_paths_image_id_path`**).
+- **`upsert_image`**: Accepts **`image_path`** or **`file_path`** in worker results; indexing runner passes **`image_path`** consistently.
+- **EXIF date backfill**: Resolve paths with **`resolve_file_path`** / **`convert_path_to_local`** and skip missing files before extraction.
+- **MCP**: **`execute_sql`** and **`_sanitize_for_mcp`** handle Postgres **`RowWrapper`** / dict-like rows; **`prune_missing_files`** uses the DB connector and **`resolve_file_path`** for missing-file detection.
+- **Selection runner**: Sets **`_status_message`** to **`stopped`** when the job stops gracefully.
+
 ## [6.9.0] - 2026-04-10
 
 ### Added

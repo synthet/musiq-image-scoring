@@ -183,6 +183,8 @@ class SelectionRunner:
             
             if summary.status == "stopped":
                 log("Selection stopped gracefully. Skipping finalization.", "WARNING")
+                with self._lock:
+                    self._status_message = "stopped"
                 return
 
             # Phase D (Culling) — mark attempted images in the processed folder as done

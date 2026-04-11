@@ -1364,7 +1364,7 @@ def create_api_router() -> APIRouter:
     )
     async def shutdown_api():
         await asyncio.to_thread(graceful_shutdown_processing, "api_request")
-        return {"success": true, "message": "Graceful shutdown initiated"}
+        return {"success": True, "message": "Graceful shutdown initiated"}
 
 
     def _http_for_transition_error(exc: Exception):
@@ -5657,7 +5657,7 @@ def create_api_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
         return ApiResponse(
             success=True,
-            message=f"Backfill EXIF dates: {stats['updated']} updated, {stats['skipped']} skipped, {stats['errors']} errors out of {stats['checked']} checked",
+            message=f"Backfill EXIF dates: {stats['updated']} updated, {stats['skipped_no_file']} files missing, {stats['skipped_no_date']} no date tag, {stats['errors']} errors out of {stats['checked']} checked",
             data=stats,
         )
 

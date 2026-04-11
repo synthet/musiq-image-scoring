@@ -173,7 +173,7 @@ def backfill_exif_dates(limit: int | None = None) -> dict:
         limit: Optional max number of rows to process (for staged rollouts).
 
     Returns:
-        dict with keys: checked, updated, skipped, errors.
+        dict with keys: checked, updated, skipped_no_file, skipped_no_date, errors.
     """
     from modules import db
 
@@ -186,15 +186,23 @@ def backfill_exif_dates(limit: int | None = None) -> dict:
             ORDER BY ex.image_id{limit_clause}"""
     )
 
-    stats = {"checked": 0, "updated": 0, "skipped": 0, "errors": 0}
+    stats = {"checked": 0, "updated": 0, "skipped_no_file": 0, "skipped_no_date": 0, "errors": 0}
     for row in rows:
         stats["checked"] += 1
         image_id = row["image_id"]
         file_path = row["file_path"]
         try:
+            resolved = utils.resolve_file_path(file_path, image_id)
+            if not resolved:
+                resolved = utils.convert_path_to_local(file_path)
+            if not resolved or not os.path.exists(resolved):
+                stats["skipped_no_file"] += 1
+                logger.debug("backfill skip image_id=%s: file not found (%s)", image_id, file_path)
+                continue
             data = extract_exif(file_path, image_id)
             if not data or ("date_time_original" not in data and "create_date" not in data):
-                stats["skipped"] += 1
+                stats["skipped_no_date"] += 1
+                logger.debug("backfill skip image_id=%s: no date tag in EXIF (%s)", image_id, file_path)
                 continue
             if db.upsert_image_exif(image_id, data):
                 stats["updated"] += 1

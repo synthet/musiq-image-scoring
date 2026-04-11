@@ -328,7 +328,7 @@ class IndexingRunner:
                     image_id = db.upsert_image(
                         job_id,
                         {
-                            "file_path": file_path,
+                            "image_path": file_path,
                             "image_hash": image_hash,
                             "folder_id": folder_id,
                         },

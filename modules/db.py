@@ -3233,16 +3233,31 @@ def resolve_windows_path(image_id, wsl_path, verify=True):
         return windows_path
 
     try:
-        row = get_connector().query_one(
-            "SELECT id FROM file_paths WHERE image_id = ? AND path_type = 'WIN'", (image_id,))
-        if row:
+        # Same path may already exist as path_type=WSL from register_image_path; uq_file_paths_image_id_path
+        # is on (image_id, path) so we must upgrade that row instead of inserting a second WIN row.
+        row_same_path = get_connector().query_one(
+            "SELECT id FROM file_paths WHERE image_id = ? AND path = ?",
+            (image_id, windows_path),
+        )
+        if row_same_path:
+            get_connector().execute(
+                "UPDATE file_paths SET path_type = 'WIN', is_verified = ?, verification_date = ?, last_seen = ? WHERE id = ?",
+                (is_verified, verification_date, now, row_same_path["id"]),
+            )
+            return windows_path
+        row_win = get_connector().query_one(
+            "SELECT id FROM file_paths WHERE image_id = ? AND path_type = 'WIN'", (image_id,)
+        )
+        if row_win:
             get_connector().execute(
                 "UPDATE file_paths SET path = ?, is_verified = ?, verification_date = ?, last_seen = ? WHERE id = ?",
-                (windows_path, is_verified, verification_date, now, row["id"]))
+                (windows_path, is_verified, verification_date, now, row_win["id"]),
+            )
         else:
             get_connector().execute(
                 "INSERT INTO file_paths (image_id, path, path_type, is_verified, verification_date, last_seen) VALUES (?, ?, 'WIN', ?, ?, ?)",
-                (image_id, windows_path, is_verified, verification_date, now))
+                (image_id, windows_path, is_verified, verification_date, now),
+            )
         return windows_path
     except Exception as e:
         logging.error(f"Failed to resolve path for image {image_id}: {e}")
@@ -5596,7 +5611,7 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                 dirty_folder_ids.add(old_fld)
 
     # Extract fields
-    image_path = result.get("image_path", "")
+    image_path = result.get("image_path") or result.get("file_path", "")
     file_name = result.get("image_name", Path(image_path).name)
     file_type = Path(image_path).suffix.lower().lstrip('.')
     
