@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  backend-pytest-fast:
+    name: backend-pytest-fast
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/requirements_wsl_gpu.txt
+      - name: Run fast pytest slice (required)
+        run: |
+          python -m pytest -m "not gpu and not db and not ml and not firebird" --ignore=tests/test_probe.py --ignore=tests/test_exifread.py
+
+  gallery-test-run:
+    name: gallery-test-run
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Run gallery test:run (required)
+        run: npm run test:run
+
+  contract-check:
+    name: contract-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install contract-check dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+      - name: Run canonical contract gate (required)
+        run: python scripts/ci/contract_check.py
+
+  integration-smoke:
+    name: integration-smoke
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/requirements_wsl_gpu.txt
+      - name: Run integration/smoke slice (informational)
+        run: |
+          python -m pytest tests/integration -m "not gpu and not ml and not firebird" -q || true

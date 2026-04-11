@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "contract:check": "python ../scripts/ci/contract_check.py"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",
