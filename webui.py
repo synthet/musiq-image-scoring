@@ -280,6 +280,7 @@ def main():
         main_tabs,
         indexing_runner,
         metadata_runner,
+        maintenance_runner,
     ) = app_module.create_ui(clustering_runner=clustering_runner)
 
     # Setup MCP server if enabled
@@ -288,7 +289,8 @@ def main():
         mcp_server.set_runners(
             runner, tagging_runner, clustering_runner, selection_runner, 
             orchestrator, bird_species_runner=app_module._bird_species_runner,
-            indexing_runner=indexing_runner, metadata_runner=metadata_runner
+            indexing_runner=indexing_runner, metadata_runner=metadata_runner,
+            maintenance_runner=maintenance_runner
         )
         mcp_server.set_gradio_context(
             demo=demo,
@@ -331,7 +333,8 @@ def main():
     # Configure server endpoints using the FastAPI app directly
     app_module.setup_server_endpoints(
         app, runner, tagging_runner, clustering_runner, selection_runner, 
-        orchestrator, indexing_runner=indexing_runner, metadata_runner=metadata_runner
+        orchestrator, indexing_runner=indexing_runner, metadata_runner=metadata_runner,
+        maintenance_runner=maintenance_runner
     )
     command_dispatcher.set_runners(
         scoring_runner=runner,

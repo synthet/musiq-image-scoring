@@ -13,6 +13,9 @@ Usage (WSL, same venv as webapp — see AGENTS.md):
   python scripts/maintenance/regenerate_missing_thumbnails.py \\
       --file "D:\\Photos\\Z8\\105mm\\2026\\2026-04-04\\DSC_4935.NEF"
 
+  # Only rows with thumbnail_path IS NULL (efficient vs arbitrary table order):
+  python scripts/maintenance/regenerate_missing_thumbnails.py --all --null-thumbnail-only --limit 500
+
   # Whole library (careful — large):
   python scripts/maintenance/regenerate_missing_thumbnails.py --all --limit 500
 
@@ -74,6 +77,11 @@ def _parse_args() -> argparse.Namespace:
         help="Also process rows whose thumbnail already resolves (still skips missing originals).",
     )
     ap.add_argument("--limit", type=int, default=0, help="Max rows to process (0 = no limit).")
+    ap.add_argument(
+        "--null-thumbnail-only",
+        action="store_true",
+        help="Only rows where thumbnail_path IS NULL (matches SQL gap counts; use for backfill).",
+    )
     ap.add_argument("-q", "--quiet", action="store_true", help="Warnings and errors only.")
     return ap.parse_args()
 
@@ -105,9 +113,13 @@ def main() -> int:
         where_parts.append("(" + " OR ".join(["file_path LIKE ?"] * len(patterns)) + ")")
         params.extend(patterns)
 
+    if args.null_thumbnail_only:
+        where_parts.append("thumbnail_path IS NULL")
+
     sql = "SELECT id, file_path, thumbnail_path, thumbnail_path_win FROM images"
     if where_parts:
         sql += " WHERE " + " AND ".join(where_parts)
+    sql += " ORDER BY id"
 
     cur.execute(sql, params)
     rows = cur.fetchall()

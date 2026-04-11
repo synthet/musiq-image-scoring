@@ -1189,7 +1189,7 @@ def get_images_paginated_with_count(page=1, page_size=None, sort_by="score", ord
     Get paginated images AND total count using optimized approach.
     Uses same connection for both queries to reduce overhead.
     
-    When use_exif_date=True, date_range uses EXIF date_time_original (fallback to created_at).
+    When use_exif_date=True, date_range uses COALESCE(EXIF shot times, XMP sidecar create_date, created_at).
     make_filter, model_filter, lens_filter: exact or LIKE match.
     iso_min, iso_max: ISO range filter.
     
@@ -1220,7 +1220,11 @@ def get_images_paginated_with_count(page=1, page_size=None, sort_by="score", ord
     )
 
     if need_exif_join:
-        from_clause = " images LEFT JOIN image_exif ON images.id = image_exif.image_id"
+        from_clause = (
+            " images"
+            " LEFT JOIN image_exif ON images.id = image_exif.image_id"
+            " LEFT JOIN image_xmp ON images.id = image_xmp.image_id"
+        )
         tbl_prefix = "images."
     else:
         from_clause = " images"
@@ -1272,7 +1276,12 @@ def get_images_paginated_with_count(page=1, page_size=None, sort_by="score", ord
     # Date Filter
     if date_range:
         start_date, end_date = date_range
-        date_col = f"COALESCE(image_exif.date_time_original, images.created_at)" if (need_exif_join and use_exif_date) else f"{tbl_prefix}created_at"
+        date_col = (
+            "COALESCE(image_exif.date_time_original, image_exif.create_date, "
+            "image_xmp.create_date, images.created_at)"
+            if (need_exif_join and use_exif_date)
+            else f"{tbl_prefix}created_at"
+        )
         if start_date:
             conditions.append(f"CAST({date_col} AS DATE) >= CAST(? AS DATE)")
             params.append(start_date)
@@ -1318,7 +1327,10 @@ def get_images_paginated_with_count(page=1, page_size=None, sort_by="score", ord
     if need_exif_join and sort_by in exif_sort_cols:
         nulls = " NULLS LAST" if order == "DESC" else " NULLS FIRST"
         if sort_by == "date_time_original":
-            order_by = f"COALESCE(image_exif.date_time_original, images.created_at) {order}{nulls}"
+            order_by = (
+                "COALESCE(image_exif.date_time_original, image_exif.create_date, "
+                f"image_xmp.create_date, images.created_at) {order}{nulls}"
+            )
         else:
             order_by = f"image_exif.{sort_by} {order}{nulls}"
     else:
@@ -4755,7 +4767,7 @@ def set_job_phase_state(job_id, phase_code, state, error_message=None, tx=None):
     """Update state metadata for one phase of a job and auto-advance next pending phase."""
     allowed = {
         "pending": {"queued", "running", "skipped", "canceled", "failed"},
-        "queued": {"running", "paused", "cancel_requested", "canceled"},
+        "queued": {"running", "paused", "cancel_requested", "canceled", "failed"},
         "running": {
             "paused",
             "completed",
@@ -4870,12 +4882,16 @@ def _resolve_multi_phase_job_phases_sync_code(job_id, new_status, tx=None):
         return None
     st = (new_status or "").strip().lower()
     if st == "running":
+        # Prefer the phase already in progress. If we scan queued/pending first, repeated
+        # update_job_status(..., "running") (e.g. runner heartbeats) would promote the next
+        # pending stage while the current one is still running — multiple stages show "Running"
+        # in the workflow UI though only one executes.
+        for p in phases:
+            if (p.get("state") or "").strip().lower() == "running":
+                return p.get("phase_code")
         for p in phases:
             row_state = (p.get("state") or "").strip().lower()
             if row_state in ("queued", "pending"):
-                return p.get("phase_code")
-        for p in phases:
-            if (p.get("state") or "").strip().lower() == "running":
                 return p.get("phase_code")
         return phases[0].get("phase_code")
     if st == "completed":
@@ -5176,6 +5192,84 @@ def reconcile_stale_running_phases_for_jobs(job_ids, error_message=None, in_flig
             logger.debug("invalidate_folder_phase_aggregates after reconcile failed for folder_id=%s", fid)
 
     return rc
+
+
+def reconcile_duplicate_running_job_phases(job_id=None, limit_jobs=500):
+    """
+    Fix ``job_phases`` rows where more than one phase is ``running`` for the same job
+    (legacy bug from ``_resolve_multi_phase_job_phases_sync_code`` promoting pending phases
+    while an earlier phase was still active).
+
+    Keeps the earliest ``phase_order`` row that is ``running``; demotes the others to
+    ``pending`` and clears timestamps (same as a not-yet-started later stage).
+
+    Args:
+        job_id: If set, only repair this job (when it has duplicate ``running`` rows).
+        limit_jobs: Max distinct jobs to process when ``job_id`` is None.
+
+    Returns:
+        dict with ``jobs_fixed`` (count of jobs that had at least one phase reset) and
+        ``phases_reset`` (total phase rows updated).
+    """
+    try:
+        limit_jobs = max(1, int(limit_jobs))
+    except (TypeError, ValueError):
+        limit_jobs = 500
+
+    if job_id is not None:
+        job_ids = [int(job_id)]
+    else:
+        rows = get_connector().query(
+            """
+            SELECT job_id FROM job_phases
+            WHERE LOWER(TRIM(CAST(state AS VARCHAR(128)))) = 'running'
+            GROUP BY job_id
+            HAVING COUNT(*) > 1
+            ORDER BY job_id
+            FETCH FIRST ? ROWS ONLY
+            """,
+            (limit_jobs,),
+        )
+        job_ids = [int(r["job_id"]) for r in rows if r and r.get("job_id") is not None]
+
+    if not job_ids:
+        return {"jobs_fixed": 0, "phases_reset": 0}
+
+    jobs_fixed = 0
+    phases_reset = 0
+
+    for jid in job_ids:
+        rows = get_connector().query(
+            "SELECT id, phase_order, phase_code, state FROM job_phases WHERE job_id = ? ORDER BY phase_order",
+            (jid,),
+        )
+        if not rows:
+            continue
+        running_rows = [r for r in rows if (r.get("state") or "").strip().lower() == "running"]
+        if len(running_rows) <= 1:
+            continue
+        keeper_id = int(running_rows[0]["id"])
+        reset_ids = [int(r["id"]) for r in running_rows[1:]]
+
+        def _tx(tx):
+            for rid in reset_ids:
+                tx.execute(
+                    "UPDATE job_phases SET state = 'pending', started_at = NULL, "
+                    "completed_at = NULL, error_message = NULL WHERE id = ?",
+                    (rid,),
+                )
+
+        get_connector().run_transaction(_tx)
+        jobs_fixed += 1
+        phases_reset += len(reset_ids)
+        logger.info(
+            "reconcile_duplicate_running_job_phases: job_id=%s kept phase row id=%s, reset %s row(s)",
+            jid,
+            keeper_id,
+            len(reset_ids),
+        )
+
+    return {"jobs_fixed": jobs_fixed, "phases_reset": phases_reset}
 
 
 def reconcile_stale_running_phases_for_terminal_jobs(limit=5000):
@@ -9029,6 +9123,111 @@ def get_folder_phase_summary(folder_path, force_refresh=False):
     except Exception as e:
         logger.error("get_folder_phase_summary failed for '%s': %s", folder_path, e)
         return []
+
+
+def _empty_folder_fulfillment_stats() -> dict:
+    return {
+        "total": 0,
+        "scored": 0,
+        "thumbnails": 0,
+        "keywords": 0,
+        "indexing_done": 0,
+        "score_pct": 0.0,
+        "thumbnail_pct": 0.0,
+        "indexing_pct": 0.0,
+    }
+
+
+def get_folder_fulfillment_stats_for_path(folder_path: str) -> dict:
+    """
+    Subtree-scoped fulfillment under ``folder_path`` (same folder set as ``get_folder_phase_summary``).
+
+    Counts images whose ``folder_id`` belongs to the root path or descendants.
+    ``indexing_done`` / ``indexing_pct`` treat IPS rows for phase ``indexing`` with status
+    ``done`` or ``skipped`` as satisfied (aligned with skip-existing indexing behavior).
+    """
+    from modules import utils
+
+    if not folder_path or not str(folder_path).strip():
+        return _empty_folder_fulfillment_stats()
+
+    wsl_path = utils.convert_path_to_wsl(folder_path) if hasattr(utils, "convert_path_to_wsl") else folder_path
+    target_path = wsl_path if wsl_path else folder_path
+    path_like_unix = target_path + "/%"
+    path_like_win = target_path + "\\%"
+
+    sql = """
+        SELECT
+            COUNT(i.id) AS total,
+            COALESCE(SUM(CASE WHEN i.score_general IS NOT NULL AND i.score_general > 0 THEN 1 ELSE 0 END), 0) AS scored,
+            COALESCE(SUM(CASE
+                WHEN (i.thumbnail_path IS NOT NULL AND TRIM(COALESCE(i.thumbnail_path, '')) <> '')
+                  OR (i.thumbnail_path_win IS NOT NULL AND TRIM(COALESCE(i.thumbnail_path_win, '')) <> '')
+                THEN 1 ELSE 0 END), 0) AS thumbnails,
+            COALESCE(SUM(CASE
+                WHEN EXISTS (SELECT 1 FROM image_keywords ik WHERE ik.image_id = i.id)
+                  OR (i.keywords IS NOT NULL AND TRIM(COALESCE(i.keywords, '')) <> '')
+                THEN 1 ELSE 0 END), 0) AS keywords,
+            COALESCE(SUM(CASE
+                WHEN EXISTS (
+                    SELECT 1 FROM image_phase_status ips
+                    JOIN pipeline_phases pp ON pp.id = ips.phase_id
+                    WHERE ips.image_id = i.id
+                      AND LOWER(TRIM(COALESCE(pp.code, ''))) = 'indexing'
+                      AND LOWER(TRIM(COALESCE(ips.status, ''))) IN ('done', 'skipped')
+                )
+                THEN 1 ELSE 0 END), 0) AS indexing_done
+        FROM images i
+        WHERE i.folder_id IN (
+            SELECT id FROM folders
+            WHERE path = ? OR path LIKE ? OR path LIKE ?
+        )
+    """
+    try:
+        row = get_connector().query_one(sql, (target_path, path_like_unix, path_like_win))
+    except Exception as exc:
+        logger.error("get_folder_fulfillment_stats_for_path failed for '%s': %s", folder_path, exc)
+        return _empty_folder_fulfillment_stats()
+
+    if not row:
+        return _empty_folder_fulfillment_stats()
+
+    def _as_int(v):
+        if v is None:
+            return 0
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return int(float(v))
+
+    total = _as_int(row.get("total"))
+    scored = _as_int(row.get("scored"))
+    thumbnails = _as_int(row.get("thumbnails"))
+    keywords = _as_int(row.get("keywords"))
+    indexing_done = _as_int(row.get("indexing_done"))
+
+    score_pct = (scored / total * 100.0) if total else 0.0
+    thumbnail_pct = (thumbnails / total * 100.0) if total else 0.0
+    indexing_pct = (indexing_done / total * 100.0) if total else 0.0
+
+    return {
+        "total": total,
+        "scored": scored,
+        "thumbnails": thumbnails,
+        "keywords": keywords,
+        "indexing_done": indexing_done,
+        "score_pct": score_pct,
+        "thumbnail_pct": thumbnail_pct,
+        "indexing_pct": indexing_pct,
+    }
+
+
+def get_folder_fulfillment_stats(folder_id: int) -> dict:
+    """Backward-compatible wrapper: resolve ``folders.path`` and delegate to subtree stats."""
+    row = get_connector().query_one("SELECT path FROM folders WHERE id = ?", (folder_id,))
+    if not row or not row.get("path"):
+        return _empty_folder_fulfillment_stats()
+    return get_folder_fulfillment_stats_for_path(row["path"])
 
 
 def get_all_folder_phase_summaries_bulk():

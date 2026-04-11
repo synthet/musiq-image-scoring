@@ -1,47 +1,99 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Wrench, RefreshCcw, ExternalLink } from 'lucide-react'
+import { Wrench, RefreshCcw, ExternalLink, Play, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toolsApi, formatToolError, type ApiEnvelope, type RecalculateStatusSummary } from '@/api/tools'
 import { runsApi } from '@/api/runs'
 import { FULL_PIPELINE_STAGE_CODES } from '@/constants/pipeline'
-import { STAGE_DISPLAY } from '@/types/api'
+import { MaintenanceToolsCopy } from '@/constants/runsToolsCopy'
 import { useUiStore } from '@/stores/uiStore'
 import { Card, CardTitle } from '@/components/ui/card'
 
-const STALE_MIN_AGE = 3600
-const BACKFILL_LIMIT = 1000
+const STALE_MIN_AGE_SECONDS = 3600
+const STALE_PROBE_LIMIT = 50
+const STALE_QUERY_REFETCH_INTERVAL_MS = 30000
 
-const FULL_PIPELINE_LABELS = FULL_PIPELINE_STAGE_CODES.map((c) => STAGE_DISPLAY[c].name).join(' → ')
-
-function ToolSection({
+function ToolCard({
   title,
   description,
-  children,
+  buttonText,
+  onAction,
+  isPending,
+  disabled,
+  icon: Icon = Play,
+  variant = "primary" as const
 }: {
   title: string
   description: string
+  buttonText: string
+  onAction: () => void
+  isPending?: boolean
+  disabled?: boolean
+  icon?: any
+  variant?: "primary" | "secondary" | "outline"
+}) {
+  return (
+    <div className="flex flex-col gap-2 p-3 rounded bg-[#1e1e1e] border border-[#3c3c3c]">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1">
+          <h3 className="text-xs font-semibold text-[#cccccc]">{title}</h3>
+          <p className="text-[11px] text-[#9d9d9d] mt-1 leading-relaxed">
+            {description}
+          </p>
+        </div>
+        <Button
+          variant={variant}
+          size="sm"
+          onClick={onAction}
+          disabled={disabled || isPending}
+          loading={isPending}
+          className="h-7 px-3 text-[11px] gap-1 shrink-0"
+        >
+          <Icon size={12} />
+          {buttonText}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function TierSection({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string
+  subtitle: string
   children: ReactNode
 }) {
   return (
     <section className="rounded-lg border border-[#3c3c3c] bg-[#252526] p-4">
-      <h2 className="text-sm font-semibold text-[#cccccc] mb-1">{title}</h2>
-      <p className="text-xs text-[#9d9d9d] mb-3 leading-relaxed">{description}</p>
-      {children}
+      <div className="mb-4">
+        <h2 className="text-sm font-semibold text-[#cccccc]">{title}</h2>
+        <p className="text-xs text-[#9d9d9d] mt-0.5">{subtitle}</p>
+      </div>
+      <div className="grid grid-cols-1 gap-3">
+        {children}
+      </div>
     </section>
   )
 }
 
 function ResultBanner({ text, ok }: { text: string; ok: boolean }) {
   return (
-    <p
-      className={`text-xs mt-2 rounded px-2 py-1.5 ${
-        ok ? 'bg-[#1e3a1e] text-[#89d185]' : 'bg-[#3a1e1e] text-[#f44747]'
+    <div
+      className={`flex items-start gap-2 text-xs rounded px-3 py-2 border ${
+        ok 
+          ? 'bg-[#1e3a1e]/30 text-[#89d185] border-[#89d185]/20' 
+          : 'bg-[#3a1e1e]/30 text-[#f44747] border-[#f44747]/20'
       }`}
     >
-      {text}
-    </p>
+      <div className="mt-0.5">
+        {ok ? <RefreshCcw size={14} /> : <AlertCircle size={14} />}
+      </div>
+      <p className="leading-relaxed">{text}</p>
+    </div>
   )
 }
 
@@ -54,72 +106,55 @@ export function RunsToolsTab() {
   const [showRecalcConfirm, setShowRecalcConfirm] = useState(false)
   const [recalcSummary, setRecalcSummary] = useState<RecalculateStatusSummary | null>(null)
 
-  const staleQuery = useQuery({
-    queryKey: ['maintenance-stale-phases', STALE_MIN_AGE],
-    queryFn: () => toolsApi.staleRunningPhases(STALE_MIN_AGE, 50),
-    refetchInterval: 60_000,
-  })
-
   const setFromEnvelope = (label: string, r: ApiEnvelope) => {
     const ok = r.success
     const extra =
-      r.data && typeof r.data === 'object'
-        ? ` ${JSON.stringify(r.data)}`
-        : ''
+      r.data && typeof r.data === 'object' ? ` ${JSON.stringify(r.data)}` : ''
     setLastAction({ ok, text: `${label}: ${r.message}${extra}` })
   }
 
-  const reconcileMut = useMutation({
-    mutationFn: () => toolsApi.reconcileTerminalJobPhases(5000),
-    onSuccess: (r) => {
-      setFromEnvelope('Reconcile', r)
-      void queryClient.invalidateQueries({ queryKey: ['maintenance-stale-phases'] })
+  const staleQuery = useQuery({
+    queryKey: ['maintenance-stale-phases', STALE_MIN_AGE_SECONDS],
+    queryFn: () => toolsApi.staleRunningPhases(STALE_MIN_AGE_SECONDS, STALE_PROBE_LIMIT),
+    refetchInterval: STALE_QUERY_REFETCH_INTERVAL_MS,
+  })
+
+  const maintenanceMut = useMutation({
+    mutationFn: (args: { action: string; label: string; limit?: number; input_path?: string }) => 
+      runsApi.maintenanceStart({
+        action: args.action,
+        limit: args.limit,
+        input_path: args.input_path
+      }),
+    onSuccess: (r, variables) => {
+      setLastAction({ 
+        ok: true, 
+        text: `${variables.label} job queued (Run ID: ${r.run_id}). Track progress in history.` 
+      })
+      void queryClient.invalidateQueries({ queryKey: ['runs'] })
+      if (variables.action === 'reconcile') {
+        void queryClient.invalidateQueries({ queryKey: ['maintenance-stale-phases'] })
+      }
     },
-    onError: (e) => setLastAction({ ok: false, text: formatToolError(e) }),
-  })
-
-  const fixDbMut = useMutation({
-    mutationFn: () => toolsApi.fixDatabase(),
-    onSuccess: (r) => setFromEnvelope('Fix DB', r),
-    onError: (e) => setLastAction({ ok: false, text: formatToolError(e) }),
-  })
-
-  const backfillMut = useMutation({
-    mutationFn: () => toolsApi.backfillIndexMeta(BACKFILL_LIMIT),
-    onSuccess: (r) => setFromEnvelope('Backfill', r),
-    onError: (e) => setLastAction({ ok: false, text: formatToolError(e) }),
-  })
-
-  const healThumbMut = useMutation({
-    mutationFn: () => toolsApi.healThumbnails(),
-    onSuccess: (r) => setFromEnvelope('Thumbnails', r),
-    onError: (e) => setLastAction({ ok: false, text: formatToolError(e) }),
-  })
-
-  const repairThumbDeepMut = useMutation({
-    mutationFn: () => toolsApi.repairThumbnailPaths({ repairAll: true }),
-    onSuccess: (r) => setFromEnvelope('Thumbnail paths (deep)', r),
     onError: (e) => setLastAction({ ok: false, text: formatToolError(e) }),
   })
 
   const fullPipelineMut = useMutation({
     mutationFn: () => {
       if (!selectedScopePath?.trim()) {
-        return Promise.reject(new Error('No folder selected'))
+        return Promise.reject(new Error("Please select a folder in the Navigator first."))
       }
       return runsApi.submit({
         scope_type: 'folder_recursive',
         scope_paths: [selectedScopePath.trim()],
         stages: [...FULL_PIPELINE_STAGE_CODES],
         skip_done: true,
-        force_rerun: false,
-        fix_incomplete_stages: false,
       })
     },
     onSuccess: (data) => {
       setLastAction({
         ok: true,
-        text: `Full pipeline: run ${data.run_id} queued (queue position ${data.queue_position}).`,
+        text: `Full pipeline queued for folder (Run ID: ${data.run_id}). Position: ${data.queue_position}`,
       })
       void queryClient.invalidateQueries({ queryKey: ['runs'] })
       void queryClient.invalidateQueries({ queryKey: ['folders-tree'] })
@@ -161,161 +196,105 @@ export function RunsToolsTab() {
     return selectedScopePath?.trim() ? `Selected: ${selectedScopePath.trim()}` : 'Select a folder first'
   }, [recalcScope, selectedScopePath])
 
-  const mutationPending =
-    reconcileMut.isPending ||
-    fixDbMut.isPending ||
-    backfillMut.isPending ||
-    healThumbMut.isPending ||
-    repairThumbDeepMut.isPending ||
+  const toolsLocked =
+    maintenanceMut.isPending ||
     fullPipelineMut.isPending ||
-    recalcStatusMut.isPending
-  /** Block concurrent tool actions (mutations or stale probe refetch). */
-  const toolsLocked = mutationPending || staleQuery.isFetching
+    recalcStatusMut.isPending ||
+    staleQuery.isFetching
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2">
           <Wrench className="text-[#4fc1ff]" size={20} />
           <div>
-            <p className="text-sm font-medium text-[#cccccc]">Maintenance &amp; quick fixes</p>
-            <p className="text-xs text-[#9d9d9d] mt-0.5">
-              Local-operator helpers. Queued work appears under Active / History as runs.
-            </p>
+            <p className="text-sm font-medium text-[#cccccc]">Pipeline Tools</p>
+            <p className="text-xs text-[#9d9d9d] mt-0.5">Maintain data integrity and perform batch repairs.</p>
           </div>
         </div>
         <Link
           to="/diagnostics"
           className="inline-flex items-center gap-1 text-xs text-[#4fc1ff] hover:underline shrink-0"
         >
-          System diagnostics
+          Diagnostics
           <ExternalLink size={12} />
         </Link>
       </div>
 
       {lastAction && <ResultBanner ok={lastAction.ok} text={lastAction.text} />}
 
-      <ToolSection
-        title="Stuck phase rows"
-        description={
-          'Stale (>1h): per-image phase rows still in running state past the probe window. ' +
-          'Reconcilable (terminal job): parent job finished but a per-image row stayed running — Reconcile marks those rows failed (crash/restart drift). Not age-filtered.'
-        }
+      {/* Tier 1 */}
+      <TierSection 
+        title={MaintenanceToolsCopy.tier1.title} 
+        subtitle={MaintenanceToolsCopy.tier1.subtitle}
       >
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => staleQuery.refetch()}
-            disabled={toolsLocked}
-            className="gap-1"
-          >
-            <RefreshCcw size={13} className={staleQuery.isFetching ? 'animate-spin' : ''} />
-            Refresh probe
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => reconcileMut.mutate()}
-            disabled={toolsLocked}
-            loading={reconcileMut.isPending}
-          >
-            Reconcile terminal-job phases
-          </Button>
-        </div>
-        {staleQuery.isError && (
-          <p className="text-xs text-[#f44747] mt-2">{formatToolError(staleQuery.error)}</p>
-        )}
-        {staleQuery.data && (
-          <p className="text-xs text-[#9d9d9d] mt-2">
-            Stale (&gt;{staleQuery.data.min_age_seconds}s):{' '}
-            <span className="text-[#cccccc] font-medium">{staleQuery.data.count_estimate}</span> row(s).{' '}
-            Reconcilable (terminal job):{' '}
-            <span className="text-[#cccccc] font-medium">
-              {staleQuery.data.reconcilable_count ?? '—'}
-            </span>
-            .
-            {staleQuery.data.sample.length > 0 && (
-              <span className="block mt-1 font-mono text-[#6d6d6d] break-all">
-                Sample:{' '}
-                {staleQuery.data.sample
-                  .slice(0, 3)
-                  .map((s) => `${s.phase_code} job=${s.job_id} ${s.file_path || ''}`)
-                  .join(' · ')}
-              </span>
+        <div className="p-3 rounded bg-[#1e1e1e] border border-[#3c3c3c]">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-[#cccccc]">
+                {MaintenanceToolsCopy.tier1.tools.reconcile.name}
+              </h3>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => staleQuery.refetch()}
+                  disabled={toolsLocked}
+                  className="h-7 px-2 text-[11px] gap-1"
+                >
+                  <RefreshCcw size={12} className={staleQuery.isFetching ? 'animate-spin' : ''} />
+                  Refresh
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => maintenanceMut.mutate({ 
+                    action: 'reconcile', 
+                    label: MaintenanceToolsCopy.tier1.tools.reconcile.name,
+                    limit: MaintenanceToolsCopy.tier1.tools.reconcile.limit
+                  })}
+                  disabled={toolsLocked}
+                  loading={maintenanceMut.isPending && maintenanceMut.variables?.action === 'reconcile'}
+                  className="h-7 px-3 text-[11px]"
+                >
+                  Run Fix
+                </Button>
+              </div>
+            </div>
+            <p className="text-[11px] text-[#9d9d9d] leading-relaxed">
+              {MaintenanceToolsCopy.tier1.tools.reconcile.description}
+            </p>
+            {staleQuery.data && (
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#6d6d6d] font-mono">
+                <span>Stuck rows: <b className="text-[#cccccc]">{staleQuery.data.count_estimate}</b></span>
+                <span>Reconcilable: <b className="text-[#cccccc]">{staleQuery.data.reconcilable_count ?? '0'}</b></span>
+              </div>
             )}
-          </p>
-        )}
-      </ToolSection>
-
-      <ToolSection
-        title="Fix incomplete scores (database)"
-        description={
-          'Queues a fix-db job to re-score rows missing model outputs or metadata. ' +
-          'Requires the scoring runner to be idle. Watch Active / History and scoring status.'
-        }
-      >
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={() => fixDbMut.mutate()}
-          disabled={toolsLocked}
-          loading={fixDbMut.isPending}
-        >
-          Start fix-db job
-        </Button>
-      </ToolSection>
-
-      <ToolSection
-        title="Backfill Discovery / Inspection phase status"
-        description={
-          'Global batch: for up to 1,000 images with scoring done but missing indexing or metadata phase rows, ' +
-          'set Discovery (indexing) and Inspection (metadata) to done — repairs legacy import gaps. Repeat to drain.'
-        }
-      >
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={() => backfillMut.mutate()}
-          disabled={toolsLocked}
-          loading={backfillMut.isPending}
-        >
-          Backfill (up to {BACKFILL_LIMIT.toLocaleString()})
-        </Button>
-      </ToolSection>
-
-      <ToolSection
-        title="Full pipeline (selected folder)"
-        description={
-          `Queues one run for the folder selected in Scope Navigator: ${FULL_PIPELINE_LABELS}. ` +
-          'Skips phase work already completed (same as New Run → Skip completed). ' +
-          'Select a folder on the left, then queue here after imports from Gallery or other registration.'
-        }
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => fullPipelineMut.mutate()}
-            disabled={toolsLocked || !selectedScopePath?.trim()}
-            loading={fullPipelineMut.isPending}
-          >
-            Queue full pipeline
-          </Button>
+          </div>
         </div>
-        {!selectedScopePath?.trim() && (
-          <p className="text-xs text-[#6d6d6d] mt-2">Select a folder in Scope Navigator to enable this action.</p>
-        )}
-      </ToolSection>
 
-      <ToolSection
+        <ToolCard
+          title={MaintenanceToolsCopy.tier1.tools.fixDb.name}
+          description={MaintenanceToolsCopy.tier1.tools.fixDb.description}
+          buttonText="Start"
+          onAction={() => maintenanceMut.mutate({ 
+            action: 'fix_db', 
+            label: MaintenanceToolsCopy.tier1.tools.fixDb.name
+          })}
+          isPending={maintenanceMut.isPending && maintenanceMut.variables?.action === 'fix_db'}
+          disabled={toolsLocked}
+        />
+      </TierSection>
+
+      {/* Recalculate status (sync API — not queued as a maintenance run) */}
+      <TierSection
         title="Recalculate status from data"
-        description={
+        subtitle={
           'Recomputes derivable per-image phase states and rebuilds folder aggregate flags/caches. ' +
           'Use after crashes, import drifts, or legacy migrations when badges look inconsistent.'
         }
       >
-        <div className="space-y-2">
+        <div className="p-3 rounded bg-[#1e1e1e] border border-[#3c3c3c] space-y-2">
           <div className="flex flex-wrap items-center gap-3">
             <label className="text-xs text-[#9d9d9d] inline-flex items-center gap-1.5">
               <input
@@ -348,6 +327,7 @@ export function RunsToolsTab() {
               onClick={() => setShowRecalcConfirm(true)}
               disabled={toolsLocked || selectedScopeMissing}
               loading={recalcStatusMut.isPending}
+              className="h-7 px-3 text-[11px]"
             >
               Recalculate Status from Data
             </Button>
@@ -376,6 +356,7 @@ export function RunsToolsTab() {
                   onClick={() => recalcStatusMut.mutate()}
                   disabled={toolsLocked || selectedScopeMissing}
                   loading={recalcStatusMut.isPending}
+                  className="h-7 px-3 text-[11px]"
                 >
                   Confirm and run
                 </Button>
@@ -385,72 +366,137 @@ export function RunsToolsTab() {
               </div>
             </div>
           )}
-        </div>
 
-        {recalcSummary && (
-          <Card className="mt-3 border-[#3c3c3c] bg-[#1f1f1f]">
-            <CardTitle className="mb-2">Last recalculation summary</CardTitle>
-            <div className="space-y-1 text-xs text-[#9d9d9d]">
-              <p>
-                Scope: <span className="text-[#cccccc]">{recalcSummary.scope === 'all' ? 'Entire database' : recalcSummary.scope_path || 'Selected folder'}</span>
+          {recalcSummary && (
+            <Card className="mt-3 border-[#3c3c3c] bg-[#1f1f1f]">
+              <CardTitle className="mb-2">Last recalculation summary</CardTitle>
+              <div className="space-y-1 text-xs text-[#9d9d9d]">
+                <p>
+                  Scope: <span className="text-[#cccccc]">{recalcSummary.scope === 'all' ? 'Entire database' : recalcSummary.scope_path || 'Selected folder'}</span>
+                </p>
+                <p>
+                  Changed rows (estimate):{' '}
+                  <span className="text-[#cccccc] font-medium">{recalcSummary.per_image_changes.total_rows_changed_estimate}</span>
+                </p>
+                <p>
+                  Per-image changes: index/meta={recalcSummary.per_image_changes.indexing_metadata_backfilled_images}, keywords={recalcSummary.per_image_changes.keywords_phase_backfilled_rows}, culling={recalcSummary.per_image_changes.culling_failed_to_done_rows}
+                </p>
+                <p>
+                  Folder rebuild: recomputed={recalcSummary.folder_aggregate_changes.folders_recomputed}, keyword flags updated={recalcSummary.folder_aggregate_changes.folders_marked_keywords_processed}
+                </p>
+                <p>
+                  Remaining drift: index/meta={recalcSummary.after.missing_indexing_or_metadata_with_scoring_done}, keywords={recalcSummary.after.missing_keywords_status_with_keywords_data}, culling={recalcSummary.after.culling_failed_with_data_present}
+                </p>
+                {recalcSummary.warnings.length > 0 && (
+                  <div className="mt-2 rounded border border-[#5a3a3a] bg-[#2a1a1a] p-2">
+                    <p className="text-[#f44747] mb-1">Warnings</p>
+                    <ul className="list-disc pl-4 space-y-0.5 text-[#d7a7a7]">
+                      {recalcSummary.warnings.map((w) => (
+                        <li key={w}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+        </div>
+      </TierSection>
+
+      {/* Tier 2 */}
+      <TierSection 
+        title={MaintenanceToolsCopy.tier2.title} 
+        subtitle={MaintenanceToolsCopy.tier2.subtitle}
+      >
+        <div className="flex flex-col gap-2 p-3 rounded bg-[#1e1e1e] border border-[#3c3c3c]">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1">
+              <h3 className="text-xs font-semibold text-[#cccccc]">
+                {MaintenanceToolsCopy.tier2.tools.fullPipeline.name}
+              </h3>
+              <p className="text-[11px] text-[#9d9d9d] mt-1 leading-relaxed">
+                {MaintenanceToolsCopy.tier2.tools.fullPipeline.description}
               </p>
-              <p>
-                Changed rows (estimate):{' '}
-                <span className="text-[#cccccc] font-medium">{recalcSummary.per_image_changes.total_rows_changed_estimate}</span>
-              </p>
-              <p>
-                Per-image changes: index/meta={recalcSummary.per_image_changes.indexing_metadata_backfilled_images}, keywords={recalcSummary.per_image_changes.keywords_phase_backfilled_rows}, culling={recalcSummary.per_image_changes.culling_failed_to_done_rows}
-              </p>
-              <p>
-                Folder rebuild: recomputed={recalcSummary.folder_aggregate_changes.folders_recomputed}, keyword flags updated={recalcSummary.folder_aggregate_changes.folders_marked_keywords_processed}
-              </p>
-              <p>
-                Remaining drift: index/meta={recalcSummary.after.missing_indexing_or_metadata_with_scoring_done}, keywords={recalcSummary.after.missing_keywords_status_with_keywords_data}, culling={recalcSummary.after.culling_failed_with_data_present}
-              </p>
-              {recalcSummary.warnings.length > 0 && (
-                <div className="mt-2 rounded border border-[#5a3a3a] bg-[#2a1a1a] p-2">
-                  <p className="text-[#f44747] mb-1">Warnings</p>
-                  <ul className="list-disc pl-4 space-y-0.5 text-[#d7a7a7]">
-                    {recalcSummary.warnings.map((w) => (
-                      <li key={w}>{w}</li>
-                    ))}
-                  </ul>
-                </div>
+              {!selectedScopePath && (
+                <p className="text-[10px] text-[#f44747] mt-1 italic">
+                  * Select a folder in the Navigator to enable
+                </p>
               )}
             </div>
-          </Card>
-        )}
-      </ToolSection>
-
-      <ToolSection
-        title="Thumbnails"
-        description={
-          'Step 1: quick path repair (normalize up to 1,000 thumbnail_path / thumbnail_path_win rows — no pixel decode). ' +
-          'Step 2: regenerate up to 500 missing thumbnail rasters (RAW libraries may take several minutes). ' +
-          'Deep normalize (full-table path scan) is separate — use only if paths still look wrong after heal.'
-        }
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => healThumbMut.mutate()}
-            disabled={toolsLocked}
-            loading={healThumbMut.isPending}
-          >
-            Heal thumbnails (repair + regen)
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => repairThumbDeepMut.mutate()}
-            disabled={toolsLocked}
-            loading={repairThumbDeepMut.isPending}
-          >
-            Deep normalize paths
-          </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => fullPipelineMut.mutate()}
+              disabled={toolsLocked || !selectedScopePath}
+              loading={fullPipelineMut.isPending}
+              className="h-7 px-3 text-[11px] gap-1 shrink-0"
+            >
+              <Play size={12} />
+              Queue Run
+            </Button>
+          </div>
         </div>
-      </ToolSection>
+
+        <ToolCard
+          title={MaintenanceToolsCopy.tier2.tools.healThumbnails.name}
+          description={MaintenanceToolsCopy.tier2.tools.healThumbnails.description}
+          buttonText="Heal"
+          onAction={() => maintenanceMut.mutate({ 
+            action: 'heal_thumbnails', 
+            label: MaintenanceToolsCopy.tier2.tools.healThumbnails.name,
+            limit: MaintenanceToolsCopy.tier2.tools.healThumbnails.limit
+          })}
+          isPending={maintenanceMut.isPending && maintenanceMut.variables?.action === 'heal_thumbnails'}
+          disabled={toolsLocked}
+        />
+
+        <ToolCard
+          title={MaintenanceToolsCopy.tier2.tools.backfillExif.name}
+          description={MaintenanceToolsCopy.tier2.tools.backfillExif.description}
+          buttonText="Backfill"
+          onAction={() => maintenanceMut.mutate({ 
+            action: 'backfill_exif', 
+            label: MaintenanceToolsCopy.tier2.tools.backfillExif.name,
+            limit: MaintenanceToolsCopy.tier2.tools.backfillExif.limit
+          })}
+          isPending={maintenanceMut.isPending && maintenanceMut.variables?.action === 'backfill_exif'}
+          disabled={toolsLocked}
+        />
+      </TierSection>
+
+      {/* Tier 3 */}
+      <TierSection 
+        title={MaintenanceToolsCopy.tier3.title} 
+        subtitle={MaintenanceToolsCopy.tier3.subtitle}
+      >
+        <ToolCard
+          title={MaintenanceToolsCopy.tier3.tools.pruneMissing.name}
+          description={MaintenanceToolsCopy.tier3.tools.pruneMissing.description}
+          buttonText="Prune"
+          onAction={() => maintenanceMut.mutate({ 
+            action: 'prune_missing', 
+            label: MaintenanceToolsCopy.tier3.tools.pruneMissing.name,
+            limit: MaintenanceToolsCopy.tier3.tools.pruneMissing.limit
+          })}
+          isPending={maintenanceMut.isPending && maintenanceMut.variables?.action === 'prune_missing'}
+          disabled={toolsLocked}
+          variant="secondary"
+        />
+
+        <ToolCard
+          title={MaintenanceToolsCopy.tier3.tools.backfillIndexMeta.name}
+          description={MaintenanceToolsCopy.tier3.tools.backfillIndexMeta.description}
+          buttonText="Backfill"
+          onAction={() => maintenanceMut.mutate({ 
+            action: 'backfill_index_meta', 
+            label: MaintenanceToolsCopy.tier3.tools.backfillIndexMeta.name,
+            limit: MaintenanceToolsCopy.tier3.tools.backfillIndexMeta.limit
+          })}
+          isPending={maintenanceMut.isPending && maintenanceMut.variables?.action === 'backfill_index_meta'}
+          disabled={toolsLocked}
+          variant="outline"
+        />
+      </TierSection>
     </div>
   )
 }

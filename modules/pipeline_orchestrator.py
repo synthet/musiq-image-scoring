@@ -51,7 +51,6 @@ class PipelineOrchestrator:
             self._thread.start()
 
     def _run_loop(self):
-        import time
         while not self._stop_event.is_set():
             try:
                 self.on_tick()
@@ -73,6 +72,7 @@ class PipelineOrchestrator:
             phases_by_code = {p["code"]: p for p in db.get_all_phases(enabled_only=True)}
 
             phase_plan: List[str] = []
+            indexing_in_plan = False
             for phase in self.PHASE_ORDER:
                 code = phase.value
                 if code not in self._runners:
@@ -90,10 +90,40 @@ class PipelineOrchestrator:
                     default_skip = bool(phase_def.get("default_skip"))
 
                     if phase_status == "done":
+                        if indexing_in_plan:
+                            logger.info(
+                                "Pipeline: including phase '%s' (marked done) because "
+                                "indexing is in the plan and may add new images.",
+                                code,
+                            )
+                        else:
+                            stats = db.get_folder_fulfillment_stats_for_path(folder_path)
+                            if code == PhaseCode.INDEXING.value and stats["indexing_pct"] < 99.9:
+                                logger.info(
+                                    "Pipeline: folder %s marked INDEXING DONE but needs catch-up "
+                                    "(%.1f%% indexing IPS done/skipped). Re-running phase.",
+                                    folder_path,
+                                    stats["indexing_pct"],
+                                )
+                            elif code == PhaseCode.SCORING.value and stats["score_pct"] < 99.9:
+                                logger.info(
+                                    "Pipeline: folder %s marked SCORING DONE but needs catch-up "
+                                    "(%.1f%% results). Re-running phase.",
+                                    folder_path,
+                                    stats["score_pct"],
+                                )
+                            elif code == PhaseCode.METADATA.value and stats["thumbnail_pct"] < 99.9:
+                                logger.info(
+                                    "Pipeline: folder %s marked METADATA DONE but needs catch-up "
+                                    "(%.1f%% thumbnails). Re-running phase.",
+                                    folder_path,
+                                    stats["thumbnail_pct"],
+                                )
+                            else:
+                                continue
+                    elif is_optional and phase_status == "skipped":
                         continue
-                    if is_optional and phase_status == "skipped":
-                        continue
-                    if is_optional and default_skip and phase_status in (None, "not_started"):
+                    elif is_optional and default_skip and phase_status in (None, "not_started"):
                         logger.info("Pipeline: default-skipping optional phase '%s'", code)
                         db.set_folder_phase_status(
                             folder_path=self.folder_path,
@@ -105,6 +135,8 @@ class PipelineOrchestrator:
                         continue
 
                 phase_plan.append(code)
+                if code == PhaseCode.INDEXING.value:
+                    indexing_in_plan = True
 
             if not phase_plan:
                 self.folder_path = None

@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import subprocess
-from pathlib import Path
 
 from modules import utils
 
@@ -103,7 +102,7 @@ def extract_exif(image_path: str, image_id: int = None) -> dict | None:
     ]
 
     try:
-        cmd = [exiftool, "-j", "-s"] + [f"-{t}" for t in tags_to_fetch] + [resolved]
+        cmd = [exiftool, "-j", "-s", "-ee"] + [f"-{t}" for t in tags_to_fetch] + [resolved]
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=get_exiftool_timeout_seconds(write=False)
         )
@@ -163,27 +162,28 @@ def extract_and_upsert_exif(image_path: str, image_id: int) -> bool:
 
 def backfill_exif_dates(limit: int | None = None) -> dict:
     """
-    Re-extract EXIF dates for image_exif rows where date_time_original IS NULL.
+    Refresh EXIF + XMP caches for images that still have no effective capture date.
 
-    This repairs rows affected by the _parse_exif_timestamp truncation bug
-    (s[:len(fmt)] instead of s[:min_len]). Only touches date columns —
-    all other EXIF fields are left untouched via a full upsert.
+    Selects rows where COALESCE(ex.date_time_original, ex.create_date, xm.create_date)
+    is NULL, then re-reads XMP sidecar and exiftool (-ee for embedded RAW metadata).
 
     Args:
-        limit: Optional max number of rows to process (for staged rollouts).
+        limit: Optional max rows per call (use for batching large libraries).
 
     Returns:
-        dict with keys: checked, updated, skipped_no_file, skipped_no_date, errors.
+        dict: checked, updated, skipped_no_file, skipped_no_date, errors.
     """
     from modules import db
+    from modules import xmp as xmp_mod
 
     limit_clause = f" LIMIT {int(limit)}" if limit else ""
     rows = db.get_connector().query(
-        f"""SELECT ex.image_id, i.file_path
-            FROM image_exif ex
-            JOIN images i ON i.id = ex.image_id
-            WHERE ex.date_time_original IS NULL
-            ORDER BY ex.image_id{limit_clause}"""
+        f"""SELECT i.id AS image_id, i.file_path
+            FROM images i
+            LEFT JOIN image_exif ex ON ex.image_id = i.id
+            LEFT JOIN image_xmp xm ON xm.image_id = i.id
+            WHERE COALESCE(ex.date_time_original, ex.create_date, xm.create_date) IS NULL
+            ORDER BY i.id{limit_clause}"""
     )
 
     stats = {"checked": 0, "updated": 0, "skipped_no_file": 0, "skipped_no_date": 0, "errors": 0}
@@ -199,15 +199,27 @@ def backfill_exif_dates(limit: int | None = None) -> dict:
                 stats["skipped_no_file"] += 1
                 logger.debug("backfill skip image_id=%s: file not found (%s)", image_id, file_path)
                 continue
-            data = extract_exif(file_path, image_id)
-            if not data or ("date_time_original" not in data and "create_date" not in data):
-                stats["skipped_no_date"] += 1
-                logger.debug("backfill skip image_id=%s: no date tag in EXIF (%s)", image_id, file_path)
-                continue
-            if db.upsert_image_exif(image_id, data):
+            xmp_mod.extract_and_upsert_xmp(resolved, image_id)
+            data = extract_exif(resolved, image_id)
+            if data:
+                if not db.upsert_image_exif(image_id, data):
+                    stats["errors"] += 1
+                    continue
+            exif_row = db.get_image_exif(image_id) or {}
+            xmp_row = db.get_image_xmp(image_id) or {}
+            if (
+                exif_row.get("date_time_original")
+                or exif_row.get("create_date")
+                or xmp_row.get("create_date")
+            ):
                 stats["updated"] += 1
             else:
-                stats["errors"] += 1
+                stats["skipped_no_date"] += 1
+                logger.debug(
+                    "backfill skip image_id=%s: no capture date in EXIF or XMP (%s)",
+                    image_id,
+                    file_path,
+                )
         except Exception as e:
             logger.warning("backfill_exif_dates failed for image_id %s: %s", image_id, e)
             stats["errors"] += 1

@@ -127,11 +127,13 @@ def regenerate_missing_thumbnails_batch(limit: int = 500) -> RegenerateBatchResu
     except (TypeError, ValueError):
         limit = 500
     fetch_n = limit * 3
+    # Prefer rows with no thumbnail_path so bounded batches fix NULL columns instead of only
+    # scanning low ids that already have paths (see regenerate_missing_thumbnails.py --all).
     rows = db.get_connector().query(
         """
         SELECT id, file_path, thumbnail_path, thumbnail_path_win
         FROM images
-        ORDER BY id
+        ORDER BY CASE WHEN thumbnail_path IS NULL THEN 0 ELSE 1 END, id
         FETCH FIRST ? ROWS ONLY
         """,
         (fetch_n,),

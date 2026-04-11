@@ -519,7 +519,11 @@ def read_xmp_full(image_path: str) -> dict:
         create_date = desc.get(f'{{{NAMESPACES["xmp"]}}}CreateDate')
         if create_date:
             result['create_date'] = create_date
-        
+        if not result['create_date']:
+            ps_created = desc.get(f'{{{NAMESPACES["photoshop"]}}}DateCreated')
+            if ps_created:
+                result['create_date'] = ps_created
+
         modify_date = desc.get(f'{{{NAMESPACES["xmp"]}}}ModifyDate')
         if modify_date:
             result['modify_date'] = modify_date

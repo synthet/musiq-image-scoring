@@ -8,11 +8,11 @@ import uuid
 
 import pytest
 
-pytestmark = pytest.mark.firebird
-
 from modules import db
 from modules.pipeline_orchestrator import PipelineOrchestrator
 from tests.support.fake_runners import FakePhaseRunner
+
+pytestmark = pytest.mark.firebird
 
 
 @pytest.fixture(scope="module")
@@ -88,9 +88,12 @@ def test_orchestrator_single_indexing_phase_completes(orch_db):
 
 def test_orchestrator_two_phases_sequence(orch_db):
     delay = 0.05
-    f = lambda: FakePhaseRunner(delay_s=delay)
-    indexing, metadata = f(), f()
-    scoring, tagging, selection = f(), f(), f()
+
+    def mk_runner():
+        return FakePhaseRunner(delay_s=delay)
+
+    indexing, metadata = mk_runner(), mk_runner()
+    scoring, tagging, selection = mk_runner(), mk_runner(), mk_runner()
     orch = PipelineOrchestrator(
         scoring_runner=scoring,
         tagging_runner=tagging,
@@ -112,3 +115,70 @@ def test_orchestrator_two_phases_sequence(orch_db):
     for p in phases:
         if p.get("phase_code") in ("indexing", "metadata"):
             assert p.get("state") == "completed"
+
+
+def test_orchestrator_reopens_indexing_when_summary_done_but_indexing_pct_low(monkeypatch, orch_db):
+    """INDEXING in phase plan when rollup says done but fulfillment stats show gaps (IPS)."""
+
+    def fake_summary(path):
+        return [
+            {"code": "indexing", "status": "done"},
+            {"code": "metadata", "status": "done"},
+            {"code": "scoring", "status": "done"},
+            {"code": "culling", "status": "done"},
+            {"code": "keywords", "status": "done"},
+        ]
+
+    def fake_all_phases(enabled_only=True):
+        return [
+            {"code": "indexing", "optional": False, "default_skip": False},
+            {"code": "metadata", "optional": False, "default_skip": False},
+            {"code": "scoring", "optional": False, "default_skip": False},
+            {"code": "culling", "optional": False, "default_skip": False},
+            {"code": "keywords", "optional": True, "default_skip": False},
+        ]
+
+    stats = {
+        "total": 100,
+        "scored": 100,
+        "thumbnails": 100,
+        "keywords": 100,
+        "indexing_done": 50,
+        "score_pct": 100.0,
+        "thumbnail_pct": 100.0,
+        "indexing_pct": 50.0,
+    }
+    captured = {}
+
+    monkeypatch.setattr(db, "get_folder_phase_summary", fake_summary)
+    monkeypatch.setattr(db, "get_all_phases", fake_all_phases)
+    monkeypatch.setattr(db, "get_folder_fulfillment_stats_for_path", lambda p: dict(stats))
+    monkeypatch.setattr(db, "get_or_create_folder", lambda p: 1)
+    monkeypatch.setattr(db, "create_job", lambda *a, **k: 4242)
+    monkeypatch.setattr(
+        db,
+        "create_job_phases",
+        lambda job_id, phase_plan: captured.setdefault("phase_plan", list(phase_plan)),
+    )
+
+    delay = 0.01
+
+    def mk_runner():
+        return FakePhaseRunner(delay_s=delay)
+
+    orch = PipelineOrchestrator(
+        scoring_runner=mk_runner(),
+        tagging_runner=mk_runner(),
+        selection_runner=mk_runner(),
+        indexing_runner=mk_runner(),
+        metadata_runner=mk_runner(),
+        enable_background_tick=False,
+    )
+    monkeypatch.setattr(orch, "_start_next_phase", lambda self: None)
+
+    jid = orch.start("D:/orch_fake/heal_indexing", force_rerun=False)
+    assert jid == 4242
+    plan = captured.get("phase_plan", [])
+    assert plan, "create_job_phases should have been called"
+    assert plan[0] == "indexing"
+    assert "indexing" in plan

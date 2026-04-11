@@ -21,6 +21,7 @@ class JobDispatcher:
         bird_species_runner=None,
         indexing_runner=None,
         metadata_runner=None,
+        maintenance_runner=None,
         poll_interval: float = 1.0,
     ):
         self.scoring_runner = scoring_runner
@@ -30,12 +31,13 @@ class JobDispatcher:
         self.bird_species_runner = bird_species_runner
         self.indexing_runner = indexing_runner
         self.metadata_runner = metadata_runner
+        self.maintenance_runner = maintenance_runner
         self.poll_interval = max(0.2, float(poll_interval or 1.0))
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._dispatch_lock = threading.Lock()
 
-    def set_runners(self, scoring_runner=None, tagging_runner=None, clustering_runner=None, selection_runner=None, bird_species_runner=None, indexing_runner=None, metadata_runner=None):
+    def set_runners(self, scoring_runner=None, tagging_runner=None, clustering_runner=None, selection_runner=None, bird_species_runner=None, indexing_runner=None, metadata_runner=None, maintenance_runner=None):
         self.scoring_runner = scoring_runner
         self.tagging_runner = tagging_runner
         self.clustering_runner = clustering_runner
@@ -43,6 +45,7 @@ class JobDispatcher:
         self.bird_species_runner = bird_species_runner
         self.indexing_runner = indexing_runner
         self.metadata_runner = metadata_runner
+        self.maintenance_runner = maintenance_runner
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -181,6 +184,7 @@ class JobDispatcher:
             "culling": ("selection_runner", self.selection_runner),
             "bird_species": ("bird_species_runner", self.bird_species_runner),
             "bird-species": ("bird_species_runner", self.bird_species_runner),
+            "maintenance": ("maintenance_runner", self.maintenance_runner),
         }
 
         entry = runner_map.get(phase)
@@ -312,6 +316,12 @@ class JobDispatcher:
                 resolved_image_ids=scoped_resolved,
             )
 
+        if phase == "maintenance":
+            return runner.start_batch(
+                payload.get("input_path", input_path),
+                job_id=job_id,
+            )
+
         return f"No dispatch handler for phase '{phase}'"
 
     def _runner_busy(self, runner) -> bool:
@@ -326,6 +336,7 @@ class JobDispatcher:
             self._runner_busy(self.clustering_runner),
             self._runner_busy(self.selection_runner),
             self._runner_busy(self.bird_species_runner),
+            self._runner_busy(self.maintenance_runner),
         ])
 
     def _get_active_runner(self) -> Optional[str]:
@@ -343,4 +354,6 @@ class JobDispatcher:
             return "selection"
         if self._runner_busy(self.bird_species_runner):
             return "bird_species"
+        if self._runner_busy(self.maintenance_runner):
+            return "maintenance"
         return None

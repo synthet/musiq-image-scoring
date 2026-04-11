@@ -258,6 +258,35 @@ def execute_write_returning(sql: str, params=None) -> "dict | None":
 
 def init_db():
     """Initialize PostgreSQL database schema (full parity with Firebird schema)."""
+    import time
+
+    from psycopg2 import DatabaseError
+
+    max_attempts = 5
+    for attempt in range(1, max_attempts + 1):
+        try:
+            _init_db_transaction()
+            return
+        except DatabaseError as e:
+            # DeadlockDetected subclasses DatabaseError, not OperationalError (psycopg2 2.9+).
+            pgcode = getattr(e, "pgcode", None)
+            is_deadlock = pgcode == "40P01" or "deadlock" in str(e).lower()
+            if is_deadlock and attempt < max_attempts:
+                wait = min(2.0, 0.25 * (2 ** (attempt - 1)))
+                logger.warning(
+                    "PostgreSQL schema init deadlock (attempt %s/%s), retrying in %.2fs: %s",
+                    attempt,
+                    max_attempts,
+                    wait,
+                    e,
+                )
+                time.sleep(wait)
+                continue
+            raise
+
+
+def _init_db_transaction():
+    """Run DDL in one transaction (see :func:`init_db` for deadlock retries)."""
     with PGConnectionManager(commit=True) as conn:
         with conn.cursor() as cur:
             # Enable pgvector

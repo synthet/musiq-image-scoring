@@ -125,7 +125,7 @@ def enqueue_monolithic(
         job_type=jt,
         queue_payload=payload,
     )
-    if len(phase_plan) > 1:
+    if phase_plan:
         db.create_job_phases(job_id, list(phase_plan), first_phase_state="queued")
     return job_id
 

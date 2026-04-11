@@ -29,6 +29,30 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 3. Monitor logs for deprecation warnings when Phase 4c ships
 4. Complete migration before v7.0 (July 2026)
 
+## [7.0.0] - 2026-04-11
+
+### Breaking
+
+- **Maintenance HTTP API**: Several **`POST /api/maintenance/*`** endpoints no longer run synchronously and return inline counts or stats. They **enqueue** a **`maintenance`** job and return **`data.run_id`** (and a message naming the Run ID). Clients that parsed **`reconciled_rows`**, **`updated_images`**, EXIF **`stats`**, or similar **must** poll **`GET /api/runs/{run_id}`** / WebSocket logs, or use the updated React **Runs → Tools** UI.
+
+### Added
+
+- **`MaintenanceRunner`** (`modules/maintenance_runner.py`): background worker for **`job_type="maintenance"`** (heal thumbnails, EXIF backfill, reconcile stuck phases, prune missing files, index/meta backfill, etc.) driven by **`queue_payload`**.
+- **Job queue integration**: **`webui.py`** / **`set_runners()`** / **`JobDispatcher`** wire the maintenance runner; **`modules/db.py`** / **`db_postgres.py`** support enqueuing global maintenance jobs.
+- **React `/ui`**: **`frontend/src/constants/runsToolsCopy.ts`** centralizes Tools tab copy; **`RunsToolsTab`**, **`ScopeSelector`**, and API clients updated for queued maintenance and pipeline tools.
+- **Operator scripts** (under **`scripts/maintenance/`** and related): capture-date backfill/reporting, orphan cleanup / data-gap reporting, **`ingest_videos`**, **`heal_folders`**, and PowerShell helpers where added.
+- **`docs/technical/PIPELINE_TERMINOLOGY.md`**: shared stage naming reference.
+
+### Changed
+
+- **`modules/api.py`**: Maintenance routes enqueue work and return **`run_id`**; docstring lists maintenance endpoints; **`MaintenanceStartRequest`** model for **`POST /api/maintenance/start`** where applicable.
+- **`modules/pipeline_orchestrator.py`**, **`metadata_runner.py`**, **`tagging.py`**, **`exif_extractor.py`**, **`xmp.py`**, **`thumbnail_maintenance.py`**, **`regenerate_missing_thumbnails.py`**: supporting behavior for maintenance and metadata pipelines.
+- **`tests/test_pipeline_orchestrator_fakes.py`**, **`tests/support/pipeline_matrix.py`**: align with orchestrator/runner expectations.
+
+### Fixed
+
+- **`modules/exif_extractor.py`** / **XMP**: robustness improvements alongside maintenance and date flows.
+
 ## [6.9.2] - 2026-04-11
 
 ### Fixed

@@ -48,6 +48,14 @@ Endpoints:
     Pipeline:
         POST /api/pipeline/submit - Submit to processing pipeline
 
+    Maintenance:
+        POST /api/maintenance/start - Start background maintenance job
+        GET /api/maintenance/stale-running-phases - Diagnostic
+        POST /api/maintenance/reconcile-terminal-job-phases - Queued reconcile
+        POST /api/maintenance/backfill-exif-dates - Queued EXIF repair
+        POST /api/maintenance/regenerate-thumbnails - Queued thumb repair
+        POST /api/maintenance/prune-missing-files - Queued cleanup
+
     General:
         GET /api/status - Get status of all runners
         GET /api/health - Health check endpoint
@@ -1043,6 +1051,14 @@ class PipelineStepRerunRequest(BaseModel):
     phase_code: str = Field(..., description="Step phase code.")
 
 
+class MaintenanceStartRequest(BaseModel):
+    """Request model for starting a background maintenance run."""
+    action: str = Field(..., description="Maintenance action to perform (heal_thumbnails, backfill_exif, prune_missing, reconcile, backfill_index_meta).")
+    input_path: Optional[str] = Field(None, description="Optional folder path to narrow the scope.")
+    limit: Optional[int] = Field(None, description="Maximum items to process in this run.")
+    dry_run: bool = Field(False, description="Whether to simulate changes.")
+
+
 class ApiResponse(BaseModel):
     """Standard API response model for operation results.
     
@@ -1157,6 +1173,7 @@ _selection_runner = None
 _bird_species_runner = None
 _indexing_runner = None
 _metadata_runner = None
+_maintenance_runner = None
 _orchestrator = None
 _job_dispatcher = JobDispatcher()
 
@@ -1187,9 +1204,9 @@ def _stop_runner_for_phase(phase: str) -> bool:
     return False
 
 
-def set_runners(scoring_runner, tagging_runner, clustering_runner=None, selection_runner=None, orchestrator=None, bird_species_runner=None, indexing_runner=None, metadata_runner=None):
+def set_runners(scoring_runner, tagging_runner, clustering_runner=None, selection_runner=None, orchestrator=None, bird_species_runner=None, indexing_runner=None, metadata_runner=None, maintenance_runner=None):
     """Set the runner instances for API access."""
-    global _scoring_runner, _tagging_runner, _clustering_runner, _selection_runner, _orchestrator, _job_dispatcher, _bird_species_runner, _indexing_runner, _metadata_runner
+    global _scoring_runner, _tagging_runner, _clustering_runner, _selection_runner, _orchestrator, _job_dispatcher, _bird_species_runner, _indexing_runner, _metadata_runner, _maintenance_runner
     _scoring_runner = scoring_runner
     _tagging_runner = tagging_runner
     _clustering_runner = clustering_runner
@@ -1198,6 +1215,7 @@ def set_runners(scoring_runner, tagging_runner, clustering_runner=None, selectio
     _bird_species_runner = bird_species_runner
     _indexing_runner = indexing_runner
     _metadata_runner = metadata_runner
+    _maintenance_runner = maintenance_runner
     _job_dispatcher.set_runners(
         scoring_runner, 
         tagging_runner, 
@@ -1206,6 +1224,7 @@ def set_runners(scoring_runner, tagging_runner, clustering_runner=None, selectio
         bird_species_runner=bird_species_runner,
         indexing_runner=indexing_runner,
         metadata_runner=metadata_runner,
+        maintenance_runner=maintenance_runner,
     )
     _job_dispatcher.start()
 
@@ -5665,14 +5684,18 @@ def create_api_router() -> APIRouter:
         from modules import db
 
         _check_rate_limit("maintenance_reconcile_terminal_phases")
-        try:
-            n = db.reconcile_stale_running_phases_for_terminal_jobs(limit=limit)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
+        job_id = db.enqueue_job(
+            input_path="GLOBAL_MAINTENANCE",
+            job_type="maintenance",
+            queue_payload=json.dumps({
+                "action": "reconcile",
+                "limit": limit
+            })
+        )
         return ApiResponse(
             success=True,
-            message=f"Reconciled {n} stuck phase row(s) tied to terminal jobs",
-            data={"reconciled_rows": n},
+            message=f"Reconcile job queued (Run ID: {job_id})",
+            data={"run_id": job_id},
         )
 
     @router.post(
@@ -5692,14 +5715,18 @@ def create_api_router() -> APIRouter:
         from modules import db
 
         _check_rate_limit("maintenance_backfill_index_meta")
-        try:
-            updated = db.backfill_index_meta_global(limit=limit)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
+        job_id = db.enqueue_job(
+            input_path="GLOBAL_MAINTENANCE",
+            job_type="maintenance",
+            queue_payload=json.dumps({
+                "action": "backfill_index_meta",
+                "limit": limit
+            })
+        )
         return ApiResponse(
             success=True,
-            message=f"Backfilled Index/Meta for {updated} image(s)",
-            data={"updated_images": updated},
+            message=f"Index/Meta backfill job queued (Run ID: {job_id})",
+            data={"run_id": job_id},
         )
 
     @router.post(
@@ -5994,14 +6021,18 @@ def create_api_router() -> APIRouter:
         from modules import exif_extractor
 
         _check_rate_limit("maintenance_backfill_exif_dates")
-        try:
-            stats = await asyncio.to_thread(exif_extractor.backfill_exif_dates, limit=limit)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
+        job_id = db.enqueue_job(
+            input_path="GLOBAL_MAINTENANCE",
+            job_type="maintenance",
+            queue_payload=json.dumps({
+                "action": "backfill_exif",
+                "limit": limit
+            })
+        )
         return ApiResponse(
             success=True,
-            message=f"Backfill EXIF dates: {stats['updated']} updated, {stats['skipped_no_file']} files missing, {stats['skipped_no_date']} no date tag, {stats['errors']} errors out of {stats['checked']} checked",
-            data=stats,
+            message=f"EXIF backfill job queued (Run ID: {job_id})",
+            data={"run_id": job_id},
         )
 
     @router.post(
@@ -6019,19 +6050,18 @@ def create_api_router() -> APIRouter:
         from modules import thumbnail_maintenance
 
         _check_rate_limit("maintenance_regenerate_thumbnails")
-        try:
-            stats = thumbnail_maintenance.regenerate_missing_thumbnails_batch(limit=500)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
+        job_id = db.enqueue_job(
+            input_path="GLOBAL_MAINTENANCE",
+            job_type="maintenance",
+            queue_payload=json.dumps({
+                "action": "heal_thumbnails",
+                "limit": 500
+            })
+        )
         return ApiResponse(
             success=True,
-            message=(
-                f"Thumbnail batch done: {stats['regenerated']} regenerated, "
-                f"{stats['skipped_thumb_ok']} skipped (OK), "
-                f"{stats['skipped_missing_original']} missing original, "
-                f"{stats['failed']} failed"
-            ),
-            data=dict(stats),
+            message=f"Thumbnail healing job queued (Run ID: {job_id})",
+            data={"run_id": job_id},
         )
 
     @router.post(
@@ -6175,20 +6205,33 @@ def create_api_router() -> APIRouter:
             result = await get_folder_phase_status(path=path, force_refresh=force_refresh)
             return IpcBridgeResponse(channel=channel, ok=True, data=result)
 
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": f"Unsupported IPC channel: {channel}",
-                "supported_channels": [
-                    "pipeline:submit",
-                    "pipeline:phase:skip",
-                    "pipeline:phase:retry",
-                    "tasks:active",
-                    "jobs:queue",
-                    "folders:tree",
-                    "folders:phase-status",
-                ],
-            },
+        raise HTTPException(status_code=400, detail=f"Unsupported IPC channel: {channel}")
+
+    @router.post(
+        "/maintenance/start",
+        response_model=ApiResponse,
+        summary="Start a background maintenance run",
+        description="Unified entry point for background data integrity tasks (heal_thumbnails, backfill_exif, prune_missing, reconcile, backfill_index_meta).",
+        tags=["General API"]
+    )
+    async def maintenance_start(request: MaintenanceStartRequest):
+        from modules.ui.security import _check_rate_limit
+        from modules import db
+        _check_rate_limit(f"maintenance_{request.action}")
+
+        job_id = db.enqueue_job(
+            input_path=request.input_path or "GLOBAL_MAINTENANCE",
+            job_type="maintenance",
+            queue_payload=json.dumps({
+                "action": request.action,
+                "limit": request.limit or 1000,
+                "dry_run": request.dry_run
+            })
+        )
+        return ApiResponse(
+            success=True,
+            message=f"Maintenance run '{request.action}' started in background.",
+            data={"run_id": job_id}
         )
     
     @router.get(
@@ -6215,6 +6258,7 @@ def create_api_router() -> APIRouter:
             "bird_species": "available" if _bird_species_runner is not None else "unavailable",
             "indexing": "available" if _indexing_runner is not None else "unavailable",
             "metadata": "available" if _metadata_runner is not None else "unavailable",
+            "maintenance": "available" if _maintenance_runner is not None else "unavailable",
             "orchestrator": "active" if _orchestrator and _orchestrator.get_status().get("active") else "idle"
         }
         

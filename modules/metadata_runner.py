@@ -119,7 +119,28 @@ class MetadataRunner:
                  fail_terminal("Error DB")
                  return
         elif os.path.isdir(input_path):
+             # Clear stale folder images cache — indexing may have invalidated
+             # under different cache keys (WSL vs Windows path normalization).
+             db.invalidate_folder_images_cache()
              all_images = db.get_images_by_folder(input_path)
+             if not all_images:
+                 # Fallback: recursive lookup across subfolders, matching how
+                 # get_folder_phase_summary counts images for status reporting.
+                 from modules import utils
+                 scope_path = input_path
+                 local = utils.convert_path_to_local(scope_path)
+                 if local and os.path.isdir(local):
+                     scope_path = local
+                 seen_ids = set()
+                 for folder_path in db.list_folder_paths_under_scope(scope_path):
+                     for row in db.get_images_by_folder(folder_path) or []:
+                         iid = row.get("id")
+                         if iid is not None and iid not in seen_ids:
+                             seen_ids.add(iid)
+                             all_images.append(row)
+                 if all_images:
+                     log(f"Recursive fallback found {len(all_images)} images "
+                         f"across subfolders of {input_path}", "INFO")
         else:
              # Just one file?
              row = db.get_image_details(input_path)
@@ -205,9 +226,9 @@ class MetadataRunner:
                 exif_extractor.ensure_image_unique_id(file_path, image_uuid)
                 xmp.write_image_unique_id(file_path, image_uuid)
 
-                # 3. Database Sync (IMAGE_EXIF + IMAGE_XMP)
-                exif_extractor.extract_and_upsert_exif(file_path, image_id)
+                # 3. Database Sync (IMAGE_XMP first so sidecar shot dates exist alongside EXIF cache)
                 xmp.extract_and_upsert_xmp(file_path, image_id)
+                exif_extractor.extract_and_upsert_exif(file_path, image_id)
                 db.update_image_uuid(image_id, image_uuid)
 
                 # 4. Thumbnails creation

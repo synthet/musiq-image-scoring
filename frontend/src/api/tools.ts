@@ -65,6 +65,12 @@ export const toolsApi = {
       `/maintenance/backfill-index-meta?limit=${encodeURIComponent(String(limit))}`,
     ),
 
+  /** Re-extract EXIF for rows with null date_time_original (batch). */
+  backfillExifDates: (limit = 1000) =>
+    api.post<ApiEnvelope>(
+      `/maintenance/backfill-exif-dates?limit=${encodeURIComponent(String(limit))}`,
+    ),
+
   /** Quick path repair (≤1000 row updates) then missing raster regen (≤500). */
   healThumbnails: () => api.post<ApiEnvelope>('/maintenance/heal-thumbnails'),
 

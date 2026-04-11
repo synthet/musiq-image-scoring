@@ -50,4 +50,6 @@ export const runsApi = {
   queue: () => api.get<QueueEntry[]>('/queue'),
   reorderQueue: (runId: number, newPosition: number) =>
     api.post<void>('/queue/reorder', { run_id: runId, new_position: newPosition }),
+  maintenanceStart: (body: { action: string; input_path?: string; limit?: number; dry_run?: boolean }) =>
+    api.post<{ run_id: number }>('/maintenance/start', body),
 }
