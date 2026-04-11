@@ -134,7 +134,7 @@ export function RunsToolsTab() {
     mutationFn: () =>
       toolsApi.recalculateStatusFromData({
         scope: recalcScope,
-        scopePath: selectedScopePath?.trim() || undefined,
+        scopePath: recalcScope === 'selected_folder' ? selectedScopePath?.trim() || undefined : undefined,
       }),
     onSuccess: (r) => {
       setFromEnvelope('Recalculate status', r)

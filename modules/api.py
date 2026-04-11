@@ -5739,6 +5739,7 @@ def create_api_router() -> APIRouter:
                 JOIN pipeline_phases pp ON pp.id = ips.phase_id
                 WHERE ips.image_id = i.id
                   AND LOWER(TRIM(pp.code)) = 'keywords'
+                  AND LOWER(TRIM(ips.status)) = 'done'
               )
             """
             + image_scope_sql
@@ -5789,6 +5790,7 @@ def create_api_router() -> APIRouter:
                     JOIN pipeline_phases pp ON pp.id = ips.phase_id
                     WHERE ips.image_id = i.id
                       AND LOWER(TRIM(pp.code)) = 'keywords'
+                      AND LOWER(TRIM(ips.status)) = 'done'
                   )
                 """
                 + image_scope_sql
@@ -5853,6 +5855,9 @@ def create_api_router() -> APIRouter:
 
         if selected_scope == "all" and not target_folder_paths:
             warnings.append("No folders found; aggregate rebuild skipped.")
+        warnings.append(
+            "total_rows_changed_estimate is heuristic: index/meta assumes up to 2 per-image phase rows per repaired image."
+        )
 
         after["missing_indexing_or_metadata_with_scoring_done"] = int(
             (connector.query_one(before_idx_meta_sql, tuple(image_scope_params)) or {}).get("cnt", 0)
@@ -5897,7 +5902,7 @@ def create_api_router() -> APIRouter:
             message=(
                 "Status recalculation finished: "
                 f"{summary['per_image_changes']['total_rows_changed_estimate']} per-image row changes "
-                f"(estimated), {folders_recomputed} folder aggregate(s) rebuilt."
+                f"(heuristic estimate), {folders_recomputed} folder aggregate(s) rebuilt."
             ),
             data={"summary": summary},
         )
