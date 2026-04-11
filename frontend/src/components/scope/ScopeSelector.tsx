@@ -16,37 +16,35 @@ const ALL_STAGES: StageCode[] = [...FULL_PIPELINE_STAGE_CODES]
 type RunOptionsMode = 'skip_completed' | 'force_all' | 'fix_incomplete'
 
 type RunOptionCopy = {
-  mode: RunOptionsMode
   title: string
   whatThisDoes: string
   whatThisDoesNotDo: string
 }
 
-const RUN_OPTION_COPY: RunOptionCopy[] = [
-  {
-    mode: 'force_all',
-    title: 'Process ALL (overwrite existing results)',
-    whatThisDoes: 'Re-runs selected stages for every image in scope, even when prior results exist.',
-    whatThisDoesNotDo:
-      'Does not preserve previous stage outputs for selected stages; existing results are replaced.',
-  },
-  {
-    mode: 'skip_completed',
+const RUN_OPTION_COPY_BY_MODE = {
+  skip_completed: {
     title: 'Process NEW / NOT processed',
     whatThisDoes:
       'Runs selected stages only where results are missing, while reusing already completed work.',
     whatThisDoesNotDo:
       'Does not recompute stages that are already marked done for an image.',
   },
-  {
-    mode: 'fix_incomplete',
+  force_all: {
+    title: 'Process ALL (overwrite existing results)',
+    whatThisDoes: 'Re-runs selected stages for every image in scope, even when prior results exist.',
+    whatThisDoesNotDo:
+      'Does not preserve previous stage outputs for selected stages; existing results are replaced.',
+  },
+  fix_incomplete: {
     title: 'Validate & Repair existing data',
     whatThisDoes:
       'For quality scoring, targets images missing scores, rating, or label so incomplete records can be fixed.',
     whatThisDoesNotDo:
       'Does not force a full re-run of complete images; non-quality stages still follow normal skip behavior.',
   },
-]
+} satisfies Record<RunOptionsMode, RunOptionCopy>
+
+const RUN_OPTION_ORDER: RunOptionsMode[] = ['skip_completed', 'force_all', 'fix_incomplete']
 
 /** Trim and strip trailing `/` or `\\`; keep Windows drive roots (e.g. `D:\\`). */
 function normalizeScopePathInput(p: string): string {
@@ -108,6 +106,7 @@ export function ScopeSelector() {
     try {
       const res = await scopeApi.preview(validPaths, scopeType === 'folder_recursive')
       setPreview(res)
+      qc.invalidateQueries({ queryKey: ['folders-tree'] })
     } catch (e) {
       setPreview(null)
       const msg = e instanceof ApiError ? parseApiErrorDetail(e.message) : String(e)
@@ -314,29 +313,32 @@ export function ScopeSelector() {
               Options
             </label>
             <div className="space-y-2">
-              {RUN_OPTION_COPY.map((option) => (
-                <label
-                  key={option.mode}
-                  className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer"
-                >
-                  <input
-                    type="radio"
-                    name="run-options"
-                    className="mt-1"
-                    checked={runOptionsMode === option.mode}
-                    onChange={() => setRunOptionsMode(option.mode)}
-                  />
-                  <span>
-                    <span className="text-[#cccccc]">{option.title}</span>
-                    <span className="block text-xs text-[#6d6d6d] mt-0.5">
-                      What this does: {option.whatThisDoes}
+              {RUN_OPTION_ORDER.map((mode) => {
+                const option = RUN_OPTION_COPY_BY_MODE[mode]
+                return (
+                  <label
+                    key={mode}
+                    className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="run-options"
+                      className="mt-1"
+                      checked={runOptionsMode === mode}
+                      onChange={() => setRunOptionsMode(mode)}
+                    />
+                    <span>
+                      <span className="text-[#cccccc]">{option.title}</span>
+                      <span className="block text-xs text-[#6d6d6d] mt-0.5">
+                        What this does: {option.whatThisDoes}
+                      </span>
+                      <span className="block text-xs text-[#6d6d6d] mt-0.5">
+                        What this does not do: {option.whatThisDoesNotDo}
+                      </span>
                     </span>
-                    <span className="block text-xs text-[#6d6d6d] mt-0.5">
-                      What this does not do: {option.whatThisDoesNotDo}
-                    </span>
-                  </span>
-                </label>
-              ))}
+                  </label>
+                )
+              })}
             </div>
           </div>
         </div>
