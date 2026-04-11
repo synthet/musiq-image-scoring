@@ -15,6 +15,49 @@ const ALL_STAGES: StageCode[] = [...FULL_PIPELINE_STAGE_CODES]
 
 type RunOptionsMode = 'skip_completed' | 'force_all' | 'fix_incomplete' | 'validation_repair'
 
+type RunOptionCopy = {
+  title: string
+  whatThisDoes: string
+  whatThisDoesNotDo: string
+}
+
+const RUN_OPTION_COPY_BY_MODE = {
+  skip_completed: {
+    title: 'Process NEW / NOT processed',
+    whatThisDoes:
+      'Runs selected stages only where results are missing, while reusing already completed work.',
+    whatThisDoesNotDo:
+      'Does not recompute stages that are already marked done for an image.',
+  },
+  force_all: {
+    title: 'Process ALL (overwrite existing results)',
+    whatThisDoes: 'Re-runs selected stages for every image in scope, even when prior results exist.',
+    whatThisDoesNotDo:
+      'Does not preserve previous stage outputs for selected stages; existing results are replaced.',
+  },
+  fix_incomplete: {
+    title: 'Fix incomplete scoring data',
+    whatThisDoes:
+      'For quality scoring, targets images missing scores, rating, or label so incomplete records can be fixed.',
+    whatThisDoesNotDo:
+      'Does not force a full re-run of complete images; metadata, tagging, and culling still follow normal skip/re-run rules.',
+  },
+  validation_repair: {
+    title: 'Validation-repair pipeline',
+    whatThisDoes:
+      'Scans selected scope for invalid, missing, or out-of-range fields, applies minimal safe repairs where configured, and builds stage-specific repair queues.',
+    whatThisDoesNotDo:
+      'Does not replace reviewing the dry-run preview before applying; use Refresh in Preview to inspect counts and queues first.',
+  },
+} satisfies Record<RunOptionsMode, RunOptionCopy>
+
+const RUN_OPTION_ORDER: RunOptionsMode[] = [
+  'skip_completed',
+  'force_all',
+  'fix_incomplete',
+  'validation_repair',
+]
+
 /** Trim and strip trailing `/` or `\\`; keep Windows drive roots (e.g. `D:\\`). */
 function normalizeScopePathInput(p: string): string {
   let s = p.trim()
@@ -78,6 +121,7 @@ export function ScopeSelector() {
     try {
       const res = await scopeApi.preview(validPaths, scopeType === 'folder_recursive')
       setPreview(res)
+      qc.invalidateQueries({ queryKey: ['folders-tree'] })
       if (runOptionsMode === 'validation_repair') {
         setRepairPreviewLoading(true)
         const stagesOrdered = ALL_STAGES.filter((code) => stages.has(code))
@@ -295,69 +339,66 @@ export function ScopeSelector() {
               Options
             </label>
             <div className="space-y-2">
-              <label className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer">
-                <input
-                  type="radio"
-                  name="run-options"
-                  className="mt-1"
-                  checked={runOptionsMode === 'skip_completed'}
-                  onChange={() => setRunOptionsMode('skip_completed')}
-                />
-                <span>
-                  <span className="text-[#cccccc]">Skip already completed stages</span>
-                  <span className="block text-xs text-[#6d6d6d] mt-0.5">
-                    Default incremental run; reuse work that is already done.
-                  </span>
-                </span>
-              </label>
-              <label className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer">
-                <input
-                  type="radio"
-                  name="run-options"
-                  className="mt-1"
-                  checked={runOptionsMode === 'force_all'}
-                  onChange={() => setRunOptionsMode('force_all')}
-                />
-                <span>
-                  <span className="text-[#cccccc]">Force re-run all stages</span>
-                  <span className="block text-xs text-[#6d6d6d] mt-0.5">
-                    Reprocess images even when scores and metadata already exist.
-                  </span>
-                </span>
-              </label>
-              <label className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer">
-                <input
-                  type="radio"
-                  name="run-options"
-                  className="mt-1"
-                  checked={runOptionsMode === 'fix_incomplete'}
-                  onChange={() => setRunOptionsMode('fix_incomplete')}
-                />
-                <span>
-                  <span className="text-[#cccccc]">Fix non-completed stages</span>
-                  <span className="block text-xs text-[#6d6d6d] mt-0.5">
-                    For quality scoring, only images missing scores, rating, or label under the
-                    selected paths (other stages use normal skip rules).
-                  </span>
-                </span>
-              </label>
-              <label className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer">
-                <input
-                  type="radio"
-                  name="run-options"
-                  className="mt-1"
-                  checked={runOptionsMode === 'validation_repair'}
-                  onChange={() => setRunOptionsMode('validation_repair')}
-                />
-                <span>
-                  <span className="text-[#ffcc66] font-semibold">Validation-repair pipeline</span>
-                  <span className="block text-xs text-[#f2a65a] mt-0.5">
-                    Warning: scans selected scope for invalid/missing/out-of-range fields, applies
-                    minimal repairs, and builds stage-specific repair queues. Review dry-run preview
-                    before queuing.
-                  </span>
-                </span>
-              </label>
+              {RUN_OPTION_ORDER.map((mode) => {
+                const option = RUN_OPTION_COPY_BY_MODE[mode]
+                const isFixIncomplete = mode === 'fix_incomplete'
+                const isValidationRepair = mode === 'validation_repair'
+                return (
+                  <label
+                    key={mode}
+                    className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="run-options"
+                      className="mt-1"
+                      checked={runOptionsMode === mode}
+                      onChange={() => setRunOptionsMode(mode)}
+                      {...(isFixIncomplete ? { 'aria-describedby': 'fix-incomplete-help' } : {})}
+                    />
+                    <span>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={
+                            isValidationRepair ? 'text-[#ffcc66] font-semibold' : 'text-[#cccccc]'
+                          }
+                        >
+                          {option.title}
+                        </span>
+                        {isFixIncomplete && (
+                          <span className="rounded border border-[#007acc]/40 bg-[#003f6e]/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#4fc1ff]">
+                            Scoring only
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className={
+                          isValidationRepair
+                            ? 'block text-xs text-[#f2a65a] mt-0.5'
+                            : 'block text-xs text-[#6d6d6d] mt-0.5'
+                        }
+                      >
+                        What this does: {option.whatThisDoes}
+                      </span>
+                      <span
+                        className={
+                          isValidationRepair
+                            ? 'block text-xs text-[#f2a65a] mt-0.5'
+                            : 'block text-xs text-[#6d6d6d] mt-0.5'
+                        }
+                      >
+                        What this does not do: {option.whatThisDoesNotDo}
+                      </span>
+                      {isFixIncomplete && (
+                        <span id="fix-incomplete-help" className="block text-xs text-[#6d6d6d] mt-0.5">
+                          Targets only images missing scores, rating, or label under selected paths (other
+                          stages use normal skip rules).
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                )
+              })}
               {runOptionsMode === 'validation_repair' && (
                 <div className="ml-6 rounded border border-[#f2a65a]/40 bg-[#2f2418] p-3 text-xs text-[#ffcc99] space-y-1">
                   <div className="font-semibold">Dry-run repair preview</div>
@@ -369,11 +410,16 @@ export function ScopeSelector() {
                   {repairPreview && (
                     <div className="space-y-1">
                       <div>
-                        Actions: reconcile={repairPreview.actions.reconciled_rows}, backfill={repairPreview.actions.backfilled_index_meta}, scoring_targets={repairPreview.actions.scoring_fix_targets}
+                        Actions: reconcile={repairPreview.actions.reconciled_rows}, backfill=
+                        {repairPreview.actions.backfilled_index_meta}, scoring_targets=
+                        {repairPreview.actions.scoring_fix_targets}
                       </div>
                       <div>
-                        Summary: repaired={repairPreview.repaired}, skipped(images)={repairPreview.skipped}, failed={repairPreview.failed}
-                        {typeof repairPreview.issue_hits === 'number' ? `, issue_hits=${repairPreview.issue_hits}` : ''}
+                        Summary: repaired={repairPreview.repaired}, skipped(images)={repairPreview.skipped},
+                        failed={repairPreview.failed}
+                        {typeof repairPreview.issue_hits === 'number'
+                          ? `, issue_hits=${repairPreview.issue_hits}`
+                          : ''}
                       </div>
                     </div>
                   )}

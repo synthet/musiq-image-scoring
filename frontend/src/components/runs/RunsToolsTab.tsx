@@ -1,13 +1,14 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Wrench, RefreshCcw, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { toolsApi, formatToolError, type ApiEnvelope } from '@/api/tools'
+import { toolsApi, formatToolError, type ApiEnvelope, type RecalculateStatusSummary } from '@/api/tools'
 import { runsApi } from '@/api/runs'
 import { FULL_PIPELINE_STAGE_CODES } from '@/constants/pipeline'
 import { STAGE_DISPLAY } from '@/types/api'
 import { useUiStore } from '@/stores/uiStore'
+import { Card, CardTitle } from '@/components/ui/card'
 
 const STALE_MIN_AGE = 3600
 const BACKFILL_LIMIT = 1000
@@ -49,6 +50,9 @@ export function RunsToolsTab() {
   const selectedScopePath = useUiStore((s) => s.selectedScopePath)
   const setPendingTreeRevealPaths = useUiStore((s) => s.setPendingTreeRevealPaths)
   const [lastAction, setLastAction] = useState<{ ok: boolean; text: string } | null>(null)
+  const [recalcScope, setRecalcScope] = useState<'all' | 'selected_folder'>('selected_folder')
+  const [showRecalcConfirm, setShowRecalcConfirm] = useState(false)
+  const [recalcSummary, setRecalcSummary] = useState<RecalculateStatusSummary | null>(null)
 
   const staleQuery = useQuery({
     queryKey: ['maintenance-stale-phases', STALE_MIN_AGE],
@@ -126,13 +130,45 @@ export function RunsToolsTab() {
     onError: (e) => setLastAction({ ok: false, text: formatToolError(e) }),
   })
 
+  const recalcStatusMut = useMutation({
+    mutationFn: () =>
+      toolsApi.recalculateStatusFromData({
+        scope: recalcScope,
+        scopePath: recalcScope === 'selected_folder' ? selectedScopePath?.trim() || undefined : undefined,
+      }),
+    onSuccess: (r) => {
+      setFromEnvelope('Recalculate status', r)
+      const summaryCandidate = r.data?.summary
+      if (summaryCandidate && typeof summaryCandidate === 'object') {
+        setRecalcSummary(summaryCandidate as RecalculateStatusSummary)
+      } else {
+        setRecalcSummary(null)
+      }
+      void queryClient.invalidateQueries({ queryKey: ['maintenance-stale-phases'] })
+      void queryClient.invalidateQueries({ queryKey: ['folders-tree'] })
+      void queryClient.invalidateQueries({ queryKey: ['runs'] })
+      setShowRecalcConfirm(false)
+    },
+    onError: (e) => {
+      setLastAction({ ok: false, text: formatToolError(e) })
+      setShowRecalcConfirm(false)
+    },
+  })
+
+  const selectedScopeMissing = recalcScope === 'selected_folder' && !selectedScopePath?.trim()
+  const recalcButtonHint = useMemo(() => {
+    if (recalcScope === 'all') return 'Entire database'
+    return selectedScopePath?.trim() ? `Selected: ${selectedScopePath.trim()}` : 'Select a folder first'
+  }, [recalcScope, selectedScopePath])
+
   const mutationPending =
     reconcileMut.isPending ||
     fixDbMut.isPending ||
     backfillMut.isPending ||
     healThumbMut.isPending ||
     repairThumbDeepMut.isPending ||
-    fullPipelineMut.isPending
+    fullPipelineMut.isPending ||
+    recalcStatusMut.isPending
   /** Block concurrent tool actions (mutations or stale probe refetch). */
   const toolsLocked = mutationPending || staleQuery.isFetching
 
@@ -269,6 +305,120 @@ export function RunsToolsTab() {
         </div>
         {!selectedScopePath?.trim() && (
           <p className="text-xs text-[#6d6d6d] mt-2">Select a folder in Scope Navigator to enable this action.</p>
+        )}
+      </ToolSection>
+
+      <ToolSection
+        title="Recalculate status from data"
+        description={
+          'Recomputes derivable per-image phase states and rebuilds folder aggregate flags/caches. ' +
+          'Use after crashes, import drifts, or legacy migrations when badges look inconsistent.'
+        }
+      >
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-xs text-[#9d9d9d] inline-flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="recalc-scope"
+                checked={recalcScope === 'selected_folder'}
+                onChange={() => setRecalcScope('selected_folder')}
+                disabled={toolsLocked}
+              />
+              Selected folder
+            </label>
+            <label className="text-xs text-[#9d9d9d] inline-flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="recalc-scope"
+                checked={recalcScope === 'all'}
+                onChange={() => setRecalcScope('all')}
+                disabled={toolsLocked}
+              />
+              Entire database
+            </label>
+          </div>
+
+          <p className="text-xs text-[#6d6d6d]">{recalcButtonHint}</p>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setShowRecalcConfirm(true)}
+              disabled={toolsLocked || selectedScopeMissing}
+              loading={recalcStatusMut.isPending}
+            >
+              Recalculate Status from Data
+            </Button>
+          </div>
+
+          {selectedScopeMissing && (
+            <p className="text-xs text-[#6d6d6d]">Select a folder in Scope Navigator to run this scope.</p>
+          )}
+
+          {showRecalcConfirm && (
+            <div className="rounded border border-[#6f4e00] bg-[#3a2d00] p-3">
+              <p className="text-xs text-[#f2cc60]">
+                Confirm recalculation for{' '}
+                <span className="font-medium">
+                  {recalcScope === 'all' ? 'entire database' : selectedScopePath?.trim() || 'selected folder'}
+                </span>
+                ?
+              </p>
+              <p className="text-xs text-[#d7ba7d] mt-1">
+                This updates derivable per-image statuses and rebuilds folder rollups/flags.
+              </p>
+              <div className="flex items-center gap-2 mt-2">
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => recalcStatusMut.mutate()}
+                  disabled={toolsLocked || selectedScopeMissing}
+                  loading={recalcStatusMut.isPending}
+                >
+                  Confirm and run
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => setShowRecalcConfirm(false)} disabled={toolsLocked}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {recalcSummary && (
+          <Card className="mt-3 border-[#3c3c3c] bg-[#1f1f1f]">
+            <CardTitle className="mb-2">Last recalculation summary</CardTitle>
+            <div className="space-y-1 text-xs text-[#9d9d9d]">
+              <p>
+                Scope: <span className="text-[#cccccc]">{recalcSummary.scope === 'all' ? 'Entire database' : recalcSummary.scope_path || 'Selected folder'}</span>
+              </p>
+              <p>
+                Changed rows (estimate):{' '}
+                <span className="text-[#cccccc] font-medium">{recalcSummary.per_image_changes.total_rows_changed_estimate}</span>
+              </p>
+              <p>
+                Per-image changes: index/meta={recalcSummary.per_image_changes.indexing_metadata_backfilled_images}, keywords={recalcSummary.per_image_changes.keywords_phase_backfilled_rows}, culling={recalcSummary.per_image_changes.culling_failed_to_done_rows}
+              </p>
+              <p>
+                Folder rebuild: recomputed={recalcSummary.folder_aggregate_changes.folders_recomputed}, keyword flags updated={recalcSummary.folder_aggregate_changes.folders_marked_keywords_processed}
+              </p>
+              <p>
+                Remaining drift: index/meta={recalcSummary.after.missing_indexing_or_metadata_with_scoring_done}, keywords={recalcSummary.after.missing_keywords_status_with_keywords_data}, culling={recalcSummary.after.culling_failed_with_data_present}
+              </p>
+              {recalcSummary.warnings.length > 0 && (
+                <div className="mt-2 rounded border border-[#5a3a3a] bg-[#2a1a1a] p-2">
+                  <p className="text-[#f44747] mb-1">Warnings</p>
+                  <ul className="list-disc pl-4 space-y-0.5 text-[#d7a7a7]">
+                    {recalcSummary.warnings.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </Card>
         )}
       </ToolSection>
 
