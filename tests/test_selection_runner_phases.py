@@ -32,8 +32,8 @@ def test_bulk_completed_blocked_when_unstarted_phases():
     assert result == "culling"
 
 
-def test_bulk_completed_allowed_when_all_started():
-    """_resolve_multi_phase returns __bulk_completed__ when all phases have started_at."""
+def test_completed_prefers_running_phase_when_all_have_started_at():
+    """When a later phase is running, complete that row — never bulk-complete all phases."""
     from modules.db import _resolve_multi_phase_job_phases_sync_code
 
     phases = [
@@ -43,11 +43,11 @@ def test_bulk_completed_allowed_when_all_started():
     with patch("modules.db.get_job_phases", return_value=phases):
         result = _resolve_multi_phase_job_phases_sync_code(999, "completed")
 
-    assert result == "__bulk_completed__"
+    assert result == "bird_species"
 
 
-def test_bulk_completed_allowed_when_skipped_unstarted():
-    """Phases that are already skipped/completed don't block bulk completion."""
+def test_completed_returns_none_when_all_phases_already_terminal():
+    """No phase row to sync when everything is already completed or skipped."""
     from modules.db import _resolve_multi_phase_job_phases_sync_code
 
     phases = [
@@ -57,7 +57,7 @@ def test_bulk_completed_allowed_when_skipped_unstarted():
     with patch("modules.db.get_job_phases", return_value=phases):
         result = _resolve_multi_phase_job_phases_sync_code(999, "completed")
 
-    assert result == "__bulk_completed__"
+    assert result is None
 
 
 # ──────────────────────────────────────────────────────────────────────────────

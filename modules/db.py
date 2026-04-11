@@ -4154,12 +4154,7 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
         if new_status == "completed" and n_phases > 1:
             phase_state = phase_state_map.get(new_status, "running")
             multi = _resolve_multi_phase_job_phases_sync_code(job_id, new_status, tx=tx)
-            if multi == "__bulk_completed__":
-                tx.execute(
-                    "UPDATE job_phases SET state = 'completed', completed_at = ?, error_message = NULL WHERE job_id = ?",
-                    (now, job_id),
-                )
-            elif multi:
+            if multi:
                 set_job_phase_state(
                     job_id,
                     multi,
@@ -4247,12 +4242,7 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
 
             if n_phases > 1 and not skip_multi_completed:
                 multi = _resolve_multi_phase_job_phases_sync_code(job_id, new_status, tx=tx)
-                if multi == "__bulk_completed__":
-                    tx.execute(
-                        "UPDATE job_phases SET state = 'completed', completed_at = ?, error_message = NULL WHERE job_id = ?",
-                        (now, job_id),
-                    )
-                elif multi:
+                if multi:
                     set_job_phase_state(
                         job_id,
                         multi,
@@ -4873,8 +4863,8 @@ def _resolve_multi_phase_job_phases_sync_code(job_id, new_status, tx=None):
     Single-phase jobs return None so callers keep using ``job_type`` as the phase code.
 
     Returns:
-        None — use legacy single-phase sync (job_type / pipeline_phases).
-        "__bulk_completed__" — mark every phase row completed (job finished successfully).
+        None — use legacy single-phase sync (job_type / pipeline_phases), or nothing to sync
+        (e.g. every ``job_phases`` row is already terminal).
         str — a ``phase_code`` to pass to ``set_job_phase_state``.
     """
     phases = get_job_phases(job_id, tx=tx)
@@ -4895,25 +4885,31 @@ def _resolve_multi_phase_job_phases_sync_code(job_id, new_status, tx=None):
                 return p.get("phase_code")
         return phases[0].get("phase_code")
     if st == "completed":
-        # Safety: only bulk-complete if every phase has actually been started.
-        # If any phase was never started (started_at is None and state is not
-        # completed/skipped), return it so set_job_phase_state handles one
-        # phase at a time with proper auto-advance.
+        terminal_states = {"completed", "skipped", "canceled", "cancelled"}
+        # Complete at most one phase per status update. Prefer the row that is
+        # actively running — otherwise a later phase can have started_at set while
+        # earlier stages are still pending, ``unstarted`` becomes empty, and the
+        # old ``__bulk_completed__`` path incorrectly marked every phase completed.
+        for p in phases:
+            if (p.get("state") or "").strip().lower() == "running":
+                return p.get("phase_code")
         unstarted = [
             p for p in phases
             if p.get("started_at") is None
-            and (p.get("state") or "").strip().lower() not in ("completed", "skipped", "canceled")
+            and (p.get("state") or "").strip().lower() not in terminal_states
         ]
         if unstarted:
-            # Find the currently running phase to mark completed
-            for p in phases:
-                if (p.get("state") or "").strip().lower() == "running":
-                    return p.get("phase_code")
-            # Fallback: last phase that isn't completed
             for p in reversed(phases):
-                if (p.get("state") or "").strip().lower() not in ("completed", "skipped"):
+                if (p.get("state") or "").strip().lower() not in terminal_states:
                     return p.get("phase_code")
-        return "__bulk_completed__"
+            return unstarted[0].get("phase_code")
+        if all((p.get("state") or "").strip().lower() in terminal_states for p in phases):
+            return None
+        for p in phases:
+            pst = (p.get("state") or "").strip().lower()
+            if pst not in terminal_states:
+                return p.get("phase_code")
+        return None
     if st in ("failed", "interrupted", "canceled", "cancelled"):
         for p in phases:
             if (p.get("state") or "").strip().lower() == "running":
