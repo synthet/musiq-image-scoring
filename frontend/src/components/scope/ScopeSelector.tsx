@@ -8,12 +8,12 @@ import { scopeApi } from '@/api/scope'
 import { Button } from '@/components/ui/button'
 import { useUiStore } from '@/stores/uiStore'
 import { STAGE_DISPLAY } from '@/types/api'
-import type { StageCode, ScopePreviewResult } from '@/types/api'
+import type { StageCode, ScopePreviewResult, ValidationRepairPreview } from '@/types/api'
 import { FULL_PIPELINE_STAGE_CODES } from '@/constants/pipeline'
 
 const ALL_STAGES: StageCode[] = [...FULL_PIPELINE_STAGE_CODES]
 
-type RunOptionsMode = 'skip_completed' | 'force_all' | 'fix_incomplete'
+type RunOptionsMode = 'skip_completed' | 'force_all' | 'fix_incomplete' | 'validation_repair'
 
 /** Trim and strip trailing `/` or `\\`; keep Windows drive roots (e.g. `D:\\`). */
 function normalizeScopePathInput(p: string): string {
@@ -38,6 +38,8 @@ export function ScopeSelector() {
   const [preview, setPreview] = useState<ScopePreviewResult | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [repairPreview, setRepairPreview] = useState<ValidationRepairPreview | null>(null)
+  const [repairPreviewLoading, setRepairPreviewLoading] = useState(false)
 
   // Modal stays mounted while closed (`return null`); reset local state whenever it opens
   // so preview is not left from a previous folder and paths re-apply even if `newRunInitialPath`
@@ -51,6 +53,7 @@ export function ScopeSelector() {
     }
     setPreview(null)
     setPreviewError(null)
+    setRepairPreview(null)
     setRunOptionsMode('skip_completed')
   }, [newRunModalOpen, newRunInitialPath])
 
@@ -75,12 +78,20 @@ export function ScopeSelector() {
     try {
       const res = await scopeApi.preview(validPaths, scopeType === 'folder_recursive')
       setPreview(res)
+      if (runOptionsMode === 'validation_repair') {
+        setRepairPreviewLoading(true)
+        const stagesOrdered = ALL_STAGES.filter((code) => stages.has(code))
+        const rep = await scopeApi.validationRepairPreview(validPaths, stagesOrdered)
+        setRepairPreview(rep)
+      }
     } catch (e) {
       setPreview(null)
+      setRepairPreview(null)
       const msg = e instanceof ApiError ? parseApiErrorDetail(e.message) : String(e)
       setPreviewError(msg)
     } finally {
       setPreviewLoading(false)
+      setRepairPreviewLoading(false)
     }
   }
 
@@ -103,6 +114,7 @@ export function ScopeSelector() {
     const skip_done = runOptionsMode !== 'force_all'
     const force_rerun = runOptionsMode === 'force_all'
     const fix_incomplete_stages = runOptionsMode === 'fix_incomplete'
+    const validation_repair_mode = runOptionsMode === 'validation_repair'
     submitMut.mutate({
       scope_type: scopeType,
       scope_paths: validPaths,
@@ -110,6 +122,8 @@ export function ScopeSelector() {
       skip_done,
       force_rerun,
       fix_incomplete_stages,
+      validation_repair_mode,
+      validation_repair_dry_run: false,
     })
   }
 
@@ -327,6 +341,43 @@ export function ScopeSelector() {
                   </span>
                 </span>
               </label>
+              <label className="flex items-start gap-2 text-sm text-[#9d9d9d] cursor-pointer">
+                <input
+                  type="radio"
+                  name="run-options"
+                  className="mt-1"
+                  checked={runOptionsMode === 'validation_repair'}
+                  onChange={() => setRunOptionsMode('validation_repair')}
+                />
+                <span>
+                  <span className="text-[#ffcc66] font-semibold">Validation-repair pipeline</span>
+                  <span className="block text-xs text-[#f2a65a] mt-0.5">
+                    Warning: scans selected scope for invalid/missing/out-of-range fields, applies
+                    minimal repairs, and builds stage-specific repair queues. Review dry-run preview
+                    before queuing.
+                  </span>
+                </span>
+              </label>
+              {runOptionsMode === 'validation_repair' && (
+                <div className="ml-6 rounded border border-[#f2a65a]/40 bg-[#2f2418] p-3 text-xs text-[#ffcc99] space-y-1">
+                  <div className="font-semibold">Dry-run repair preview</div>
+                  <div>
+                    Click <span className="text-[#ffffff]">Refresh</span> in Preview to scan issue
+                    counts and stage repair queues.
+                  </div>
+                  {repairPreviewLoading && <div className="text-[#d7ba7d]">Scanning…</div>}
+                  {repairPreview && (
+                    <div className="space-y-1">
+                      <div>
+                        Actions: reconcile={repairPreview.actions.reconciled_rows}, backfill={repairPreview.actions.backfilled_index_meta}, scoring_targets={repairPreview.actions.scoring_fix_targets}
+                      </div>
+                      <div>
+                        Summary: repaired={repairPreview.repaired}, skipped={repairPreview.skipped}, failed={repairPreview.failed}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

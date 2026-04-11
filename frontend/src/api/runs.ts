@@ -9,6 +9,10 @@ export interface RunSubmitRequest {
   force_rerun?: boolean
   /** When true, backend limits scoring to incomplete images under scope (see API docs). */
   fix_incomplete_stages?: boolean
+  /** Validation-repair pipeline mode: stage-specific issue scan + minimal repair actions. */
+  validation_repair_mode?: boolean
+  /** If true, run submits with dry-run repair actions (scan only). */
+  validation_repair_dry_run?: boolean
 }
 
 export interface RunsListResponse {

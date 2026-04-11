@@ -6447,6 +6447,192 @@ def get_incomplete_image_ids_under_folder(folder_path: str, limit: int | None = 
     return out
 
 
+def _scoped_path_predicate_sql(path_count: int, folder_col: str = "f.path") -> tuple[str, list]:
+    """Build `(f.path = ? OR f.path LIKE ? ...)` SQL and params for one or more root paths."""
+    clauses = []
+    params: list[str] = []
+    for _ in range(max(0, int(path_count or 0))):
+        clauses.append(f"({folder_col} = ? OR {folder_col} LIKE ? OR {folder_col} LIKE ?)")
+    return (" OR ".join(clauses)) if clauses else "1=0", params
+
+
+def _normalize_scope_paths_for_sql(scope_paths: list[str]) -> list[str]:
+    from modules import utils
+
+    out: list[str] = []
+    for p in scope_paths or []:
+        if not p:
+            continue
+        wp = utils.convert_path_to_wsl(p) if hasattr(utils, "convert_path_to_wsl") else p
+        if wp:
+            out.append(str(wp))
+    return out
+
+
+def _query_image_ids_by_condition_for_scope(scope_paths: list[str], condition_sql: str) -> list[int]:
+    """Return image ids under scope paths matching additional SQL condition."""
+    roots = _normalize_scope_paths_for_sql(scope_paths)
+    if not roots:
+        return []
+
+    where_parts = []
+    params: list[str] = []
+    for root in roots:
+        where_parts.append("(f.path = ? OR f.path LIKE ? OR f.path LIKE ?)")
+        params.extend([root, root + "/%", root + "\\%"])
+    scope_sql = "(" + " OR ".join(where_parts) + ")"
+
+    query = f"""
+        SELECT DISTINCT i.id
+        FROM images i
+        JOIN folders f ON f.id = i.folder_id
+        WHERE {scope_sql}
+          AND ({condition_sql})
+        ORDER BY i.id
+    """
+    rows = get_connector().query(query, tuple(params))
+    out: list[int] = []
+    for r in rows or []:
+        try:
+            out.append(int(r["id"]))
+        except (TypeError, ValueError, KeyError):
+            continue
+    return out
+
+
+def build_validation_repair_plan(
+    scope_paths: list[str],
+    stage_codes: list[str] | None = None,
+    dry_run: bool = True,
+) -> dict:
+    """
+    Build and optionally apply a validation-repair plan for selected scope.
+
+    Returns:
+      {
+        issue_counts: {issue_type: count},
+        stage_queues: {stage_code: [image_ids...]},
+        actions: {reconciled_rows, backfilled_index_meta, scoring_fix_targets},
+        repaired/skipped/failed totals
+      }
+    """
+    selected = {str(s).strip().lower() for s in (stage_codes or []) if str(s).strip()}
+    if not selected:
+        selected = {"indexing", "metadata", "scoring", "keywords", "culling"}
+
+    issue_counts: dict[str, int] = {}
+    stage_queues: dict[str, list[int]] = {}
+    actions = {
+        "reconciled_rows": 0,
+        "backfilled_index_meta": 0,
+        "scoring_fix_targets": 0,
+    }
+
+    # Seed validation from existing incomplete SQL criteria for scoring-related fields.
+    scoring_ids = _query_image_ids_by_condition_for_scope(scope_paths, _incomplete_images_where_sql("i"))
+    issue_counts["scoring_incomplete"] = len(scoring_ids)
+    if "scoring" in selected:
+        stage_queues["scoring"] = scoring_ids
+        actions["scoring_fix_targets"] = len(scoring_ids)
+
+    # Stage consistency: missing terminal done rows per phase -> queue minimal recompute.
+    if "indexing" in selected:
+        ids = _query_image_ids_by_condition_for_scope(
+            scope_paths,
+            """
+            NOT EXISTS (
+                SELECT 1 FROM image_phase_status ips
+                JOIN pipeline_phases pp ON pp.id = ips.phase_id
+                WHERE ips.image_id = i.id
+                  AND LOWER(TRIM(pp.code)) = 'indexing'
+                  AND LOWER(TRIM(ips.status)) = 'done'
+            )
+            """,
+        )
+        issue_counts["indexing_missing_or_not_done"] = len(ids)
+        stage_queues["indexing"] = ids
+
+    if "metadata" in selected:
+        ids = _query_image_ids_by_condition_for_scope(
+            scope_paths,
+            """
+            NOT EXISTS (
+                SELECT 1 FROM image_phase_status ips
+                JOIN pipeline_phases pp ON pp.id = ips.phase_id
+                WHERE ips.image_id = i.id
+                  AND LOWER(TRIM(pp.code)) = 'metadata'
+                  AND LOWER(TRIM(ips.status)) = 'done'
+            )
+            OR (i.rating IS NOT NULL AND (i.rating < 0 OR i.rating > 5))
+            """,
+        )
+        issue_counts["metadata_missing_or_out_of_range"] = len(ids)
+        stage_queues["metadata"] = ids
+
+    if "keywords" in selected:
+        ids = _query_image_ids_by_condition_for_scope(
+            scope_paths,
+            """
+            NOT EXISTS (
+                SELECT 1 FROM image_phase_status ips
+                JOIN pipeline_phases pp ON pp.id = ips.phase_id
+                WHERE ips.image_id = i.id
+                  AND LOWER(TRIM(pp.code)) = 'keywords'
+                  AND LOWER(TRIM(ips.status)) = 'done'
+            )
+            OR i.keywords IS NULL OR TRIM(CAST(i.keywords AS VARCHAR(8191))) = ''
+            """,
+        )
+        issue_counts["keywords_missing_or_not_done"] = len(ids)
+        stage_queues["keywords"] = ids
+
+    if "culling" in selected:
+        ids = _query_image_ids_by_condition_for_scope(
+            scope_paths,
+            """
+            EXISTS (
+                SELECT 1 FROM image_phase_status ips
+                JOIN pipeline_phases pp ON pp.id = ips.phase_id
+                WHERE ips.image_id = i.id
+                  AND LOWER(TRIM(pp.code)) = 'culling'
+                  AND LOWER(TRIM(ips.status)) IN ('running', 'queued', 'failed')
+            )
+            """,
+        )
+        issue_counts["culling_non_terminal"] = len(ids)
+        stage_queues["culling"] = ids
+
+    repaired = 0
+    skipped = 0
+    failed = 0
+    if dry_run:
+        skipped = sum(issue_counts.values())
+    else:
+        try:
+            actions["reconciled_rows"] = int(reconcile_stale_running_phases_for_terminal_jobs(limit=5000))
+            repaired += actions["reconciled_rows"]
+        except Exception:
+            logger.exception("build_validation_repair_plan: reconcile terminal phases failed")
+            failed += 1
+        try:
+            for p in scope_paths or []:
+                actions["backfilled_index_meta"] += int(backfill_index_meta_for_folder(p))
+            repaired += actions["backfilled_index_meta"]
+        except Exception:
+            logger.exception("build_validation_repair_plan: backfill index/meta failed")
+            failed += 1
+
+    return {
+        "issue_counts": issue_counts,
+        "stage_queues": stage_queues,
+        "actions": actions,
+        "repaired": repaired,
+        "skipped": skipped,
+        "failed": failed,
+        "dry_run": bool(dry_run),
+    }
+
+
 def export_db_to_json(output_path, folder_path=None, keyword_filter=None, rating_filter=None,
                       label_filter=None, min_score_general=0, min_score_aesthetic=0,
                       min_score_technical=0, date_range=None):

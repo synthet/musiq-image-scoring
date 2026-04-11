@@ -183,12 +183,19 @@ class JobDispatcher:
 
     def _dispatch_to_runner(self, phase: str, runner, job_id: int, input_path: str, payload: Dict[str, Any]) -> str:
         """Call the appropriate start_batch method on the runner. Returns the result string."""
+        stage_queues = payload.get("resolved_image_ids_by_stage")
+        scoped_resolved = payload.get("resolved_image_ids")
+        if isinstance(stage_queues, dict):
+            per_stage = stage_queues.get(str(phase).strip().lower())
+            if isinstance(per_stage, list):
+                scoped_resolved = per_stage
+
         if phase == "indexing":
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
                 skip_existing=bool(payload.get("skip_existing", True)),
-                resolved_image_ids=payload.get("resolved_image_ids"),
+                resolved_image_ids=scoped_resolved,
             )
 
         if phase == "metadata":
@@ -196,12 +203,12 @@ class JobDispatcher:
                 payload.get("input_path", input_path),
                 job_id=job_id,
                 skip_existing=bool(payload.get("skip_existing", True)),
-                resolved_image_ids=payload.get("resolved_image_ids"),
+                resolved_image_ids=scoped_resolved,
             )
 
         if phase in ("score", "scoring"):
             skip_existing_val = bool(payload.get("skip_existing", True))
-            resolved = payload.get("resolved_image_ids")
+            resolved = scoped_resolved
             if bool(payload.get("fix_incomplete_stages")) and not resolved:
                 paths = payload.get("scope_paths")
                 if not isinstance(paths, list) or not paths:
@@ -230,7 +237,7 @@ class JobDispatcher:
                 custom_keywords=payload.get("custom_keywords"),
                 overwrite=bool(payload.get("overwrite", False)),
                 generate_captions=bool(payload.get("generate_captions", False)),
-                resolved_image_ids=payload.get("resolved_image_ids"),
+                resolved_image_ids=scoped_resolved,
             )
 
         if phase in ("cluster", "clustering"):
@@ -240,7 +247,7 @@ class JobDispatcher:
                 time_gap=payload.get("time_gap"),
                 force_rescan=bool(payload.get("force_rescan", False)),
                 job_id=job_id,
-                resolved_image_ids=payload.get("resolved_image_ids"),
+                resolved_image_ids=scoped_resolved,
             )
 
         if phase in ("selection", "culling"):

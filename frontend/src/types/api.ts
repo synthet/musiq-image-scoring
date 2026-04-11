@@ -120,6 +120,20 @@ export interface ScopePreviewResult {
   >
 }
 
+export interface ValidationRepairPreview {
+  issue_counts: Record<string, number>
+  stage_queues: Record<string, number[]>
+  actions: {
+    reconciled_rows: number
+    backfilled_index_meta: number
+    scoring_fix_targets: number
+  }
+  repaired: number
+  skipped: number
+  failed: number
+  dry_run: boolean
+}
+
 // ─── Folder tree ─────────────────────────────────────────────────────────
 
 export interface FolderNode {
@@ -279,4 +293,3 @@ export interface StackRow extends Image {
   image_count?: number
   sort_value?: number
 }
-
