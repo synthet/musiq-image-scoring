@@ -65,8 +65,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
-from typing import Optional, List, Dict, Any
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from typing import Optional, List, Dict, Any, Literal
 import os
 import platform
 import logging
@@ -79,6 +79,7 @@ from modules.pipeline_selector_composer import (
     validate_and_preview,
     serialize_queue_payload,
 )
+from modules.run_modes import infer_run_mode, resolve_run_mode_flags
 
 from modules.job_dispatcher import JobDispatcher
 from modules import db
@@ -4734,12 +4735,31 @@ def create_api_router() -> APIRouter:
     # ─── New Runs API (React SPA) ────────────────────────────────────────────
 
     class RunSubmitRequest(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
         scope_type: str = "folder_recursive"  # file|folder|folder_recursive|path_list
         scope_paths: List[str]
         stages: Optional[List[str]] = None
-        skip_done: bool = True
-        force_rerun: bool = False
-        fix_incomplete_stages: bool = False
+        run_mode: Literal[
+            "process_all_overwrite",
+            "process_unprocessed_or_empty",
+            "validate_and_repair",
+        ] = "process_unprocessed_or_empty"
+        # Deprecated compatibility fields. These are ignored when run_mode is present.
+        skip_done: Optional[bool] = None
+        force_rerun: Optional[bool] = None
+        fix_incomplete_stages: Optional[bool] = None
+
+        @model_validator(mode="after")
+        def _normalize_run_mode_and_legacy_flags(self):
+            self.run_mode = infer_run_mode(
+                self.run_mode,
+                run_mode_explicit=("run_mode" in self.model_fields_set),
+                skip_done=self.skip_done,
+                force_rerun=self.force_rerun,
+                fix_incomplete_stages=self.fix_incomplete_stages,
+            )
+            return self
 
     @router.post("/runs/submit", summary="Submit a new Run")
     async def submit_run(request: RunSubmitRequest):
@@ -4813,14 +4833,19 @@ def create_api_router() -> APIRouter:
         if phase_values:
             phase_values = sort_phase_value_strings(phase_values)
 
+        mode_flags = resolve_run_mode_flags(request.run_mode)
+
         payload = {
             "scope_type": request.scope_type,
             "scope_paths": scope_paths,
             "input_path": primary_path,
-            "skip_done": request.skip_done,
-            "skip_existing": request.skip_done,
-            "force_rerun": request.force_rerun,
-            "fix_incomplete_stages": bool(request.fix_incomplete_stages),
+            "run_mode": request.run_mode,
+            "skip_done": mode_flags["skip_done"],
+            "skip_existing": mode_flags["skip_existing"],
+            "force_rerun": mode_flags["force_rerun"],
+            "fix_incomplete_stages": mode_flags["fix_incomplete_stages"],
+            "overwrite": mode_flags["overwrite"],
+            "force_rescan": mode_flags["force_rescan"],
             "phases": phase_values,
             "target_phases": phase_values,
         }
