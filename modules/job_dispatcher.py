@@ -242,6 +242,8 @@ class JobDispatcher:
             mode_flags = self._run_mode_flags(payload)
             skip_existing_val = bool(mode_flags["skip_existing"])
             resolved = scoped_resolved
+            # Short-term behavior: fix_incomplete_stages resolves scoped IDs only for scoring.
+            # Metadata/tagging/culling continue to use their normal skip/re-run semantics.
             if bool(mode_flags["fix_incomplete_stages"]) and not resolved:
                 paths = payload.get("scope_paths")
                 if not isinstance(paths, list) or not paths:

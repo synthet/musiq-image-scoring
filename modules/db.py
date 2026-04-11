@@ -6370,7 +6370,7 @@ def update_image_metadata(file_path, keywords, title, description, rating, label
 
 
 def _incomplete_images_where_sql(table_alias: str = "") -> str:
-    """SQL fragment: image row qualifies as incomplete (scores / rating / label)."""
+    """SQL fragment for scoring completeness checks (scores / rating / label)."""
     prefix = f"{table_alias}." if table_alias else ""
     score_checks = [
         f"{prefix}score_general IS NULL OR {prefix}score_general <= 0",
@@ -6413,7 +6413,7 @@ def get_incomplete_records(limit: int | None = None):
 def get_incomplete_image_ids_under_folder(folder_path: str, limit: int | None = None):
     """
     Image IDs under a folder tree (recursive) that match get_incomplete_records criteria.
-    Used when queuing a run with fix_incomplete_stages so scoring targets gaps only.
+    Used by fix_incomplete_stages for scoring only; other stages ignore this selector.
     """
     from modules import utils
 
