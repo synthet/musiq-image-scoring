@@ -148,6 +148,48 @@ This is the main verified cross-app defect found by the audit. It is not an envi
 |---|---|---|---|
 | 1 | Add UI-driven Electron automation for one happy path and one negative path | Medium | High |
 
+## E2E Start Gates (Quantitative)
+
+The project should begin broader E2E automation only after the following measurable entry gates are met:
+
+| Gate | Metric | Threshold to open E2E work |
+|---|---|---|
+| Contract stability | `scripts/validate-api-types.mjs` result | **Green for 10 consecutive runs** on the main branch |
+| Smoke reliability | Tier 2 cross-repo smoke script success rate | **>= 95% pass rate** over the most recent **20 CI runs** (excluding explicitly infra-labeled outages) |
+| Core backend confidence | Coverage for core integration modules (`modules/api.py`, `modules/events.py`, queue/job submission path) | **>= 80% line coverage** in the backend CI coverage report |
+| Core frontend confidence | Coverage for Electron integration entry points (`electron/apiService.ts`, `electron/main.ts` IPC API path, `src/services/WebSocketService.ts`) | **>= 75% line coverage** in frontend CI coverage report |
+| Blocking defect trend | Open P0/P1 integration defects tagged `cross-app` | **0 P0** and **<= 2 P1** open for 14 consecutive days |
+
+Notes:
+- These gates are intended to reduce flaky E2E investment before contract and smoke stability are proven.
+- If any gate regresses after E2E starts, continue maintaining existing E2E tests but pause adding new scenarios until gates recover.
+
+## Decision Checkpoint: Re-evaluate E2E
+
+Re-evaluate E2E scope at **Milestone X**, defined as whichever comes first:
+
+1. **Date trigger:** **2026-05-15**
+2. **Criteria trigger:** All E2E start gates above are satisfied
+
+At Milestone X, run a 30-minute checkpoint with backend + Electron maintainers and record one of:
+- **Proceed:** Start planned E2E build-out for next sprint.
+- **Hold:** Keep Tier 1/2 only and document the blocking gate(s) with owner and ETA.
+- **Reduce scope:** Start only one scenario if partial gates are met and risk is acceptable.
+
+## First E2E Scenario Candidate and Ownership
+
+To avoid indefinite deferral, define the first scenario now and assign clear ownership.
+
+| Item | Definition |
+|---|---|
+| Scenario ID | `E2E-01-electron-submit-job` |
+| Goal | Verify **backend running -> Electron resolves backend URL -> submit one scoring/pipeline job -> job row/status visible via API** |
+| Minimum assertions | (1) health check passes, (2) submit returns job/run id, (3) job appears in `/api/jobs` (or direct DB verification), (4) terminal status is observed or timeout is explicit |
+| Primary owner | **Electron maintainer** (test harness + client-side orchestration) |
+| Secondary owner | **Backend maintainer** (stable fixtures, API/DB observability hooks, test data seed) |
+| Target start condition | Begin implementation immediately when Milestone X = Proceed |
+| Timebox | First executable scenario merged within **1 sprint** of Milestone X proceed decision |
+
 ## Local Audit Runner
 
 Use the local audit helper to rerun the lightweight checks without building a new E2E harness:
