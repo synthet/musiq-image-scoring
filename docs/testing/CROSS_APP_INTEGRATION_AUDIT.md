@@ -162,3 +162,58 @@ It currently runs:
 - Backend `pytest` checks for `test_api_queue.py` and `test_events.py`
 
 The script classifies results as `PASS`, `FAIL`, or `BLOCKED` so environment problems are separated from product failures.
+
+### Backend smoke behavior (health + submit + follow-up status assertion)
+
+`Run-CrossAppAudit.ps1` now includes a backend smoke probe that requires:
+
+- `GET /api/health` returns `status=healthy`
+- `POST /api/runs/submit` succeeds and returns a non-empty `run_id`
+- A follow-up `GET /api/jobs/{run_id}` assertion shows either:
+  - observed status progression across polls, or
+  - persisted phase rows (`phases[]`) for the submitted run
+
+This validates the minimal “backend reachable -> can enqueue work -> job state is queryable” flow.
+
+### Timeout and retry controls (anti-flake defaults)
+
+To reduce false negatives from transient startup lag/network jitter, the script uses bounded retries and polling:
+
+- `-HttpTimeoutSec` (default `10`)
+- `-RetryCount` (default `3`) for each HTTP call
+- `-RetryDelaySec` (default `2`) between retries
+- `-JobPollAttempts` (default `5`)
+- `-JobPollIntervalSec` (default `2`)
+
+Example with tuned CI values:
+
+```powershell
+.\scripts\powershell\Run-CrossAppAudit.ps1 `
+  -BackendApiBaseUrl "http://127.0.0.1:7860/api" `
+  -HttpTimeoutSec 15 `
+  -RetryCount 4 `
+  -RetryDelaySec 3 `
+  -JobPollAttempts 8 `
+  -JobPollIntervalSec 2
+```
+
+### Explicit exit codes + machine-readable summary
+
+The script now emits:
+
+- `AUDIT_SUMMARY_JSON=<compact-json>` on stdout for log scraping
+- optional JSON file via `-SummaryJsonPath <path>`
+
+Exit codes:
+
+- `0` = all **required** checks passed
+- `10` = at least one **required** check failed
+- `11` = at least one **required** check was blocked
+- `12` = unexpected script/runtime error
+
+### Non-blocking rollout plan for smoke check
+
+The backend smoke check is **non-blocking by default** (reported as `WARN` on failure).
+
+- Initial rollout: run with default behavior to collect stability metrics.
+- Promotion: once stable for an agreed burn-in period (for example 2-4 weeks of green CI), enable `-SmokeBlocking` in CI so smoke failures become required (`FAIL` with non-zero exit behavior).
