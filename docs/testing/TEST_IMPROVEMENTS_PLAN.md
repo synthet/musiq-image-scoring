@@ -119,30 +119,57 @@ Real file I/O via `tmp_path` — no mocking needed (pure XML).
 
 ## Phase 2 — Recommended Next Steps
 
-### 2a. `modules/engine.py` — Pipeline orchestrator
+### P2.1. `modules/engine.py` — Pipeline orchestrator failure/cancel/order paths
 
 **Gap**: No tests. This module coordinates scoring→tagging→clustering phase
 transitions and is the highest-risk untested component.
 
-**Approach**: Mock each runner (`ScoringRunner`, `TaggingRunner`,
-`ClusteringRunner`) and the DB phase-gate helpers; verify:
-- Phase ordering is respected (scoring must finish before tagging)
-- Job failure stops the pipeline
-- Cancellation propagates across runners
+**Fixture strategy checklist**
+- [ ] Use `FakeScoringRunner`, `FakeTaggingRunner`, and `FakeClusteringRunner`
+      with deterministic `start`, `stop`, and status behavior.
+- [ ] Stub DB phase-gate helpers to model success, failure, and cancel states.
+- [ ] Use per-test callback/event fixtures so cancellation and failures can be
+      asserted without sleeps.
+
+**Done = specific assertions**
+- [ ] Tagging never starts before scoring is marked complete.
+- [ ] Clustering never starts before tagging is marked complete.
+- [ ] A scoring failure prevents both tagging and clustering from starting.
+- [ ] A tagging failure prevents clustering from starting.
+- [ ] Cancellation propagates to all active runners (each fake runner records
+      exactly one `stop` call).
+- [ ] Job terminal state is persisted as `failed` or `cancelled` consistently
+      with runner outcomes.
 
 **Effort**: ~200 lines, no ML deps needed.
 
-### 2b. `modules/config.py` — Configuration validation
+### P2.2. `modules/config.py` — Validation/boundary/type coercion
 
 **Gap**: `test_config_secrets.py` covers secret leakage; no tests for schema
 validation, defaults, or invalid-value rejection.
 
-**Approach**: Unit tests with temp `config.json` files; parametrize edge cases
-(missing keys, wrong types, negative thresholds).
+**Fixture strategy checklist**
+- [ ] Use `tmp_path` to write temporary `config.json` variants per test case.
+- [ ] Add factory fixtures that generate minimal-valid config dicts for focused
+      mutation in each test.
+- [ ] Use parametrized invalid payload fixtures for boundary and type cases.
+
+**Done = specific assertions**
+- [ ] Missing required keys raise validation errors with key-specific messages.
+- [ ] Numeric boundaries reject out-of-range values (e.g., negatives where only
+      non-negative is allowed).
+- [ ] Boolean/number/string coercion is explicit and deterministic (accepted
+      coercions produce normalized values; invalid coercions raise).
+- [ ] Default values are applied only when keys are absent (not when invalid
+      values are supplied).
+- [ ] Unknown config keys are either rejected or ignored according to current
+      module contract, and tests assert that exact behavior.
 
 **Effort**: ~100 lines, zero deps.
 
-### 2c. `modules/db.py` — Advanced queries
+### P2.3. `modules/db.py` + `modules/mcp_server.py` — Query behavior + MCP response shapes
+
+#### `modules/db.py` complex query behavior
 
 **Gap**: Phase 1 covered basic CRUD; no tests for:
 - `get_images_for_scoring()` filter combinations (folder, status, limit)
@@ -150,25 +177,39 @@ validation, defaults, or invalid-value rejection.
 - `get_similar_images()` embedding distance queries
 - Tag propagation (`_sync_image_keywords`, `_backfill_keywords`)
 
-**Effort**: ~150 lines, requires `@pytest.mark.db firebird`.
+**Fixture strategy checklist**
+- [ ] Reuse Postgres/DB fixtures from `tests/conftest.py` for seeded datasets.
+- [ ] Add helper fixtures that create mixed folder/status/embedding rows for
+      deterministic query expectations.
+- [ ] Use transaction or teardown fixtures to ensure isolation between query tests.
 
-### 2d. `modules/mcp_server.py` — MCP tool coverage
+**Done = specific assertions**
+- [ ] `get_images_for_scoring()` returns only rows matching each filter
+      combination, with stable ordering and enforced `limit`.
+- [ ] `get_scoring_history()` pagination returns non-overlapping pages with
+      consistent total/count metadata.
+- [ ] `get_similar_images()` orders results by ascending distance (or descending
+      similarity per contract) and excludes the query image itself when required.
+- [ ] `_sync_image_keywords` and `_backfill_keywords` modify only targeted rows
+      and preserve unrelated keywords.
+
+#### `modules/mcp_server.py` response shape tests
 
 **Gap**: No tests beyond launch smoke test.
 
-**Approach**: Use `fastmcp` test client or mock the tool registry; verify each
-MCP tool returns the expected JSON shape.
+**Fixture strategy checklist**
+- [ ] Use a mocked MCP tool registry or test client with deterministic tool outputs.
+- [ ] Patch DB-dependent helpers so response-shape tests do not require live DB/ML.
+- [ ] Add shared response-schema assertions (required keys, value types, error format).
 
-**Effort**: ~120 lines, no ML deps.
+**Done = specific assertions**
+- [ ] Tool success responses include required keys (`ok`/`status`/payload keys as
+      defined by each tool contract) with correct value types.
+- [ ] Tool error responses use a consistent error envelope and message field.
+- [ ] DB-independent tools return valid shapes when DB is unavailable.
+- [ ] DB-dependent tools return predictable error shapes when dependencies fail.
 
-### 2e. Parametrize existing tests more aggressively
-
-Several tests use fixed values where parametrize would give broader coverage at
-low cost:
-
-- `test_scoring_runner.py`: parametrize `start_batch` over different job_id values
-- `test_db_core.py`: parametrize phase codes (`"scoring"`, `"tagging"`, `"clustering"`)
-- `test_api_endpoints.py`: parametrize bad-auth header variants
+**Effort**: ~270 lines total (~150 DB + ~120 MCP), DB tests require `@pytest.mark.db firebird`.
 
 ---
 
