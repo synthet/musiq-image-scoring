@@ -4,6 +4,7 @@ import threading
 from typing import Any, Dict, Optional
 
 from modules import db
+from modules.run_modes import infer_run_mode, resolve_run_mode_flags
 
 logger = logging.getLogger(__name__)
 
@@ -128,43 +129,23 @@ class JobDispatcher:
 
     @staticmethod
     def _run_mode_flags(payload: Dict[str, Any]) -> Dict[str, Any]:
-        run_mode = str(payload.get("run_mode") or "").strip().lower()
-        mode_defaults: Dict[str, Dict[str, Any]] = {
-            "process_all_overwrite": {
-                "skip_existing": False,
-                "force_rerun": True,
-                "fix_incomplete_stages": False,
-                "overwrite": True,
-                "force_rescan": True,
-            },
-            "process_unprocessed_or_empty": {
-                "skip_existing": True,
-                "force_rerun": False,
-                "fix_incomplete_stages": False,
-                "overwrite": False,
-                "force_rescan": False,
-            },
-            "validate_and_repair": {
-                "skip_existing": False,
-                "force_rerun": False,
-                "fix_incomplete_stages": True,
-                "overwrite": False,
-                "force_rescan": True,
-            },
-        }
-
-        if run_mode in mode_defaults:
-            return dict(mode_defaults[run_mode])
-
-        # Backward compatibility with older payloads that used ambiguous booleans.
-        fix_incomplete = bool(payload.get("fix_incomplete_stages"))
-        force_rerun = bool(payload.get("force_rerun"))
-        skip_existing = bool(payload.get("skip_existing", payload.get("skip_done", True)))
-        if fix_incomplete:
-            return dict(mode_defaults["validate_and_repair"])
-        if force_rerun or not skip_existing:
-            return dict(mode_defaults["process_all_overwrite"])
-        return dict(mode_defaults["process_unprocessed_or_empty"])
+        try:
+            run_mode = infer_run_mode(
+                payload.get("run_mode"),
+                run_mode_explicit=bool(payload.get("run_mode")),
+                skip_done=payload.get("skip_done"),
+                force_rerun=payload.get("force_rerun"),
+                fix_incomplete_stages=payload.get("fix_incomplete_stages"),
+            )
+        except ValueError:
+            run_mode = infer_run_mode(
+                None,
+                run_mode_explicit=False,
+                skip_done=payload.get("skip_done"),
+                force_rerun=payload.get("force_rerun"),
+                fix_incomplete_stages=payload.get("fix_incomplete_stages"),
+            )
+        return resolve_run_mode_flags(run_mode)
 
     def _start_job(self, job: Dict[str, Any], payload: Dict[str, Any], phase_override: Optional[str] = None) -> tuple:
         """Try to start the job. Returns (success: bool, error_msg: str|None)."""
