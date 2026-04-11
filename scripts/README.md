@@ -49,3 +49,13 @@ python scripts/path/to/script.py
 | `python/keyword_extractor.py` | AI keyword extraction |
 | `analysis/score_analysis.py` | Score statistics and normalization verification |
 | `research_models.py` | Research NEF→model input parameters |
+
+
+## API Contract Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `generate-api-types.mjs` | Deterministically generate `electron/apiTypes.ts` from root `openapi.json`. |
+| `validate-api-types.mjs` | Regenerate and fail with diff + regeneration command if `electron/apiTypes.ts` is stale. |
+
+Use `npm run api:types:generate` (local + CI standard) and `npm run api:types:check` for validation.
