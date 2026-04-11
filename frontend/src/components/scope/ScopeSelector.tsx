@@ -9,8 +9,9 @@ import { Button } from '@/components/ui/button'
 import { useUiStore } from '@/stores/uiStore'
 import { STAGE_DISPLAY } from '@/types/api'
 import type { StageCode, ScopePreviewResult } from '@/types/api'
+import { FULL_PIPELINE_STAGE_CODES } from '@/constants/pipeline'
 
-const ALL_STAGES: StageCode[] = ['indexing', 'metadata', 'scoring', 'culling', 'keywords', 'bird_species']
+const ALL_STAGES: StageCode[] = [...FULL_PIPELINE_STAGE_CODES]
 
 type RunOptionsMode = 'skip_completed' | 'force_all' | 'fix_incomplete'
 

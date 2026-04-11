@@ -38,7 +38,8 @@ export const toolsApi = {
       `/maintenance/backfill-index-meta?limit=${encodeURIComponent(String(limit))}`,
     ),
 
-  regenerateThumbnails: () => api.post<ApiEnvelope>('/maintenance/regenerate-thumbnails'),
+  /** Quick path repair (≤1000 row updates) then missing raster regen (≤500). */
+  healThumbnails: () => api.post<ApiEnvelope>('/maintenance/heal-thumbnails'),
 
   /** @param repairAll Full-table deep normalize (slower); default uses Postgres quick candidate filter */
   repairThumbnailPaths: (opts?: { repairAll?: boolean }) => {

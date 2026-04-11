@@ -178,6 +178,12 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
 
       {showItems && workItems && (
         <div className="border-t border-[#3c3c3c]">
+          {(workItems.total ?? 0) === 0 && total > 0 && (
+            <div className="px-4 py-2 text-xs text-[#cca700] border-b border-[#3c3c3c]">
+              No per-image rows for this job yet. Progress reflects files scanned; this table shows
+              image_phase_status entries tied to this run (check backend logs if it stays empty).
+            </div>
+          )}
           <WorkItemsTable items={workItems.items} total={workItems.total} />
         </div>
       )}

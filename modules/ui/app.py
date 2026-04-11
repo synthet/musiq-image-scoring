@@ -125,7 +125,9 @@ def setup_server_endpoints(fastapi_app, scoring_runner=None, tagging_runner=None
 
     @fastapi_app.on_event("shutdown")
     async def _shutdown_dispatcher():
-        api.stop_dispatcher()
+        import asyncio
+
+        await asyncio.to_thread(api.graceful_shutdown_processing, "fastapi_shutdown")
 
     @fastapi_app.get("/api/status/data", tags=["Status"])
     async def status_data_endpoint():

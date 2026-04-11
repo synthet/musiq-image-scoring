@@ -9,7 +9,8 @@ from datetime import datetime
 from PIL import Image
 from sklearn.cluster import AgglomerativeClustering
 from modules import db, utils, config
-from modules.events import event_manager, broadcast_run_log_line
+from modules.events import event_manager
+from modules.run_log import runner_emit
 from modules.phases import PhaseCode, PhaseStatus
 from modules.phases_policy import explain_phase_run_decision
 from modules.version import APP_VERSION
@@ -184,7 +185,7 @@ class ClusteringEngine(IClusteringEngine):
             self.model = MobileNetV2(weights='imagenet', include_top=False, pooling='avg', input_shape=(224, 224, 3))
             logging.info("Clustering Model (MobileNetV2) loaded.")
 
-    def extract_features(self, image_paths, original_paths=None, progress_log=None):
+    def extract_features(self, image_paths, original_paths=None, progress_log=None, stop_event=None):
         """
         Extract features for a list of image paths.
         Uses persisted cache when available.
@@ -194,6 +195,7 @@ class ClusteringEngine(IClusteringEngine):
             image_paths: Paths to load images from (may be thumbnails).
             original_paths: Original file paths for DB hash lookup. If None, image_paths are used.
             progress_log: Optional ``callable(message, level="INFO")`` for run-scoped UI logs.
+            stop_event: Optional threading.Event to check for interruption.
         """
         if original_paths is None:
             original_paths = image_paths
@@ -271,6 +273,9 @@ class ClusteringEngine(IClusteringEngine):
                         batch_images = []
                         batch_paths = []
                         batch_indices = []
+                    
+                    if stop_event and stop_event.is_set():
+                        break
                         
                 except Exception as e:
                     logging.error(f"Error extracting features for {path}: {e}")
@@ -362,6 +367,7 @@ class ClusteringEngine(IClusteringEngine):
         job_id=None,
         target_image_ids=None,
         progress_log=None,
+        stop_event=None,
     ):
         """
         Main function to load images from DB, cluster them, and update DB.
@@ -387,6 +393,7 @@ class ClusteringEngine(IClusteringEngine):
                 job_id,
                 target_image_ids=target_image_ids,
                 progress_log=progress_log,
+                stop_event=stop_event,
             )
         finally:
             # Always mark as not running when done
@@ -402,6 +409,7 @@ class ClusteringEngine(IClusteringEngine):
         job_id=None,
         target_image_ids=None,
         progress_log=None,
+        stop_event=None,
     ):
         """Internal implementation of cluster_images."""
         import datetime
@@ -533,8 +541,10 @@ class ClusteringEngine(IClusteringEngine):
         processed_count = 0
 
         yield update_status(f"Processing {len(folders_to_process)} folders...", processed_count, len(images_rows))
-
+        
         for folder in folders_to_process:
+            if stop_event and stop_event.is_set():
+                break
             rows = by_folder[folder]
             runnable_rows = []
             for r in rows:
@@ -695,6 +705,8 @@ class ClusteringEngine(IClusteringEngine):
                 time_batches.append(current_batch)
             logging.info(f"[Clustering] time_batches={len(time_batches)}, batches with len>=2: {sum(1 for b in time_batches if len(b)>=2)}")
             for b_idx, batch in enumerate(time_batches):
+                if stop_event and stop_event.is_set():
+                    break
                 # Calculate overall progress for this folder
                 folder_progress = processed_count + (len(rows) * (b_idx / len(time_batches)))
                 yield update_status(f"Processing folder: {folder} - Batch {b_idx+1}/{len(time_batches)}", folder_progress, len(images_rows))
@@ -721,6 +733,7 @@ class ClusteringEngine(IClusteringEngine):
                     batch_paths,
                     original_paths=batch_original_paths,
                     progress_log=progress_log,
+                    stop_event=stop_event,
                 )
 
                 # Persist embeddings to DB for similarity search
@@ -902,10 +915,7 @@ class ClusteringRunner:
         
     def _run_internal(self, input_path, threshold, time_gap, force_rescan, job_id=None, resolved_image_ids=None):
         def log(msg, level="INFO"):
-            self.log_history.append(msg)
-            if job_id:
-                from modules.events import broadcast_run_log_line
-                broadcast_run_log_line(job_id, msg, level=level)
+            runner_emit(self.log_history, job_id, msg, level, phase="culling")
             logger.info(f"[Job {job_id}] {msg}")
             
         log(f"Starting Clustering on {input_path or 'all unprocessed folders'}...")
@@ -929,9 +939,10 @@ class ClusteringRunner:
                 job_id=job_id,
                 target_image_ids=resolved_image_ids,
                 progress_log=log,
+                stop_event=self.stop_event,
             ):
                 if self.stop_event.is_set():
-                    log("Stopped by user.")
+                    log("Stopped by user.", "WARNING")
                     break
                     
                 # unpack tuple (msg, cur, tot) or just msg string if engine changed?
@@ -964,7 +975,7 @@ class ClusteringRunner:
                 })
                 
         except Exception as e:
-            log(f"Error: {e}", level="ERROR")
+            log(f"Error: {e}", "ERROR")
             self.status_message = f"Error: {e}"
             if job_id:
                 db.update_job_status(job_id, "failed", log="\n".join(self.log_history))

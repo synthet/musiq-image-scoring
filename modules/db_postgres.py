@@ -146,6 +146,7 @@ POSTGRES_APP_TABLES = (
     "stack_cache",
     "keywords_dim",
     "image_keywords",
+    "deleted_images",
 )
 
 # Default visual-embedding catalog row (re-applied after TRUNCATE in tests).
@@ -718,5 +719,52 @@ def init_db():
                 )
             except Exception as e:
                 logger.debug("image_keywords.source widen (optional): %s", e)
+
+            # ------------------------------------------------------------------
+            # DELETED_IMAGES — tombstone rows when an images row is removed (Sync/Import/Backup)
+            # ------------------------------------------------------------------
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS deleted_images (
+                id              SERIAL PRIMARY KEY,
+                original_id     INTEGER,
+                image_uuid      VARCHAR(36),
+                image_hash      VARCHAR(64),
+                file_name       VARCHAR(255),
+                original_path   VARCHAR(4000),
+                deleted_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_deleted_images_original_id ON deleted_images(original_id);"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_deleted_images_uuid ON deleted_images(image_uuid) "
+                "WHERE image_uuid IS NOT NULL;"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_deleted_images_hash ON deleted_images(image_hash) "
+                "WHERE image_hash IS NOT NULL;"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_deleted_images_file_uuid ON deleted_images(file_name, image_uuid) "
+                "WHERE image_uuid IS NOT NULL;"
+            )
+            cur.execute("""
+            CREATE OR REPLACE FUNCTION trg_record_deleted_image_fn()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                INSERT INTO deleted_images (original_id, image_uuid, image_hash, file_name, original_path)
+                VALUES (OLD.id, OLD.image_uuid, OLD.image_hash, OLD.file_name, OLD.file_path);
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+            """)
+            cur.execute("DROP TRIGGER IF EXISTS trg_record_deleted_image ON images;")
+            cur.execute("""
+            CREATE TRIGGER trg_record_deleted_image
+                BEFORE DELETE ON images
+                FOR EACH ROW
+                EXECUTE PROCEDURE trg_record_deleted_image_fn();
+            """)
 
             logger.info("PostgreSQL schema initialization completed.")

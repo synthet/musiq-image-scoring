@@ -212,15 +212,19 @@ class PipelineOrchestrator:
 
             return self.get_status()
 
-    def stop(self) -> str:
-        """Stops the current runner and marks active phase as failed."""
+    def stop(self, mode: str = "cancel") -> str:
+        """Stops the current runner.
+
+        mode ``cancel`` (default): marks the active phase failed and the pipeline job canceled.
+        mode ``graceful``: stops the runner only; DB rows are updated by server shutdown / pause logic.
+        """
         with self._lock:
             self._active = False
             if self.current_phase:
                 runner = self._runners.get(self.current_phase)
                 if runner:
                     runner.stop()
-                if self.root_job_id:
+                if self.root_job_id and mode != "graceful":
                     db.set_job_phase_state(self.root_job_id, self.current_phase, "failed", error_message="Pipeline stopped")
                     db.update_job_status(
                         self.root_job_id,
@@ -230,7 +234,10 @@ class PipelineOrchestrator:
                     )
                 self.current_phase = None
                 self.folder_path = None
-                return "Pipeline stopped."
+                if mode == "graceful":
+                    self.root_job_id = None
+                    self.current_phase_job_id = None
+                return "Pipeline stopped." if mode != "graceful" else "Pipeline stop requested (graceful)."
 
             return "Pipeline wasn't running."
 

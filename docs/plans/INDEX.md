@@ -4,6 +4,21 @@ Plans, proposals, and specs for features not yet implemented.
 
 ---
 
+## Priority overview (backlog order, 2026-04-10)
+
+Aligned with root [`TODO.md`](../../TODO.md) **Highest-Impact Next Steps**. Tiers are relative; within a tier, cross-repo coordination and schema safety come first.
+
+| Tier | Tracks | Notes |
+|------|--------|--------|
+| **P0** | Coordination + contracts | Notify gallery on API/schema changes; keep OpenAPI / `API_CONTRACT.md` aligned with `modules/api.py`. |
+| **P0** | Database Phase 4–5 | Keyword path coordination with gallery; Phase **5** PG work ([POSTGRES_SCHEMA_OPTIMIZATIONS.md](database/POSTGRES_SCHEMA_OPTIMIZATIONS.md), [DB_STATUS_REPORT.md](database/DB_STATUS_REPORT.md)) — vectors + integrity **high** in that doc. |
+| **P1** | Verification + embedding UX | RAW preview manual QA ([TODO.md](../../TODO.md)); embedding API → UI wiring, bidirectional control ([embedding/NEXT_STEPS.md](embedding/NEXT_STEPS.md), App 08). |
+| **P1** | Operator UI | [UX_UI_IMPLEMENTATION_PLAN.md](UX_UI_IMPLEMENTATION_PLAN.md) P0/P1 (Quick Start, confirmations, gallery presets). |
+| **P2** | Large UI / refactor proposals | [UI_PIPELINE_REDESIGN.md](UI_PIPELINE_REDESIGN.md) (tab merge); [IMPORT_DISCOVERY_ALIGNMENT.md](IMPORT_DISCOVERY_ALIGNMENT.md) (Import vs Discovery); [STACK_CULLING_REFACTOR_PLAN.md](refactoring/STACK_CULLING_REFACTOR_PLAN.md); [REFACTORING_PLAN.md](refactoring/REFACTORING_PLAN.md) (`webui.py` split). |
+| **P3** | Setup / research | [WINDOWS_NATIVE_WEBUI_PLAN.md](setup/WINDOWS_NATIVE_WEBUI_PLAN.md); [IQA_MODEL_STACK_UPDATE_PROPOSAL.md](models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md). |
+
+---
+
 ## Database
 
 | Document | Description |
@@ -55,5 +70,6 @@ Plans, proposals, and specs for features not yet implemented.
 | Document | Description |
 |----------|-------------|
 | [UI_PIPELINE_REDESIGN.md](UI_PIPELINE_REDESIGN.md) | Pipeline-centric UI redesign proposal |
+| [IMPORT_DISCOVERY_ALIGNMENT.md](IMPORT_DISCOVERY_ALIGNMENT.md) | Align gallery **Import** with pipeline **Discovery** (indexing): recursive scope, shared rules, optional job-backed import |
 
 **See also:** [design/](../design/) — Mockups (HTML, Python) for pipeline UI · [Main docs index](../INDEX.md)

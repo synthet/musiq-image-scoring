@@ -1,7 +1,7 @@
 # Database Refactor Status Report
 
-**Date:** 2026-03-11
-**Current Target:** Phase 4 — Validation & Cleanup
+**Date:** 2026-04-10
+**Current Target:** Phase 4 — Validation & Cleanup / Phase 5 — PostgreSQL Optimizations
 
 ## Executive Summary
 Phases 1–3 are **complete**. Normalized tables exist and are populated, dual-write is active on all write paths, and all keyword queries now use `EXISTS` on the normalized `IMAGE_KEYWORDS`/`KEYWORDS_DIM` tables instead of legacy `LIKE` scans on the `IMAGES.KEYWORDS` BLOB.
@@ -57,6 +57,20 @@ EXISTS (SELECT 1 FROM image_keywords ik
 | `get_filtered_paths()` | `modules/db.py` | ✅ Refactored |
 | `_build_export_where_clause()` | `modules/db.py` | ✅ Refactored |
 | `query_images()` | `modules/mcp_server.py` | ✅ Refactored |
+
+---
+
+## Phase 5: PostgreSQL Native Optimizations
+**Status:** 🔲 PLANNED
+
+| Category | Goal | Priority |
+|----------|------|----------|
+| **Vectors** | Consolidate to `image_embeddings` table; drop redundant indexes. | High |
+| **Storage** | Migrate `scores_json` and `metadata` to `JSONB`. | Medium |
+| **Integrity** | Enforce status `CHECK` constraints (jobs, phases). | High |
+| **Schema** | Use composite PK for `image_phase_status`. | Medium |
+
+See **[POSTGRES_SCHEMA_OPTIMIZATIONS.md](POSTGRES_SCHEMA_OPTIMIZATIONS.md)** for the full roadmap.
 
 ---
 

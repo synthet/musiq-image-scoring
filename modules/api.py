@@ -70,6 +70,7 @@ from typing import Optional, List, Dict, Any
 import os
 import platform
 import logging
+import threading
 from pathlib import Path
 from modules.phases_policy import explain_phase_run_decision
 from modules.selector_resolver import resolve_selectors
@@ -1216,6 +1217,129 @@ def stop_dispatcher():
         logger.warning("Failed to stop JobDispatcher cleanly: %s", exc)
 
 
+_graceful_shutdown_lock = threading.Lock()
+_graceful_shutdown_done = False
+
+
+def _map_job_row_to_dispatch_phase(job: Dict[str, Any]) -> str:
+    """Map a jobs row to the phase key used by ``_stop_runner_for_phase``."""
+    jt = (job.get("job_type") or "").strip().lower()
+    cur = (job.get("current_phase") or "").strip().lower()
+    if jt == "pipeline" and cur:
+        return cur
+    if jt in ("tag", "tagging", "keywords"):
+        return "keywords"
+    if jt in ("selection", "culling"):
+        return "culling"
+    if jt in ("cluster", "clustering"):
+        return "clustering"
+    if jt in ("bird_species", "bird-species"):
+        return "bird_species"
+    return jt or ""
+
+
+def _stop_runner_for_job_row(job: Dict[str, Any]) -> bool:
+    phase = _map_job_row_to_dispatch_phase(job)
+    if not phase:
+        return False
+    if _stop_runner_for_phase(phase):
+        return True
+    for ph in (
+        "indexing",
+        "metadata",
+        "scoring",
+        "keywords",
+        "tagging",
+        "clustering",
+        "selection",
+        "culling",
+        "bird_species",
+    ):
+        if _stop_runner_for_phase(ph):
+            return True
+    return False
+
+
+def _join_runner_threads(per_thread_timeout: float = 2.0) -> None:
+    """Wait for background runner threads to finish after ``stop()``."""
+    runners = [
+        _indexing_runner,
+        _metadata_runner,
+        _scoring_runner,
+        _tagging_runner,
+        _clustering_runner,
+        _selection_runner,
+        _bird_species_runner,
+    ]
+    for r in runners:
+        if r is None:
+            continue
+        th = getattr(r, "_thread", None)
+        if th is not None and th.is_alive():
+            th.join(timeout=per_thread_timeout)
+
+
+def _finalize_running_jobs_after_worker_stop(reason_log: str = "server_shutdown") -> None:
+    """Move jobs still marked running to paused and reset in-flight image_phase_status rows."""
+    try:
+        rows = db.get_connector().query("SELECT id FROM jobs WHERE status = 'running'")
+    except Exception:
+        logger.exception("_finalize_running_jobs_after_worker_stop: query failed")
+        return
+    for r in rows or []:
+        jid = r.get("id")
+        if jid is None:
+            continue
+        try:
+            db.update_job_status(int(jid), "paused", reason_log)
+        except Exception as exc:
+            logger.debug("finalize job %s to paused: %s", jid, exc)
+        try:
+            db.reconcile_stale_running_phases_for_jobs(
+                [int(jid)],
+                error_message=db.GRACEFUL_PAUSE_MSG,
+                in_flight_to="not_started",
+            )
+        except Exception:
+            logger.exception("reconcile in-flight rows for job %s", jid)
+
+
+def graceful_shutdown_processing(reason: str = "server_shutdown") -> None:
+    """Cooperatively stop runners, persist pausable job state, then stop the dispatcher."""
+    global _graceful_shutdown_done
+    with _graceful_shutdown_lock:
+        if _graceful_shutdown_done:
+            return
+        _graceful_shutdown_done = True
+    logger.info("Graceful shutdown: %s", reason)
+    try:
+        if _orchestrator is not None:
+            _orchestrator.stop(mode="graceful")
+    except Exception:
+        logger.exception("orchestrator.stop(graceful) failed")
+    for phase in (
+        "indexing",
+        "metadata",
+        "scoring",
+        "keywords",
+        "clustering",
+        "selection",
+        "culling",
+        "bird_species",
+        "bird-species",
+    ):
+        try:
+            _stop_runner_for_phase(phase)
+        except Exception:
+            logger.exception("stop runner phase %s", phase)
+    _join_runner_threads(per_thread_timeout=3.0)
+    try:
+        _finalize_running_jobs_after_worker_stop(reason_log=reason)
+    except Exception:
+        logger.exception("_finalize_running_jobs_after_worker_stop failed")
+    stop_dispatcher()
+
+
 def create_api_router() -> APIRouter:
     """Create and configure the API router with comprehensive documentation.
     
@@ -1233,6 +1357,15 @@ def create_api_router() -> APIRouter:
         }
     )
     
+    @router.post(
+        "/shutdown",
+        summary="Graceful shutdown",
+        description="Stop all runners, finalize jobs to paused state, and shutdown the dispatcher gracefully.",
+    )
+    async def shutdown_api():
+        await asyncio.to_thread(graceful_shutdown_processing, "api_request")
+        return {"success": true, "message": "Graceful shutdown initiated"}
+
 
     def _http_for_transition_error(exc: Exception):
         msg = str(exc)
@@ -3590,6 +3723,10 @@ def create_api_router() -> APIRouter:
                         pass
 
                     if image_uuid != "ALREADY_IN_DB":
+                        if db.is_image_in_deleted_blocklist(fp, file_name, image_uuid):
+                            skipped += 1
+                            image_uuid = "ALREADY_IN_DB"
+                    if image_uuid != "ALREADY_IN_DB":
                         image_id, was_new = db.register_image_for_import(fp, file_name, file_type, folder_id, image_uuid)
                         if image_id:
                             if was_new:
@@ -4712,16 +4849,32 @@ def create_api_router() -> APIRouter:
 
     @router.post("/runs/{run_id}/pause", summary="Soft-pause a running Run")
     async def pause_run(run_id: int):
-        """Soft pause: sets a flag so the runner finishes the current image then stops."""
-        from modules import db
-        try:
+        """Pause: mark job paused, stop the runner, wait for the batch thread, reconcile in-flight images."""
+
+        def _sync_pause() -> dict:
             job = db.get_job(run_id)
             if not job:
                 raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
             if job.get("status") != "running":
-                raise HTTPException(status_code=400, detail=f"Run {run_id} is not running (status={job.get('status')})")
-            db.update_job_status(run_id, "paused")
-            return {"success": True, "message": f"Run {run_id} paused after current image completes"}
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Run {run_id} is not running (status={job.get('status')})",
+                )
+            db.update_job_status(run_id, "paused", "user_pause")
+            _stop_runner_for_job_row(job)
+            _join_runner_threads(per_thread_timeout=4.0)
+            try:
+                db.reconcile_stale_running_phases_for_jobs(
+                    [run_id],
+                    error_message=db.GRACEFUL_PAUSE_MSG,
+                    in_flight_to="not_started",
+                )
+            except Exception:
+                logger.exception("pause_run: reconcile failed for run_id=%s", run_id)
+            return {"success": True, "message": f"Run {run_id} paused"}
+
+        try:
+            return await asyncio.to_thread(_sync_pause)
         except HTTPException:
             raise
         except Exception as e:
@@ -5481,6 +5634,34 @@ def create_api_router() -> APIRouter:
         )
 
     @router.post(
+        "/maintenance/backfill-exif-dates",
+        response_model=ApiResponse,
+        summary="Re-extract EXIF dates for rows with NULL date_time_original",
+        description=(
+            "Repairs image_exif rows where date_time_original is NULL due to a prior "
+            "timestamp parsing bug. Re-runs exiftool extraction and updates date columns. "
+            "Safe to repeat; skips images whose files lack EXIF dates."
+        ),
+        tags=["General API"],
+    )
+    async def maintenance_backfill_exif_dates(
+        limit: int = Query(1000, ge=1, le=10000),
+    ):
+        from modules.ui.security import _check_rate_limit
+        from modules import exif_extractor
+
+        _check_rate_limit("maintenance_backfill_exif_dates")
+        try:
+            stats = await asyncio.to_thread(exif_extractor.backfill_exif_dates, limit=limit)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        return ApiResponse(
+            success=True,
+            message=f"Backfill EXIF dates: {stats['updated']} updated, {stats['skipped']} skipped, {stats['errors']} errors out of {stats['checked']} checked",
+            data=stats,
+        )
+
+    @router.post(
         "/maintenance/regenerate-thumbnails",
         response_model=ApiResponse,
         summary="Regenerate missing thumbnails (global batch)",
@@ -5559,6 +5740,40 @@ def create_api_router() -> APIRouter:
             success=True,
             message=msg,
             data=dict(stats),
+        )
+
+    @router.post(
+        "/maintenance/heal-thumbnails",
+        response_model=ApiResponse,
+        summary="Heal thumbnails (quick path repair + missing regeneration)",
+        description=(
+            "Runs quick thumbnail path normalization (up to 1000 row updates), then regenerates "
+            "up to 500 missing thumbnail rasters. Order matters: normalize DB paths first, then decode pixels. "
+            "Does not perform deep/full-table path repair; use POST /maintenance/repair-thumbnail-paths "
+            "with repair_all=true when paths still look wrong after this."
+        ),
+        tags=["General API"],
+    )
+    async def maintenance_heal_thumbnails():
+        from modules.ui.security import _check_rate_limit
+        from modules import thumbnail_maintenance
+
+        _check_rate_limit("maintenance_heal_thumbnails")
+        try:
+            result = thumbnail_maintenance.heal_thumbnails_batch()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        rep = result["repair"]
+        reg = result["regenerate"]
+        msg = (
+            f"Heal thumbnails: path repair {rep['repaired']} updated / {rep['scanned']} scanned; "
+            f"regenerate {reg['regenerated']} OK, {reg['skipped_thumb_ok']} skipped (thumb OK), "
+            f"{reg['skipped_missing_original']} missing original, {reg['failed']} failed"
+        )
+        return ApiResponse(
+            success=True,
+            message=msg,
+            data={"repair": dict(rep), "regenerate": dict(reg)},
         )
 
     @router.post(

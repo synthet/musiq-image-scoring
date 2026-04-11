@@ -1,6 +1,6 @@
 # Image Scoring — Project TODO
 
-**Last evaluated:** 2026-04-02
+**Last evaluated:** 2026-04-10
 
 Consolidated backlog (Python backend). **Quick filter:** **[Electron]** = image-scoring-gallery (sibling repo); **[Python]** / **[Gradio]** / **[DB]** = this repo.
 
@@ -19,25 +19,33 @@ Consolidated backlog (Python backend). **Quick filter:** **[Electron]** = image-
 - **Gallery-dependent:** any open line tagged `[Electron]` (cross-repo or gallery-side work).
 - **Backend scope:** open items with **no** `[Electron]` tag (this repository only).
 
-#### Current status snapshot (2026-04-04)
+#### Current status snapshot (2026-04-10)
 
-- **Total open items:** 38 (↓ 3 from Phase 4b/4c + OpenAPI)
-- **Gallery-dependent (`[Electron]`):** 7  
-- **Backend scope (no `[Electron]`):** 31
+- **Total open items:** 35
+- **Gallery-dependent (`[Electron]`):** 6  
+- **Backend scope (no `[Electron]`):** 29
 
 ### Highest-Impact Next Steps (recommended sequence)
 
-1. **Cross-repo coordination** — Notify gallery when API/schema changes; keep [`AGENT_COORDINATION.md`](docs/technical/AGENT_COORDINATION.md) in sync with [**image-scoring-gallery** `TODO.md`](https://github.com/synthet/image-scoring-gallery/blob/main/TODO.md).
-2. **Database Phase 4 (keywords/metadata)** — Python validation, perf, and deprecation plan per [`docs/plans/database/NEXT_STEPS.md`](docs/plans/database/NEXT_STEPS.md); coordinate gallery read-path when they cut over.
-3. **Contract hygiene** — Keep [`openapi.yaml`](docs/reference/api/openapi.yaml) and [`API_CONTRACT.md`](docs/technical/API_CONTRACT.md) aligned with `modules/api.py` when endpoints change.
-4. **Verification debt** — In-browser RAW preview manual test pass (High Priority section below).
-5. **Embedding & UI surfaces** — Gradio “Similarity Search” / gallery IPC bridge per [`docs/plans/embedding/NEXT_STEPS.md`](docs/plans/embedding/NEXT_STEPS.md), coordinated with the gallery embedding wave where applicable.
+Order follows [`docs/plans/INDEX.md`](docs/plans/INDEX.md) priority tiers (P0 → P3).
 
-**Residual docs cleanup (optional):** Align user-facing [`README.md`](README.md) strings with PostgreSQL-native reality wherever Firebird-era wording still appears.
+1. **Cross-repo coordination (P0)** — Notify gallery when API/schema changes; keep [`AGENT_COORDINATION.md`](docs/technical/AGENT_COORDINATION.md) aligned with [**image-scoring-gallery** `TODO.md`](https://github.com/synthet/image-scoring-gallery/blob/main/TODO.md); sync `electron/apiTypes.ts` / `apiService.ts` when endpoints move.
+2. **Database Phase 4–5 (P0 / P1)** — Gallery **normalized keyword** read-path coordination ahead of Phase 4d (v7.0); Phase **5** PostgreSQL optimizations ([`POSTGRES_SCHEMA_OPTIMIZATIONS.md`](docs/plans/database/POSTGRES_SCHEMA_OPTIMIZATIONS.md)) — vectors + integrity constraints first. Status narrative: [`docs/plans/database/NEXT_STEPS.md`](docs/plans/database/NEXT_STEPS.md), [`DB_STATUS_REPORT.md`](docs/plans/database/DB_STATUS_REPORT.md).
+3. **Contract hygiene (P0)** — Keep [`openapi.yaml`](docs/reference/api/openapi.yaml) and [`API_CONTRACT.md`](docs/technical/API_CONTRACT.md) aligned with `modules/api.py` when endpoints change.
+4. **Embedding & UI wiring (P1)** — Bidirectional control + IPC/WebSocket per [`EMBEDDING_APP_08_GRADIO_INTEGRATION_PLAN.md`](docs/plans/embedding/EMBEDDING_APP_08_GRADIO_INTEGRATION_PLAN.md) and [`docs/plans/embedding/NEXT_STEPS.md`](docs/plans/embedding/NEXT_STEPS.md); gallery embedding wave in sibling repo.
+5. **Operator UI polish (P1)** — Pipeline Quick Start, confirmations, microcopy per [`UX_UI_IMPLEMENTATION_PLAN.md`](docs/plans/UX_UI_IMPLEMENTATION_PLAN.md) (see High Priority).
+6. **Verification debt (P1)** — In-browser RAW preview manual test pass (High Priority section below).
+7. **Larger proposals (P2+)** — Pipeline tab redesign [`UI_PIPELINE_REDESIGN.md`](docs/plans/UI_PIPELINE_REDESIGN.md); stack/culling unification [`STACK_CULLING_REFACTOR_PLAN.md`](docs/plans/refactoring/STACK_CULLING_REFACTOR_PLAN.md); Windows native WebUI [`WINDOWS_NATIVE_WEBUI_PLAN.md`](docs/plans/setup/WINDOWS_NATIVE_WEBUI_PLAN.md); model stack research [`IQA_MODEL_STACK_UPDATE_PROPOSAL.md`](docs/plans/models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md).
+
+**Residual docs cleanup (optional):** Align user-facing [`README.md`](README.md) strings with PostgreSQL-native reality wherever legacy wording still appears.
 
 ---
 
 ## High Priority
+
+### Operator UI (plans)
+
+- [ ] **[Gradio]** Pipeline UX (P0 per plan): Quick Start panel, Stop/Skip confirmation rows, inline action microcopy — [`UX_UI_IMPLEMENTATION_PLAN.md`](docs/plans/UX_UI_IMPLEMENTATION_PLAN.md)
 
 ### Testing & Verification
 
@@ -108,13 +116,14 @@ See [PHASE4_STATUS_SUMMARY.md](docs/plans/database/PHASE4_STATUS_SUMMARY.md) for
 - [x] **[Python]** **[DB]** Phase 4c: Soft deprecation logging — warnings when legacy column accessed (v6.4.0 unreleased)
 - [ ] **[Python]** **[DB]** Phase 4d: Hard deprecation — remove `IMAGES.KEYWORDS` column (v7.0, July 2026)
 - [ ] **[Electron]** Phase 4 (coordinated): Query/read path updates for normalized keywords when gallery cuts over (see [AGENT_COORDINATION.md](docs/technical/AGENT_COORDINATION.md))
+- [ ] **[Python]** **[DB]** Phase 5: PostgreSQL optimizations roadmap — embedding storage consolidation (`image_embeddings` SSOT), integrity constraints (job/phase status), JSONB where appropriate — [POSTGRES_SCHEMA_OPTIMIZATIONS.md](docs/plans/database/POSTGRES_SCHEMA_OPTIMIZATIONS.md)
 
 ### Firebird → PostgreSQL ([FIREBIRD_POSTGRES_MIGRATION.md](docs/plans/database/FIREBIRD_POSTGRES_MIGRATION.md))
 
 Python backend is **PostgreSQL-native**; Firebird runtime and dual-write queue were **removed** (2026-03). `_translate_fb_to_pg()` remains for translating legacy-dialect SQL to PostgreSQL where needed.
 
 - [x] **[Python]** **[DB]** Phases 0–3: Postgres schema, migration tooling, Python cutover to `database.engine: postgres`
-- [ ] **[Electron]** Phase 4: DB provider in `electron/db.ts`, migrate from `node-firebird` to Postgres client (gallery repo)
+- [x] **[Electron]** Phase 4: DB provider in `electron/db.ts`, Postgres client — **complete** in image-scoring-gallery (see gallery [`TODO.md`](https://github.com/synthet/image-scoring-gallery/blob/main/TODO.md) Database section)
 
 ---
 

@@ -6,8 +6,8 @@ date: 2026-04-03
 
 # Phase 4 Status Summary
 
-**Last Updated:** 2026-04-03  
-**Overall Status:** Phase 4b COMPLETE ✅ | Phase 4c PLANNED | Phase 4d SCHEDULED
+**Last Updated:** 2026-04-10  
+**Overall Status:** Phase 4a–4c COMPLETE on Python side ✅ | Phase 4d SCHEDULED (v7.0)
 
 ---
 
@@ -99,8 +99,8 @@ date: 2026-04-03
 
 ## Phase 4c: Soft Deprecation (v6.4)
 
-**Status:** PLANNED  
-**Target:** May 2026  
+**Status:** COMPLETE (Python — deprecation logging on legacy keyword access; v6.4.0 release timing per changelog)  
+**Target:** May 2026 (product release)  
 **Effort:** 1-2 hours
 
 ### Scope
@@ -243,10 +243,10 @@ Phase 4b (v6.3.1) ✅ COMPLETE
 ├─ Unit tests ✅
 └─ Documentation ✅
 
-Phase 4c (v6.4) 🔲 PLANNED
-├─ Deprecation logging (1-2h)
-├─ CHANGELOG entry
-└─ v7.0 removal issue
+Phase 4c (v6.4) ✅ COMPLETE (Python)
+├─ Deprecation logging ✅
+├─ CHANGELOG entry (per release)
+└─ v7.0 removal issue (tracked)
 
 Phase 4d (v7.0) 🔲 SCHEDULED
 ├─ Remove IMAGES.KEYWORDS column

@@ -154,6 +154,7 @@ class SelectionService:
                     time_gap_seconds=SELECTION_TIME_GAP_SECONDS,
                     force_rescan=cfg.force_rescan,
                     target_folder=folder,
+                    stop_event=self._stop_requested,
                 ):
                     if self._check_stop():
                         break

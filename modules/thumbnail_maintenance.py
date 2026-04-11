@@ -32,6 +32,27 @@ class RepairBatchResult(TypedDict, total=False):
     used_candidate_filter: bool
 
 
+class HealThumbnailsBatchResult(TypedDict):
+    repair: RepairBatchResult
+    regenerate: RegenerateBatchResult
+
+
+def heal_thumbnails_batch(
+    *,
+    repair_limit: int = 1000,
+    regenerate_limit: int = 500,
+) -> HealThumbnailsBatchResult:
+    """
+    Quick path repair (normalize ``thumbnail_path`` pairs), then regenerate missing rasters.
+
+    Does not run deep/full-table path repair (``repair_all_pairs``); use
+    ``repair_thumbnail_paths_batch(repair_all_pairs=True)`` when needed.
+    """
+    repair = repair_thumbnail_paths_batch(repair_limit, repair_all_pairs=False)
+    regenerate = regenerate_missing_thumbnails_batch(regenerate_limit)
+    return HealThumbnailsBatchResult(repair=repair, regenerate=regenerate)
+
+
 def filesystem_path_for_image(db_file_path: str) -> str | None:
     """Resolve DB file_path to a path readable on this OS (Windows / WSL)."""
     p = str(db_file_path).strip()

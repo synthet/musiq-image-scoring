@@ -132,6 +132,20 @@ class JobDispatcher:
         job_id = int(job["id"])
         input_path = job.get("input_path")
 
+        if phase_override:
+            try:
+                from modules.run_log import emit_run_log
+
+                emit_run_log(
+                    job_id,
+                    f"Continuing multi-phase run with phase: {phase}",
+                    "INFO",
+                    phase=phase,
+                    step="dispatcher",
+                )
+            except Exception:
+                pass
+
         runner_map = {
             "indexing": ("indexing_runner", self.indexing_runner),
             "metadata": ("metadata_runner", self.metadata_runner),

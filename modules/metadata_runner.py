@@ -5,7 +5,8 @@ from typing import List, Dict, Optional
 from modules import db, thumbnails, xmp, exif_extractor
 from modules.version import APP_VERSION
 from modules.phases import PhaseCode, PhaseStatus
-from modules.events import event_manager, broadcast_run_log_line
+from modules.events import event_manager
+from modules.run_log import runner_emit
 from modules.indexing_policy import filter_image_rows_for_nef_policy
 
 logger = logging.getLogger(__name__)
@@ -60,10 +61,10 @@ class MetadataRunner:
         return "Started"
 
     def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None):
-        def log(msg):
-            self.log_history.append(msg)
-            if job_id:
-                broadcast_run_log_line(job_id, msg)
+        PROGRESS_INTERVAL = 50
+
+        def log(msg: str, level: str = "INFO") -> None:
+            runner_emit(self.log_history, job_id, msg, level, phase="metadata")
 
         # Handle WSL path conversion if needed
         if input_path and ":" in input_path and len(input_path) > 1 and input_path[1] == ":":
@@ -104,7 +105,7 @@ class MetadataRunner:
                  all_images = [row for row in rows if row.get('id') in selected_ids]
                  log(f"Selector mode enabled. Matched {len(all_images)} images by ID.")
              except Exception as e:
-                 log(f"Error fetching from DB: {e}")
+                 log(f"Error fetching from DB: {e}", "ERROR")
                  fail_terminal("Error DB")
                  return
         elif not input_path or not input_path.strip():
@@ -114,7 +115,7 @@ class MetadataRunner:
                  rows = db.get_all_images(limit=-1)
                  all_images = rows
              except Exception as e:
-                 log(f"Error fetching from DB: {e}")
+                 log(f"Error fetching from DB: {e}", "ERROR")
                  fail_terminal("Error DB")
                  return
         elif os.path.isdir(input_path):
@@ -125,7 +126,7 @@ class MetadataRunner:
              if row:
                  all_images = [row]
              else:
-                 log(f"Input path not found in DB: {input_path}")
+                 log(f"Input path not found in DB: {input_path}", "ERROR")
                  fail_terminal("Error Path")
                  return
 
@@ -139,18 +140,48 @@ class MetadataRunner:
         
         for row in all_images:
             if self.stop_event.is_set():
-                log("Metadata runner stopped by user.")
+                log("Metadata runner stopped by user.", "WARNING")
                 break
-                
+            if job_id and db.job_should_stop_processing(job_id):
+                self.stop_event.set()
+                log("Metadata runner paused (job status).", "WARNING")
+                break
+
             self.current_count += 1
             image_id = row['id']
             file_path = row['file_path']
-            
+
             if skip_existing:
                 # Check if 'metadata' phase is already DONE
                 phase_status = db.get_image_phase_status(image_id, PhaseCode.METADATA)
                 if phase_status and phase_status.get('status') == PhaseStatus.DONE:
+                    db.set_image_phase_status(
+                        image_id,
+                        PhaseCode.METADATA,
+                        PhaseStatus.SKIPPED,
+                        app_version=APP_VERSION,
+                        executor_version=METADATA_VERSION,
+                        job_id=job_id,
+                        skip_reason="metadata_already_done",
+                    )
                     skipped_count += 1
+                    log(f"Skip (metadata done): {file_path}", "DEBUG")
+                    if self.current_count % PROGRESS_INTERVAL == 0:
+                        log(
+                            f"Progress {self.current_count}/{self.total_count} "
+                            f"(processed={processed_count}, skipped={skipped_count})",
+                            "INFO",
+                        )
+                        event_manager.broadcast_threadsafe(
+                            "job_progress",
+                            {
+                                "job_id": job_id,
+                                "job_type": "metadata",
+                                "phase_code": "metadata",
+                                "current": self.current_count,
+                                "total": self.total_count,
+                            },
+                        )
                     continue
 
             db.set_image_phase_status(
@@ -163,16 +194,17 @@ class MetadataRunner:
             )
 
             try:
+                log(f"Metadata: EXIF/XMP/thumbnail for image_id={image_id}", "DEBUG")
                 # 1. Image Identity (UUID)
                 image_uuid = row.get("uuid")
                 if not image_uuid:
                     temp_exif = exif_extractor.extract_exif(file_path)
                     image_uuid = db.generate_image_uuid(temp_exif)
-                    
+
                 # 2. Physical Metadata Sync (EXIF + XMP)
                 exif_extractor.ensure_image_unique_id(file_path, image_uuid)
                 xmp.write_image_unique_id(file_path, image_uuid)
-                
+
                 # 3. Database Sync (IMAGE_EXIF + IMAGE_XMP)
                 exif_extractor.extract_and_upsert_exif(file_path, image_id)
                 xmp.extract_and_upsert_xmp(file_path, image_id)
@@ -197,9 +229,10 @@ class MetadataRunner:
                     job_id=job_id
                 )
                 processed_count += 1
+                log(f"Metadata done: {file_path}", "DEBUG")
 
             except Exception as e:
-                log(f"Error processing {file_path}: {e}")
+                log(f"Error processing {file_path}: {e}", "ERROR")
                 skipped_count += 1
                 try:
                     db.set_image_phase_status(
@@ -214,7 +247,12 @@ class MetadataRunner:
                 except Exception:
                     pass
 
-            if self.current_count % 50 == 0:
+            if self.current_count % PROGRESS_INTERVAL == 0:
+                log(
+                    f"Progress {self.current_count}/{self.total_count} "
+                    f"(processed={processed_count}, skipped={skipped_count})",
+                    "INFO",
+                )
                 event_manager.broadcast_threadsafe(
                     "job_progress",
                     {
@@ -225,7 +263,7 @@ class MetadataRunner:
                         "total": self.total_count,
                     },
                 )
-                
+
         log(f"Done. Processed: {processed_count}, Skipped: {skipped_count}")
 
         try:
@@ -244,10 +282,27 @@ class MetadataRunner:
             logger.exception("MetadataRunner: invalidate_folder_phase_aggregates after batch failed")
 
         if job_id:
-            job = db.get_job(job_id)
-            st = (job.get("status") or "").strip().lower() if job else ""
-            if st not in db.JOB_TERMINAL_STATES:
-                db.update_job_status(job_id, "completed")
+            if self.stop_event.is_set() or db.job_should_stop_processing(job_id):
+                try:
+                    db.reconcile_stale_running_phases_for_jobs(
+                        [job_id],
+                        error_message=db.GRACEFUL_PAUSE_MSG,
+                        in_flight_to="not_started",
+                    )
+                except Exception:
+                    logger.exception("metadata: reconcile after stop failed (job_id=%s)", job_id)
+                j = db.get_job(job_id)
+                st = (j.get("status") or "").strip().lower() if j else ""
+                if st == "running":
+                    try:
+                        db.update_job_status(job_id, "paused", "\n".join(self.log_history))
+                    except Exception:
+                        pass
+            else:
+                job = db.get_job(job_id)
+                st = (job.get("status") or "").strip().lower() if job else ""
+                if st not in db.JOB_TERMINAL_STATES:
+                    db.update_job_status(job_id, "completed")
 
     def stop(self):
         self.stop_event.set()

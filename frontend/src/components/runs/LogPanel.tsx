@@ -15,7 +15,7 @@ interface LogPanelProps {
   startedAt?: string | null
 }
 
-type LogLevel = 'ALL' | 'INFO' | 'WARNING' | 'ERROR'
+type LogLevel = 'ALL' | 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR'
 
 const LEVEL_COLORS: Record<string, string> = {
   DEBUG: 'text-[#6d6d6d]',
@@ -43,10 +43,13 @@ export function LogPanel({ runId, persistedLog, runStatus, startedAt }: LogPanel
 
   const filtered = displayLines.filter((l) => {
     if (filter === 'ALL') return true
+    if (filter === 'DEBUG') return l.level === 'DEBUG'
     if (filter === 'ERROR') return l.level === 'ERROR'
     if (filter === 'WARNING') return l.level === 'WARNING' || l.level === 'ERROR'
-    return true // INFO: show all non-DEBUG
-  }).filter((l) => filter === 'ALL' || l.level !== 'DEBUG')
+    // INFO: operational view — hide DEBUG noise
+    if (filter === 'INFO') return l.level !== 'DEBUG'
+    return true
+  })
 
   useEffect(() => {
     if (!autoScroll) return
@@ -67,7 +70,7 @@ export function LogPanel({ runId, persistedLog, runStatus, startedAt }: LogPanel
         <span className="text-xs font-semibold text-[#cccccc]">Log</span>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
-            {(['ALL', 'INFO', 'WARNING', 'ERROR'] as LogLevel[]).map((l) => (
+            {(['ALL', 'DEBUG', 'INFO', 'WARNING', 'ERROR'] as LogLevel[]).map((l) => (
               <button
                 key={l}
                 onClick={() => setFilter(l)}

@@ -29,6 +29,30 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 3. Monitor logs for deprecation warnings when Phase 4c ships
 4. Complete migration before v7.0 (July 2026)
 
+## [6.9.0] - 2026-04-10
+
+### Added
+
+- **Graceful shutdown**: `graceful_shutdown_processing()` cooperatively stops all runners, finalizes running jobs to `paused`, reconciles in-flight `image_phase_status` rows, then stops the dispatcher. New `POST /shutdown` endpoint exposes this to the API.
+- **Deleted images blocklist**: `deleted_images` tombstone table (Alembic migration `0006` + Firebird DDL) with `BEFORE DELETE` trigger on `images`. Import endpoint now checks `is_image_in_deleted_blocklist()` and skips previously deleted files.
+- **EXIF date backfill**: `POST /maintenance/backfill-exif-dates` re-extracts EXIF dates for `image_exif` rows where `date_time_original` is NULL (repairs the `_parse_exif_timestamp` truncation bug).
+- **Thumbnail heal endpoint**: `POST /maintenance/heal-thumbnails` runs quick path repair then missing raster regeneration in a single action.
+- **Full pipeline quick-start**: Tools tab button queues all pipeline stages for the currently selected scope folder (skip-done by default).
+- **`modules/run_log.py`**: Centralized run-scoped log emission with structured levels (`DEBUG`/`INFO`/`WARNING`/`ERROR`); `runner_emit()` helper replaces ad-hoc `broadcast_run_log_line` calls across all runners.
+- **Log panel DEBUG filter**: Frontend `LogPanel` now includes a DEBUG filter button alongside ALL/INFO/WARNING/ERROR.
+- **`frontend/src/constants/pipeline.ts`**: Shared `FULL_PIPELINE_STAGE_CODES` constant for canonical pipeline stage ordering.
+
+### Changed
+
+- **All runners** (indexing, metadata, scoring, tagging, clustering, bird_species, selection): use `runner_emit()` for structured log levels; check `job_should_stop_processing()` for cooperative pause/stop.
+- **Clustering**: `stop_event` threaded through `extract_features()` and `cluster_images_impl()` for interruptible clustering loops.
+- **Indexing runner**: per-image `RUNNING` → `DONE`/`FAILED`/`SKIPPED` phase status tracking; periodic log persistence to `jobs.log`; progress broadcast every 50 images.
+- **`BatchImageProcessor` (engine.py)**: `log()` and result callbacks accept a `level` parameter; batch loops check `job_should_stop_processing()`.
+- **Run pause** (`POST /runs/{run_id}/pause`): now stops the runner thread, waits for it to finish, and reconciles in-flight phase rows — previously only set a flag.
+- **Frontend Tools tab**: consolidated thumbnail actions (heal replaces separate regen + repair); added Full Pipeline button; mutual exclusion prevents concurrent tool actions.
+- **Frontend `StagePanel`**: shows a warning banner when the API returns 0 work items but the stage total is nonzero.
+- **Docs**: updated `TODO.md`, `docs/plans/INDEX.md`, `DB_STATUS_REPORT.md`, `NEXT_STEPS.md`, `PHASE4_STATUS_SUMMARY.md` with Phase 5 roadmap and current status.
+
 ## [6.8.0] - 2026-04-10
 
 ### Added

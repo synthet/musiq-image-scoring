@@ -385,12 +385,10 @@ class TaggingRunner:
         """
         Internal sync runner for tagging process.
         """
-        from modules.events import event_manager, broadcast_run_log_line
+        from modules.run_log import runner_emit
 
-        def log(msg):
-            self.log_history.append(msg)
-            if job_id:
-                broadcast_run_log_line(job_id, msg)
+        def log(msg: str, level: str = "INFO") -> None:
+            runner_emit(self.log_history, job_id, msg, level, phase="keywords")
 
         # Convert Windows path to WSL path if running in WSL
         if input_path and ":" in input_path and len(input_path) > 1 and input_path[1] == ":":
@@ -434,7 +432,7 @@ class TaggingRunner:
                     self.scorer.load_model()
                     log("Model loaded.")
                 except Exception as e:
-                    log(f"Error loading model: {e}")
+                    log(f"Error loading model: {e}", "ERROR")
                     fail_terminal("Error loading model")
                     return
 
@@ -445,7 +443,7 @@ class TaggingRunner:
                     self.captioner.load_model()
                     log("Captioning model loaded.")
                 except Exception as e:
-                    log(f"Error loading captioning model: {e}")
+                    log(f"Error loading captioning model: {e}", "ERROR")
                     fail_terminal("Error loading captioning model")
                     return
         else:
@@ -458,7 +456,7 @@ class TaggingRunner:
              try:
                  rows = db.get_all_images(limit=-1)
              except Exception as e:
-                 log(f"Error fetching from DB: {e}")
+                 log(f"Error fetching from DB: {e}", "ERROR")
                  fail_terminal("Error DB")
                  return
              if not resolved_image_ids:
@@ -482,7 +480,7 @@ class TaggingRunner:
              try:
                  rows = db.get_all_images(limit=-1)
              except Exception as e:
-                 log(f"Error fetching from DB: {e}")
+                 log(f"Error fetching from DB: {e}", "ERROR")
                  fail_terminal("Error DB")
                  return
              all_images = [row for row in rows]
@@ -491,7 +489,7 @@ class TaggingRunner:
              # path format mismatch (Windows vs WSL) when filtering by file_path.
              all_images = db.get_images_by_folder(input_path)
         else:
-            log(f"Input path not found or not a directory: {input_path}")
+            log(f"Input path not found or not a directory: {input_path}", "ERROR")
             fail_terminal("Error Path")
             return
 
@@ -522,9 +520,13 @@ class TaggingRunner:
         
         for row in all_images:
             if self.stop_event.is_set():
-                log("Tagging stopped by user.")
+                log("Tagging stopped by user.", "WARNING")
                 break
-                
+            if job_id and db.job_should_stop_processing(job_id):
+                self.stop_event.set()
+                log("Tagging paused (job status).", "WARNING")
+                break
+
             path = row['file_path']
             folder = os.path.dirname(path)
             processed_folders.add(folder)
@@ -547,6 +549,7 @@ class TaggingRunner:
             )
 
             try:
+                log(f"Tagging image_id={row['id']}: {path}", "DEBUG")
                 # Determine inference path (NEF vs Thumbnail)
                 inference_path = path
                 ext = os.path.splitext(path)[1].lower()
@@ -602,7 +605,7 @@ class TaggingRunner:
                     job_id=job_id,
                 )
             except Exception as e:
-                log(f"Error processing {path}: {e}")
+                log(f"Error processing {path}: {e}", "ERROR")
                 skipped_count += 1
                 try:
                     db.set_image_phase_status(
@@ -634,11 +637,33 @@ class TaggingRunner:
 
         # Update Job Status
         if job_id:
-            db.update_job_status(job_id, "completed")
-            event_manager.broadcast_threadsafe("job_completed", {
-                "job_id": job_id, 
-                "status": "completed"
-            })
+            if self.stop_event.is_set() or db.job_should_stop_processing(job_id):
+                try:
+                    db.reconcile_stale_running_phases_for_jobs(
+                        [job_id],
+                        error_message=db.GRACEFUL_PAUSE_MSG,
+                        in_flight_to="not_started",
+                    )
+                except Exception:
+                    logger.exception("tagging: reconcile after stop failed (job_id=%s)", job_id)
+                j = db.get_job(job_id)
+                st = (j.get("status") or "").strip().lower() if j else ""
+                if st == "running":
+                    try:
+                        db.update_job_status(job_id, "paused", "\n".join(self.log_history))
+                    except Exception:
+                        pass
+                    j = db.get_job(job_id)
+                event_manager.broadcast_threadsafe(
+                    "job_completed",
+                    {"job_id": job_id, "status": (j or {}).get("status") or "paused"},
+                )
+            else:
+                db.update_job_status(job_id, "completed")
+                event_manager.broadcast_threadsafe("job_completed", {
+                    "job_id": job_id,
+                    "status": "completed",
+                })
 
         # Update Folder Status
         if processed_folders:

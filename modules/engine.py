@@ -47,7 +47,12 @@ class BatchImageProcessor:
         self.logger.log(lvl, msg)
         if getattr(self, "log_func", None):
             try:
-                self.log_func(msg)
+                self.log_func(msg, level)
+            except TypeError:
+                try:
+                    self.log_func(msg)
+                except Exception:
+                    pass
             except Exception:
                 pass
 
@@ -169,8 +174,8 @@ class BatchImageProcessor:
         )
         
         # Result callback wrapper — self.log() forwards to log_func when set (ScoringRunner), so per-image progress appears in UI console
-        def result_logger(msg):
-            self.log(msg)
+        def result_logger(msg, level="INFO"):
+            self.log(msg, level)
             
         result_worker = pipeline.ResultWorker(
             result_queue,
@@ -208,7 +213,10 @@ class BatchImageProcessor:
         for i, f in enumerate(files):
             if self.stop_event.is_set():
                 break
-            
+            if current_job_id and db.job_should_stop_processing(current_job_id):
+                self.stop_event.set()
+                break
+
             job = pipeline.ImageJob(
                 image_path=f,
                 job_id=current_job_id,
@@ -293,13 +301,15 @@ class BatchImageProcessor:
             scoring_queue, result_queue, self.stop_event, self.scorer, liqe_scorer=self.liqe_scorer
         )
         
-        def result_logger(msg):
-             # Ensure we log to the capturing function if set
-             if hasattr(self, 'log_func') and self.log_func:
-                 self.log_func(msg)
+        def result_logger(msg, level="INFO"):
+             if hasattr(self, "log_func") and self.log_func:
+                 try:
+                     self.log_func(msg, level)
+                 except TypeError:
+                     self.log_func(msg)
              else:
-                 self.log(msg)
-                 
+                 self.log(msg, level)
+
         result_worker = pipeline.ResultWorker(
             result_queue,
             None,
@@ -309,16 +319,19 @@ class BatchImageProcessor:
             item_finished_callback=self._on_item_finished,
             folder_agg_dirty_ids=self._folder_agg_dirty_ids,
         )
-        
+
         workers = [prep_worker, scoring_worker, result_worker]
         for w in workers:
             w.start()
-            
+
         # Feed jobs
         for job in jobs_list:
             if self.stop_event.is_set():
                 break
-                
+            if job_id_override and db.job_should_stop_processing(job_id_override):
+                self.stop_event.set()
+                break
+
             # Ensure job has correct ID if overridden
             if job_id_override:
                 job.job_id = job_id_override

@@ -17,8 +17,8 @@ from modules import db, thumbnails, xmp
 from modules import score_normalization as snorm
 from modules import config as app_config
 from modules.phases import PhaseCode, PhaseStatus
-from modules.phases_policy import explain_phase_run_decision
 from modules.version import APP_VERSION
+from modules.run_log import emit_run_log
 # Lazy imports — these pull in TensorFlow/PyTorch and are deferred to avoid
 # slow top-level loads (and to let tests that don't need GPU models collect).
 # Actual imports happen in ScoringWorker.__init__ where they are used.
@@ -156,12 +156,28 @@ class PrepWorker(PipelineWorker):
                     )
                     if not decision['should_run']:
                         job.status = "skipped"
+                        if job.job_id:
+                            emit_run_log(
+                                job.job_id,
+                                f"Scoring skipped (policy): {Path(job.image_path).name}",
+                                "INFO",
+                                phase="scoring",
+                                step="prep",
+                            )
                         self.output_queue.put(job)
                         return
 
                 # Identify Type
                 job.is_raw = self.scorer.is_raw_file(job.image_path) if self.scorer else False
-                
+                if job.job_id:
+                    emit_run_log(
+                        job.job_id,
+                        f"Prep {Path(job.image_path).name} raw={job.is_raw}",
+                        "DEBUG",
+                        phase="scoring",
+                        step="prep",
+                    )
+
                 # RAW Conversion for Scoring
                 if job.is_raw:
                     # Custom conversion logic here to avoid sharing state
@@ -177,11 +193,29 @@ class PrepWorker(PipelineWorker):
                     if jpg:
                         job.process_path = jpg
                         job.temp_files.append(jpg)
+                        if job.job_id:
+                            emit_run_log(
+                                job.job_id,
+                                f"RAW converted: {Path(job.image_path).name}",
+                                "DEBUG",
+                                phase="scoring",
+                                step="prep",
+                            )
                     else:
                         job.status = "failed"
                         job.error = "RAW Conversion Failed"
+                        if job.job_id:
+                            emit_run_log(
+                                job.job_id,
+                                f"RAW conversion failed: {job.image_path}",
+                                "ERROR",
+                                phase="scoring",
+                                step="prep",
+                            )
                         self.output_queue.put(job)
                         return
+                else:
+                    job.process_path = job.image_path
 
                 if job.image_id:
                     db.set_image_phase_status(
@@ -222,6 +256,14 @@ class ScoringWorker(PipelineWorker):
         # Operation-scoped pipeline runs can intentionally omit scoring.
         if not _is_phase_targeted(job.target_phases, PhaseCode.SCORING):
             job.status = "skipped"
+            if job.job_id:
+                emit_run_log(
+                    job.job_id,
+                    f"Scoring not targeted for phase list: {Path(job.image_path).name}",
+                    "INFO",
+                    phase="scoring",
+                    step="inference",
+                )
             self.output_queue.put(job)
             return
 
@@ -291,11 +333,21 @@ class ScoringWorker(PipelineWorker):
             except (ImportError, RuntimeError) as e:
                 logger.warning("CUDA cache clear failed: %s", e)
 
+            def _inference_log(msg):
+                if job.job_id:
+                    emit_run_log(
+                        job.job_id,
+                        str(msg),
+                        "DEBUG",
+                        phase="scoring",
+                        step="inference",
+                    )
+
             results = self.scorer.run_all_models(
-                job.process_path, 
-                external_scores=external, 
-                logger=lambda x: None, # We don't want stdout spam, we'll log summary
-                write_metadata=False # Handled in ResultWorker to avoid I/O blocking GPU
+                job.process_path,
+                external_scores=external,
+                logger=_inference_log,
+                write_metadata=False,  # Handled in ResultWorker to avoid I/O blocking GPU
             )
             
             job.result = results
@@ -321,16 +373,23 @@ class ResultWorker(PipelineWorker):
     """
     def __init__(self, input_queue, output_queue, stop_event, scorer_instance, progress_callback=None, item_finished_callback=None, folder_agg_dirty_ids=None):
         super().__init__("ResultWorker", input_queue, output_queue, stop_event) # Output queue unused
-        self.progress_callback = progress_callback # func(str) -> log
+        self.progress_callback = progress_callback # func(str, level="INFO") -> log
         self.item_finished_callback = item_finished_callback # func() -> void
         self.scorer = scorer_instance
         self._folder_agg_dirty_ids = folder_agg_dirty_ids
-        
+
+    def _progress(self, msg: str, level: str = "INFO") -> None:
+        if not self.progress_callback:
+            return
+        try:
+            self.progress_callback(msg, level)
+        except TypeError:
+            self.progress_callback(msg)
+
     def process(self, job: ImageJob):
         # 1. Handle Status
         if job.status == "skipped":
-            if self.progress_callback:
-                self.progress_callback(f"Skipped: {job.image_path}")
+            self._progress(f"Skipped: {job.image_path}", "INFO")
             if job.image_id and _is_phase_targeted(job.target_phases, PhaseCode.SCORING):
                 thumb = job.thumbnail_path
                 if not thumb or not os.path.isfile(thumb):
@@ -339,8 +398,7 @@ class ResultWorker(PipelineWorker):
                     db.update_image_thumbnail_paths(job.image_id, thumb, None)
 
         elif job.status == "failed":
-            if self.progress_callback:
-                self.progress_callback(f"FAILED: {job.image_path} - {job.error}")
+            self._progress(f"FAILED: {job.image_path} - {job.error}", "ERROR")
             if job.image_id:
                 db.set_image_phase_status(
                     job.image_id,
@@ -392,8 +450,7 @@ class ResultWorker(PipelineWorker):
                         }
                         
                 except Exception as e:
-                    if self.progress_callback:
-                        self.progress_callback(f"Metadata Write Failed: {e}")
+                    self._progress(f"Metadata Write Failed: {e}", "WARNING")
 
             # Upsert
             try:
@@ -434,15 +491,13 @@ class ResultWorker(PipelineWorker):
                                               job_id=job.job_id)
 
                 score = job.result.get("summary", {}).get("weighted_scores", {}).get("general", 0)
-                if self.progress_callback:
-                    self.progress_callback(f"Scored: {Path(job.image_path).name} - {score:.2f}")
+                self._progress(f"Scored: {Path(job.image_path).name} - {score:.2f}", "INFO")
             except Exception as e:
                 # Phase C (Scoring) — failed
                 if job.image_id:
                     db.set_image_phase_status(job.image_id, PhaseCode.SCORING, PhaseStatus.FAILED,
                                               job_id=job.job_id, error=str(e))
-                if self.progress_callback:
-                    self.progress_callback(f"DB Error: {e}")
+                self._progress(f"DB Error: {e}", "ERROR")
         
         # 2. Cleanup
         for p in job.temp_files:

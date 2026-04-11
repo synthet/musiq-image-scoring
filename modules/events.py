@@ -70,6 +70,9 @@ class EventManager:
     def broadcast_threadsafe(self, event_type: str, data: Any = None):
         """
         Broadcasts an event from a separate thread.
+
+        Requires ``set_loop`` to have been called with the FastAPI/uvicorn event loop
+        (see ``webui.py`` lifespan). Without it, broadcasts are skipped and a warning is logged.
         """
         try:
             loop = asyncio.get_event_loop()

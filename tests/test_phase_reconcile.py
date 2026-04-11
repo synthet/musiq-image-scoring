@@ -1,13 +1,54 @@
 """Tests for image_phase_status reconciliation tied to jobs (startup / terminal status)."""
 
+from modules import api
 from modules import db
+
+
+def test_job_should_stop_processing_paused(monkeypatch):
+    monkeypatch.setattr(
+        "modules.db.get_job",
+        lambda jid: {"status": "paused", "cancel_requested": 0},
+    )
+    assert db.job_should_stop_processing(1) is True
+
+
+def test_job_should_stop_processing_running(monkeypatch):
+    monkeypatch.setattr(
+        "modules.db.get_job",
+        lambda jid: {"status": "running", "cancel_requested": 0},
+    )
+    assert db.job_should_stop_processing(1) is False
+
+
+def test_job_should_stop_processing_cancel_requested(monkeypatch):
+    monkeypatch.setattr(
+        "modules.db.get_job",
+        lambda jid: {"status": "running", "cancel_requested": 1},
+    )
+    assert db.job_should_stop_processing(1) is True
+
+
+def test_graceful_shutdown_processing_idempotent(monkeypatch):
+    calls = []
+
+    def track_stop():
+        calls.append("stop")
+
+    monkeypatch.setattr(api, "_graceful_shutdown_done", False)
+    monkeypatch.setattr(api, "stop_dispatcher", track_stop)
+    monkeypatch.setattr(api, "_join_runner_threads", lambda *a, **k: None)
+    monkeypatch.setattr(api, "_finalize_running_jobs_after_worker_stop", lambda *a, **k: None)
+
+    api.graceful_shutdown_processing("test")
+    api.graceful_shutdown_processing("test")
+    assert calls == ["stop"]
 
 
 def test_recover_running_jobs_invokes_phase_reconcile(monkeypatch):
     calls = []
 
-    def fake_reconcile(job_ids, error_message=None):
-        calls.append((list(job_ids), error_message))
+    def fake_reconcile(job_ids, error_message=None, in_flight_to="failed"):
+        calls.append((list(job_ids), error_message, in_flight_to))
         return 0
 
     class Tx:
@@ -32,6 +73,7 @@ def test_recover_running_jobs_invokes_phase_reconcile(monkeypatch):
     assert len(calls) == 1
     assert calls[0][0] == [99]
     assert "interrupted" in (calls[0][1] or "")
+    assert calls[0][2] == "not_started"
 
 
 def test_strict_verify_skips_when_disabled(monkeypatch):

@@ -6,7 +6,8 @@ from typing import Dict, List, Optional
 from modules import db
 from modules.version import APP_VERSION
 from modules.phases import PhaseCode, PhaseStatus
-from modules.events import event_manager, broadcast_run_log_line
+from modules.events import event_manager
+from modules.run_log import runner_emit
 from modules.indexing_policy import (
     discovery_extensions,
     path_is_indexing_excluded,
@@ -16,6 +17,8 @@ from modules.indexing_policy import (
 logger = logging.getLogger(__name__)
 
 INDEXING_VERSION = "1.0.0"
+# Keep jobs.log bounded when persisting during long runs (Run detail polling + LogPanel fallback).
+_MAX_PERSISTED_JOB_LOG_CHARS = 250_000
 
 SUPPORTED_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.tif',
@@ -101,6 +104,18 @@ class IndexingRunner:
         self.current_count = 0
         self.total_count = 0
 
+    def _persist_log_to_job_row(self, job_id: Optional[int]) -> None:
+        """Append in-memory log to ``jobs.log`` while status stays ``running`` (Web UI polling + LogPanel)."""
+        if not job_id:
+            return
+        try:
+            text = "\n".join(self.log_history)
+            if len(text) > _MAX_PERSISTED_JOB_LOG_CHARS:
+                text = text[-_MAX_PERSISTED_JOB_LOG_CHARS:]
+            db.update_job_status(job_id, "running", log=text)
+        except Exception:
+            logger.exception("IndexingRunner: failed to persist log to jobs row (job_id=%s)", job_id)
+
     def get_status(self):
         return self.is_running, "\n".join(self.log_history), self.status_message, self.current_count, self.total_count
 
@@ -166,10 +181,10 @@ class IndexingRunner:
         return valid_files
 
     def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None):
-        def log(msg):
-            self.log_history.append(msg)
-            if job_id:
-                broadcast_run_log_line(job_id, msg)
+        PROGRESS_INTERVAL = 50
+
+        def log(level: str, msg: str) -> None:
+            runner_emit(self.log_history, job_id, msg, level, phase="indexing")
 
         # Handle WSL path conversion if needed
         if input_path and ":" in input_path and len(input_path) > 1 and input_path[1] == ":":
@@ -180,13 +195,14 @@ class IndexingRunner:
                 input_path = wsl_path
 
         self.stop_event.clear()
-        log(f"Starting Indexing process on {input_path or 'Selected Images'}...")
+        log("INFO", f"Starting Indexing process on {input_path or 'Selected Images'}...")
         if discovery_extensions() == frozenset({".nef"}):
-            log("NEF-only indexing enabled (config indexing.nikon_nef_only).")
+            log("INFO", "NEF-only indexing enabled (config indexing.nikon_nef_only).")
         self.status_message = "Running..."
         
         if job_id:
             db.update_job_status(job_id, "running")
+            self._persist_log_to_job_row(job_id)
             event_manager.broadcast_threadsafe("job_started", {
                 "job_id": job_id, 
                 "job_type": "indexing", 
@@ -210,23 +226,23 @@ class IndexingRunner:
                  rows = db.get_all_images(limit=-1)
                  selected_ids = {int(i) for i in resolved_image_ids}
                  all_files = [row['file_path'] for row in rows if row.get('id') in selected_ids]
-                 log(f"Selector mode enabled. Matched {len(all_files)} images by ID.")
+                 log("INFO", f"Selector mode enabled. Matched {len(all_files)} images by ID.")
              except Exception as e:
-                 log(f"Error fetching from DB: {e}")
+                 log("ERROR", f"Error fetching from DB: {e}")
                  fail_terminal("Error DB")
                  return
         elif not input_path or not input_path.strip():
-             log("Input path empty. Cannot index entire DB from scratch currently.")
+             log("ERROR", "Input path empty. Cannot index entire DB from scratch currently.")
              fail_terminal("Error Path")
              return
         elif os.path.exists(input_path):
              all_files = self.discover_files(input_path)
         else:
-            log(f"Input path not found: {input_path}")
+            log("ERROR", f"Input path not found: {input_path}")
             fail_terminal("Error Path")
             return
 
-        log(f"Found {len(all_files)} files to potentially index.")
+        log("INFO", f"Found {len(all_files)} files to potentially index.")
         self.total_count = len(all_files)
         self.current_count = 0
 
@@ -243,63 +259,136 @@ class IndexingRunner:
         
         for file_path in all_files:
             if self.stop_event.is_set():
-                log("Indexing stopped by user.")
+                log("WARNING", "Indexing stopped by user.")
                 break
-                
+            if job_id and db.job_should_stop_processing(job_id):
+                self.stop_event.set()
+                log("WARNING", "Indexing paused (job status).")
+                break
+
             self.current_count += 1
-            
-            # Fast-path check: if skip_existing and file is already in DB
+
+            # Fast-path: skip_existing and indexing already complete for this file
             if skip_existing:
                 existing_record = db.get_image_details(file_path)
-                if existing_record and existing_record.get('id'):
-                    # Check if 'indexing' phase is already DONE
-                    phase_status = db.get_image_phase_status(existing_record['id'], PhaseCode.INDEXING)
-                    if phase_status and phase_status.get('status') == PhaseStatus.DONE:
+                if existing_record and existing_record.get("id"):
+                    phase_status = db.get_image_phase_status(existing_record["id"], PhaseCode.INDEXING)
+                    if phase_status and phase_status.get("status") == PhaseStatus.DONE:
+                        sid = int(existing_record["id"])
+                        db.set_image_phase_status(
+                            sid,
+                            PhaseCode.INDEXING,
+                            PhaseStatus.SKIPPED,
+                            app_version=APP_VERSION,
+                            executor_version=INDEXING_VERSION,
+                            job_id=job_id,
+                            skip_reason="already_indexed",
+                        )
                         skipped_count += 1
+                        log("DEBUG", f"Skip (already indexed): {file_path}")
+                        if self.current_count % PROGRESS_INTERVAL == 0:
+                            log(
+                                "INFO",
+                                f"Progress {self.current_count}/{self.total_count} "
+                                f"(processed={processed_count}, skipped={skipped_count})",
+                            )
+                            self._persist_log_to_job_row(job_id)
+                            event_manager.broadcast_threadsafe(
+                                "job_progress",
+                                {
+                                    "job_id": job_id,
+                                    "job_type": "indexing",
+                                    "phase_code": "indexing",
+                                    "current": self.current_count,
+                                    "total": self.total_count,
+                                },
+                            )
                         continue
 
             from modules.utils import calculate_image_hash
-            
+
+            existing_by_path = db.get_image_details(file_path)
+            track_id = int(existing_by_path["id"]) if existing_by_path and existing_by_path.get("id") else None
+
+            image_id = None
+            existing = None
             try:
-                # Need hash for initial upsert
+                log("DEBUG", f"Hashing: {file_path}")
                 image_hash = calculate_image_hash(file_path)
-                
-                # Check if hash exists but path is different (moved file)
+
                 existing = db.get_image_by_hash(image_hash)
                 if existing:
-                    image_id = existing.get('id')
+                    image_id = existing.get("id")
                     db.register_image_path(image_id, file_path)
                     _assign_indexing_folder_id(image_id, file_path, scan_stop, nef_cache)
+                    log("DEBUG", f"Registered path for existing hash image_id={image_id}: {file_path}")
                 else:
-                    # Create new placeholder record
-                    # We upsert an empty payload since scoring comes later
                     resolved_folder = _resolve_nef_folder_path(file_path, scan_stop, nef_cache)
                     folder_id = db.get_or_create_folder(resolved_folder) if resolved_folder else None
-                    image_id = db.upsert_image(job_id, {
-                        "file_path": file_path,
-                        "image_hash": image_hash,
-                        "folder_id": folder_id,
-                    })
-                
-                # Set Phase Status
+                    image_id = db.upsert_image(
+                        job_id,
+                        {
+                            "file_path": file_path,
+                            "image_hash": image_hash,
+                            "folder_id": folder_id,
+                        },
+                    )
+                    if not image_id:
+                        detail = db.get_image_details(file_path)
+                        image_id = detail.get("id") if detail else None
+                    log("DEBUG", f"Upsert new row image_id={image_id}: {file_path}")
+
+                if job_id and image_id:
+                    db.set_image_phase_status(
+                        int(image_id),
+                        PhaseCode.INDEXING,
+                        PhaseStatus.RUNNING,
+                        app_version=APP_VERSION,
+                        executor_version=INDEXING_VERSION,
+                        job_id=job_id,
+                    )
+
                 if image_id:
                     db.set_image_phase_status(
-                        image_id,
+                        int(image_id),
                         PhaseCode.INDEXING,
                         PhaseStatus.DONE,
                         app_version=APP_VERSION,
                         executor_version=INDEXING_VERSION,
-                        job_id=job_id
+                        job_id=job_id,
                     )
                     processed_count += 1
+                    log("DEBUG", f"Indexed image_id={image_id}: {file_path}")
                 else:
                     skipped_count += 1
+                    log("WARNING", f"No image_id after upsert for {file_path}")
 
             except Exception as e:
-                log(f"Error indexing {file_path}: {e}")
+                log("ERROR", f"Error indexing {file_path}: {e}")
                 skipped_count += 1
+                fail_id = track_id
+                try:
+                    if existing and existing.get("id"):
+                        fail_id = int(existing["id"])
+                    elif image_id:
+                        fail_id = int(image_id)
+                except (TypeError, ValueError):
+                    pass
+                if fail_id:
+                    try:
+                        db.set_image_phase_status(
+                            fail_id,
+                            PhaseCode.INDEXING,
+                            PhaseStatus.FAILED,
+                            app_version=APP_VERSION,
+                            executor_version=INDEXING_VERSION,
+                            job_id=job_id,
+                            error=str(e),
+                        )
+                    except Exception:
+                        logger.exception("IndexingRunner: failed to set FAILED ips")
 
-            if self.current_count % 50 == 0:
+            if self.current_count % PROGRESS_INTERVAL == 0:
                 event_manager.broadcast_threadsafe(
                     "job_progress",
                     {
@@ -310,8 +399,15 @@ class IndexingRunner:
                         "total": self.total_count,
                     },
                 )
-                
-        log(f"Done. Processed: {processed_count}, Skipped: {skipped_count}")
+                log(
+                    "INFO",
+                    f"Progress {self.current_count}/{self.total_count} "
+                    f"(processed={processed_count}, skipped={skipped_count})",
+                )
+                self._persist_log_to_job_row(job_id)
+
+        log("INFO", f"Done. Processed: {processed_count}, Skipped: {skipped_count}")
+        self._persist_log_to_job_row(job_id)
 
         try:
             if resolved_image_ids is not None:
@@ -329,10 +425,33 @@ class IndexingRunner:
             logger.exception("IndexingRunner: invalidate_folder_phase_aggregates after batch failed")
 
         if job_id:
-            job = db.get_job(job_id)
-            st = (job.get("status") or "").strip().lower() if job else ""
-            if st not in db.JOB_TERMINAL_STATES:
-                db.update_job_status(job_id, "completed")
+            if self.stop_event.is_set() or db.job_should_stop_processing(job_id):
+                try:
+                    db.reconcile_stale_running_phases_for_jobs(
+                        [job_id],
+                        error_message=db.GRACEFUL_PAUSE_MSG,
+                        in_flight_to="not_started",
+                    )
+                except Exception:
+                    logger.exception("indexing: reconcile after stop failed (job_id=%s)", job_id)
+                j = db.get_job(job_id)
+                st = (j.get("status") or "").strip().lower() if j else ""
+                if st == "running":
+                    final_log = "\n".join(self.log_history)
+                    if len(final_log) > _MAX_PERSISTED_JOB_LOG_CHARS:
+                        final_log = final_log[-_MAX_PERSISTED_JOB_LOG_CHARS:]
+                    try:
+                        db.update_job_status(job_id, "paused", log=final_log)
+                    except Exception:
+                        pass
+            else:
+                job = db.get_job(job_id)
+                st = (job.get("status") or "").strip().lower() if job else ""
+                if st not in db.JOB_TERMINAL_STATES:
+                    final_log = "\n".join(self.log_history)
+                    if len(final_log) > _MAX_PERSISTED_JOB_LOG_CHARS:
+                        final_log = final_log[-_MAX_PERSISTED_JOB_LOG_CHARS:]
+                    db.update_job_status(job_id, "completed", log=final_log)
 
     def stop(self):
         self.stop_event.set()

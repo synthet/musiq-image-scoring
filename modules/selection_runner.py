@@ -10,7 +10,8 @@ import threading
 from modules.selection import SelectionService, SelectionConfig
 from modules import db
 from modules import utils
-from modules.events import event_manager, broadcast_run_log_line
+from modules.events import event_manager
+from modules.run_log import runner_emit
 from modules.phases import PhaseCode, PhaseStatus
 from modules.phases_policy import explain_phase_run_decision
 from modules.version import APP_VERSION
@@ -78,11 +79,9 @@ class SelectionRunner:
 
     def _run_internal(self, input_path: str, force_rescan: bool, job_id: int = None):
         
-        def log(msg: str):
+        def log(msg: str, level: str = "INFO") -> None:
             with self._lock:
-                self._log_history.append(msg)
-            if job_id:
-                broadcast_run_log_line(job_id, msg)
+                runner_emit(self._log_history, job_id, msg, level, phase="culling")
 
         def progress_cb(pct: float, msg: str, cur: int | None = None, tot: int | None = None):
             with self._lock:
@@ -93,10 +92,10 @@ class SelectionRunner:
                 else:
                     self._total_count = 100
                     self._current_count = int(pct * 100)
-                self._log_history.append(msg)
+                runner_emit(self._log_history, job_id, msg, "INFO", phase="culling")
                 if len(self._log_history) > 200:
                     self._log_history.pop(0)
-                
+
             if job_id:
                 event_manager.broadcast_threadsafe("job_progress", {
                     "job_id": job_id,
@@ -106,7 +105,6 @@ class SelectionRunner:
                     "total": self._total_count,
                     "message": msg
                 })
-                broadcast_run_log_line(job_id, msg)
 
         log("Starting Selection workflow...")
         log(f"Input: {input_path}")
@@ -169,6 +167,10 @@ class SelectionRunner:
                 f"{len(images_for_phase)} image(s) will be driven through clustering for this run."
             )
 
+        if job_id and db.job_should_stop_processing(job_id):
+            log("Selection/culling skipped: job already paused or canceled.")
+            return
+
         cfg = SelectionConfig(force_rescan=force_rescan)
         log(
             f"Starting clustering for {len(images_for_phase)} of {len(images)} image(s) in scope "
@@ -178,6 +180,10 @@ class SelectionRunner:
             # SelectionService operates at folder scope; phase status updates are limited
             # to policy-eligible images tracked in images_for_phase.
             summary = self._service.run(input_path, cfg=cfg, progress_cb=progress_cb)
+            
+            if summary.status == "stopped":
+                log("Selection stopped gracefully. Skipping finalization.", "WARNING")
+                return
 
             # Phase D (Culling) — mark attempted images in the processed folder as done
             try:
@@ -211,7 +217,10 @@ class SelectionRunner:
             self._total_count = 100
             
         if job_id:
-            self._complete_phase_and_advance(job_id, input_path, log)
+            # Only advance if we didn't stop (handled by the return check above, 
+            # but being explicit here for safety if the structure changes)
+            if summary.status != "stopped":
+                self._complete_phase_and_advance(job_id, input_path, log)
 
         log(f"Total images: {summary.total_images}")
         log(f"Total stacks: {summary.total_stacks}")

@@ -7,7 +7,8 @@ from modules.engine import BatchImageProcessor
 import sys
 from pathlib import Path
 from modules import pipeline
-from modules.events import event_manager, broadcast_run_log_line
+from modules.events import event_manager
+from modules.run_log import runner_emit
 from modules import score_normalization as snorm
 from modules.phases import PhaseCode, normalize_phase_codes
 from modules.indexing_policy import passes_nikon_nef_policy
@@ -121,12 +122,10 @@ class ScoringRunner:
         db.update_job_status(job_id, "running")
         event_manager.broadcast_threadsafe("job_started", {"job_id": job_id, "job_type": "scoring", "input_path": input_path})
 
-        def log(msg):
-            self.log_history.append(msg)
-            broadcast_run_log_line(job_id, msg)
-            # print(msg, flush=True) # Optional debugging
-            
-        log(f"Starting batch processing...")
+        def log(msg, level="INFO"):
+            runner_emit(self.log_history, job_id, msg, level, phase="scoring")
+
+        log("Starting batch processing...")
         log(f"Input: {input_path}")
         log("-" * 20)
         self.status_message = "Running..."
@@ -146,14 +145,14 @@ class ScoringRunner:
                     log(f"Loading model: {model_name.upper()}...")
                     success = new_scorer.load_model(model_name)
                     if not success:
-                         log(f"Warning: Failed to load {model_name}")
-                
+                         log(f"Warning: Failed to load {model_name}", "WARNING")
+
                 self.shared_scorer = new_scorer
                 log("Models initialized successfully.")
-                
+
             except Exception as e:
                 msg = f"Error loading models: {str(e)}"
-                log(msg)
+                log(msg, "ERROR")
                 self.status_message = "Error loading models"
                 db.update_job_status(job_id, "failed", msg)
                 return
@@ -184,9 +183,9 @@ class ScoringRunner:
         
         # Setup log capture
         # We hook directly to self.log_history via wrapper
-        def log_capture(msg):
-            log(msg)
-            
+        def log_capture(msg, level="INFO"):
+            log(msg, level)
+
         processor.log_func = log_capture
         
         # Database Backup before starting
@@ -234,19 +233,44 @@ class ScoringRunner:
                 processor.process_list(jobs, job_id_override=job_id)
             else:
                 processor.process_directory(input_dir=input_path, output_dir_unused=input_path, job_id=job_id)
-            
+
             # Cleanup
+            proc = self.current_processor
             self.current_processor = None
-            log("Processing finished.")
-            db.update_job_status(job_id, "completed", "\n".join(self.log_history))
-            event_manager.broadcast_threadsafe("job_completed", {"job_id": job_id, "status": "completed"})
-            
+            stopped_early = bool(proc and getattr(proc, "stop_event", None) and proc.stop_event.is_set())
+            if stopped_early or db.job_should_stop_processing(job_id):
+                log("Processing stopped before completion.", "WARNING")
+                try:
+                    db.reconcile_stale_running_phases_for_jobs(
+                        [job_id],
+                        error_message=db.GRACEFUL_PAUSE_MSG,
+                        in_flight_to="not_started",
+                    )
+                except Exception:
+                    logger.exception("scoring: reconcile after stop failed (job_id=%s)", job_id)
+                j = db.get_job(job_id)
+                st = (j.get("status") or "").strip().lower() if j else ""
+                if st == "running":
+                    try:
+                        db.update_job_status(job_id, "paused", "\n".join(self.log_history))
+                    except Exception:
+                        pass
+                    j = db.get_job(job_id)
+                event_manager.broadcast_threadsafe(
+                    "job_completed",
+                    {"job_id": job_id, "status": (j or {}).get("status") or "paused"},
+                )
+            else:
+                log("Processing finished.")
+                db.update_job_status(job_id, "completed", "\n".join(self.log_history))
+                event_manager.broadcast_threadsafe("job_completed", {"job_id": job_id, "status": "completed"})
+
         except Exception as e:
-            log(f"Error: {e}")
+            log(f"Error: {e}", "ERROR")
             self.status_message = "Error in processing"
             db.update_job_status(job_id, "failed", "\n".join(self.log_history))
             event_manager.broadcast_threadsafe("job_completed", {"job_id": job_id, "status": "failed", "error": str(e)})
-        
+
         # Backup after
         db.backup_database()
 
@@ -506,20 +530,21 @@ class ScoringRunner:
             
             # 6. Regenerate Thumbnail (User Request)
             new_thumb = None
+            thumb_warn = ""
             try:
                 thumb_path = thumbnails.get_thumb_path(file_path)
                 if os.path.exists(thumb_path):
                     os.remove(thumb_path)
-                
+
                 new_thumb = thumbnails.generate_thumbnail(file_path)
                 if new_thumb and details.get("id"):
                     db.update_image_thumbnail_paths(int(details["id"]), new_thumb, None)
             except Exception as e:
                 print(f"Error regenerating thumbnail: {e}")
-                # Don't fail the whole fix for this, but append to msg
-                msg += " [Thumb Gen Failed]"
-            
+                thumb_warn = " [Thumb Gen Failed]"
+
             msg = f"Fixed: Gen={gen:.2f} ({rating}*), Tech={tech:.2f}, Aes={aes:.2f} ({label})"
+            msg += thumb_warn
             if new_thumb:
                 msg += " [Thumb Updated]"
             

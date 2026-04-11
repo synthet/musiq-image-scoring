@@ -262,12 +262,11 @@ class BirdSpeciesRunner:
         resolved_image_ids: Optional[List[int]] = None,
     ):
         from modules import db
-        from modules.events import event_manager, broadcast_run_log_line
+        from modules.events import event_manager
+        from modules.run_log import runner_emit
 
-        def log(msg):
-            self.log_history.append(msg)
-            if job_id:
-                broadcast_run_log_line(job_id, msg)
+        def log(msg: str, level: str = "INFO") -> None:
+            runner_emit(self.log_history, job_id, msg, level, phase="bird_species")
 
         self.stop_event.clear()
         log(f"Starting bird species classification on {input_path or 'Selected Images'}...")
@@ -284,8 +283,11 @@ class BirdSpeciesRunner:
         # --- Load candidate species list ---
         species_list = candidate_species or _load_default_species()
         if not species_list:
-            log("Error: No candidate species list available. "
-                "Add species to data/bird_species_list.txt or pass candidate_species.")
+            log(
+                "Error: No candidate species list available. "
+                "Add species to data/bird_species_list.txt or pass candidate_species.",
+                "ERROR",
+            )
             self.status_message = "Error: no species list"
             if job_id:
                 db.update_job_status(job_id, "failed")
@@ -301,13 +303,13 @@ class BirdSpeciesRunner:
                 self.classifier.load_model()
                 log("Model loaded.")
             except ImportError:
-                log("Error: open_clip not installed. Run: pip install open_clip_torch")
+                log("Error: open_clip not installed. Run: pip install open_clip_torch", "ERROR")
                 self.status_message = "Error: open_clip not installed"
                 if job_id:
                     db.update_job_status(job_id, "failed")
                 return
             except Exception as exc:
-                log(f"Error loading BioCLIP 2: {exc}")
+                log(f"Error loading BioCLIP 2: {exc}", "ERROR")
                 self.status_message = "Error loading model"
                 if job_id:
                     db.update_job_status(job_id, "failed")
@@ -357,14 +359,18 @@ class BirdSpeciesRunner:
 
         for row in all_images:
             if self.stop_event.is_set():
-                log("Stopped by user.")
+                log("Stopped by user.", "WARNING")
+                break
+            if job_id and db.job_should_stop_processing(job_id):
+                self.stop_event.set()
+                log("Paused (job status).", "WARNING")
                 break
 
             file_path = row["file_path"]
             inference_path = _resolve_inference_path(row, file_path)
 
             if not inference_path or not os.path.exists(inference_path):
-                log(f"Skipped (file not found): {os.path.basename(file_path)}")
+                log(f"Skipped (file not found): {os.path.basename(file_path)}", "WARNING")
                 skipped += 1
                 self.current_count += 1
                 continue
@@ -391,7 +397,7 @@ class BirdSpeciesRunner:
                     skipped += 1
 
             except Exception as exc:
-                log(f"Error classifying {os.path.basename(file_path)}: {exc}")
+                log(f"Error classifying {os.path.basename(file_path)}: {exc}", "ERROR")
                 logger.exception("BirdSpeciesRunner error on %s", file_path)
                 skipped += 1
 
@@ -408,8 +414,29 @@ class BirdSpeciesRunner:
         self.status_message = f"Done ({processed} classified, {skipped} skipped)"
 
         if job_id:
-            db.update_job_status(job_id, "completed")
-            event_manager.broadcast_threadsafe("job_completed", {
-                "job_id": job_id,
-                "status": "completed",
-            })
+            if self.stop_event.is_set() or db.job_should_stop_processing(job_id):
+                try:
+                    db.reconcile_stale_running_phases_for_jobs(
+                        [job_id],
+                        error_message=db.GRACEFUL_PAUSE_MSG,
+                        in_flight_to="not_started",
+                    )
+                except Exception:
+                    logger.exception("bird_species: reconcile after stop failed (job_id=%s)", job_id)
+                j = db.get_job(job_id)
+                st = (j.get("status") or "").strip().lower() if j else ""
+                if st == "running":
+                    try:
+                        db.update_job_status(job_id, "paused", "\n".join(self.log_history))
+                    except Exception:
+                        pass
+                event_manager.broadcast_threadsafe(
+                    "job_completed",
+                    {"job_id": job_id, "status": (j or {}).get("status") or "paused"},
+                )
+            else:
+                db.update_job_status(job_id, "completed")
+                event_manager.broadcast_threadsafe("job_completed", {
+                    "job_id": job_id,
+                    "status": "completed",
+                })

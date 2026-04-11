@@ -161,6 +161,53 @@ def extract_and_upsert_exif(image_path: str, image_id: int) -> bool:
     return db.upsert_image_exif(image_id, data)
 
 
+def backfill_exif_dates(limit: int | None = None) -> dict:
+    """
+    Re-extract EXIF dates for image_exif rows where date_time_original IS NULL.
+
+    This repairs rows affected by the _parse_exif_timestamp truncation bug
+    (s[:len(fmt)] instead of s[:min_len]). Only touches date columns —
+    all other EXIF fields are left untouched via a full upsert.
+
+    Args:
+        limit: Optional max number of rows to process (for staged rollouts).
+
+    Returns:
+        dict with keys: checked, updated, skipped, errors.
+    """
+    from modules import db
+
+    limit_clause = f" LIMIT {int(limit)}" if limit else ""
+    rows = db.get_connector().query(
+        f"""SELECT ex.image_id, i.file_path
+            FROM image_exif ex
+            JOIN images i ON i.id = ex.image_id
+            WHERE ex.date_time_original IS NULL
+            ORDER BY ex.image_id{limit_clause}"""
+    )
+
+    stats = {"checked": 0, "updated": 0, "skipped": 0, "errors": 0}
+    for row in rows:
+        stats["checked"] += 1
+        image_id = row["image_id"]
+        file_path = row["file_path"]
+        try:
+            data = extract_exif(file_path, image_id)
+            if not data or ("date_time_original" not in data and "create_date" not in data):
+                stats["skipped"] += 1
+                continue
+            if db.upsert_image_exif(image_id, data):
+                stats["updated"] += 1
+            else:
+                stats["errors"] += 1
+        except Exception as e:
+            logger.warning("backfill_exif_dates failed for image_id %s: %s", image_id, e)
+            stats["errors"] += 1
+
+    logger.info("backfill_exif_dates: %s", stats)
+    return stats
+
+
 def write_image_unique_id(image_path: str, uuid_str: str) -> bool:
     """
     Write ImageUniqueID to EXIF using exiftool.
