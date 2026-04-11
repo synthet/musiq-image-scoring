@@ -31,8 +31,8 @@ PATTERNS = [
     (re.compile(r"^(\d{8})_\d+\.(mov|MOV|mp4|MP4)$", re.I), "ActionCam", lambda m: m.group(1)),
     # Pixel: PXL_20240330_151858411_compressed.mp4
     (re.compile(r"^PXL_(\d{8})_.*\.(mp4|MP4)$", re.I), "Pixel", lambda m: m.group(1)),
-    # Nikon DSC: DSC_0632.MOV (use file mtime)
-    (re.compile(r"^DSC_\d+\.(mov|MOV|mp4|MP4)$", re.I), "Nikon", None),
+    # Nikon DSC: DSC_0632.MOV or collision rename DSC_0632_a1b2c3d4.MOV (use file mtime)
+    (re.compile(r"^DSC_\d+(?:_[a-f0-9]{8})?\.(mov|MOV|mp4|MP4)$", re.I), "Nikon", None),
     # Edited/exported
     (re.compile(r"^(output|Timeline\s+\d+)\.(mp4|MP4)$", re.I), "Edited", None),
 ]

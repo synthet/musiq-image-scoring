@@ -29,6 +29,12 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 3. Monitor logs for deprecation warnings when Phase 4c ships
 4. Complete migration before v7.0 (July 2026)
 
+## [6.9.2] - 2026-04-11
+
+### Fixed
+
+- **`scripts/utils/organize_videos.py`**: Nikon DSC pattern matches collision-renamed files such as `DSC_0632_a1b2c3d4.MOV` (optional 8-character hex suffix before the extension), not only plain `DSC_0632.MOV`.
+
 ## [6.9.1] - 2026-04-10
 
 ### Changed
