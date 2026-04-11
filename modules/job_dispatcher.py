@@ -202,6 +202,8 @@ class JobDispatcher:
         if phase in ("score", "scoring"):
             skip_existing_val = bool(payload.get("skip_existing", True))
             resolved = payload.get("resolved_image_ids")
+            # Short-term behavior: fix_incomplete_stages resolves scoped IDs only for scoring.
+            # Metadata/tagging/culling continue to use their normal skip/re-run semantics.
             if bool(payload.get("fix_incomplete_stages")) and not resolved:
                 paths = payload.get("scope_paths")
                 if not isinstance(paths, list) or not paths:

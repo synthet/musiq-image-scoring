@@ -320,7 +320,12 @@ export function ScopeSelector() {
                   onChange={() => setRunOptionsMode('fix_incomplete')}
                 />
                 <span>
-                  <span className="text-[#cccccc]">Fix non-completed stages</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-[#cccccc]">Fix incomplete scoring data</span>
+                    <span className="rounded border border-[#007acc]/40 bg-[#003f6e]/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#4fc1ff]">
+                      Scoring only
+                    </span>
+                  </span>
                   <span className="block text-xs text-[#6d6d6d] mt-0.5">
                     For quality scoring, only images missing scores, rating, or label under the
                     selected paths (other stages use normal skip rules).
