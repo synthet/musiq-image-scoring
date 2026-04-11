@@ -4,6 +4,7 @@ import threading
 from typing import Any, Dict, Optional
 
 from modules import db
+from modules.run_modes import infer_run_mode, resolve_run_mode_flags
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,26 @@ class JobDispatcher:
                 logger.warning("Invalid queue payload for job %s", job.get("id"))
         return payload
 
+    @staticmethod
+    def _run_mode_flags(payload: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            run_mode = infer_run_mode(
+                payload.get("run_mode"),
+                run_mode_explicit=bool(payload.get("run_mode")),
+                skip_done=payload.get("skip_done"),
+                force_rerun=payload.get("force_rerun"),
+                fix_incomplete_stages=payload.get("fix_incomplete_stages"),
+            )
+        except ValueError:
+            run_mode = infer_run_mode(
+                None,
+                run_mode_explicit=False,
+                skip_done=payload.get("skip_done"),
+                force_rerun=payload.get("force_rerun"),
+                fix_incomplete_stages=payload.get("fix_incomplete_stages"),
+            )
+        return resolve_run_mode_flags(run_mode)
+
     def _start_job(self, job: Dict[str, Any], payload: Dict[str, Any], phase_override: Optional[str] = None) -> tuple:
         """Try to start the job. Returns (success: bool, error_msg: str|None)."""
         phase = (phase_override or job.get("job_type") or "").lower()
@@ -184,27 +205,30 @@ class JobDispatcher:
     def _dispatch_to_runner(self, phase: str, runner, job_id: int, input_path: str, payload: Dict[str, Any]) -> str:
         """Call the appropriate start_batch method on the runner. Returns the result string."""
         if phase == "indexing":
+            mode_flags = self._run_mode_flags(payload)
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
-                skip_existing=bool(payload.get("skip_existing", True)),
+                skip_existing=bool(mode_flags["skip_existing"]),
                 resolved_image_ids=payload.get("resolved_image_ids"),
             )
 
         if phase == "metadata":
+            mode_flags = self._run_mode_flags(payload)
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
-                skip_existing=bool(payload.get("skip_existing", True)),
+                skip_existing=bool(mode_flags["skip_existing"]),
                 resolved_image_ids=payload.get("resolved_image_ids"),
             )
 
         if phase in ("score", "scoring"):
-            skip_existing_val = bool(payload.get("skip_existing", True))
+            mode_flags = self._run_mode_flags(payload)
+            skip_existing_val = bool(mode_flags["skip_existing"])
             resolved = payload.get("resolved_image_ids")
             # Short-term behavior: fix_incomplete_stages resolves scoped IDs only for scoring.
             # Metadata/tagging/culling continue to use their normal skip/re-run semantics.
-            if bool(payload.get("fix_incomplete_stages")) and not resolved:
+            if bool(mode_flags["fix_incomplete_stages"]) and not resolved:
                 paths = payload.get("scope_paths")
                 if not isinstance(paths, list) or not paths:
                     paths = [payload.get("input_path", input_path)]
@@ -226,30 +250,33 @@ class JobDispatcher:
             )
 
         if phase in ("tag", "tagging", "keywords"):
+            mode_flags = self._run_mode_flags(payload)
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
                 custom_keywords=payload.get("custom_keywords"),
-                overwrite=bool(payload.get("overwrite", False)),
+                overwrite=bool(mode_flags["overwrite"]),
                 generate_captions=bool(payload.get("generate_captions", False)),
                 resolved_image_ids=payload.get("resolved_image_ids"),
             )
 
         if phase in ("cluster", "clustering"):
+            mode_flags = self._run_mode_flags(payload)
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 threshold=payload.get("threshold"),
                 time_gap=payload.get("time_gap"),
-                force_rescan=bool(payload.get("force_rescan", False)),
+                force_rescan=bool(mode_flags["force_rescan"]),
                 job_id=job_id,
                 resolved_image_ids=payload.get("resolved_image_ids"),
             )
 
         if phase in ("selection", "culling"):
+            mode_flags = self._run_mode_flags(payload)
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
-                force_rescan=bool(payload.get("force_rescan", False)),
+                force_rescan=bool(mode_flags["force_rescan"]),
             )
 
         if phase in ("bird_species", "bird-species"):
