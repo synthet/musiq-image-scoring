@@ -65,7 +65,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 from typing import Optional, List, Dict, Any
 import os
 import platform
@@ -4734,12 +4734,39 @@ def create_api_router() -> APIRouter:
     # ─── New Runs API (React SPA) ────────────────────────────────────────────
 
     class RunSubmitRequest(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
         scope_type: str = "folder_recursive"  # file|folder|folder_recursive|path_list
         scope_paths: List[str]
         stages: Optional[List[str]] = None
-        skip_done: bool = True
-        force_rerun: bool = False
-        fix_incomplete_stages: bool = False
+        run_mode: str = "process_unprocessed_or_empty"
+        # Deprecated compatibility fields. These are ignored when run_mode is present.
+        skip_done: Optional[bool] = None
+        force_rerun: Optional[bool] = None
+        fix_incomplete_stages: Optional[bool] = None
+
+        @model_validator(mode="after")
+        def _normalize_run_mode_and_legacy_flags(self):
+            allowed_modes = {
+                "process_all_overwrite",
+                "process_unprocessed_or_empty",
+                "validate_and_repair",
+            }
+            if self.run_mode not in allowed_modes:
+                raise ValueError(
+                    f"Invalid run_mode={self.run_mode!r}. "
+                    f"Allowed values: {sorted(allowed_modes)}"
+                )
+
+            # Legacy compatibility: infer run_mode only when client omitted it.
+            if "run_mode" not in self.model_fields_set:
+                if bool(self.fix_incomplete_stages):
+                    self.run_mode = "validate_and_repair"
+                elif bool(self.force_rerun) or (self.skip_done is False):
+                    self.run_mode = "process_all_overwrite"
+                else:
+                    self.run_mode = "process_unprocessed_or_empty"
+            return self
 
     @router.post("/runs/submit", summary="Submit a new Run")
     async def submit_run(request: RunSubmitRequest):
@@ -4813,14 +4840,45 @@ def create_api_router() -> APIRouter:
         if phase_values:
             phase_values = sort_phase_value_strings(phase_values)
 
+        mode_to_flags = {
+            "process_all_overwrite": {
+                "skip_done": False,
+                "skip_existing": False,
+                "force_rerun": True,
+                "fix_incomplete_stages": False,
+                "overwrite": True,
+                "force_rescan": True,
+            },
+            "process_unprocessed_or_empty": {
+                "skip_done": True,
+                "skip_existing": True,
+                "force_rerun": False,
+                "fix_incomplete_stages": False,
+                "overwrite": False,
+                "force_rescan": False,
+            },
+            "validate_and_repair": {
+                "skip_done": False,
+                "skip_existing": False,
+                "force_rerun": False,
+                "fix_incomplete_stages": True,
+                "overwrite": False,
+                "force_rescan": True,
+            },
+        }
+        mode_flags = mode_to_flags[request.run_mode]
+
         payload = {
             "scope_type": request.scope_type,
             "scope_paths": scope_paths,
             "input_path": primary_path,
-            "skip_done": request.skip_done,
-            "skip_existing": request.skip_done,
-            "force_rerun": request.force_rerun,
-            "fix_incomplete_stages": bool(request.fix_incomplete_stages),
+            "run_mode": request.run_mode,
+            "skip_done": mode_flags["skip_done"],
+            "skip_existing": mode_flags["skip_existing"],
+            "force_rerun": mode_flags["force_rerun"],
+            "fix_incomplete_stages": mode_flags["fix_incomplete_stages"],
+            "overwrite": mode_flags["overwrite"],
+            "force_rescan": mode_flags["force_rescan"],
             "phases": phase_values,
             "target_phases": phase_values,
         }
