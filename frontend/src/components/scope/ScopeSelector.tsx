@@ -318,6 +318,7 @@ export function ScopeSelector() {
                   className="mt-1"
                   checked={runOptionsMode === 'fix_incomplete'}
                   onChange={() => setRunOptionsMode('fix_incomplete')}
+                  aria-describedby="fix-incomplete-help"
                 />
                 <span>
                   <span className="flex items-center gap-2">
@@ -326,9 +327,9 @@ export function ScopeSelector() {
                       Scoring only
                     </span>
                   </span>
-                  <span className="block text-xs text-[#6d6d6d] mt-0.5">
-                    For quality scoring, only images missing scores, rating, or label under the
-                    selected paths (other stages use normal skip rules).
+                  <span id="fix-incomplete-help" className="block text-xs text-[#6d6d6d] mt-0.5">
+                    Targets only images missing scores, rating, or label under selected paths
+                    (other stages use normal skip rules).
                   </span>
                 </span>
               </label>
