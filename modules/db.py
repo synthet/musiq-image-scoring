@@ -330,6 +330,15 @@ def _translate_fb_to_pg(query: str) -> str:
     query = query.replace('substr(', 'substring(')
     query = query.replace('length(', 'char_length(')
 
+    # 3g – Firebird "expr STARTING WITH ?" → PostgreSQL prefix LIKE
+    # Use %% so psycopg2 leaves a single % in the SQL literal after Python formatting.
+    query = re.sub(
+        r"([\w.]+)\s+STARTING\s+WITH\s+\?",
+        r"\1 LIKE (? || '%%')",
+        query,
+        flags=re.IGNORECASE,
+    )
+
     # 4 – ? → %s (skip content inside single-quoted string literals)
     parts = query.split("'")
     for i in range(0, len(parts), 2):
@@ -3198,26 +3207,37 @@ def _convert_to_windows_path(path):
     r"""
     Convert any path format to Windows format.
     Handles WSL paths (/mnt/d/...) -> (D:\...).
+    Repairs hybrid paths (D:/mnt/d/...) where a drive letter was prefixed to a /mnt/... tail.
     """
     if not path:
         return None
-    
+
+    path_normalized = path.replace("\\", "/")
+
+    # Hybrid: D:/mnt/d/Photos/... — prefer drive letter from /mnt/<letter>/
+    hm = re.match(r"^([A-Za-z]):/?mnt/([A-Za-z])(?:/(.*))?$", path_normalized)
+    if hm:
+        drive = hm.group(2).upper()
+        rest = (hm.group(3) or "").strip("/")
+        if rest:
+            return f"{drive}:\\{rest.replace('/', os.sep)}"
+        return f"{drive}:\\"
+
     # Already Windows format?
-    if len(path) >= 2 and path[1] == ':':
+    if len(path) >= 2 and path[1] == ":":
         # Normalize slashes
-        return path.replace('/', '\\')
-    
+        return path.replace("/", "\\")
+
     # WSL format?
-    path_normalized = path.replace('\\', '/')
-    if path_normalized.startswith('/mnt/'):
-        parts = path_normalized.split('/')
+    if path_normalized.startswith("/mnt/"):
+        parts = path_normalized.split("/")
         if len(parts) > 2 and len(parts[2]) == 1:
             drive = parts[2].upper()
-            rest = '\\'.join(parts[3:])
+            rest = "\\".join(parts[3:])
             return f"{drive}:\\{rest}"
-    
+
     # Unknown format, return as-is with backslashes
-    return path.replace('/', '\\')
+    return path.replace("/", "\\")
 
 
 def resolve_windows_path(image_id, wsl_path, verify=True):
@@ -3900,6 +3920,7 @@ def get_images_by_folder(folder_path):
                 i.id, i.file_path, i.file_name, i.folder_id, i.stack_id,
                 i.image_embedding, i.rating, i.label, i.title, i.description,
                 i.metadata, i.scores_json, i.created_at, i.updated_at,
+                i.thumbnail_path, i.thumbnail_path_win, i.score_general, i.burst_uuid,
                 COALESCE(
                     (SELECT STRING_AGG(COALESCE(kd.keyword_display, kd.keyword_norm), ', ')
                      FROM image_keywords ik
@@ -3927,6 +3948,7 @@ def get_images_by_folder(folder_path):
                 i.id, i.file_path, i.file_name, i.folder_id, i.stack_id,
                 i.image_embedding, i.rating, i.label, i.title, i.description,
                 i.metadata, i.scores_json, i.created_at, i.updated_at,
+                i.thumbnail_path, i.thumbnail_path_win, i.score_general, i.burst_uuid,
                 COALESCE(
                     (SELECT LIST(COALESCE(kd.keyword_display, kd.keyword_norm), ', ')
                      FROM image_keywords ik
@@ -3945,7 +3967,7 @@ def get_images_by_folder(folder_path):
         for row in result:
             image_id = row.get('id') if isinstance(row, dict) else row[0]
             keywords = (row.get('keywords', '').strip() if isinstance(row, dict)
-                       else row[13] if len(row) > 13 else '')
+                       else row[18] if len(row) > 18 else '')
             if keywords:
                 # Check if normalized source exists for this image
                 normalized_count_result = get_connector().query_one(
@@ -4343,19 +4365,36 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
             logger.exception("update_job_status: image_phase_status reconcile failed for job %s", job_id)
 
 
-def enqueue_job(input_path, phase_code, job_type=None, queue_payload=None):
+def enqueue_job(input_path, phase_code=None, job_type=None, queue_payload=None):
     """Create a queued job with a stable internal sort key and dense display position."""
     phase_id = get_phase_id(phase_code) if phase_code else None
     if job_type is None:
         job_type = phase_code
 
     now = datetime.datetime.now()
-    payload_json = json.dumps(queue_payload) if queue_payload is not None else None
-    priority = int((queue_payload or {}).get("priority", 100)) if isinstance(queue_payload, dict) else 100
+    payload_dict = {}
+    if queue_payload is None:
+        payload_json = None
+    elif isinstance(queue_payload, dict):
+        payload_dict = queue_payload
+        payload_json = json.dumps(queue_payload)
+    elif isinstance(queue_payload, str):
+        # Callers (e.g. maintenance API) sometimes pass an already-serialized JSON string.
+        payload_json = queue_payload
+        try:
+            parsed = json.loads(queue_payload)
+            if isinstance(parsed, dict):
+                payload_dict = parsed
+        except Exception:
+            payload_dict = {}
+    else:
+        payload_json = json.dumps(queue_payload)
+
+    priority = int((payload_dict or {}).get("priority", 100))
     priority = max(1, min(priority, 999))
     target_scope = None
-    if isinstance(queue_payload, dict):
-        target_scope = queue_payload.get("target_scope") or queue_payload.get("scope")
+    if payload_dict:
+        target_scope = payload_dict.get("target_scope") or payload_dict.get("scope")
     if not target_scope:
         target_scope = input_path
 
@@ -6004,6 +6043,7 @@ def get_image_details(file_path):
                 i.id, i.file_path, i.file_name, i.folder_id, i.stack_id,
                 i.image_embedding, i.rating, i.label, i.title, i.description,
                 i.metadata, i.scores_json, i.created_at, i.updated_at,
+                i.thumbnail_path, i.thumbnail_path_win, i.score_general, i.burst_uuid,
                 COALESCE(
                     (SELECT STRING_AGG(COALESCE(kd.keyword_display, kd.keyword_norm), ', ')
                      FROM image_keywords ik
@@ -6030,6 +6070,7 @@ def get_image_details(file_path):
                 i.id, i.file_path, i.file_name, i.folder_id, i.stack_id,
                 i.image_embedding, i.rating, i.label, i.title, i.description,
                 i.metadata, i.scores_json, i.created_at, i.updated_at,
+                i.thumbnail_path, i.thumbnail_path_win, i.score_general, i.burst_uuid,
                 COALESCE(
                     (SELECT LIST(COALESCE(kd.keyword_display, kd.keyword_norm), ', ')
                      FROM image_keywords ik

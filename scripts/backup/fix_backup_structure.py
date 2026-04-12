@@ -69,6 +69,9 @@ USAGE
   python fix_backup_structure.py --source D:\Photos --backup E:\Photos
   python fix_backup_structure.py --by-metadata --backup F:\MyBackup
 
+  python fix_backup_structure.py --by-metadata --metadata-samples-per-folder 2
+  python fix_backup_structure.py --by-metadata --metadata-samples-per-folder 0   # legacy: full EXIF per file
+
   python fix_backup_structure.py --no-fuzzy         # Require exact size match
   python fix_backup_structure.py --no-hash         # Skip hash for ambiguous matches
   python fix_backup_structure.py --verbose          # Show per-file skip reasons
@@ -86,6 +89,7 @@ ARGUMENTS
   --no-hash       Skip SHA256 verification when multiple filename+size matches
   --verbose       Print per-file skip/match decisions for debugging
   --folder NAME   Only process a specific subfolder of backup (e.g. Wedding, Z8\\2025)
+  --metadata-samples-per-folder N  By-metadata: sample N images per directory for camera/lens (default 3); 0=full read per file
   --with-orphans  After mirror mode, also reorganize by EXIF files with no source match
 """
 import argparse
@@ -107,6 +111,7 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 import modules.utils as utils
+from modules.camera_folder_name import camera_folder_from_exif_model
 
 _EXIFTOOL_PATH = shutil.which("exiftool") or shutil.which("C:\\Program Files\\XnViewMP\\AddOn\\exiftool.exe")
 
@@ -115,6 +120,11 @@ IMAGE_EXTS = {
     ".jpg", ".jpeg", ".png", ".nef", ".nrw", ".dng", ".cr2", ".cr3",
     ".arw", ".orf", ".rw2", ".tiff", ".tif", ".heic", ".webp",
 }
+
+# By-metadata: read full EXIF on up to this many files per directory for camera/lens consensus;
+# shoot dates are read in batches for all files in that directory. Set to 0 to use one full read per file (legacy).
+METADATA_FOLDER_SAMPLES_DEFAULT = 3
+_DATETIME_BATCH_CHUNK = 150
 
 # ── Persistent EXIF cache ─────────────────────────────────────────────────────
 # Key: "<abs_path>|<mtime_ns>|<size>"  →  {Model, LensModel, DateTimeOriginal}
@@ -214,50 +224,6 @@ def _sanitize_fs(s: str) -> str:
     return re.sub(r"\s+", "", s) or "unknown"
 
 
-
-# Explicit model → folder overrides.
-# Used when EXIF writers omit the generation suffix (e.g. some Z6 II bodies
-# report "NIKON Z 6" without " II").  Keys are lowercase, stripped model strings.
-_MODEL_OVERRIDES: dict[str, str] = {
-    "nikon z 6": "Z6ii",       # Z6 II body misreporting as Z6
-    "nikon z6": "Z6ii",
-}
-
-
-def _camera_folder(model: str) -> str:
-    """Derive folder name from camera model. E.g. 'Nikon Z 8' -> 'Z8'."""
-    if not model or model.lower() == "unknown":
-        return "unknown"
-    m = model.strip()
-
-    # Check explicit overrides first (case-insensitive)
-    override = _MODEL_OVERRIDES.get(m.lower())
-    if override:
-        return override
-
-    # Nikon Z series — handles "Nikon Z 6 II", "NIKON Z 6_2" (Nikon's EXIF gen-II encoding), "Z8"
-    nikon_z = re.search(r"Z\s*(\d+)(\s*(?:_2|II|ii))?", m, re.I)
-    if nikon_z:
-        gen2 = nikon_z.group(2) or ""
-        suffix = "ii" if re.search(r"_2|II|ii", gen2, re.I) else ""
-        return f"Z{nikon_z.group(1)}{suffix}"
-    # Nikon D series — handles "NIKON D90", "Nikon D300", "NIKOND90" etc.
-    nikon_d = re.search(r"(?:NIKON\s*)?D(\d+)(\s*(?:S|X|H))?", m, re.I)
-    if nikon_d:
-        suffix = nikon_d.group(2).strip().upper() if nikon_d.group(2) else ""
-        return f"D{nikon_d.group(1)}{suffix}"
-    # Canon EOS R series
-    canon_r = re.search(r"EOS\s*R\s*(\d+)", m, re.I)
-    if canon_r:
-        return f"R{canon_r.group(1)}"
-    # Fallback: remove common brands from start, take last 2 tokens
-    m_clean = re.sub(r"^(Nikon|Canon|Camera|Sony)\s+", "", m, flags=re.I)
-    tokens = re.findall(r"[A-Za-z0-9]+", m_clean)
-    if len(tokens) >= 1:
-        return "".join(tokens[-2:]) if len(tokens) >= 2 else tokens[0]
-    return _sanitize_fs(m)
-
-
 def _fmt_focal(s: str) -> str:
     """Format a focal length string, stripping unnecessary .0 decimals. E.g. '28.0' -> '28', '35.5' -> '35.5'."""
     try:
@@ -344,9 +310,50 @@ def _get_metadata(path: Path) -> dict:
     return out
 
 
+def _get_datetimes_batch(paths: list[Path]) -> dict[Path, str | None]:
+    """One or more exiftool runs: DateTimeOriginal / CreateDate for many paths. Order matches input chunks."""
+    out: dict[Path, str | None] = {p: None for p in paths}
+    if not paths or not _EXIFTOOL_PATH:
+        return out
+    for i in range(0, len(paths), _DATETIME_BATCH_CHUNK):
+        chunk = paths[i : i + _DATETIME_BATCH_CHUNK]
+        cmd = [_EXIFTOOL_PATH, "-T", "-DateTimeOriginal", "-CreateDate"] + [str(p) for p in chunk]
+        try:
+            r = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                encoding="utf-8",
+                errors="replace",
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if r.returncode != 0 or not (r.stdout or "").strip():
+            continue
+        # exiftool emits one line per file, same order as arguments
+        raw_lines = r.stdout.splitlines()
+        if len(raw_lines) != len(chunk):
+            for p in chunk:
+                m = _get_metadata(p)
+                out[p] = m.get("DateTimeOriginal")
+            continue
+        for j, line in enumerate(raw_lines):
+            if j >= len(chunk):
+                break
+            parts = [x.strip() for x in line.split("\t")]
+            dt_val = None
+            for val in parts:
+                if val and val != "-":
+                    dt_val = val
+                    break
+            out[chunk[j]] = dt_val
+    return out
+
+
 def _metadata_target_path(backup_root: Path, path: Path, meta: dict) -> Path:
     """Build target path: {backup}/{camera}/{lens}/{year}/{date}/filename."""
-    camera = _camera_folder(meta.get("Model", ""))
+    camera = camera_folder_from_exif_model(meta.get("Model", ""))
     lens = _lens_folder(meta.get("LensModel", ""))
     dt_str = (meta.get("DateTimeOriginal") or "").strip()
     year, date = "unknown", "unknown"
@@ -410,13 +417,20 @@ def run_fix_by_metadata(
     backup: str = "E:\\Photos",
     folder: str = "",
     verbose: bool = False,
+    metadata_samples_per_folder: int = METADATA_FOLDER_SAMPLES_DEFAULT,
 ) -> set:
-    """Reorganize backup by EXIF: camera > lens > year > date. Returns set of moved source paths."""
+    """Reorganize backup by EXIF: camera > lens > year > date. Returns set of moved source paths.
+
+    When metadata_samples_per_folder > 0, group files by parent directory; read full EXIF on up to
+    that many sample files per directory for camera/lens; batch-read dates for all files in the
+    directory. When samples disagree on camera/lens, fall back to a full per-file read for that
+    directory. Use 0 for legacy behavior (full exiftool read on every file).
+    """
     backup_root = _normalize_root(backup)
     scan_root = backup_root / folder if folder else backup_root
 
     print("=" * 70)
-    print(f"  FIX BACKUP BY METADATA — {'EXECUTE MODE' if execute else 'DRY RUN'}")
+    print(f"  FIX BACKUP BY METADATA - {'EXECUTE MODE' if execute else 'DRY RUN'}")
     print(f"  Backup: {backup_root}")
     if folder:
         print(f"  Folder filter: {folder}  (scanning {scan_root})")
@@ -440,14 +454,24 @@ def run_fix_by_metadata(
     print(f"   Found {len(image_files)} image files")
 
     print("\n[2/3] Reading metadata and computing target paths...")
-    moves = []
-    for i, path in enumerate(image_files):
-        if (i + 1) % 500 == 0 or i == 0:
-            print(f"   Processing {i + 1}/{len(image_files)}...")
-            sys.stdout.flush()
+    if metadata_samples_per_folder > 0:
+        print(
+            f"   Using up to {metadata_samples_per_folder} sample(s) per folder for camera/lens; "
+            "batching date reads per folder."
+        )
+        sys.stdout.flush()
+
+    moves: list[tuple[Path, Path, int]] = []
+
+    def _cam_lens_key(meta: dict) -> tuple[str, str]:
+        return (
+            camera_folder_from_exif_model(meta.get("Model", "")),
+            _lens_folder(meta.get("LensModel", "")),
+        )
+
+    def _append_move_if_needed(path: Path, meta: dict) -> None:
         if not path.exists():
-            continue
-        meta = _get_metadata(path)
+            return
         target = _metadata_target_path(backup_root, path, meta)
         if target.resolve() != path.resolve():
             moves.append((path, target, path.stat().st_size))
@@ -456,6 +480,60 @@ def run_fix_by_metadata(
                 print(f"      -> {target.relative_to(backup_root)}")
         elif verbose:
             print(f"   OK  : {path.relative_to(backup_root)} (already correct)")
+
+    if metadata_samples_per_folder <= 0:
+        for i, path in enumerate(image_files):
+            if (i + 1) % 500 == 0 or i == 0:
+                print(f"   Processing {i + 1}/{len(image_files)}...")
+                sys.stdout.flush()
+            if not path.exists():
+                continue
+            meta = _get_metadata(path)
+            _append_move_if_needed(path, meta)
+    else:
+        by_parent: defaultdict[Path, list[Path]] = defaultdict(list)
+        for p in image_files:
+            by_parent[p.parent].append(p)
+
+        processed = 0
+        total = len(image_files)
+        for parent in sorted(by_parent.keys(), key=lambda x: str(x).lower()):
+            paths_sorted = sorted(by_parent[parent], key=lambda x: x.name)
+            k = min(metadata_samples_per_folder, len(paths_sorted))
+            samples = paths_sorted[:k]
+            sample_metas = [_get_metadata(p) for p in samples]
+            cl_keys = [_cam_lens_key(m) for m in sample_metas]
+            use_consensus = k > 0 and len(set(cl_keys)) == 1
+
+            if use_consensus:
+                tmpl = sample_metas[0]
+                dates_by_path = _get_datetimes_batch(paths_sorted)
+                for path in paths_sorted:
+                    processed += 1
+                    if processed % 500 == 0 or processed == 1:
+                        print(f"   Processing {processed}/{total}...")
+                        sys.stdout.flush()
+                    if not path.exists():
+                        continue
+                    dts = dates_by_path.get(path)
+                    meta = {
+                        "Model": tmpl["Model"],
+                        "LensModel": tmpl["LensModel"],
+                        "DateTimeOriginal": dts,
+                    }
+                    if not meta["DateTimeOriginal"]:
+                        meta = _get_metadata(path)
+                    _append_move_if_needed(path, meta)
+            else:
+                for path in paths_sorted:
+                    processed += 1
+                    if processed % 500 == 0 or processed == 1:
+                        print(f"   Processing {processed}/{total}...")
+                        sys.stdout.flush()
+                    if not path.exists():
+                        continue
+                    meta = _get_metadata(path)
+                    _append_move_if_needed(path, meta)
 
     print(f"   Found {len(moves)} files to relocate")
 
@@ -477,7 +555,7 @@ def run_fix_by_metadata(
     failed = []
 
     with open(log_path, "w", encoding="utf-8") as log:
-        log.write(f"Fix Backup by Metadata — {'EXECUTE' if execute else 'DRY RUN'}\n")
+        log.write(f"Fix Backup by Metadata - {'EXECUTE' if execute else 'DRY RUN'}\n")
         log.write(f"Date: {datetime.now().isoformat()}\n")
         log.write(f"Backup: {backup_root}\n")
         log.write(f"Files to move: {len(moves)}\n")
@@ -543,6 +621,7 @@ def run_fix(
     folder: str = "",
     verbose: bool = False,
     with_orphans: bool = False,
+    metadata_samples_per_folder: int = METADATA_FOLDER_SAMPLES_DEFAULT,
 ):
     """Mirror source structure onto backup, with optional orphan metadata pass."""
     source_root = _normalize_root(source)
@@ -550,7 +629,7 @@ def run_fix(
     scan_root = backup_root / folder if folder else backup_root
 
     print("=" * 70)
-    print(f"  FIX BACKUP STRUCTURE — {'EXECUTE MODE' if execute else 'DRY RUN'}")
+    print(f"  FIX BACKUP STRUCTURE - {'EXECUTE MODE' if execute else 'DRY RUN'}")
     print(f"  Source: {source_root}")
     print(f"  Backup: {backup_root}")
     if folder:
@@ -688,7 +767,7 @@ def run_fix(
         failed = []
 
         with open(log_path, "w", encoding="utf-8") as log:
-            log.write(f"Fix Backup Structure — {'EXECUTE' if execute else 'DRY RUN'}\n")
+            log.write(f"Fix Backup Structure - {'EXECUTE' if execute else 'DRY RUN'}\n")
             log.write(f"Date: {datetime.now().isoformat()}\n")
             log.write(f"Source: {source_root}\n")
             log.write(f"Backup: {backup_root}\n")
@@ -750,7 +829,7 @@ def run_fix(
                 top = "(root)"
             by_folder[top] += 1
         for top, cnt in sorted(by_folder.items()):
-            print(f"    {top}/  — {cnt} orphan file(s)")
+            print(f"    {top}/  - {cnt} orphan file(s)")
         if with_orphans:
             print(f"\n  Running metadata pass on {len(orphan_files)} orphan files...")
             # Write orphan list to a temp file so run_fix_by_metadata can process a virtual root
@@ -764,6 +843,7 @@ def run_fix(
                         backup=str(backup_root),
                         folder=top,
                         verbose=verbose,
+                        metadata_samples_per_folder=metadata_samples_per_folder,
                     )
         else:
             print(f"  Tip: re-run with --with-orphans to reorganize them by EXIF metadata")
@@ -790,6 +870,16 @@ if __name__ == "__main__":
     parser.add_argument("--by-metadata", action="store_true", help="Use EXIF (camera/lens/year/date) instead of mirroring source")
     parser.add_argument("--verbose", action="store_true", help="Print per-file skip/match decisions")
     parser.add_argument("--folder", default="", help="Only process this subfolder of backup (e.g. Wedding, Z8\\2025)")
+    parser.add_argument(
+        "--metadata-samples-per-folder",
+        type=int,
+        default=METADATA_FOLDER_SAMPLES_DEFAULT,
+        metavar="N",
+        help=(
+            "By-metadata: read full EXIF on up to N files per parent folder for camera/lens; "
+            "dates batched for all files in that folder. Use 0 for one full exiftool read per file."
+        ),
+    )
     parser.add_argument("--with-orphans", action="store_true", help="After mirror mode, reorganize files with no source match by EXIF")
     parser.add_argument("--source", default="D:\\Photos", help="Source folder for mirror mode (default: D:\\Photos)")
     parser.add_argument("--backup", default="E:\\Photos", help="Backup folder (default: E:\\Photos)")
@@ -816,6 +906,7 @@ if __name__ == "__main__":
             backup=args.backup,
             folder=args.folder,
             verbose=args.verbose,
+            metadata_samples_per_folder=args.metadata_samples_per_folder,
         )
     else:
         run_fix(
@@ -827,4 +918,5 @@ if __name__ == "__main__":
             folder=args.folder,
             verbose=args.verbose,
             with_orphans=getattr(args, 'with_orphans', False),
+            metadata_samples_per_folder=args.metadata_samples_per_folder,
         )

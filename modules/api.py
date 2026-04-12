@@ -5684,14 +5684,18 @@ def create_api_router() -> APIRouter:
         from modules import db
 
         _check_rate_limit("maintenance_reconcile_terminal_phases")
-        job_id = db.enqueue_job(
-            input_path="GLOBAL_MAINTENANCE",
+        # Second arg must be phase_code; maintenance jobs have no pipeline phase (None).
+        job_id, _ = db.enqueue_job(
+            "GLOBAL_MAINTENANCE",
+            None,
             job_type="maintenance",
             queue_payload=json.dumps({
                 "action": "reconcile",
                 "limit": limit
-            })
+            }),
         )
+        if job_id is None:
+            raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
         return ApiResponse(
             success=True,
             message=f"Reconcile job queued (Run ID: {job_id})",
@@ -5715,14 +5719,17 @@ def create_api_router() -> APIRouter:
         from modules import db
 
         _check_rate_limit("maintenance_backfill_index_meta")
-        job_id = db.enqueue_job(
-            input_path="GLOBAL_MAINTENANCE",
+        job_id, _ = db.enqueue_job(
+            "GLOBAL_MAINTENANCE",
+            None,
             job_type="maintenance",
             queue_payload=json.dumps({
                 "action": "backfill_index_meta",
                 "limit": limit
-            })
+            }),
         )
+        if job_id is None:
+            raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
         return ApiResponse(
             success=True,
             message=f"Index/Meta backfill job queued (Run ID: {job_id})",
@@ -6021,14 +6028,17 @@ def create_api_router() -> APIRouter:
         from modules import exif_extractor
 
         _check_rate_limit("maintenance_backfill_exif_dates")
-        job_id = db.enqueue_job(
-            input_path="GLOBAL_MAINTENANCE",
+        job_id, _ = db.enqueue_job(
+            "GLOBAL_MAINTENANCE",
+            None,
             job_type="maintenance",
             queue_payload=json.dumps({
                 "action": "backfill_exif",
                 "limit": limit
-            })
+            }),
         )
+        if job_id is None:
+            raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
         return ApiResponse(
             success=True,
             message=f"EXIF backfill job queued (Run ID: {job_id})",
@@ -6050,14 +6060,17 @@ def create_api_router() -> APIRouter:
         from modules import thumbnail_maintenance
 
         _check_rate_limit("maintenance_regenerate_thumbnails")
-        job_id = db.enqueue_job(
-            input_path="GLOBAL_MAINTENANCE",
+        job_id, _ = db.enqueue_job(
+            "GLOBAL_MAINTENANCE",
+            None,
             job_type="maintenance",
             queue_payload=json.dumps({
                 "action": "heal_thumbnails",
                 "limit": 500
-            })
+            }),
         )
+        if job_id is None:
+            raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
         return ApiResponse(
             success=True,
             message=f"Thumbnail healing job queued (Run ID: {job_id})",
@@ -6219,15 +6232,18 @@ def create_api_router() -> APIRouter:
         from modules import db
         _check_rate_limit(f"maintenance_{request.action}")
 
-        job_id = db.enqueue_job(
-            input_path=request.input_path or "GLOBAL_MAINTENANCE",
+        job_id, _ = db.enqueue_job(
+            request.input_path or "GLOBAL_MAINTENANCE",
+            None,
             job_type="maintenance",
             queue_payload=json.dumps({
                 "action": request.action,
                 "limit": request.limit or 1000,
                 "dry_run": request.dry_run
-            })
+            }),
         )
+        if job_id is None:
+            raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
         return ApiResponse(
             success=True,
             message=f"Maintenance run '{request.action}' started in background.",

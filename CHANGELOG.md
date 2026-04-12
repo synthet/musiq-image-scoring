@@ -29,6 +29,27 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 3. Monitor logs for deprecation warnings when Phase 4c ships
 4. Complete migration before v7.0 (July 2026)
 
+## [7.0.2] - 2026-04-12
+
+### Added
+
+- **`camera_folder_name`**: `camera_folder_from_exif_model()` derives a canonical filesystem segment from EXIF Model (aligned with **image-scoring-gallery** `cameraFolderName.ts`).
+- **EXIF camera/lens backfill**: `backfill_exif_camera_lens()` in `modules/exif_extractor.py` re-extracts from disk for rows missing camera and/or lens; merges with existing `image_exif` so partial runs do not NULL other columns. CLI: `scripts/maintenance/backfill_exif_camera_lens.py`.
+- **Maintenance scripts**: `cleanup_xmp_only_folders.py` (remove folders that only contain `.xmp` sidecars); `queue_scoring_incomplete_by_folder.py` (report or enqueue scoring by folder for incomplete images).
+- **Tests**: `tests/test_camera_folder_name.py`, `tests/test_exif_extractor_camera_lens_unit.py`; `tests/test_db_core.py` regression for `enqueue_job` with `job_type="maintenance"` and string `queue_payload` (no `phase_code`).
+
+### Changed
+
+- **`db.enqueue_job`**: optional `phase_code`; accepts `queue_payload` as a pre-serialized JSON string; returns `(job_id, display_position)`. Maintenance HTTP routes unpack the tuple and return **500** when enqueue fails.
+- **`get_image_details` / `get_images_by_folder`**: SELECT lists now include `thumbnail_path`, `thumbnail_path_win`, `score_general`, and `burst_uuid` (legacy positional keyword column index updated for Firebird rows).
+- **Firebird → PostgreSQL SQL translation**: `expr STARTING WITH ?` maps to a `LIKE` prefix form for Postgres.
+- **`_convert_to_windows_path`**: repairs hybrid paths such as `D:/mnt/d/Photos/...`.
+- **Backup repair**: `scripts/backup/fix_all_backups.py` and `fix_backup_structure.py` — structure and robustness improvements.
+
+### Fixed
+
+- **Clustering**: clearer completion status when no new stacks are created (with logging); safer `score_general` reads; warnings when a batch has no resolvable paths; info log for single-image embedding batches.
+
 ## [7.0.1] - 2026-04-11
 
 ### Added

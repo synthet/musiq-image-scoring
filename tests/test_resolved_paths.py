@@ -50,18 +50,18 @@ class TestResolvedPaths:
         conn = db.get_db()
         c = conn.cursor()
         test_images = [
-            (1, f"{_RP_ROOT}/photos/test1.jpg", "test1.jpg"),
-            (2, f"{_RP_ROOT}/photos/image2.nef", "image2.nef"),
-            (3, f"{_RP_ROOT}/photos/test3.jpg", "test3.jpg"),
-            (4, f"{_RP_ROOT}/photos/test4.png", "test4.png"),
+            (f"{_RP_ROOT}/photos/test1.jpg", "test1.jpg"),
+            (f"{_RP_ROOT}/photos/image2.nef", "image2.nef"),
+            (f"{_RP_ROOT}/photos/test3.jpg", "test3.jpg"),
+            (f"{_RP_ROOT}/photos/test4.png", "test4.png"),
         ]
-        for job_id, path, name in test_images:
+        for path, name in test_images:
             c.execute(
                 """
                 INSERT INTO images (job_id, file_path, file_name, score_general, folder_id, created_at)
-                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                VALUES (NULL, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """,
-                (job_id, path, name, 0.5, folder_id),
+                (path, name, 0.5, folder_id),
             )
         conn.commit()
         conn.close()
@@ -75,6 +75,9 @@ def test_convert_to_windows_path():
     assert _convert_to_windows_path("/mnt/c/Users/Test/img.nef") == "C:\\Users\\Test\\img.nef"
     assert _convert_to_windows_path("D:\\Photos\\test.jpg") == "D:\\Photos\\test.jpg"
     assert _convert_to_windows_path("D:/Photos/test.jpg") == "D:\\Photos\\test.jpg"
+    assert _convert_to_windows_path("D:/mnt/d/Photos/test.jpg") == "D:\\Photos\\test.jpg"
+    assert _convert_to_windows_path(r"D:\mnt\d\Photos\test.jpg") == "D:\\Photos\\test.jpg"
+    assert _convert_to_windows_path("D:/mnt/c/Users/x/a.jpg") == "C:\\Users\\x\\a.jpg"
     assert _convert_to_windows_path(None) is None
     assert _convert_to_windows_path("") is None
 
@@ -154,7 +157,7 @@ def test_upsert_creates_resolved_path():
         "score_aesthetic": 0.70,
     }
 
-    db.upsert_image(job_id=99, result=result)
+    db.upsert_image(job_id=None, result=result)
 
     conn = db.get_db()
     c = conn.cursor()

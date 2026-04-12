@@ -228,6 +228,147 @@ def backfill_exif_dates(limit: int | None = None) -> dict:
     return stats
 
 
+# Keys accepted by db.upsert_image_exif (excluding image_id / extracted_at).
+_IMAGE_EXIF_UPSERT_KEYS = (
+    "make",
+    "model",
+    "lens_model",
+    "focal_length",
+    "focal_length_35mm",
+    "date_time_original",
+    "create_date",
+    "exposure_time",
+    "f_number",
+    "iso",
+    "exposure_compensation",
+    "image_width",
+    "image_height",
+    "orientation",
+    "flash",
+    "image_unique_id",
+    "shutter_count",
+    "sub_sec_time_original",
+)
+
+
+def _merge_exif_for_upsert(existing: dict | None, fresh: dict) -> dict:
+    """Merge a full EXIF row with a fresh exiftool dict so partial extractions do not wipe columns."""
+    merged: dict = {}
+    if existing:
+        for k in _IMAGE_EXIF_UPSERT_KEYS:
+            if k in existing:
+                merged[k] = existing[k]
+    merged.update(fresh)
+    return merged
+
+
+def _exif_row_has_camera_and_lens(ex_row: dict | None) -> bool:
+    if not ex_row:
+        return False
+    cam = (str(ex_row.get("model") or "").strip() or str(ex_row.get("make") or "").strip())
+    lens = str(ex_row.get("lens_model") or "").strip()
+    return bool(cam and lens)
+
+
+def backfill_exif_camera_lens(
+    limit: int | None = None,
+    *,
+    path_like: str | None = None,
+) -> dict:
+    """
+    Re-extract EXIF from disk for rows missing camera and/or lens (image_exif.make/model or lens_model).
+
+    Used when gallery backup/sync skips files because ``exif_model`` / ``exif_lens_model`` are empty.
+    Requires ``exiftool`` on PATH. Merges with existing ``image_exif`` so partial tags do not NULL out
+    other cached columns.
+
+    Args:
+        limit: Optional max rows per call.
+        path_like: Optional SQL ``LIKE`` pattern on ``images.file_path`` (e.g. ``%/Photos/Z6ii/%``).
+
+    Returns:
+        dict: checked, updated, skipped_no_file, skipped_no_exif, skipped_still_missing, errors.
+    """
+    from modules import db
+
+    path_clause = ""
+    sql_params: tuple | None = None
+    if path_like:
+        path_clause = " AND i.file_path LIKE ?"
+        sql_params = (path_like,)
+
+    limit_clause = f" LIMIT {int(limit)}" if limit else ""
+    rows = db.get_connector().query(
+        f"""SELECT i.id AS image_id, i.file_path
+            FROM images i
+            LEFT JOIN image_exif ex ON ex.image_id = i.id
+            WHERE (
+                ex.image_id IS NULL
+                OR COALESCE(
+                    NULLIF(TRIM(COALESCE(ex.model, '')), ''),
+                    NULLIF(TRIM(COALESCE(ex.make, '')), '')
+                ) IS NULL
+                OR NULLIF(TRIM(COALESCE(ex.lens_model, '')), '') IS NULL
+            ){path_clause}
+            ORDER BY i.id{limit_clause}""",
+        sql_params,
+    )
+
+    stats = {
+        "checked": 0,
+        "updated": 0,
+        "skipped_no_file": 0,
+        "skipped_no_exif": 0,
+        "skipped_still_missing": 0,
+        "errors": 0,
+    }
+    for row in rows:
+        stats["checked"] += 1
+        image_id = row["image_id"]
+        file_path = row["file_path"]
+        try:
+            resolved = utils.resolve_file_path(file_path, image_id)
+            if not resolved:
+                resolved = utils.convert_path_to_local(file_path)
+            if not resolved or not os.path.exists(resolved):
+                stats["skipped_no_file"] += 1
+                logger.debug("backfill_exif_camera_lens skip image_id=%s: file not found (%s)", image_id, file_path)
+                continue
+
+            existing = db.get_image_exif(image_id)
+            fresh = extract_exif(resolved, image_id)
+            if not fresh:
+                stats["skipped_no_exif"] += 1
+                logger.debug(
+                    "backfill_exif_camera_lens skip image_id=%s: no EXIF from exiftool (%s)",
+                    image_id,
+                    file_path,
+                )
+                continue
+
+            merged = _merge_exif_for_upsert(existing, fresh)
+            if not db.upsert_image_exif(image_id, merged):
+                stats["errors"] += 1
+                continue
+
+            exif_row = db.get_image_exif(image_id) or {}
+            if _exif_row_has_camera_and_lens(exif_row):
+                stats["updated"] += 1
+            else:
+                stats["skipped_still_missing"] += 1
+                logger.debug(
+                    "backfill_exif_camera_lens still missing camera/lens after upsert image_id=%s (%s)",
+                    image_id,
+                    file_path,
+                )
+        except Exception as e:
+            logger.warning("backfill_exif_camera_lens failed for image_id %s: %s", image_id, e)
+            stats["errors"] += 1
+
+    logger.info("backfill_exif_camera_lens: %s", stats)
+    return stats
+
+
 def write_image_unique_id(image_path: str, uuid_str: str) -> bool:
     """
     Write ImageUniqueID to EXIF using exiftool.

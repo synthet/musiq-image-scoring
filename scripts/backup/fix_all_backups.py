@@ -18,6 +18,7 @@ Usage:
 """
 
 import argparse
+import filecmp
 import json
 import logging
 import re
@@ -45,10 +46,12 @@ DRIVES = {
 
 # Camera folder renames: (bad_name, good_name) — applied to each drive root
 CAMERA_RENAMES = [
-    ("NIKOND90",  "D90"),
-    ("NIKOND300", "D300"),
-    ("Z6II",      "Z6ii"),   # E:\ uppercase mismatch
-    ("Z6",        "Z6ii"),   # Legacy: all Z6 files are actually Z6 II
+    ("NIKOND90",   "D90"),
+    ("NIKON_D90",  "D90"),
+    ("NIKOND300",  "D300"),
+    ("NIKON_D300", "D300"),
+    ("Z6II",       "Z6ii"),   # E:\ uppercase mismatch
+    ("Z6",         "Z6ii"),   # Legacy: all Z6 files are actually Z6 II
 ]
 
 # Camera folders to run by-metadata reorganization on
@@ -121,14 +124,28 @@ def delete_junk(root: Path, execute: bool) -> int:
     return count
 
 
+def _files_identical(a: Path, b: Path) -> bool:
+    """True if both paths are regular files with identical size and byte content."""
+    try:
+        if not a.is_file() or not b.is_file():
+            return False
+        if a.stat().st_size != b.stat().st_size:
+            return False
+        return filecmp.cmp(a, b, shallow=False)
+    except OSError:
+        return False
+
+
 def _merge_folder(src: Path, dst: Path, execute: bool) -> tuple[int, int]:
     """Merge src into dst (rename if dst absent, move files if dst exists).
+    If a destination file already exists, identical copies are deduplicated (source removed);
+    different content is left unchanged and counted as an error.
     Returns (files_moved, errors)."""
     if not src.exists():
         return 0, 0
     moved, errors = 0, 0
     if not dst.exists():
-        log.info(f"  RENAME {src.name} → {dst.name}")
+        log.info(f"  RENAME {src.name} -> {dst.name}")
         if execute:
             try:
                 src.rename(dst)
@@ -145,19 +162,39 @@ def _merge_folder(src: Path, dst: Path, execute: bool) -> tuple[int, int]:
                 continue
             rel  = f.relative_to(src)
             dest = dst / rel
-            log.info(f"  MERGE {rel}")
             if execute:
                 try:
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     if dest.exists():
-                        dest.unlink()
-                    shutil.move(str(f), str(dest))
-                    moved += 1
+                        if _files_identical(f, dest):
+                            log.info(f"  DEDUP {rel} (identical to existing, remove source)")
+                            f.unlink()
+                            moved += 1
+                        else:
+                            log.warning(
+                                f"  CONFLICT {rel}: destination exists with different content; skipping"
+                            )
+                            errors += 1
+                    else:
+                        log.info(f"  MERGE {rel}")
+                        shutil.move(str(f), str(dest))
+                        moved += 1
                 except Exception as e:
                     log.error(f"  Move failed {f}: {e}")
                     errors += 1
             else:
-                moved += 1
+                if dest.exists():
+                    if _files_identical(f, dest):
+                        log.info(f"  DEDUP {rel} (would remove duplicate source)")
+                        moved += 1
+                    else:
+                        log.warning(
+                            f"  CONFLICT {rel}: destination exists with different content (would skip)"
+                        )
+                        errors += 1
+                else:
+                    log.info(f"  MERGE {rel}")
+                    moved += 1
         if execute:
             # Clean up empty dirs in src
             for d in sorted(src.rglob("*"), key=lambda x: len(x.parts), reverse=True):
@@ -176,7 +213,7 @@ def merge_camera_folders(root: Path, execute: bool) -> tuple[int, int]:
         dst = root / good_name
         if src == dst or not src.exists():
             continue
-        log.info(f"[camera-merge] {src} → {dst}")
+        log.info(f"[camera-merge] {src} -> {dst}")
         m, e = _merge_folder(src, dst, execute)
         total_moved += m
         total_errors += e
@@ -219,7 +256,7 @@ def merge_lens_folders(root: Path, execute: bool) -> tuple[int, int]:
             if clean == lens_dir.name:
                 continue
             target = cam_dir / clean
-            log.info(f"[lens-merge] {lens_dir.name} → {clean}  (under {cam_dir.name})")
+            log.info(f"[lens-merge] {lens_dir.name} -> {clean}  (under {cam_dir.name})")
             m, e = _merge_folder(lens_dir, target, execute)
             total_moved += m
             total_errors += e
@@ -290,7 +327,7 @@ def run_drive(drive_letter: str, root: Path, state: dict, execute: bool, results
         try:
             result = fn()
             elapsed = time.time() - t0
-            log.info(f"[{d}] DONE ({elapsed:.1f}s): {description}  → {result}")
+            log.info(f"[{d}] DONE ({elapsed:.1f}s): {description} -> {result}")
             mark(state, full_key, "done")
             drive_results[key] = ("done", result)
         except Exception as e:
@@ -338,7 +375,7 @@ def main():
 
     mode = "EXECUTE" if args.execute else "DRY-RUN"
     log.info("=" * 70)
-    log.info(f"  fix_all_backups  —  {mode}")
+    log.info(f"  fix_all_backups  --  {mode}")
     log.info(f"  Drives: {', '.join(f'{k}:{v}' for k, v in drives_to_run.items())}")
     log.info(f"  Log: {_log_path}")
     log.info("=" * 70)
@@ -373,7 +410,7 @@ def main():
         for step, outcome in drive_res.items():
             if isinstance(outcome, tuple):
                 status, detail = outcome
-                icon = "✓" if status == "done" else "✗"
+                icon = "[ok]" if status == "done" else "[fail]"
                 log.info(f"    {icon} {step}: {status}  ({detail})")
                 if status == "failed":
                     all_ok = False

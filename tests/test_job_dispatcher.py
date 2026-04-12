@@ -24,7 +24,11 @@ def test_dispatcher_starts_selection_job(monkeypatch):
         "id": 42,
         "job_type": "selection",
         "input_path": "D:/selection/path",
-        "queue_payload": json.dumps({"input_path": "D:/selection/path", "force_rescan": True}),
+        "queue_payload": json.dumps({
+            "input_path": "D:/selection/path",
+            "force_rescan": True,
+            "run_mode": "process_all_overwrite",
+        }),
     }
 
     monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
@@ -178,6 +182,7 @@ def test_dispatcher_scoring_preserves_target_phases(monkeypatch):
             "input_path": "D:/pipeline/path",
             "skip_existing": False,
             "target_phases": ["indexing", "metadata"],
+            "run_mode": "process_all_overwrite",
         }),
     }
 

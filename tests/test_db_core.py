@@ -7,6 +7,7 @@ Requires: Firebird client libraries installed and test DB initialised.
 Run with: python -m pytest tests/test_db_core.py -v -m "db and firebird"
 """
 
+import json
 import os
 import uuid
 
@@ -125,6 +126,21 @@ def test_enqueue_job_returns_id_and_position(test_db):
     assert job_id > 0
     assert isinstance(position, int)
     assert position >= 1
+
+
+def test_enqueue_job_maintenance_without_phase_code_stores_payload(test_db):
+    """Regression: POST /api/maintenance/start passes job_type only (no phase_code)."""
+    job_id, _pos = db.enqueue_job(
+        "GLOBAL_MAINTENANCE",
+        job_type="maintenance",
+        queue_payload=json.dumps({"action": "reconcile", "limit": 10}),
+    )
+    assert isinstance(job_id, int) and job_id > 0
+    row = db.get_job(job_id)
+    assert row["job_type"] == "maintenance"
+    payload = json.loads(row["queue_payload"])
+    assert payload["action"] == "reconcile"
+    assert payload["limit"] == 10
 
 
 def test_update_job_status_changes_status(test_db):

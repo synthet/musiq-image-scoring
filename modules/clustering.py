@@ -537,7 +537,8 @@ class ClusteringEngine(IClusteringEngine):
             yield update_status("All folders already processed or no images in target folder.", 0, 0)
             return
         
-        total_clusters = db.get_stack_count()
+        initial_stack_count = db.get_stack_count()
+        total_clusters = initial_stack_count
         processed_count = 0
 
         yield update_status(f"Processing {len(folders_to_process)} folders...", processed_count, len(images_rows))
@@ -645,7 +646,7 @@ class ClusteringEngine(IClusteringEngine):
                 
                 # Find best image (no embeddings available for burst path; falls back to score)
                 img_ids = [r['id'] for r in group_rows]
-                id_to_score_burst = {r['id']: r['score_general'] if r.get('score_general') else 0 for r in group_rows}
+                id_to_score_burst = {r['id']: r.get('score_general') or 0 for r in group_rows}
                 best_id = self._select_best_image(img_ids, id_to_score_burst)
                 
                 s_name = f"Burst {os.path.basename(folder)} ({len(group_rows)} shots)"
@@ -727,6 +728,12 @@ class ClusteringEngine(IClusteringEngine):
                         batch_ids.append(r['id'])
 
                 if not batch_paths:
+                    logging.warning(
+                        "[Clustering] Batch %d/%d skipped: no valid image paths resolved (%d images in batch)",
+                        b_idx + 1,
+                        len(time_batches),
+                        len(batch),
+                    )
                     continue
 
                 features, valid_indices = self.extract_features(
@@ -746,8 +753,13 @@ class ClusteringEngine(IClusteringEngine):
                     db.update_image_embeddings_batch(embedding_pairs, model_version=CLUSTER_VERSION)
 
                 if len(features) < 2:
+                    logging.info(
+                        "[Clustering] Batch %d/%d: single-image batch, skipping cluster step (embeddings persisted)",
+                        b_idx + 1,
+                        len(time_batches),
+                    )
                     continue
-                
+
                 # Cluster
                 clustering = AgglomerativeClustering(
                     n_clusters=None,
@@ -779,7 +791,7 @@ class ClusteringEngine(IClusteringEngine):
                 # Build score lookup once per batch
                 id_to_score_batch = {}
                 for r, t in batch:
-                    id_to_score_batch[r['id']] = r['score_general'] if r['score_general'] else 0
+                    id_to_score_batch[r['id']] = r.get('score_general') or 0
 
                 for lbl, img_ids in local_clusters.items():
                     if len(img_ids) < 2:
@@ -857,8 +869,21 @@ class ClusteringEngine(IClusteringEngine):
                 event_manager.broadcast_threadsafe("stack_created", {"folder": folder, "count": folder_stacks})
             except Exception as e:
                 logging.debug(f"Failed to broadcast event: {e}")
-            
-        yield update_status(f"Done! Processed {processed_count} images. Total Stacks: {db.get_stack_count()}", len(images_rows), len(images_rows))
+
+        new_stacks = total_clusters - initial_stack_count
+        if new_stacks == 0 and processed_count > 0:
+            msg = (
+                f"Done. Processed {processed_count} images — 0 new stacks created. "
+                f"Images may be too dissimilar or spread across time gaps > {time_gap_seconds}s. "
+                f"Total stacks in DB: {db.get_stack_count()}"
+            )
+            logging.warning("[Clustering] %s", msg)
+        else:
+            msg = (
+                f"Done! Processed {processed_count} images, created {new_stacks} new stacks. "
+                f"Total: {db.get_stack_count()}"
+            )
+        yield update_status(msg, len(images_rows), len(images_rows))
 
 
 class ClusteringRunner:
