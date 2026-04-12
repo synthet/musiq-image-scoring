@@ -198,7 +198,6 @@ low cost:
 
 ---
 
-
 ## Canonical Baseline Commands (Backend + Gallery)
 
 Use these exact commands when capturing comparable baseline coverage artifacts.
