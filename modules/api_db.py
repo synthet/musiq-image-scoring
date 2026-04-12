@@ -396,5 +396,6 @@ def generate_uuid(payload: Dict[str, Any] = Body(...)):
 
 @router.post("/backup")
 def backup_database():
-    db.backup_database()
-    return {"success": True}
+    message = db.backup_database()
+    ok = not message.lower().startswith("failed to")
+    return {"success": ok, "message": message}

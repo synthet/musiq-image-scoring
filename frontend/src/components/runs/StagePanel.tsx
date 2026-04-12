@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import {
-  AlertCircle, SkipForward, RefreshCw, ChevronDown, ChevronUp,
+  AlertCircle, SkipForward, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   CheckCircle2, XCircle, Clock, Loader2, Circle, Square,
 } from 'lucide-react'
 import { runsApi } from '@/api/runs'
@@ -13,6 +13,8 @@ import { STAGE_DISPLAY, STEP_DISPLAY } from '@/types/api'
 import type { Stage, Step, WorkItem } from '@/types/api'
 import { useWsStore } from '@/stores/wsStore'
 
+const WORK_ITEMS_PAGE_SIZE = 50
+
 interface StagePanelProps {
   runId: number
   stage: Stage
@@ -20,6 +22,7 @@ interface StagePanelProps {
 
 export function StagePanel({ runId, stage }: StagePanelProps) {
   const [showItems, setShowItems] = useState(false)
+  const [workItemsPage, setWorkItemsPage] = useState(0)
   const qc = useQueryClient()
   const display = STAGE_DISPLAY[stage.phase_code as keyof typeof STAGE_DISPLAY]
   const liveProgress = useWsStore((s) => s.runProgress[runId])
@@ -33,11 +36,29 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
   })
 
   const { data: workItems } = useQuery({
-    queryKey: ['run-work-items', runId, stage.phase_code],
-    queryFn: () => runsApi.getWorkItems(runId, stage.phase_code),
+    queryKey: ['run-work-items', runId, stage.phase_code, workItemsPage],
+    queryFn: () =>
+      runsApi.getWorkItems(
+        runId,
+        stage.phase_code,
+        workItemsPage * WORK_ITEMS_PAGE_SIZE,
+        WORK_ITEMS_PAGE_SIZE,
+      ),
     enabled: showItems,
     refetchInterval: showItems && stage.state === 'running' ? 3000 : false,
   })
+
+  useEffect(() => {
+    setWorkItemsPage(0)
+  }, [runId, stage.phase_code])
+
+  useEffect(() => {
+    if (!workItems) return
+    const t = workItems.total
+    if (t <= 0) return
+    const maxPage = Math.max(0, Math.ceil(t / WORK_ITEMS_PAGE_SIZE) - 1)
+    if (workItemsPage > maxPage) setWorkItemsPage(maxPage)
+  }, [workItems, workItemsPage])
 
   const retryMut = useMutation({
     mutationFn: () => runsApi.retryStage(runId, stage.phase_code),
@@ -170,7 +191,12 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
       {/* Work items toggle */}
       <button
         className="w-full flex items-center justify-between px-4 py-2.5 text-xs text-[#9d9d9d] hover:text-[#cccccc] hover:bg-[#2d2d30] transition-colors"
-        onClick={() => setShowItems((v) => !v)}
+        onClick={() => {
+          setShowItems((v) => {
+            if (!v) setWorkItemsPage(0)
+            return !v
+          })
+        }}
       >
         <span>Work Items {total > 0 && `(${total.toLocaleString()})`}</span>
         {showItems ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -184,7 +210,13 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
               image_phase_status entries tied to this run (check backend logs if it stays empty).
             </div>
           )}
-          <WorkItemsTable items={workItems.items} total={workItems.total} />
+          <WorkItemsTable
+            items={workItems.items}
+            total={workItems.total}
+            page={workItemsPage}
+            pageSize={WORK_ITEMS_PAGE_SIZE}
+            onPageChange={setWorkItemsPage}
+          />
         </div>
       )}
     </div>
@@ -235,43 +267,86 @@ function StepIcon({ status }: { status: string }) {
   }
 }
 
-function WorkItemsTable({ items, total }: { items: WorkItem[]; total: number }) {
+function WorkItemsTable({
+  items,
+  total,
+  page,
+  pageSize,
+  onPageChange,
+}: {
+  items: WorkItem[]
+  total: number
+  page: number
+  pageSize: number
+  onPageChange: (page: number) => void
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const canPrev = page > 0
+  const canNext = (page + 1) * pageSize < total
+  const rangeStart = total === 0 ? 0 : page * pageSize + 1
+  const rangeEnd = Math.min((page + 1) * pageSize, total)
+
   return (
-    <div className="overflow-auto max-h-64">
-      <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-[#252526]">
-          <tr className="text-[#6d6d6d] border-b border-[#3c3c3c]">
-            <th className="text-left px-4 py-2 font-medium">File</th>
-            <th className="text-left px-4 py-2 font-medium">Status</th>
-            <th className="text-right px-4 py-2 font-medium">Duration</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr
-              key={item.image_id}
-              className="border-b border-[#3c3c3c] hover:bg-[#2d2d30] transition-colors"
+    <div>
+      <div className="overflow-auto max-h-64">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-[#252526]">
+            <tr className="text-[#6d6d6d] border-b border-[#3c3c3c]">
+              <th className="text-left px-4 py-2 font-medium">File</th>
+              <th className="text-left px-4 py-2 font-medium">Status</th>
+              <th className="text-right px-4 py-2 font-medium">Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr
+                key={item.image_id}
+                className="border-b border-[#3c3c3c] hover:bg-[#2d2d30] transition-colors"
+              >
+                <td className="px-4 py-1.5 text-[#cccccc] truncate max-w-[300px]">
+                  {item.filename}
+                </td>
+                <td className="px-4 py-1.5">
+                  <WorkItemStatus status={item.status} />
+                </td>
+                <td className="px-4 py-1.5 text-[#9d9d9d] text-right">
+                  {item.duration_ms != null ? `${(item.duration_ms / 1000).toFixed(2)}s` : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {total > 0 && (
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-t border-[#3c3c3c] bg-[#252526] text-[11px] text-[#9d9d9d]">
+          <span className="min-w-0 truncate">
+            {rangeStart.toLocaleString()}–{rangeEnd.toLocaleString()} of {total.toLocaleString()}
+          </span>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded p-1 text-[#cccccc] hover:bg-[#3c3c3c] disabled:opacity-40 disabled:pointer-events-none"
+              disabled={!canPrev}
+              onClick={() => onPageChange(page - 1)}
+              aria-label="Previous page"
             >
-              <td className="px-4 py-1.5 text-[#cccccc] truncate max-w-[300px]">
-                {item.filename}
-              </td>
-              <td className="px-4 py-1.5">
-                <WorkItemStatus status={item.status} />
-              </td>
-              <td className="px-4 py-1.5 text-[#9d9d9d] text-right">
-                {item.duration_ms != null ? `${(item.duration_ms / 1000).toFixed(2)}s` : '—'}
-              </td>
-            </tr>
-          ))}
-          {total > items.length && (
-            <tr>
-              <td colSpan={3} className="px-4 py-2 text-center text-[#6d6d6d]">
-                Showing {items.length} of {total.toLocaleString()}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+              <ChevronLeft size={16} strokeWidth={2.25} />
+            </button>
+            <span className="tabular-nums px-1 min-w-[5.5rem] text-center text-[#cccccc]">
+              {page + 1} / {totalPages}
+            </span>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded p-1 text-[#cccccc] hover:bg-[#3c3c3c] disabled:opacity-40 disabled:pointer-events-none"
+              disabled={!canNext}
+              onClick={() => onPageChange(page + 1)}
+              aria-label="Next page"
+            >
+              <ChevronRight size={16} strokeWidth={2.25} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

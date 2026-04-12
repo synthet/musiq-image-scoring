@@ -188,9 +188,10 @@ class ScoringRunner:
 
         processor.log_func = log_capture
         
-        # Database Backup before starting
-        log("Creating database backup...")
-        db.backup_database()
+        # Firebird .fdb file copy (no-op message when using PostgreSQL only; see db.backup_database)
+        _backup_msg = db.backup_database()
+        if _backup_msg:
+            log(_backup_msg)
         
         try:
             # process_directory now blocks until all workers are done
@@ -271,8 +272,10 @@ class ScoringRunner:
             db.update_job_status(job_id, "failed", "\n".join(self.log_history))
             event_manager.broadcast_threadsafe("job_completed", {"job_id": job_id, "status": "failed", "error": str(e)})
 
-        # Backup after
-        db.backup_database()
+        # Firebird .fdb file copy after run (same semantics as pre-run backup)
+        _backup_msg = db.backup_database()
+        if _backup_msg:
+            log(_backup_msg)
 
 
     def stop(self):
@@ -417,9 +420,10 @@ class ScoringRunner:
             log(msg)
         processor.log_func = log_capture
         
-        log("Creating database backup...")
-        db.backup_database()
-        
+        _backup_msg = db.backup_database()
+        if _backup_msg:
+            log(_backup_msg)
+
         try:
             processor.process_list(jobs, job_id_override=job_id)
             self.current_processor = None

@@ -50,6 +50,7 @@ _orchestrator = None
 _bird_species_runner = None
 _indexing_runner = None
 _metadata_runner = None
+_maintenance_runner = None
 
 # Gradio context (set by webui when MCP runs in integrated/SSE mode)
 _gradio_context: dict | None = None
@@ -98,9 +99,19 @@ def _require_db(fn):
     return wrapper
 
 
-def set_runners(scoring_runner, tagging_runner, clustering_runner=None, selection_runner=None, orchestrator=None, bird_species_runner=None, indexing_runner=None, metadata_runner=None):
+def set_runners(
+    scoring_runner,
+    tagging_runner,
+    clustering_runner=None,
+    selection_runner=None,
+    orchestrator=None,
+    bird_species_runner=None,
+    indexing_runner=None,
+    metadata_runner=None,
+    maintenance_runner=None,
+):
     """Set references to the runner instances from webui."""
-    global _scoring_runner, _tagging_runner, _clustering_runner, _selection_runner, _orchestrator, _bird_species_runner, _indexing_runner, _metadata_runner
+    global _scoring_runner, _tagging_runner, _clustering_runner, _selection_runner, _orchestrator, _bird_species_runner, _indexing_runner, _metadata_runner, _maintenance_runner
     _scoring_runner = scoring_runner
     _tagging_runner = tagging_runner
     _clustering_runner = clustering_runner
@@ -109,6 +120,7 @@ def set_runners(scoring_runner, tagging_runner, clustering_runner=None, selectio
     _bird_species_runner = bird_species_runner
     _indexing_runner = indexing_runner
     _metadata_runner = metadata_runner
+    _maintenance_runner = maintenance_runner
 
 
 def set_gradio_context(
@@ -1538,6 +1550,32 @@ def get_runner_status() -> dict:
             }
         except Exception as e:
             status["metadata"]["error"] = str(e)
+
+    if _maintenance_runner:
+        try:
+            if hasattr(_maintenance_runner, "get_status"):
+                result = _maintenance_runner.get_status()
+                is_running, log, status_msg, current, total = result[:5]
+                status["maintenance"] = {
+                    "available": True,
+                    "is_running": is_running,
+                    "status_message": status_msg,
+                    "progress": {"current": current, "total": total},
+                    "recent_log": log[-2000:] if log else "",
+                }
+            else:
+                running = bool(getattr(_maintenance_runner, "is_running", False))
+                status["maintenance"] = {
+                    "available": True,
+                    "is_running": running,
+                    "status_message": "Running maintenance job" if running else "Idle",
+                    "progress": {"current": 0, "total": 0},
+                    "recent_log": "",
+                }
+        except Exception as e:
+            status["maintenance"] = {"available": True, "error": str(e)}
+    else:
+        status["maintenance"] = {"available": False}
 
     if _bird_species_runner:
         try:

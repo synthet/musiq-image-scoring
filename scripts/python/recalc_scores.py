@@ -23,14 +23,11 @@ def recalc_scores(dry_run=False):
     conn = db.get_db()
     
     if not dry_run:
-        logger.info("Creating database backup...")
-        try:
-            db.backup_database()
-            logger.info("Database backup created successfully.")
-        except Exception as e:
-            logger.error(f"Failed to create backup: {e}")
-            choice = input(f"Backup failed ({e}). Continue with recalculation? (y/N): ")
-            if choice.lower() != 'y':
+        backup_msg = db.backup_database()
+        logger.info("%s", backup_msg)
+        if backup_msg.lower().startswith("failed to"):
+            choice = input(f"{backup_msg} Continue with recalculation? (y/N): ")
+            if choice.lower() != "y":
                 logger.info("Aborting recalculation.")
                 return
 

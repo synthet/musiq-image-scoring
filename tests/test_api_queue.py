@@ -799,7 +799,8 @@ def test_ipc_bridge_rejects_unknown_channel():
 
     assert response.status_code == 400
     detail = response.json()["detail"]
-    assert "Unsupported IPC channel" in detail["message"]
+    text = detail["message"] if isinstance(detail, dict) else str(detail)
+    assert "Unsupported IPC channel" in text
 
 
 def test_ipc_bridge_folders_phase_status_requires_path():

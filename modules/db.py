@@ -4620,7 +4620,12 @@ def pause_queue_job(job_id):
 
 
 def restart_failed_job(job_id):
-    """Move failed job back to queued and increment retry_count."""
+    """Move failed job back to queued and increment retry_count.
+
+    Resets incomplete ``job_phases`` rows (same idea as ``resume_job_phases``) so a
+    multi-phase run can retry phases that were ``failed`` / ``pending`` instead of
+    staying stuck with no ``running`` phase row after dequeue.
+    """
     now = datetime.datetime.now()
     rowcount = get_connector().execute(
         """
@@ -4632,6 +4637,8 @@ def restart_failed_job(job_id):
         """,
         (now, job_id),
     )
+    if rowcount > 0:
+        resume_job_phases(job_id)
     return {"success": rowcount > 0}
 
 
@@ -6391,12 +6398,24 @@ def purge_images_under_path_prefixes(
     return out
 
 
-def backup_database(max_backups=5):
+def backup_database(max_backups=5) -> str:
     """
-    Creates a backup of the database file and rotates old backups.
+    Copy the configured Firebird .fdb file to ./backups/ with simple rotation.
+
+    Does not run pg_dump or other PostgreSQL backups. If no local .fdb exists
+    (common when ``database.engine`` is PostgreSQL), returns a skip message instead.
+
+    Returns:
+        One line for job logs / APIs describing what happened.
     """
     if not os.path.exists(DB_PATH):
-        return
+        engine = (config.get_database_engine() or "").strip().lower()
+        if engine == "postgres":
+            return (
+                "Skipped Firebird file backup: no local .fdb at "
+                f"{DB_PATH!r} (engine is PostgreSQL; use pg_dump for a logical backup)."
+            )
+        return f"Skipped Firebird file backup: file not found at {DB_PATH!r}."
 
     backup_dir = os.path.join(_PROJECT_ROOT, "backups")
     if not os.path.exists(backup_dir):
@@ -6406,24 +6425,31 @@ def backup_database(max_backups=5):
     backup_path = os.path.join(backup_dir, f"scoring_history_{timestamp}.fdb")
 
     try:
-        # Copy file
-        import shutil
         shutil.copy2(DB_PATH, backup_path)
-        print(f"Database backup created: {backup_path}")
+        logger.info("Firebird file backup created: %s", backup_path)
 
         # Rotate
-        backups = sorted([os.path.join(backup_dir, f) for f in os.listdir(backup_dir) if f.startswith("scoring_history_") and f.endswith(".fdb")])
-        
+        backups = sorted(
+            [
+                os.path.join(backup_dir, f)
+                for f in os.listdir(backup_dir)
+                if f.startswith("scoring_history_") and f.endswith(".fdb")
+            ]
+        )
+
         while len(backups) > max_backups:
             oldest = backups.pop(0)
             try:
                 os.remove(oldest)
-                print(f"Removed old backup: {oldest}")
-            except Exception as e:
-                print(f"Failed to remove old backup {oldest}: {e}")
+                logger.info("Removed old Firebird backup: %s", oldest)
+            except OSError as e:
+                logger.warning("Failed to remove old backup %s: %s", oldest, e)
 
     except Exception as e:
-        print(f"Backup failed: {e}")
+        logger.exception("Firebird file backup failed")
+        return f"Failed to copy Firebird database file: {e}"
+
+    return f"Created Firebird file backup: {backup_path}"
 
 def update_image_metadata(file_path, keywords, title, description, rating, label):
     """

@@ -29,6 +29,27 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 3. Monitor logs for deprecation warnings when Phase 4c ships
 4. Complete migration before v7.0 (July 2026)
 
+## [7.0.1] - 2026-04-11
+
+### Added
+
+- **MCP** (`get_runner_status`): reports **maintenance** runner state when the WebUI wires `maintenance_runner` into `set_runners`.
+- **React `/ui` — Runs**: **Stage panel** work-items list is **paginated** (50 rows per page) using offset/limit on the existing work-items API.
+
+### Changed
+
+- **`MaintenanceRunner`**: no longer subclasses **`BaseRunner`**; documents the **`start_batch`** / **`is_running`** contract used by the job dispatcher.
+- **`modules/mcp_server.py`**: `set_runners(..., maintenance_runner=...)` stores the maintenance runner for status tooling.
+
+### Fixed
+
+- **Multi-phase jobs**: tighter sync for **`job_phases`** “running” / “completed” resolution (`_resolve_multi_phase_job_phases_sync_code` and related paths), with expanded unit coverage.
+- **`restart_failed_job`**: after re-queueing a failed job, calls **`resume_job_phases`** so multi-phase retries are not stuck without a runnable phase row.
+- **Firebird file backup** (`db.backup_database`): returns a one-line status; skips with a clear message when **`database.engine`** is **PostgreSQL** or the **`.fdb`** file is missing; uses **logging** instead of **print**; failures return an error line instead of failing silently.
+- **`POST /api/db/backup`**: response includes **`message`**; **`success`** is false when the backup line indicates a copy failure.
+- **Scoring runner** / **`scripts/python/recalc_scores*.py`**: log the **backup** outcome message (including skip lines) instead of unconditional “Creating database backup…” when there is nothing to copy.
+- **`modules/ui/app.py`**: stop passing **`maintenance_runner`** into **`PipelineOrchestrator`** (the orchestrator does not accept that parameter).
+
 ## [7.0.0] - 2026-04-11
 
 ### Breaking

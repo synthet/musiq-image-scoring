@@ -1,5 +1,4 @@
-from unittest.mock import MagicMock, patch
-import os
+from unittest.mock import MagicMock
 from types import SimpleNamespace
 
 from modules import config
@@ -23,13 +22,14 @@ def test_get_database_engine_explicit(monkeypatch):
     assert config.get_database_engine() == "postgres"
 
 
-def test_get_database_engine_omitted_under_pytest(monkeypatch):
+def test_get_database_engine_omitted_defaults_postgres(monkeypatch):
+    monkeypatch.delenv("IMAGE_SCORING_DB_ENGINE_DEFAULT", raising=False)
     monkeypatch.setattr(
         config,
         "get_config_section",
         lambda section: {} if section == "database" else {},
     )
-    assert config.get_database_engine() == "firebird"
+    assert config.get_database_engine() == "postgres"
 
 
 def test_get_db_firebird_default_engine(monkeypatch):

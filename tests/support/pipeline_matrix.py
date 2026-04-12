@@ -7,7 +7,6 @@ is filtered to remove invalid combinations (e.g. culling-only without prior inde
 from __future__ import annotations
 
 import itertools
-import json
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -157,6 +156,22 @@ def enqueue_sequential(
 # Dispatcher pump loop
 # ---------------------------------------------------------------------------
 
+def _any_jobs_status_running() -> bool:
+    """True if any ``jobs`` row is still ``running`` (multi-phase handoff gap).
+
+    ``get_running_job_for_phase_continuation()`` requires a *phase* in ``running``;
+    briefly, ``jobs.status`` can still be ``running`` with no matching phase row
+    while the dispatcher advances — do not treat the pump as quiet in that window.
+    """
+    from modules.db import get_connector
+
+    row = get_connector().query_one(
+        "SELECT 1 AS ok FROM jobs WHERE LOWER(TRIM(COALESCE(status, ''))) = 'running' "
+        "FETCH FIRST 1 ROWS ONLY"
+    )
+    return row is not None
+
+
 def run_dispatcher_until_quiet(
     dispatcher: JobDispatcher,
     deadline_s: float = 8.0,
@@ -175,7 +190,12 @@ def run_dispatcher_until_quiet(
         running = db.get_running_job_for_phase_continuation()
         any_runner_busy = dispatcher._any_runner_busy()
 
-        if not queued and not running and not any_runner_busy:
+        if (
+            not queued
+            and not running
+            and not any_runner_busy
+            and not _any_jobs_status_running()
+        ):
             # One more tick to let any just-completed phase continuation fire
             dispatcher.tick_for_tests()
             time.sleep(tick_sleep_s)
@@ -183,7 +203,12 @@ def run_dispatcher_until_quiet(
             # Re-check
             queued = db.get_queued_jobs(limit=1)
             running = db.get_running_job_for_phase_continuation()
-            if not queued and not running and not dispatcher._any_runner_busy():
+            if (
+                not queued
+                and not running
+                and not dispatcher._any_runner_busy()
+                and not _any_jobs_status_running()
+            ):
                 break
 
         time.sleep(tick_sleep_s)

@@ -60,6 +60,119 @@ def test_completed_returns_none_when_all_phases_already_terminal():
     assert result is None
 
 
+def test_resolve_empty_phases_returns_none():
+    from modules.db import _resolve_multi_phase_job_phases_sync_code
+
+    with patch("modules.db.get_job_phases", return_value=[]):
+        assert _resolve_multi_phase_job_phases_sync_code(1, "completed") is None
+
+
+def test_resolve_single_phase_row_returns_none():
+    """Multi-phase logic only applies when there are 2+ job_phases rows."""
+    from modules.db import _resolve_multi_phase_job_phases_sync_code
+
+    phases = [
+        {"phase_code": "scoring", "state": "running", "started_at": "2026-03-24T00:00:00"},
+    ]
+    with patch("modules.db.get_job_phases", return_value=phases):
+        assert _resolve_multi_phase_job_phases_sync_code(1, "completed") is None
+
+
+def test_running_prefers_existing_running_row():
+    from modules.db import _resolve_multi_phase_job_phases_sync_code
+
+    phases = [
+        {"phase_code": "indexing", "state": "completed", "started_at": "2026-03-24T00:00:00"},
+        {"phase_code": "scoring", "state": "running", "started_at": "2026-03-24T00:01:00"},
+        {"phase_code": "keywords", "state": "pending", "started_at": None},
+    ]
+    with patch("modules.db.get_job_phases", return_value=phases):
+        assert _resolve_multi_phase_job_phases_sync_code(1, "running") == "scoring"
+
+
+def test_running_maps_to_first_queued_when_none_running():
+    from modules.db import _resolve_multi_phase_job_phases_sync_code
+
+    phases = [
+        {"phase_code": "indexing", "state": "queued", "started_at": None},
+        {"phase_code": "scoring", "state": "pending", "started_at": None},
+    ]
+    with patch("modules.db.get_job_phases", return_value=phases):
+        assert _resolve_multi_phase_job_phases_sync_code(1, "running") == "indexing"
+
+
+def test_running_fallback_first_row_when_no_running_or_queued():
+    from modules.db import _resolve_multi_phase_job_phases_sync_code
+
+    phases = [
+        {"phase_code": "alpha", "state": "completed", "started_at": "2026-03-24T00:00:00"},
+        {"phase_code": "beta", "state": "completed", "started_at": "2026-03-24T00:01:00"},
+    ]
+    with patch("modules.db.get_job_phases", return_value=phases):
+        assert _resolve_multi_phase_job_phases_sync_code(1, "running") == "alpha"
+
+
+def test_completed_non_terminal_without_unstarted_row():
+    """started_at set on a later phase but state not terminal — still pick that phase."""
+    from modules.db import _resolve_multi_phase_job_phases_sync_code
+
+    phases = [
+        {"phase_code": "culling", "state": "completed", "started_at": "2026-03-24T00:00:00"},
+        {
+            "phase_code": "bird_species",
+            "state": "queued",
+            "started_at": "2026-03-24T00:01:00",
+        },
+    ]
+    with patch("modules.db.get_job_phases", return_value=phases):
+        assert _resolve_multi_phase_job_phases_sync_code(1, "completed") == "bird_species"
+
+
+def test_completed_all_terminal_treats_cancelled_spelling():
+    from modules.db import _resolve_multi_phase_job_phases_sync_code
+
+    phases = [
+        {"phase_code": "culling", "state": "completed", "started_at": "2026-03-24T00:00:00"},
+        {"phase_code": "bird_species", "state": "cancelled", "started_at": None},
+    ]
+    with patch("modules.db.get_job_phases", return_value=phases):
+        assert _resolve_multi_phase_job_phases_sync_code(1, "completed") is None
+
+
+def test_failed_prefers_running_phase():
+    from modules.db import _resolve_multi_phase_job_phases_sync_code
+
+    phases = [
+        {"phase_code": "scoring", "state": "completed", "started_at": "2026-03-24T00:00:00"},
+        {"phase_code": "keywords", "state": "running", "started_at": "2026-03-24T00:01:00"},
+    ]
+    with patch("modules.db.get_job_phases", return_value=phases):
+        assert _resolve_multi_phase_job_phases_sync_code(1, "failed") == "keywords"
+
+
+def test_failed_returns_last_phase_when_none_running():
+    from modules.db import _resolve_multi_phase_job_phases_sync_code
+
+    phases = [
+        {"phase_code": "a", "state": "completed", "started_at": "2026-03-24T00:00:00"},
+        {"phase_code": "b", "state": "completed", "started_at": "2026-03-24T00:01:00"},
+    ]
+    with patch("modules.db.get_job_phases", return_value=phases):
+        assert _resolve_multi_phase_job_phases_sync_code(1, "interrupted") == "b"
+
+
+def test_resolve_misc_job_status_returns_none():
+    from modules.db import _resolve_multi_phase_job_phases_sync_code
+
+    phases = [
+        {"phase_code": "x", "state": "queued", "started_at": None},
+        {"phase_code": "y", "state": "pending", "started_at": None},
+    ]
+    with patch("modules.db.get_job_phases", return_value=phases):
+        assert _resolve_multi_phase_job_phases_sync_code(1, "queued") is None
+        assert _resolve_multi_phase_job_phases_sync_code(1, "paused") is None
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # SelectionRunner._complete_phase_and_advance
 # ──────────────────────────────────────────────────────────────────────────────

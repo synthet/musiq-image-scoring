@@ -146,8 +146,7 @@ def main():
     log.info("Rating thresholds: %s", snorm.get_rating_thresholds())
     log.info("Label thresholds: %s", snorm.get_label_thresholds())
 
-    log.info("Creating database backup...")
-    db.backup_database()
+    log.info("%s", db.backup_database())
 
     conn = db.get_db()
     log.info("Fetching all scored images...")

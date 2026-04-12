@@ -10,19 +10,19 @@ import time
 import os
 from typing import Dict, Any, List
 
-from modules import db, config
-from modules.job_dispatcher import BaseRunner
+from modules import db
 
 logger = logging.getLogger(__name__)
 
-class MaintenanceRunner(BaseRunner):
+
+class MaintenanceRunner:
     """
     Runner for 'maintenance' job type.
     Handles various data-integrity 'actions' as a single-phase background job.
+    Contract: start_batch (returns "Started" | error string), is_running.
     """
-    
+
     def __init__(self):
-        super().__init__()
         self.job_type = "maintenance"
         self.is_running = False
         self._thread = None
