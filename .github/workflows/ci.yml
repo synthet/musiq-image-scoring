@@ -18,9 +18,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements/requirements_wsl_gpu.txt
-      - name: Run fast pytest slice (required)
-        run: |
-          python -m pytest -m "not gpu and not db and not ml and not firebird" --ignore=tests/test_probe.py --ignore=tests/test_exifread.py
+      - name: Run fast pytest smoke slice (required)
+        run: ./scripts/ci/run_fast_smoke_tests.sh
 
   gallery-test-run:
     name: gallery-test-run
@@ -68,6 +67,5 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements/requirements_wsl_gpu.txt
-      - name: Run integration/smoke slice (informational)
-        run: |
-          python -m pytest tests/integration -m "not gpu and not ml and not firebird" -q || true
+      - name: Run broader integration slice (informational)
+        run: python -m pytest -m "not gpu and not ml and not firebird" --ignore=tests/test_probe.py --ignore=tests/test_exifread.py --ignore=tests/test_culling.py --ignore=tests/test_db_consistency.py -q

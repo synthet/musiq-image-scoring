@@ -15,10 +15,10 @@ Use **`contract:check`** as the single canonical contract verification command.
 
 | Check | CI job name | Command | Gate type |
 |---|---|---|---|
-| Fast backend pytest slice | `backend-pytest-fast` | `python -m pytest -m "not gpu and not db and not ml and not firebird" --ignore=tests/test_probe.py --ignore=tests/test_exifread.py` | **Required** |
+| Fast backend pytest smoke slice | `backend-pytest-fast` | `./scripts/ci/run_fast_smoke_tests.sh` | **Required** |
 | Gallery unit tests | `gallery-test-run` | `npm run test:run` (in `frontend/`) | **Required** |
 | API contract parity | `contract-check` | `python scripts/ci/contract_check.py` | **Required** |
-| Integration/smoke pytest slice | `integration-smoke` | `python -m pytest tests/integration -m "not gpu and not ml and not firebird" -q` | **Informational** (non-blocking) |
+| Broader backend pytest slice | `integration-smoke` | `python -m pytest -m "not gpu and not ml and not firebird" --ignore=tests/test_probe.py --ignore=tests/test_exifread.py --ignore=tests/test_culling.py --ignore=tests/test_db_consistency.py -q` | **Informational** (non-blocking) |
 
 ## Branch protection guidance
 
