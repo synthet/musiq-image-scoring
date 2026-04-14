@@ -52,9 +52,9 @@ class TestUpsertTranslation:
             "score, score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe, "
             "score_technical, score_aesthetic, score_general, model_version, "
             "rating, label, keywords, title, description, metadata, scores_json, "
-            "thumbnail_path, thumbnail_path_win, image_hash, folder_id, created_at"
+            "thumbnail_path, thumbnail_path_win, image_hash, hash_version, folder_id, created_at"
         )
-        placeholders = ", ".join(["?"] * 26)
+        placeholders = ", ".join(["?"] * 27)
         fb = (
             f"UPDATE OR INSERT INTO images ({cols}) "
             f"VALUES ({placeholders}) "
@@ -69,7 +69,8 @@ class TestUpsertTranslation:
         # Other columns must be in SET
         assert "score = EXCLUDED.score" in pg
         assert "folder_id = EXCLUDED.folder_id" in pg
-        assert pg.count("%s") == 26
+        assert "hash_version = EXCLUDED.hash_version" in pg
+        assert pg.count("%s") == 27
 
     def test_upsert_image_exif(self):
         fb = (

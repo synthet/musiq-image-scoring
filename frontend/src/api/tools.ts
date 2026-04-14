@@ -60,11 +60,6 @@ export const toolsApi = {
 
   fixDatabase: () => api.post<ApiEnvelope>('/scoring/fix-db'),
 
-  backfillIndexMeta: (limit = 1000) =>
-    api.post<ApiEnvelope>(
-      `/maintenance/backfill-index-meta?limit=${encodeURIComponent(String(limit))}`,
-    ),
-
   /** Re-extract EXIF for rows with null date_time_original (batch). */
   backfillExifDates: (limit = 1000) =>
     api.post<ApiEnvelope>(

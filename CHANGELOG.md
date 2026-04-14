@@ -29,6 +29,25 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 3. Monitor logs for deprecation warnings when Phase 4c ships
 4. Complete migration before v7.0 (July 2026)
 
+## [7.1.0] - 2026-04-13
+
+### Added
+
+- **Content-aware image identity hashing** (`modules/image_identity_hash.py`): `hash_version` **1** = full-file SHA-256 (legacy); **2** = SHA-256 of the largest embedded JPEG / preview payload for TIFF-based RAW (Nikon NEF/NRW MakerNote path, `tifffile` strips, mmap `FFD8`…`FFD9` fallback). Config: `indexing.hash_mode` → `full_file` | `content_preview`.
+- **PostgreSQL migrations**: `0007_images_hash_version` (`images.hash_version`, partial index on `(image_hash, hash_version)`); `0008_images_hash_version_unique` (partial **unique** index on `(image_hash, hash_version)` where `image_hash` is not null — run `alembic upgrade head`; dedupe duplicate `(image_hash, hash_version)` rows first if upgrade errors).
+- **Dependency**: `tifffile` (pinned range in `requirements.txt`) for TIFF/IFD JPEG discovery.
+- **Indexing runner**: integrates hash modes and safer hash reuse when files are unchanged.
+- **Maintenance run labels** (`modules/maintenance_job_display.py`): human-readable `jobs.input_path` values for Tools/maintenance runs (scope/dry_run/limit hints) instead of opaque placeholders.
+- **React `/ui`**: `RunQueuePayloadPanel` — shows `queue_payload` / run flags on run detail; related Runs/Tools and API client updates.
+- **Scripts**: `scripts/python/backfill_hashes.py` extended for hash modes; `scripts/maintenance/folder_data_quality_report.py`, `schedule_folder_quality_fix_runs.py`.
+- **Docs**: `docs/technical/NEF_FORMAT_REFERENCE.md`, `NEF_IMPLEMENTATION_REVIEW.md`; plan `docs/plans/IMAGE_IDENTITY_AND_HASHING_IMPROVEMENTS_PLAN.md`.
+- **Tests**: `tests/test_image_identity_hash.py`, `tests/test_indexing_hash_reuse.py`, `tests/test_maintenance_job_display.py`; updates to `test_db_core`, `test_job_dispatcher`, `test_translate_fb_to_pg`; XMP fixture touch-ups under `tests/fixtures/testing_samples/`.
+
+### Changed
+
+- **`modules/api.py`** / **`api_db.py`**, **`maintenance_runner.py`**, **`job_dispatcher.py`**, **`clustering.py`**, **`selection.py`**, **`selection_runner.py`**, **`pipeline.py`**, **`scoring.py`**, **`mcp_server.py`**: align with maintenance labeling, queue payloads, and indexing/hash behavior.
+- **`docs/technical/API_CONTRACT.md`**, **`DB_SCHEMA.md`**, **`INDEX.md`**: schema and API notes for hashing and runs.
+
 ## [7.0.2] - 2026-04-12
 
 ### Added

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { WorkflowGraph } from '@/components/runs/WorkflowGraph'
 import { StagePanel } from '@/components/runs/StagePanel'
 import { LogPanel } from '@/components/runs/LogPanel'
+import { RunQueuePayloadPanel } from '@/components/runs/RunQueuePayloadPanel'
 import { useWsStore } from '@/stores/wsStore'
 import type { StageCode } from '@/types/api'
 import { STAGE_DISPLAY } from '@/types/api'
@@ -176,6 +177,9 @@ export function RunDetailPage() {
           <StagePanel runId={id} stage={selectedStageData} />
         </div>
       )}
+
+      {/* Queued flags / mode (jobs.queue_payload) */}
+      <RunQueuePayloadPanel jobType={run.job_type} queuePayload={run.queue_payload} />
 
       {/* Log panel */}
       <div>

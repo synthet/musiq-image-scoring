@@ -6,11 +6,11 @@ from __future__ import annotations
 
 import logging
 import json
-import time
-import os
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 from modules import db
+from modules.maintenance_job_display import maintenance_job_input_path
+from modules.run_log import runner_emit
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ class MaintenanceRunner:
         self.is_running = False
         self._thread = None
         self._cancel_requested = False
+        self.log_history: List[str] = []
 
     def start_batch(self, input_path: str, job_id: int = None, **kwargs) -> str:
         """Entry point from JobDispatcher."""
@@ -39,7 +40,11 @@ class MaintenanceRunner:
         
         if job_id is None:
             # Should not happen when called from dispatcher, but for safety:
-            job_id = db.create_job(input_path or "GLOBAL_MAINTENANCE", job_type="maintenance")
+            job_id = db.create_job(
+                input_path
+                or maintenance_job_input_path("", {}, title_override="Maintenance (unqueued fallback)"),
+                job_type="maintenance",
+            )
 
         def target():
             try:
@@ -60,10 +65,13 @@ class MaintenanceRunner:
 
     def _run_job_internal(self, job: Dict[str, Any]):
         job_id = job["id"]
+        self.log_history = []
         try:
+            if not db.get_job_phases(job_id):
+                db.create_job_phases(job_id, ["maintenance"], first_phase_state="queued")
             # Update job to running
             db.update_job_status(job_id, "running")
-            db.update_job_phase_state(job_id, "maintenance", "running")
+            db.set_job_phase_state(job_id, "maintenance", "running")
             
             payload = {}
             if job.get("queue_payload"):
@@ -73,9 +81,21 @@ class MaintenanceRunner:
                     pass
             
             action = payload.get("action", "reconcile")
-            limit = payload.get("limit", 1000)
-            
-            db.log_job_event(job_id, "maintenance", f"Starting maintenance action: {action}")
+            input_path = job.get("input_path") or ""
+            logger.info(
+                "Maintenance job %s starting: input_path=%r action=%r payload=%s",
+                job_id,
+                input_path,
+                action,
+                payload,
+            )
+            runner_emit(
+                self.log_history, job_id,
+                f"Job {job_id} starting — label={input_path!r}, action={action}, "
+                f"params={json.dumps(payload, default=str)}",
+                phase="maintenance",
+            )
+            runner_emit(self.log_history, job_id, f"Starting maintenance action: {action}", phase="maintenance")
             
             if action == "heal_thumbnails":
                 self._action_heal_thumbnails(job_id, payload)
@@ -88,25 +108,33 @@ class MaintenanceRunner:
             elif action == "backfill_index_meta":
                 self._action_backfill_index_meta(job_id, payload)
             else:
-                db.log_job_event(job_id, "maintenance", f"Unknown maintenance action: {action}", level="ERROR")
+                runner_emit(self.log_history, job_id, f"Unknown maintenance action: {action}", "ERROR", phase="maintenance")
                 db.update_job_status(job_id, "failed", log=f"Unknown action: {action}")
                 return
 
             db.update_job_status(job_id, "completed")
-            db.update_job_phase_state(job_id, "maintenance", "completed")
-            db.log_job_event(job_id, "maintenance", f"Maintenance action {action} completed.")
+            db.set_job_phase_state(job_id, "maintenance", "completed")
+            runner_emit(self.log_history, job_id, f"Maintenance action {action} completed.", phase="maintenance")
+            logger.info(
+                "Maintenance job %s completed successfully (action=%r, label=%r)",
+                job_id,
+                action,
+                input_path,
+            )
 
         except Exception as e:
-            logger.exception("MaintenanceRunner failed")
+            logger.exception("MaintenanceRunner failed (job_id=%s, label=%r)", job_id, job.get("input_path"))
             db.update_job_status(job_id, "failed", log=str(e))
-            db.update_job_phase_state(job_id, "maintenance", "failed")
+            db.set_job_phase_state(job_id, "maintenance", "failed")
         finally:
             self.is_running = False
 
     def _action_reconcile(self, job_id: int, payload: Dict[str, Any]):
         limit = payload.get("limit", 5000)
+        logger.info("Maintenance reconcile: job_id=%s limit=%s", job_id, limit)
         n = db.reconcile_stale_running_phases_for_terminal_jobs(limit=limit)
-        db.log_job_event(job_id, "maintenance", f"Reconciled {n} stuck phase row(s).")
+        runner_emit(self.log_history, job_id, f"Reconciled {n} stuck phase row(s).", phase="maintenance")
+        logger.info("Maintenance reconcile: job_id=%s done, rows_updated=%s", job_id, n)
         db.update_job_progress(job_id, 100)
 
     def _action_heal_thumbnails(self, job_id: int, payload: Dict[str, Any]):
@@ -114,38 +142,53 @@ class MaintenanceRunner:
         repair_limit = payload.get("repair_limit", 1000)
         regen_limit = payload.get("regen_limit", 500)
         repair_all = payload.get("repair_all", False)
-        
-        db.log_job_event(job_id, "maintenance", f"Repairing thumbnail paths (limit={repair_limit}, all={repair_all})...")
+        logger.info(
+            "Maintenance heal_thumbnails: job_id=%s repair_limit=%s regen_limit=%s repair_all=%s",
+            job_id,
+            repair_limit,
+            regen_limit,
+            repair_all,
+        )
+
+        runner_emit(self.log_history, job_id, f"Repairing thumbnail paths (limit={repair_limit}, all={repair_all})...", phase="maintenance")
         repair_stats = thumbnail_maintenance.repair_thumbnail_paths_batch(limit=repair_limit, repair_all_pairs=repair_all)
-        db.log_job_event(job_id, "maintenance", f"Repair results: {repair_stats['repaired']} updated, {repair_stats['scanned']} scanned.")
+        runner_emit(self.log_history, job_id, f"Repair results: {repair_stats['repaired']} updated, {repair_stats['scanned']} scanned.", phase="maintenance")
         db.update_job_progress(job_id, 50)
         
-        if self._cancel_requested: return
-        
-        db.log_job_event(job_id, "maintenance", f"Regenerating missing rasters (limit={regen_limit})...")
+        if self._cancel_requested:
+            return
+
+        runner_emit(self.log_history, job_id, f"Regenerating missing rasters (limit={regen_limit})...", phase="maintenance")
         regen_stats = thumbnail_maintenance.regenerate_missing_thumbnails_batch(limit=regen_limit)
-        db.log_job_event(job_id, "maintenance", f"Regenerate results: {regen_stats['regenerated']} OK, {regen_stats['failed']} failed.")
+        runner_emit(self.log_history, job_id, f"Regenerate results: {regen_stats['regenerated']} OK, {regen_stats['failed']} failed.", phase="maintenance")
         db.update_job_progress(job_id, 100)
 
     def _action_backfill_exif(self, job_id: int, payload: Dict[str, Any]):
         from modules import exif_extractor
         limit = payload.get("limit", 1000)
-        db.log_job_event(job_id, "maintenance", f"Backfilling EXIF capture dates (limit={limit})...")
+        logger.info("Maintenance backfill_exif: job_id=%s limit=%s", job_id, limit)
+        runner_emit(self.log_history, job_id, f"Backfilling EXIF capture dates (limit={limit})...", phase="maintenance")
         
         # We process in smaller chunks to report progress if possible, 
         # but backfill_exif_dates is already batched.
         stats = exif_extractor.backfill_exif_dates(limit=limit)
         
         msg = f"EXIF backfill: {stats['updated']} updated, {stats['checked']} checked, {stats['errors']} errors."
-        db.log_job_event(job_id, "maintenance", msg)
+        runner_emit(self.log_history, job_id, msg, phase="maintenance")
         db.update_job_progress(job_id, 100)
 
     def _action_prune_missing(self, job_id: int, payload: Dict[str, Any]):
         from modules import utils
         limit = payload.get("limit", 5000)
         dry_run = payload.get("dry_run", False)
-        
-        db.log_job_event(job_id, "maintenance", f"Pruning records for missing files (limit={limit}, dry_run={dry_run})...")
+        logger.info(
+            "Maintenance prune_missing: job_id=%s limit=%s dry_run=%s",
+            job_id,
+            limit,
+            dry_run,
+        )
+
+        runner_emit(self.log_history, job_id, f"Pruning records for missing files (limit={limit}, dry_run={dry_run})...", phase="maintenance")
         
         pruned = 0
         scanned = 0
@@ -157,7 +200,8 @@ class MaintenanceRunner:
             
             total = len(rows)
             for i, row in enumerate(rows):
-                if self._cancel_requested: break
+                if self._cancel_requested:
+                    break
                 scanned += 1
                 
                 # Support both RowWrapper (Firebird) and dict/tuple (Postgres)
@@ -171,17 +215,18 @@ class MaintenanceRunner:
                         db.delete_image(img_id)
                     pruned += 1
                     if pruned % 10 == 0:
-                        db.log_job_event(job_id, "maintenance", f"Pruned {pruned} images so far...")
+                        runner_emit(self.log_history, job_id, f"Pruned {pruned} images so far...", phase="maintenance")
                 
                 if i % 100 == 0:
                     db.update_job_progress(job_id, int((i/total)*100))
 
-        db.log_job_event(job_id, "maintenance", f"Pruning done: {pruned} records removed, {scanned} scanned.")
+        runner_emit(self.log_history, job_id, f"Pruning done: {pruned} records removed, {scanned} scanned.", phase="maintenance")
         db.update_job_progress(job_id, 100)
 
     def _action_backfill_index_meta(self, job_id: int, payload: Dict[str, Any]):
         limit = payload.get("limit", 1000)
-        db.log_job_event(job_id, "maintenance", f"Global Index/Meta backfill (limit={limit})...")
+        logger.info("Maintenance backfill_index_meta: job_id=%s limit=%s", job_id, limit)
+        runner_emit(self.log_history, job_id, f"Global Index/Meta backfill (limit={limit})...", phase="maintenance")
         updated = db.backfill_index_meta_global(limit=limit)
-        db.log_job_event(job_id, "maintenance", f"Updated {updated} image(s).")
+        runner_emit(self.log_history, job_id, f"Updated {updated} image(s).", phase="maintenance")
         db.update_job_progress(job_id, 100)

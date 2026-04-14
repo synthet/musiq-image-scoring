@@ -83,6 +83,13 @@ class SelectionRunner:
             with self._lock:
                 runner_emit(self._log_history, job_id, msg, level, phase="culling")
 
+        def debug_culling(msg: str) -> None:
+            suffix = f" job_id={job_id}" if job_id else ""
+            logger.debug("[culling]%s %s", suffix, msg)
+            if job_id is not None:
+                with self._lock:
+                    runner_emit(self._log_history, job_id, msg, "DEBUG", phase="culling")
+
         def progress_cb(pct: float, msg: str, cur: int | None = None, tot: int | None = None):
             with self._lock:
                 self._status_message = msg
@@ -108,6 +115,9 @@ class SelectionRunner:
 
         log("Starting Selection workflow...")
         log(f"Input: {input_path}")
+        debug_culling(
+            f"run start input_path={input_path!r} force_rescan={force_rescan}"
+        )
         log("-" * 20)
         
         # Notify job started
@@ -161,6 +171,10 @@ class SelectionRunner:
             log(f"Phase status pre-run update error: {pe}")
 
         skipped_by_policy = max(0, len(images) - len(images_for_phase))
+        debug_culling(
+            f"scope images={len(images)} eligible_for_phase={len(images_for_phase)} "
+            f"skipped_by_policy={skipped_by_policy}"
+        )
         if skipped_by_policy:
             log(
                 f"Culling: skipping re-run for {skipped_by_policy} image(s) (already current); "
@@ -168,6 +182,7 @@ class SelectionRunner:
             )
 
         if job_id and db.job_should_stop_processing(job_id):
+            debug_culling("abort before SelectionService.run: job paused or canceled")
             log("Selection/culling skipped: job already paused or canceled.")
             return
 
@@ -176,10 +191,16 @@ class SelectionRunner:
             f"Starting clustering for {len(images_for_phase)} of {len(images)} image(s) in scope "
             f"(force_rescan={force_rescan})..."
         )
+        debug_culling("calling SelectionService.run")
         try:
             # SelectionService operates at folder scope; phase status updates are limited
             # to policy-eligible images tracked in images_for_phase.
             summary = self._service.run(input_path, cfg=cfg, progress_cb=progress_cb)
+            debug_culling(
+                f"SelectionService.run finished status={summary.status!r} "
+                f"images={summary.total_images} stacks={summary.total_stacks} "
+                f"pick={summary.picked} reject={summary.rejected} neutral={summary.neutral}"
+            )
             
             if summary.status == "stopped":
                 log("Selection stopped gracefully. Skipping finalization.", "WARNING")
@@ -201,6 +222,7 @@ class SelectionRunner:
             except Exception as pe:
                 log(f"Phase status update error: {pe}")
         except Exception as e:
+            debug_culling(f"SelectionService.run failed: {e!r}")
             for img in images_for_phase:
                 db.set_image_phase_status(
                     img['id'],
@@ -256,6 +278,13 @@ class SelectionRunner:
             ]
         except Exception as e:
             logger.warning("Failed to check remaining phases for job %s: %s", job_id, e)
+
+        logger.debug(
+            "[culling] job_id=%s complete_phase_and_advance remaining_phases=%s input_path=%r",
+            job_id,
+            [p.get("phase_code") for p in remaining],
+            input_path,
+        )
 
         if remaining:
             # Enqueue a follow-up job for the next phase (e.g. bird_species)

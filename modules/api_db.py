@@ -164,8 +164,11 @@ def get_image_details(file_path: str = Query(..., description="Full path to the 
     return details
 
 @router.get("/images/by-hash/{image_hash}")
-def get_image_by_hash(image_hash: str = Path(..., description="Image content hash")):
-    details = db.get_image_by_hash(image_hash)
+def get_image_by_hash(
+    image_hash: str = Path(..., description="Image content hash"),
+    hash_version: Optional[int] = Query(None, description="images.hash_version"),
+):
+    details = db.get_image_by_hash(image_hash, hash_version=hash_version)
     if not details:
         raise HTTPException(status_code=404, detail="Image not found")
     return details

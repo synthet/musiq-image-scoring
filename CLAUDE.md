@@ -144,6 +144,7 @@ Helpers: `_table_exists()`, `_column_exists()`, `_index_exists()`, `_constraint_
 - **DB column renames** require updating `electron/db.ts` too
 - **New score columns** require updating `_init_db_impl()` in `modules/db.py`
 - **Secrets** (API keys) go in `secrets.json` (git-ignored), never in `config.json`
+- **Never modify `.git/config`** — do not set `extensions.worktreeConfig`, change `core.repositoryformatversion`, or add any git extensions. Third-party tools (Gemini Code Assist / Antigravity) use embedded git libraries that choke on non-standard extensions, breaking workspace resolution. If a worktree is needed, use a temporary one and clean it up immediately — do not leave worktree config persisted in the repo.
 
 ### Keyword Storage (Phase 4 / Transition Period)
 

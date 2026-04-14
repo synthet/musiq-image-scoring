@@ -249,6 +249,10 @@ The MCP server registers **44** tools (see [`modules/mcp_server.py`](modules/mcp
 **"What's in the database?"**
 → `get_database_stats` → `get_folder_tree` → `get_stacks_summary`
 
+## Git Configuration — Do Not Modify
+
+**Never modify `.git/config`** — do not set `extensions.worktreeConfig`, change `core.repositoryformatversion`, or add any git extensions. Third-party tools (Gemini Code Assist / Antigravity) use embedded git libraries that fail on non-standard extensions, breaking workspace resolution. If a worktree is needed, use a temporary one and clean it up immediately — do not leave worktree config persisted in the repo.
+
 ## Important Notes
 
 - **Database Tools**: Most tools require database access. If database is unavailable, they return a clear error message.

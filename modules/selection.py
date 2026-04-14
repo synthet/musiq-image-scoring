@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 
 ProgressCb = Callable[[float, str, Optional[int], Optional[int]], None]
 
-# Fixed time gap for Selection workflow - do NOT use config default (per plan)
-SELECTION_TIME_GAP_SECONDS = 120
+# Threshold and time_gap are now read from config.json at runtime
+# via cluster_images() defaults (clustering.default_threshold / clustering.default_time_gap).
 
 
 @dataclass
@@ -121,7 +121,12 @@ class SelectionService:
                 
             n_folders = len(target_folders)
             self._progress(progress_cb, 0.02, f"Found {n_folders} folders. Starting processing...")
-            
+            logger.debug(
+                "[culling] selection scope folders=%s root=%r",
+                n_folders,
+                local_path,
+            )
+
             # Aggregate stats
             total_images_processed = 0
             total_stacks_created = 0
@@ -143,15 +148,21 @@ class SelectionService:
                 # 1. Get images
                 images = filter_image_rows_for_nef_policy(db.get_images_by_folder(folder))
                 if not images:
+                    logger.debug("[culling] folder skip (no images): %r", folder)
                     continue
                     
                 n_images_folder = len(images)
+                logger.debug(
+                    "[culling] folder begin %s images=%s force_rescan=%s",
+                    folder,
+                    n_images_folder,
+                    cfg.force_rescan,
+                )
                 
-                # 2. Cluster
-                # Use fixed time_gap - do NOT read default_time_gap from config
+                # 2. Cluster (threshold + time_gap read from config.json by cluster_images)
                 for status_msg in self._cluster_engine.cluster_images(
-                    distance_threshold=0.15,
-                    time_gap_seconds=SELECTION_TIME_GAP_SECONDS,
+                    distance_threshold=None,
+                    time_gap_seconds=None,
                     force_rescan=cfg.force_rescan,
                     target_folder=folder,
                     stop_event=self._stop_requested,
@@ -174,12 +185,22 @@ class SelectionService:
                 images = filter_image_rows_for_nef_policy(db.get_images_by_folder(folder))
                 if not images:
                     continue
-                    
+
                 # 4. Group & Sort
                 by_stack = defaultdict(list)
                 for img in images:
                     sid = img.get("stack_id")
                     by_stack[sid].append(img)
+
+                # by_stack includes stack_id=None for all unstacked images — that is ONE dict key, not one stack.
+                real_stack_ids = [k for k in by_stack if k is not None]
+                unstacked_n = len(by_stack.get(None, ()))
+                logger.debug(
+                    "[culling] after cluster folder=%s db_stack_groups=%s unstacked_images=%s",
+                    folder,
+                    len(real_stack_ids),
+                    unstacked_n,
+                )
                     
                 score_col = cfg.score_field
                 def sort_key(img):
@@ -236,9 +257,9 @@ class SelectionService:
                         logger.warning("Sidecar write failed for %s: %s", file_path, e)
                         total_errors += 1
                         
-                # Update stats
+                # Update stats — only count real stacks (stack_id IS NOT NULL), not the None bucket
                 total_images_processed += n_images_folder
-                total_stacks_created += len(by_stack)
+                total_stacks_created += len(real_stack_ids)
                 total_picked += sum(1 for _, d, _ in folder_decisions if d == "pick")
                 total_rejected += sum(1 for _, d, _ in folder_decisions if d == "reject")
                 total_neutral += sum(1 for _, d, _ in folder_decisions if d == "neutral")

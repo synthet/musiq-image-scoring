@@ -137,6 +137,10 @@ Workers communicate via `queue.Queue` with sentinel values (`None`) for shutdown
 2. **Kaggle Hub** (fallback) - Requires `kaggle.json`
 3. **Local Checkpoints** (offline) - `.npz` files in `musiq_original/checkpoints/`
 
+## Git Configuration — Do Not Modify
+
+**Never modify `.git/config`** — do not set `extensions.worktreeConfig`, change `core.repositoryformatversion`, or add any git extensions. Third-party tools (Gemini Code Assist / Antigravity) use embedded git libraries that fail on non-standard extensions, breaking workspace resolution. If a worktree is needed, use a temporary one and clean it up immediately — do not leave worktree config persisted in the repo.
+
 ## Code Conventions
 
 ### General

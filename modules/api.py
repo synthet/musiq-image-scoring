@@ -90,6 +90,7 @@ from modules.pipeline_selector_composer import (
 from modules.run_modes import infer_run_mode, resolve_run_mode_flags
 
 from modules.job_dispatcher import JobDispatcher
+from modules.maintenance_job_display import maintenance_job_input_path
 from modules import db
 
 logger = logging.getLogger(__name__)
@@ -312,7 +313,7 @@ def _image_detail_for_uuid_str(image_uuid: str) -> dict:
     return _image_detail_payload(image_id)
 
 
-def _image_detail_for_hash_str(image_hash: str) -> dict:
+def _image_detail_for_hash_str(image_hash: str, hash_version: Optional[int] = None) -> dict:
     import re
 
     key = (image_hash or "").strip()
@@ -323,7 +324,7 @@ def _image_detail_for_hash_str(image_hash: str) -> dict:
             status_code=400,
             detail="image_hash must be a hex string of length 32–128",
         )
-    row = db.get_image_by_hash(key)
+    row = db.get_image_by_hash(key, hash_version=hash_version)
     if not row:
         raise HTTPException(status_code=404, detail=f"Image not found: hash={key}")
     image_id = row.get("id")
@@ -397,10 +398,13 @@ def create_public_api_router() -> APIRouter:
     @router.get(
         "/images/by-hash/{image_hash}",
         summary="Image by content hash (public)",
-        description="Same JSON as GET /api/images/by-hash/{image_hash}.",
+        description="Same JSON as GET /api/images/by-hash/{image_hash}. Optional hash_version disambiguates.",
     )
-    async def public_get_image_by_hash(image_hash: str):
-        return _image_detail_for_hash_str(image_hash)
+    async def public_get_image_by_hash(
+        image_hash: str,
+        hash_version: Optional[int] = Query(None, description="images.hash_version (1=full file, 2=preview)"),
+    ):
+        return _image_detail_for_hash_str(image_hash, hash_version=hash_version)
 
     @router.get(
         "/images/{image_id}",
@@ -1057,6 +1061,10 @@ class MaintenanceStartRequest(BaseModel):
     input_path: Optional[str] = Field(None, description="Optional folder path to narrow the scope.")
     limit: Optional[int] = Field(None, description="Maximum items to process in this run.")
     dry_run: bool = Field(False, description="Whether to simulate changes.")
+    job_name: Optional[str] = Field(
+        None,
+        description="Optional UI display name for this run (e.g. Tools tab label); stored as jobs.input_path.",
+    )
 
 
 class ApiResponse(BaseModel):
@@ -3537,8 +3545,11 @@ def create_api_router() -> APIRouter:
         summary="Get image details by content hash",
         description="Looks up images.image_hash; returns the same payload as GET /api/images/{image_id}.",
     )
-    async def get_image_by_hash_param(image_hash: str):
-        return _image_detail_for_hash_str(image_hash)
+    async def get_image_by_hash_param(
+        image_hash: str,
+        hash_version: Optional[int] = Query(None, description="images.hash_version (1=full file, 2=preview)"),
+    ):
+        return _image_detail_for_hash_str(image_hash, hash_version=hash_version)
 
     @router.get(
         "/images/{image_id}",
@@ -5685,14 +5696,15 @@ def create_api_router() -> APIRouter:
 
         _check_rate_limit("maintenance_reconcile_terminal_phases")
         # Second arg must be phase_code; maintenance jobs have no pipeline phase (None).
+        queue_payload = {
+            "action": "reconcile",
+            "limit": limit,
+        }
         job_id, _ = db.enqueue_job(
-            "GLOBAL_MAINTENANCE",
+            maintenance_job_input_path("reconcile", queue_payload),
             None,
             job_type="maintenance",
-            queue_payload=json.dumps({
-                "action": "reconcile",
-                "limit": limit
-            }),
+            queue_payload=queue_payload,
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
@@ -5719,14 +5731,15 @@ def create_api_router() -> APIRouter:
         from modules import db
 
         _check_rate_limit("maintenance_backfill_index_meta")
+        queue_payload = {
+            "action": "backfill_index_meta",
+            "limit": limit,
+        }
         job_id, _ = db.enqueue_job(
-            "GLOBAL_MAINTENANCE",
+            maintenance_job_input_path("backfill_index_meta", queue_payload),
             None,
             job_type="maintenance",
-            queue_payload=json.dumps({
-                "action": "backfill_index_meta",
-                "limit": limit
-            }),
+            queue_payload=queue_payload,
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
@@ -6025,17 +6038,17 @@ def create_api_router() -> APIRouter:
         limit: int = Query(1000, ge=1, le=10000),
     ):
         from modules.ui.security import _check_rate_limit
-        from modules import exif_extractor
 
         _check_rate_limit("maintenance_backfill_exif_dates")
+        queue_payload = {
+            "action": "backfill_exif",
+            "limit": limit,
+        }
         job_id, _ = db.enqueue_job(
-            "GLOBAL_MAINTENANCE",
+            maintenance_job_input_path("backfill_exif", queue_payload),
             None,
             job_type="maintenance",
-            queue_payload=json.dumps({
-                "action": "backfill_exif",
-                "limit": limit
-            }),
+            queue_payload=queue_payload,
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
@@ -6057,17 +6070,17 @@ def create_api_router() -> APIRouter:
     )
     async def maintenance_regenerate_thumbnails():
         from modules.ui.security import _check_rate_limit
-        from modules import thumbnail_maintenance
 
         _check_rate_limit("maintenance_regenerate_thumbnails")
+        queue_payload = {
+            "action": "heal_thumbnails",
+            "limit": 500,
+        }
         job_id, _ = db.enqueue_job(
-            "GLOBAL_MAINTENANCE",
+            maintenance_job_input_path("heal_thumbnails", queue_payload),
             None,
             job_type="maintenance",
-            queue_payload=json.dumps({
-                "action": "heal_thumbnails",
-                "limit": 500
-            }),
+            queue_payload=queue_payload,
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
@@ -6232,15 +6245,23 @@ def create_api_router() -> APIRouter:
         from modules import db
         _check_rate_limit(f"maintenance_{request.action}")
 
+        payload_dict = {
+            "action": request.action,
+            "limit": request.limit if request.limit is not None else 1000,
+            "dry_run": request.dry_run,
+        }
+        if request.input_path and str(request.input_path).strip():
+            payload_dict["input_path"] = str(request.input_path).strip()
+
         job_id, _ = db.enqueue_job(
-            request.input_path or "GLOBAL_MAINTENANCE",
+            maintenance_job_input_path(
+                request.action,
+                payload_dict,
+                job_name=request.job_name,
+            ),
             None,
             job_type="maintenance",
-            queue_payload=json.dumps({
-                "action": request.action,
-                "limit": request.limit or 1000,
-                "dry_run": request.dry_run
-            }),
+            queue_payload=payload_dict,
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")

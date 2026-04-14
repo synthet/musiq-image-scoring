@@ -105,6 +105,37 @@ def test_dispatcher_supports_culling_alias(monkeypatch):
     assert kwargs["force_rescan"] is False
 
 
+def test_dispatcher_clustering_respects_queue_payload_force_rescan(monkeypatch):
+    """POST /api/clustering/start stores force_rescan on queue_payload without run_mode."""
+    clustering_runner = DummyRunner()
+    dispatcher = JobDispatcher(clustering_runner=clustering_runner)
+
+    queued_job = {
+        "id": 1076,
+        "job_type": "clustering",
+        "input_path": "/mnt/d/Photos/folder",
+        "queue_payload": json.dumps({
+            "input_path": "/mnt/d/Photos/folder",
+            "threshold": 0.15,
+            "time_gap": 120,
+            "force_rescan": True,
+        }),
+    }
+
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *args, **kwargs: None)
+
+    dispatcher._tick()
+
+    assert len(clustering_runner.calls) == 1
+    args, kwargs = clustering_runner.calls[0]
+    assert args[0] == "/mnt/d/Photos/folder"
+    assert kwargs["job_id"] == 1076
+    assert kwargs["force_rescan"] is True
+    assert kwargs["threshold"] == 0.15
+    assert kwargs["time_gap"] == 120
+
+
 def test_dispatcher_scoring_selector_payload_preserves_none_input_path(monkeypatch):
     scoring_runner = DummyRunner()
     dispatcher = JobDispatcher(scoring_runner=scoring_runner)

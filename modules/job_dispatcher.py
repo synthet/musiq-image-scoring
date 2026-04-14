@@ -282,17 +282,27 @@ class JobDispatcher:
 
         if phase_key in ("cluster", "clustering"):
             mode_flags = self._run_mode_flags(payload)
+            # POST /api/clustering/start sets force_rescan on queue_payload; it is not part of run_mode.
+            force_rescan = bool(mode_flags["force_rescan"]) or bool(payload.get("force_rescan"))
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 threshold=payload.get("threshold"),
                 time_gap=payload.get("time_gap"),
-                force_rescan=bool(mode_flags["force_rescan"]),
+                force_rescan=force_rescan,
                 job_id=job_id,
                 resolved_image_ids=scoped_resolved,
             )
 
         if phase_key in ("selection", "culling"):
             mode_flags = self._run_mode_flags(payload)
+            force_rescan = bool(mode_flags["force_rescan"]) or bool(payload.get("force_rescan"))
+            logger.debug(
+                "[culling] dispatch job_id=%s phase=%s input_path=%r force_rescan=%s",
+                job_id,
+                phase_key,
+                payload.get("input_path", input_path),
+                force_rescan,
+            )
             if scoped_resolved:
                 logger.info(
                     "Selection runner does not accept resolved_image_ids yet; "
@@ -302,7 +312,7 @@ class JobDispatcher:
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
-                force_rescan=bool(mode_flags["force_rescan"]),
+                force_rescan=force_rescan,
             )
 
         if phase_key in ("bird_species", "bird-species"):
@@ -317,6 +327,13 @@ class JobDispatcher:
             )
 
         if phase == "maintenance":
+            act = (payload or {}).get("action", "")
+            logger.info(
+                "Dispatching maintenance job id=%s action=%r input_path=%r",
+                job_id,
+                act,
+                input_path,
+            )
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,

@@ -130,10 +130,13 @@ def test_enqueue_job_returns_id_and_position(test_db):
 
 def test_enqueue_job_maintenance_without_phase_code_stores_payload(test_db):
     """Regression: POST /api/maintenance/start passes job_type only (no phase_code)."""
+    from modules.maintenance_job_display import maintenance_job_input_path
+
+    qp = {"action": "reconcile", "limit": 10}
     job_id, _pos = db.enqueue_job(
-        "GLOBAL_MAINTENANCE",
+        maintenance_job_input_path("reconcile", qp),
         job_type="maintenance",
-        queue_payload=json.dumps({"action": "reconcile", "limit": 10}),
+        queue_payload=json.dumps(qp),
     )
     assert isinstance(job_id, int) and job_id > 0
     row = db.get_job(job_id)

@@ -51,6 +51,8 @@ Existing features and implementation docs only. Plans and proposals → [plans/I
 | [BIRD_SPECIES_WALKTHROUGH.md](BIRD_SPECIES_WALKTHROUGH.md) | Bird species classification via BioCLIP 2 — end-to-end walkthrough |
 | [KEYWORD_EXTRACTION_GUIDE.md](KEYWORD_EXTRACTION_GUIDE.md) | BLIP + CLIP keyword extraction tool |
 | [RAW_PROCESSING_GUIDE.md](RAW_PROCESSING_GUIDE.md) | RAW file processing pipeline |
+| [NEF_FORMAT_REFERENCE.md](NEF_FORMAT_REFERENCE.md) | Nikon NEF container, MakerNote, previews (reference notes) |
+| [NEF_IMPLEMENTATION_REVIEW.md](NEF_IMPLEMENTATION_REVIEW.md) | NEF handling code review: backend + image-scoring-gallery |
 | [INBROWSER_RAW_PREVIEW.md](INBROWSER_RAW_PREVIEW.md) | In-browser NEF preview (LibRaw/JS) |
 | [LAZY_LOAD_DESIGN.md](LAZY_LOAD_DESIGN.md) | Full-resolution lazy loading design |
 | [LAZY_LOAD_DESIGN_REVIEW.md](LAZY_LOAD_DESIGN_REVIEW.md) | Design review with issues found |

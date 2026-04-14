@@ -1,7 +1,8 @@
+import json
 import os
 import threading
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from modules import db
 from modules.version import APP_VERSION
@@ -17,8 +18,88 @@ from modules.indexing_policy import (
 logger = logging.getLogger(__name__)
 
 INDEXING_VERSION = "1.0.0"
+# Stored in images.metadata: skip full-file SHA-256 when size+mtime match (job reruns / phase retries).
+_INDEXING_CONTENT_FP_KEY = "indexing_content_fp"
 # Keep jobs.log bounded when persisting during long runs (Run detail polling + LogPanel fallback).
 _MAX_PERSISTED_JOB_LOG_CHARS = 250_000
+
+
+def _parse_metadata_dict(raw: Any) -> Dict[str, Any]:
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return dict(raw)
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            return dict(parsed) if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _content_fp_matches_file(fp: Any, file_path: str) -> bool:
+    if not isinstance(fp, dict):
+        return False
+    try:
+        st = os.stat(file_path)
+    except OSError:
+        return False
+    if st.st_size != fp.get("size"):
+        return False
+    want_ns = fp.get("mtime_ns")
+    if want_ns is not None:
+        try:
+            return int(st.st_mtime_ns) == int(want_ns)
+        except (TypeError, ValueError):
+            return False
+    return False
+
+
+def _attach_indexing_content_fp(meta: Dict[str, Any], file_path: str) -> Dict[str, Any]:
+    out = dict(meta)
+    try:
+        st = os.stat(file_path)
+    except OSError:
+        return out
+    out[_INDEXING_CONTENT_FP_KEY] = {"size": st.st_size, "mtime_ns": st.st_mtime_ns}
+    return out
+
+
+def _persist_indexing_content_fp(
+    image_id: int, file_path: str, indexing_hash_mode: Optional[str] = None
+) -> None:
+    """Merge indexing_content_fp into images.metadata for duplicate-hash rows (no upsert)."""
+    if not image_id:
+        return
+    try:
+        st = os.stat(file_path)
+    except OSError:
+        return
+    fp_val = {"size": st.st_size, "mtime_ns": st.st_mtime_ns}
+    try:
+        if db._get_db_engine() == "postgres":
+            # Single UPDATE with jsonb merge — no SELECT round-trip needed.
+            patch = {_INDEXING_CONTENT_FP_KEY: fp_val}
+            if indexing_hash_mode is not None:
+                patch["indexing_hash_mode"] = indexing_hash_mode
+            from modules.db_postgres import PGConnectionManager
+            with PGConnectionManager(commit=True) as pg_conn:
+                with pg_conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE images SET metadata = COALESCE(metadata::jsonb, '{}'::jsonb) || %s::jsonb WHERE id = %s",
+                        (json.dumps(patch), int(image_id)),
+                    )
+        else:
+            # Fallback: SELECT + UPDATE for non-Postgres engines.
+            row = db.get_connector().query_one("SELECT metadata FROM images WHERE id = ?", (int(image_id),))
+            prev = row.get("metadata") if row else None
+            merged = _attach_indexing_content_fp(_parse_metadata_dict(prev), file_path)
+            if indexing_hash_mode is not None:
+                merged["indexing_hash_mode"] = indexing_hash_mode
+            db.update_image_field(int(image_id), "metadata", json.dumps(merged))
+    except Exception:
+        logger.debug("Indexing: could not persist %s for image_id=%s", _INDEXING_CONTENT_FP_KEY, image_id, exc_info=True)
 
 SUPPORTED_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.tif',
@@ -269,12 +350,13 @@ class IndexingRunner:
             self.current_count += 1
 
             # Fast-path: skip_existing and indexing already complete for this file
+            existing_by_path = None  # cached for reuse after skip_existing check
             if skip_existing:
-                existing_record = db.get_image_details(file_path)
-                if existing_record and existing_record.get("id"):
-                    phase_status = db.get_image_phase_status(existing_record["id"], PhaseCode.INDEXING)
+                existing_by_path = db.get_image_details(file_path)
+                if existing_by_path and existing_by_path.get("id"):
+                    phase_status = db.get_image_phase_status(existing_by_path["id"], PhaseCode.INDEXING)
                     if phase_status and phase_status.get("status") == PhaseStatus.DONE:
-                        sid = int(existing_record["id"])
+                        sid = int(existing_by_path["id"])
                         db.set_image_phase_status(
                             sid,
                             PhaseCode.INDEXING,
@@ -305,22 +387,82 @@ class IndexingRunner:
                             )
                         continue
 
-            from modules.utils import calculate_image_hash
+            from modules.config import get_config_value
+            from modules import image_identity_hash
 
-            existing_by_path = db.get_image_details(file_path)
+            if existing_by_path is None:
+                existing_by_path = db.get_image_details(file_path)
             track_id = int(existing_by_path["id"]) if existing_by_path and existing_by_path.get("id") else None
 
             image_id = None
             existing = None
             try:
-                log("DEBUG", f"Hashing: {file_path}")
-                image_hash = calculate_image_hash(file_path)
+                meta_dict = _parse_metadata_dict((existing_by_path or {}).get("metadata"))
+                cfg_mode = (
+                    get_config_value("indexing.hash_mode", "content_preview") or "content_preview"
+                ).strip().lower()
+                stored_hash = (existing_by_path or {}).get("image_hash")
+                if isinstance(stored_hash, str):
+                    stored_hash = stored_hash.strip() or None
+                fp = meta_dict.get(_INDEXING_CONTENT_FP_KEY)
+                prev_mode = meta_dict.get("indexing_hash_mode")
+                image_hash = None
+                hash_version: Optional[int] = None
+                if (
+                    stored_hash
+                    and _content_fp_matches_file(fp, file_path)
+                    and prev_mode == cfg_mode
+                ):
+                    image_hash = stored_hash
+                    try:
+                        hash_version = int((existing_by_path or {}).get("hash_version") or 1)
+                    except (TypeError, ValueError):
+                        hash_version = 1
+                    log("DEBUG", f"Reusing stored hash (content fingerprint unchanged): {file_path}")
+                else:
+                    # Try UUID-based shortcut: adopt hash from an existing record
+                    # matched by image_uuid (helps moved/renamed files avoid rehashing).
+                    uuid_adopted = False
+                    if meta_dict:
+                        try:
+                            candidate_uuid = db.generate_image_uuid(meta_dict)
+                            if candidate_uuid:
+                                uuid_record_id = db.find_image_id_by_uuid(candidate_uuid)
+                                if uuid_record_id:
+                                    uuid_row = db.get_connector().query_one(
+                                        "SELECT image_hash, hash_version FROM images WHERE id = ?",
+                                        (uuid_record_id,),
+                                    )
+                                    uh = (uuid_row.get("image_hash") or "").strip() if uuid_row else ""
+                                    if uh:
+                                        image_hash = uh
+                                        try:
+                                            hash_version = int(uuid_row.get("hash_version") or 1)
+                                        except (TypeError, ValueError):
+                                            hash_version = 1
+                                        uuid_adopted = True
+                                        log("DEBUG", f"Adopted hash from UUID match (id={uuid_record_id}): {file_path}")
+                        except Exception:
+                            logger.debug("UUID shortcut failed for %s", file_path, exc_info=True)
 
-                existing = db.get_image_by_hash(image_hash)
+                    if not uuid_adopted:
+                        log("DEBUG", f"Hashing: {file_path}")
+                        ident = image_identity_hash.compute_image_identity_hash(file_path)
+                        if not ident:
+                            log("ERROR", f"Could not compute identity hash for {file_path}")
+                            skipped_count += 1
+                            continue
+                        image_hash, hash_version = ident
+
+                merged_meta = _attach_indexing_content_fp(meta_dict, file_path)
+                merged_meta["indexing_hash_mode"] = cfg_mode
+
+                existing = db.get_image_by_hash(image_hash, hash_version)
                 if existing:
                     image_id = existing.get("id")
                     db.register_image_path(image_id, file_path)
                     _assign_indexing_folder_id(image_id, file_path, scan_stop, nef_cache)
+                    _persist_indexing_content_fp(int(image_id), file_path, cfg_mode)
                     log("DEBUG", f"Registered path for existing hash image_id={image_id}: {file_path}")
                 else:
                     resolved_folder = _resolve_nef_folder_path(file_path, scan_stop, nef_cache)
@@ -330,7 +472,9 @@ class IndexingRunner:
                         {
                             "image_path": file_path,
                             "image_hash": image_hash,
+                            "hash_version": hash_version,
                             "folder_id": folder_id,
+                            "metadata": merged_meta,
                         },
                     )
                     if not image_id:

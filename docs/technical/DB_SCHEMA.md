@@ -83,14 +83,18 @@ Core table storing image metadata and quality scores.
 | `model_version` | VARCHAR(50) | YES | Scoring model version |
 | `rating` | INTEGER | YES | User rating (0–5) |
 | `label` | VARCHAR(50) | YES | Color label: Red (reject), Yellow (maybe), Green (reference), Blue (portfolio), Purple (creative) |
-| `image_hash` | VARCHAR(64) | YES | Content hash (SHA256) |
+| `image_hash` | VARCHAR(64) | YES | Content hash (hex SHA-256); meaning depends on `hash_version` |
+| `hash_version` | INTEGER | NO | `1` = full-file hash; `2` = embedded preview payload hash (see `modules/image_identity_hash.py`) |
+| `image_uuid` | VARCHAR(36) | YES | Logical id from EXIF / metadata (`generate_image_uuid`); not interchangeable with `image_hash` |
 | `folder_id` | INTEGER | YES | FK → FOLDERS.id |
 | `stack_id` | INTEGER | YES | FK → STACKS.id |
 | `created_at` | TIMESTAMP | YES | Creation timestamp |
 | `burst_uuid` | VARCHAR(64) | YES | Burst/stack group UUID |
 | `image_embedding` | BLOB SUB_TYPE 0 | YES | MobileNetV2 feature vector (1280 × float32 = 5120 bytes). Populated during clustering; used by similarity search. |
 
-**Indexes:** `IDX_FOLDER_ID`, `IDX_STACK_ID`, `IDX_IMAGE_HASH`, `IDX_BURST_UUID`, `IDX_STACK_SCORE_GENERAL`
+**Indexes:** `IDX_FOLDER_ID`, `IDX_STACK_ID`, `IDX_IMAGE_HASH`, `IDX_BURST_UUID`, `IDX_STACK_SCORE_GENERAL`, partial index on `(image_hash, hash_version)` for lookups (and optional unique constraint on the same pair where `image_hash` IS NOT NULL — see Alembic migrations).
+
+See [API_CONTRACT.md](API_CONTRACT.md) — *Image identity: `image_hash`, `hash_version`, and `image_uuid`* for HTTP and config semantics.
 
 **Foreign keys:** `FK_IMAGES_FOLDERS` → FOLDERS(id) ON DELETE SET NULL
 

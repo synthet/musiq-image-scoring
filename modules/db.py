@@ -2133,6 +2133,18 @@ def _init_db_impl():
                     conn.rollback()
                 except Exception:
                     pass
+        c.execute("SELECT RDB$FIELD_NAME FROM RDB$RELATION_FIELDS WHERE RDB$RELATION_NAME = 'IMAGES'")
+        img_cols_hv = [row[0].strip().lower() for row in c.fetchall()]
+        if "hash_version" not in img_cols_hv:
+            try:
+                c.execute("ALTER TABLE images ADD hash_version INTEGER DEFAULT 1 NOT NULL")
+                conn.commit()
+            except Exception as m:
+                logger.debug("Adding hash_version column: %s", m)
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
         # Unique index on image_uuid to prevent duplicates (allows multiple NULLs)
         if "image_uuid" in img_cols and not _index_exists(c, 'UQ_IMAGES_IMAGE_UUID'):
             try:
@@ -3029,10 +3041,20 @@ def _init_db_impl():
         except Exception:
             pass
 
-def get_image_by_hash(image_hash):
-    row = get_connector().query_one(
-        "SELECT * FROM images WHERE image_hash = ?", (image_hash,)
-    )
+def get_image_by_hash(image_hash, hash_version=None):
+    """
+    Look up an image by content hash. When ``hash_version`` is None, match ``image_hash`` only
+    (unique in normal operation). Pass ``hash_version`` to disambiguate if needed.
+    """
+    if hash_version is not None:
+        row = get_connector().query_one(
+            "SELECT * FROM images WHERE image_hash = ? AND hash_version = ?",
+            (image_hash, int(hash_version)),
+        )
+    else:
+        row = get_connector().query_one(
+            "SELECT * FROM images WHERE image_hash = ?", (image_hash,)
+        )
     if not row:
         return None
     data = dict(row)
@@ -3056,7 +3078,7 @@ def update_image_field(image_id: int, field_name: str, value) -> bool:
     valid_fields = {
         'burst_uuid', 'rating', 'label', 'score_general', 'score_aesthetic',
         'score_technical', 'keywords', 'title', 'description', 'stack_id',
-        'thumbnail_path', 'thumbnail_path_win', 'metadata', 'image_hash',
+        'thumbnail_path', 'thumbnail_path_win', 'metadata', 'image_hash', 'hash_version',
         'cull_decision', 'cull_policy_version', 'image_uuid'
     }
     
@@ -3093,16 +3115,26 @@ def update_image_field(image_id: int, field_name: str, value) -> bool:
         return False
 
 
-def update_image_path(image_hash, new_path):
+def update_image_path(image_hash, new_path, hash_version=None):
     from pathlib import Path
     new_name = Path(new_path).name
     try:
         def _tx(tx):
-            tx.execute(
-                "UPDATE images SET file_path = ?, file_name = ? WHERE image_hash = ?",
-                (new_path, new_name, image_hash),
-            )
-            row = tx.query_one("SELECT id FROM images WHERE image_hash = ?", (image_hash,))
+            if hash_version is not None:
+                tx.execute(
+                    "UPDATE images SET file_path = ?, file_name = ? WHERE image_hash = ? AND hash_version = ?",
+                    (new_path, new_name, image_hash, int(hash_version)),
+                )
+                row = tx.query_one(
+                    "SELECT id FROM images WHERE image_hash = ? AND hash_version = ?",
+                    (image_hash, int(hash_version)),
+                )
+            else:
+                tx.execute(
+                    "UPDATE images SET file_path = ?, file_name = ? WHERE image_hash = ?",
+                    (new_path, new_name, image_hash),
+                )
+                row = tx.query_one("SELECT id FROM images WHERE image_hash = ?", (image_hash,))
             if row:
                 tx.execute(
                     "UPDATE OR INSERT INTO file_paths (image_id, path, last_seen) VALUES (?, ?, ?) MATCHING (image_id, path)",
@@ -3111,7 +3143,7 @@ def update_image_path(image_hash, new_path):
         get_connector().run_transaction(_tx)
         # Post-update folder fix
         try:
-            update_image_folder_id(image_hash=image_hash)
+            update_image_folder_id(image_hash=image_hash, hash_version=hash_version)
         except Exception: pass
         return True
     except Exception as e:
@@ -3153,15 +3185,21 @@ def update_image_thumbnail_paths(
         return False
 
 
-def update_image_folder_id(image_hash=None, image_id=None):
+def update_image_folder_id(image_hash=None, image_id=None, hash_version=None):
     """
     Helper to update folder_id for a single image.
     """
     try:
         if image_hash:
-            row = get_connector().query_one(
-                "SELECT id, file_path, folder_id FROM images WHERE image_hash = ?", (image_hash,)
-            )
+            if hash_version is not None:
+                row = get_connector().query_one(
+                    "SELECT id, file_path, folder_id FROM images WHERE image_hash = ? AND hash_version = ?",
+                    (image_hash, int(hash_version)),
+                )
+            else:
+                row = get_connector().query_one(
+                    "SELECT id, file_path, folder_id FROM images WHERE image_hash = ?", (image_hash,)
+                )
         elif image_id:
             row = get_connector().query_one(
                 "SELECT id, file_path, folder_id FROM images WHERE id = ?", (image_id,)
@@ -5875,6 +5913,10 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
 
 
     image_hash = result.get("image_hash", None)
+    try:
+        hash_version = int(result.get("hash_version") or 1)
+    except (TypeError, ValueError):
+        hash_version = 1
 
     # Resolve Folder ID
     folder_id = None
@@ -5927,13 +5969,13 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                        score=?, score_spaq=?, score_ava=?, score_koniq=?, score_paq2piq=?, score_liqe=?,
                        score_technical=?, score_aesthetic=?, score_general=?, model_version=?,
                        rating=?, label=?, keywords=?, title=?, description=?, metadata=?, scores_json=?,
-                       thumbnail_path=?, thumbnail_path_win=?, image_hash=?, folder_id=?
+                       thumbnail_path=?, thumbnail_path_win=?, image_hash=?, hash_version=?, folder_id=?
                        WHERE id=?''',
                     (job_id, image_path, file_name, file_type,
                      score, score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
                      score_technical, score_aesthetic, score_general, model_version,
                      rating, label, keywords, title, description, metadata, json.dumps(result),
-                     thumbnail_path, thumbnail_path_win, image_hash, folder_id, existing_id)
+                     thumbnail_path, thumbnail_path_win, image_hash, hash_version, folder_id, existing_id)
                 )
                 _sync_image_keywords(existing_id, keywords)
                 register_image_path(existing_id, image_path)
@@ -5952,7 +5994,8 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                     "score_aesthetic": score_aesthetic,
                     "rating": rating,
                     "label": label,
-                    "image_hash": image_hash
+                    "image_hash": image_hash,
+                    "hash_version": hash_version,
                 })
                 return existing_id
 
@@ -5964,7 +6007,7 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
         rating, label,
         keywords, title, description, metadata, json.dumps(result),
         thumbnail_path, thumbnail_path_win,
-        image_hash, folder_id, utils.get_image_creation_time(image_path)
+        image_hash, hash_version, folder_id, utils.get_image_creation_time(image_path)
     )
 
     def _tx(tx):
@@ -5977,8 +6020,8 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                    rating, label,
                    keywords, title, description, metadata, scores_json,
                    thumbnail_path, thumbnail_path_win,
-                   image_hash, folder_id, created_at)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   image_hash, hash_version, folder_id, created_at)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                   MATCHING (file_path) RETURNING id''',
             _upsert_params,
         )
@@ -6022,7 +6065,8 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
             "score_aesthetic": score_aesthetic,
             "rating": rating,
             "label": label,
-            "image_hash": image_hash
+            "image_hash": image_hash,
+            "hash_version": hash_version,
         })
 
     return image_id
@@ -6044,6 +6088,7 @@ def get_image_details(file_path):
                 i.image_embedding, i.rating, i.label, i.title, i.description,
                 i.metadata, i.scores_json, i.created_at, i.updated_at,
                 i.thumbnail_path, i.thumbnail_path_win, i.score_general, i.burst_uuid,
+                i.image_hash, i.hash_version,
                 COALESCE(
                     (SELECT STRING_AGG(COALESCE(kd.keyword_display, kd.keyword_norm), ', ')
                      FROM image_keywords ik
@@ -6071,6 +6116,7 @@ def get_image_details(file_path):
                 i.image_embedding, i.rating, i.label, i.title, i.description,
                 i.metadata, i.scores_json, i.created_at, i.updated_at,
                 i.thumbnail_path, i.thumbnail_path_win, i.score_general, i.burst_uuid,
+                i.image_hash, i.hash_version,
                 COALESCE(
                     (SELECT LIST(COALESCE(kd.keyword_display, kd.keyword_norm), ', ')
                      FROM image_keywords ik
@@ -7131,7 +7177,7 @@ def update_image_fields_batch(updates):
     valid_fields = {
         'burst_uuid', 'rating', 'label', 'score_general', 'score_aesthetic',
         'score_technical', 'keywords', 'title', 'description', 'stack_id',
-        'thumbnail_path', 'thumbnail_path_win', 'metadata', 'image_hash',
+        'thumbnail_path', 'thumbnail_path_win', 'metadata', 'image_hash', 'hash_version',
         'cull_decision', 'cull_policy_version', 'image_uuid'
     }
     if not updates:

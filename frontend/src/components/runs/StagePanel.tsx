@@ -206,8 +206,9 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
         <div className="border-t border-[#3c3c3c]">
           {(workItems.total ?? 0) === 0 && total > 0 && (
             <div className="px-4 py-2 text-xs text-[#cca700] border-b border-[#3c3c3c]">
-              No per-image rows for this job yet. Progress reflects files scanned; this table shows
-              image_phase_status entries tied to this run (check backend logs if it stays empty).
+              No per-file rows yet. The progress bar can advance from queued work before this table
+              fills—that is normal. Use Run Log below for live file-by-file output; this list appears
+              when per-image status is stored for this run.
             </div>
           )}
           <WorkItemsTable

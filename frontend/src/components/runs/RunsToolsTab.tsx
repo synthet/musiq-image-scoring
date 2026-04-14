@@ -124,7 +124,8 @@ export function RunsToolsTab() {
       runsApi.maintenanceStart({
         action: args.action,
         limit: args.limit,
-        input_path: args.input_path
+        input_path: args.input_path,
+        job_name: args.label,
       }),
     onSuccess: (r, variables) => {
       setLastAction({ 
@@ -290,10 +291,26 @@ export function RunsToolsTab() {
       <TierSection
         title="Recalculate status from data"
         subtitle={
-          'Recomputes derivable per-image phase states and rebuilds folder aggregate flags/caches. ' +
-          'Use after crashes, import drifts, or legacy migrations when badges look inconsistent.'
+          'Recomputes derivable per-image phase states and rebuilds folder rollups. ' +
+          'Use after crashes, import drifts, or legacy migrations when badges look inconsistent. ' +
+          'Replaces the old “Legacy Phase Backfill” control (index/metadata only).'
         }
       >
+        <ul className="list-disc pl-5 text-[11px] text-[#9d9d9d] space-y-1 mb-1 max-w-3xl">
+          <li>
+            Sets <span className="text-[#cccccc]">indexing</span> and{' '}
+            <span className="text-[#cccccc]">metadata</span> to done when{' '}
+            <span className="text-[#cccccc]">scoring</span> is done but those phases are missing.
+          </li>
+          <li>
+            Aligns the <span className="text-[#cccccc]">keywords</span> phase when keyword rows exist.
+          </li>
+          <li>
+            Repairs <span className="text-[#cccccc]">culling</span> rows stuck in{' '}
+            <span className="text-[#cccccc]">failed</span> when stack or embedding data is present.
+          </li>
+          <li>Rebuilds folder aggregate flags and caches.</li>
+        </ul>
         <div className="p-3 rounded bg-[#1e1e1e] border border-[#3c3c3c] space-y-2">
           <div className="flex flex-wrap items-center gap-3">
             <label className="text-xs text-[#9d9d9d] inline-flex items-center gap-1.5">
@@ -481,20 +498,6 @@ export function RunsToolsTab() {
           isPending={maintenanceMut.isPending && maintenanceMut.variables?.action === 'prune_missing'}
           disabled={toolsLocked}
           variant="secondary"
-        />
-
-        <ToolCard
-          title={MaintenanceToolsCopy.tier3.tools.backfillIndexMeta.name}
-          description={MaintenanceToolsCopy.tier3.tools.backfillIndexMeta.description}
-          buttonText="Backfill"
-          onAction={() => maintenanceMut.mutate({ 
-            action: 'backfill_index_meta', 
-            label: MaintenanceToolsCopy.tier3.tools.backfillIndexMeta.name,
-            limit: MaintenanceToolsCopy.tier3.tools.backfillIndexMeta.limit
-          })}
-          isPending={maintenanceMut.isPending && maintenanceMut.variables?.action === 'backfill_index_meta'}
-          disabled={toolsLocked}
-          variant="outline"
         />
       </TierSection>
     </div>

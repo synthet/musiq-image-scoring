@@ -129,6 +129,8 @@ GET /api/raw-preview?path=<url-encoded-file-path>
 |--------|------|---------|
 | GET | `/api/images` | Paginated image query with filters |
 | GET | `/api/images/{image_id}` | Single image details |
+| GET | `/api/images/by-uuid/{image_uuid}` | Single image details by `images.image_uuid` |
+| GET | `/api/images/by-hash/{image_hash}` | Single image details by `images.image_hash` (optional `hash_version`) |
 | GET | `/api/folders` | Folder listing |
 | GET | `/api/stacks` | Stacks with cover images |
 | GET | `/api/stacks/{stack_id}/images` | Images in a stack |
@@ -160,6 +162,32 @@ GET /api/raw-preview?path=<url-encoded-file-path>
   "total_pages": 25
 }
 ```
+
+### Image identity: `image_hash`, `hash_version`, and `image_uuid` (developer reference)
+
+These fields serve different purposes. Do not substitute one for another when integrating.
+
+| Mechanism | Purpose |
+|-----------|---------|
+| `image_hash` + `hash_version` | **Byte/payload identity** for deduplication, `GET .../by-hash/{hash}`, delete blocklists keyed by hash, clustering feature cache keys. Version distinguishes algorithms (see below). |
+| `image_uuid` | **Logical identity** from EXIF / `ImageUniqueID` or a deterministic metadata fingerprint (`generate_image_uuid`); used for merge-on-import. May be absent or unstable until metadata exists — do not rely on it for indexing-time dedupe before metadata is populated. |
+
+**`hash_version` (integer, column `images.hash_version`):**
+
+| Value | Meaning |
+|-------|---------|
+| `1` | SHA-256 of the **entire file** (same semantics as legacy `compute_file_hash`). |
+| `2` | SHA-256 of the **largest** embedded **preview JPEG** bytes found for TIFF-based RAW when `indexing.hash_mode` is `content_preview` and at least one candidate ≥ 64 bytes is found; see `modules/image_identity_hash.py`. |
+
+**Version `2` discovery (Nikon-oriented, container-agnostic fallback):** candidates are merged from (in this logical order for non-`.nrw` files) **(A)** JPEG-compressed TIFF strips from every qualifying `tifffile` page, **(B)** Nikon NEF/NRW MakerNote tag `0x0011` → preview IFD → `0x0201` / `0x0202` (JPEG offset/length) with bounds checks, **(C)** the largest in-file `FFD8`…`FFD9` segment (mmap scan). The digest is **SHA-256 of the longest** JPEG blob among those candidates. For **`.nrw`**, **(C)** runs before **(A)** to avoid noisy `tifffile` failures on non-classic layouts; the **largest** blob is still chosen across **(A) ∪ (B) ∪ (C)**. HEIF-in-NEF and similar formats are out of scope for version `2` unless a new `hash_version` is introduced.
+
+**Config:** `indexing.hash_mode` — `full_file` (always version `1`) or `content_preview` (prefer embedded JPEG for RAW; fallback to full-file `1` when no preview is found).
+
+**Backward compatibility:** `GET /api/images/by-hash/{image_hash}` without query parameters matches on `image_hash` only (first matching row in edge cases). Clients that need a specific algorithm should pass **`hash_version`** as a query parameter (same on `/public/api/images/by-hash/...` and `/api/db/images/by-hash/...`).
+
+**Uniqueness:** The application expects at most one `images` row per `(image_hash, hash_version)` when `image_hash` is not null. A partial unique index may enforce this in PostgreSQL (see migrations); if upgrading fails due to duplicate pairs, deduplicate rows before re-running migrations.
+
+**Decisions (implementation):** `hash_version` is stored as a **small integer**, not a string enum. Default indexing behavior uses **`content_preview`** unless `indexing.hash_mode` is set to `full_file` (legacy byte-for-byte parity). Schema evolution uses Alembic (`hash_version` column) plus optional `scripts/python/backfill_hashes.py`; per-folder reindex is an operational choice.
 
 ### GET /api/folders — Response
 ```json

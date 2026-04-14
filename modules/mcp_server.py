@@ -348,12 +348,12 @@ def get_image_details(file_path: str) -> dict:
 
 @mcp.tool(annotations=_RO)
 @_require_db
-def search_images_by_hash(image_hash: str) -> dict:
+def search_images_by_hash(image_hash: str, hash_version: Optional[int] = None) -> dict:
     """Find an image by content hash (image_hash column, typically SHA-256). Returns file_paths when found."""
     h = (image_hash or "").strip()
     if not h:
         return {"error": "image_hash is required"}
-    row = db.get_image_by_hash(h)
+    row = db.get_image_by_hash(h, hash_version=hash_version)
     if not row:
         return {"found": False, "image": None}
     return {"found": True, "image": _sanitize_for_mcp(row)}

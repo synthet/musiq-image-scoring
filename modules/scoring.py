@@ -382,8 +382,11 @@ class ScoringRunner:
                      pass
              
              try:
-                 if row['image_hash']:
+                 if row.get('image_hash'):
                      job.external_scores['image_hash'] = row['image_hash']
+                     hv = row.get('hash_version')
+                     if hv is not None:
+                         job.external_scores['hash_version'] = int(hv)
              except (KeyError, IndexError):
                  pass
                  

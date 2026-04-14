@@ -80,11 +80,18 @@ class ClusteringEngine(IClusteringEngine):
             logging.error(f"Failed to save feature cache: {e}")
 
     def _get_image_hash(self, file_path):
-        """Get image hash from database for cache key."""
+        """Get cache key from DB (image_hash + hash_version when present)."""
         details = db.get_image_details(file_path)
-        if details and details.get('image_hash'):
-            return details['image_hash']
-        return None
+        if not details or not details.get("image_hash"):
+            return None
+        h = details["image_hash"]
+        hv = details.get("hash_version")
+        if hv is None:
+            return h
+        try:
+            return f"{h}\tv{int(hv)}"
+        except (TypeError, ValueError):
+            return h
 
     def _select_best_image(self, img_ids, id_to_score, id_to_feature=None):
         """
@@ -248,12 +255,12 @@ class ClusteringEngine(IClusteringEngine):
             for idx, path in zip(uncached_indices, uncached_paths):
                 try:
                     # Load image, resize to 224x224
-                    # Deferred import
                     from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
-                    from tensorflow.keras.preprocessing import image as keras_image
+                    from modules.thumbnails import open_image_for_ml
 
-                    img = keras_image.load_img(path, target_size=(224, 224))
-                    x = keras_image.img_to_array(img)
+                    img = open_image_for_ml(path)
+                    img = img.convert("RGB").resize((224, 224), Image.LANCZOS)
+                    x = np.array(img, dtype=np.float32)
                     x = preprocess_input(x)
                     batch_images.append(x)
                     batch_paths.append(path)
@@ -295,7 +302,14 @@ class ClusteringEngine(IClusteringEngine):
             for orig_idx, feat in new_features:
                 features_list.append(feat)
                 valid_indices.append(orig_idx)
-            
+
+            n_failed = len(uncached_paths) - len(new_features)
+            if n_failed > 0:
+                logging.warning(
+                    "[Clustering] Feature extraction: %d/%d succeeded, %d failed",
+                    len(new_features), len(uncached_paths), n_failed,
+                )
+
             # Persist cache to disk after extraction
             if new_features:
                 self._save_cache()
@@ -558,10 +572,22 @@ class ClusteringEngine(IClusteringEngine):
                 if decision['should_run']:
                     runnable_rows.append(r)
                 else:
-                    logging.debug("Skipping culling image_id=%s: %s", r['id'], decision['reason'])
+                    logger.debug(
+                        "[culling] skip image_id=%s reason=%s",
+                        r["id"],
+                        decision.get("reason"),
+                    )
 
             if not runnable_rows:
-                logging.warning(f"[Clustering] Skipping folder {folder}: runnable_rows=0 (all images current)")
+                logger.warning(
+                    "[Clustering] Skipping folder %s: runnable_rows=0 (all images current)",
+                    folder,
+                )
+                logger.debug(
+                    "[culling] folder skip all current folder=%r rows=%s",
+                    folder,
+                    len(rows),
+                )
                 # Recover stuck RUNNING rows (e.g. crashed job) so folder previews / phase summaries stay accurate.
                 for r in rows:
                     st = (db.get_image_phase_statuses(r["id"]) or {}).get("culling") or {}
@@ -589,14 +615,28 @@ class ClusteringEngine(IClusteringEngine):
                 yield update_status(f"Skipping folder: {folder} (all images current)", processed_count, len(images_rows))
                 continue
 
-            logging.info(f"[Clustering] Processing folder {folder}: {len(runnable_rows)} runnable images")
+            logger.info(
+                "[Clustering] Processing folder %s: %s runnable images",
+                folder,
+                len(runnable_rows),
+            )
+            logger.debug(
+                "[culling] process folder=%r runnable=%s of %s rows job_id=%s",
+                folder,
+                len(runnable_rows),
+                len(rows),
+                job_id,
+            )
             for r in runnable_rows:
                 # If force_rescan and image is in RUNNING state, reset to DONE first to allow rerun
                 if force_rescan:
                     statuses = db.get_image_phase_statuses(r['id']) or {}
                     culling_status = statuses.get("culling")
                     if culling_status and culling_status.get("status") == "running":
-                        logging.debug(f"Force rescan: resetting image {r['id']} culling phase from running to done")
+                        logger.debug(
+                            "[culling] force_rescan reset image_id=%s from running to done",
+                            r["id"],
+                        )
                         db.set_image_phase_status(
                             r['id'],
                             PhaseCode.CULLING,
@@ -718,9 +758,11 @@ class ClusteringEngine(IClusteringEngine):
                 batch_original_paths = []
                 batch_ids = []
                 for r, t in batch:
-                    from modules.thumbnails import get_thumb_wsl
-                    thumb = get_thumb_wsl(r)  # clustering runs in WSL
-                    p = thumb if (thumb and os.path.exists(thumb)) else r['file_path']
+                    from modules.thumbnails import _resolve_thumbnail_filesystem_path
+                    thumb = _resolve_thumbnail_filesystem_path(
+                        r.get('thumbnail_path'), r.get('thumbnail_path_win'),
+                    )
+                    p = thumb if thumb else r['file_path']
 
                     if p and os.path.exists(p):
                         batch_paths.append(p)
@@ -751,6 +793,13 @@ class ClusteringEngine(IClusteringEngine):
                     embedding_pairs.append((img_id, feat.astype(np.float32).tobytes()))
                 if embedding_pairs:
                     db.update_image_embeddings_batch(embedding_pairs, model_version=CLUSTER_VERSION)
+
+                if len(features) == 0 and len(batch_paths) > 0:
+                    logging.warning(
+                        "[Clustering] Batch %d/%d: 0 features from %d paths — "
+                        "thumbnail or image loading failed for all images",
+                        b_idx + 1, len(time_batches), len(batch_paths),
+                    )
 
                 if len(features) < 2:
                     logging.info(

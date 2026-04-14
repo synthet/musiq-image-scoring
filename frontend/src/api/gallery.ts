@@ -49,8 +49,10 @@ export const galleryApi = {
   get: (id: number) => api.get<ImageDetail>(`/images/${id}`),
   getByUuid: (uuid: string) =>
     api.get<ImageDetail>(`/images/by-uuid/${encodeURIComponent(uuid.trim())}`),
-  getByHash: (hash: string) =>
-    api.get<ImageDetail>(`/images/by-hash/${encodeURIComponent(hash.trim())}`),
+  getByHash: (hash: string, hashVersion?: number | null) =>
+    api.get<ImageDetail>(`/images/by-hash/${encodeURIComponent(hash.trim())}`, {
+      params: hashVersion == null ? undefined : { hash_version: hashVersion },
+    }),
   getByKey: (key: string): Promise<ImageDetail> => {
     const k = key.trim()
     if (!k) {

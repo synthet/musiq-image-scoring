@@ -60,13 +60,6 @@ export const MaintenanceToolsCopy = {
         action: "prune_missing",
         limit: 10000,
       },
-      backfillIndexMeta: {
-        id: "backfillIndexMeta",
-        name: "Legacy Phase Backfill",
-        description: "Sets Indexing/Metadata phases to 'Done' for images scored before those phases were mandatory.",
-        action: "backfill_index_meta",
-        limit: 5000,
-      }
     }
   }
 };

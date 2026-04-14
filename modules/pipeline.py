@@ -132,6 +132,8 @@ class PrepWorker(PipelineWorker):
                     job.image_id = path_record.get('id')
                     if not job.external_scores.get("image_hash"):
                         job.external_scores["image_hash"] = path_record.get('image_hash')
+                    if path_record.get("hash_version") is not None and not job.external_scores.get("hash_version"):
+                        job.external_scores["hash_version"] = int(path_record["hash_version"])
 
             # --- PHASE C: SCORING (Preparation) ---
             if _is_phase_targeted(job.target_phases, PhaseCode.SCORING):
@@ -459,6 +461,8 @@ class ResultWorker(PipelineWorker):
                 job.result["image_name"] = Path(job.image_path).name
                 if "image_hash" in job.external_scores:
                     job.result["image_hash"] = job.external_scores["image_hash"]
+                if "hash_version" in job.external_scores:
+                    job.result["hash_version"] = job.external_scores["hash_version"]
                 
                 if job.thumbnail_path:
                     job.result["thumbnail_path"] = job.thumbnail_path

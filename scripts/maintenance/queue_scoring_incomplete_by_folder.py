@@ -25,6 +25,9 @@ Examples:
 
   # Monitor current scoring job (no DB)
   python scripts/maintenance/queue_scoring_incomplete_by_folder.py --status-only
+
+  # Broader per-folder report (thumbnails, bird species gaps, stacks, etc.)
+  python scripts/maintenance/folder_data_quality_report.py --json
 """
 from __future__ import annotations
 

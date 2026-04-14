@@ -27,6 +27,8 @@ export interface Run {
   current_phase: string | null
   next_phase_index: number | null
   runner_state: string | null
+  /** Parsed jobs.queue_payload — run_mode, force_rescan, scope, clustering params, etc. */
+  queue_payload?: Record<string, unknown> | null
 }
 
 // ─── Stage (maps to job_phases) ──────────────────────────────────────────
@@ -203,6 +205,8 @@ export interface Image {
   file_type?: string | null
   file_size?: number | null
   image_hash?: string | null
+  /** 1 = full-file SHA-256; 2 = embedded preview / content identity (see image_identity_hash) */
+  hash_version?: number | null
   /** Stable identifier from metadata / indexing (DB: image_uuid) */
   image_uuid?: string | null
   stack_id?: number | null
