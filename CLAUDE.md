@@ -179,8 +179,9 @@ db._sync_image_keywords(image_id, "nature,wildlife")  # → writes to IMAGE_KEYW
 ```
 
 **Related docs:**
+- `docs/plans/database/PHASE4_KEYWORDS_HUB.md` — Index of Phase 4 keyword docs (current vs archived)
 - `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md` — Full deprecation roadmap
-- `docs/plans/database/PHASE4_CODE_AUDIT.md` — Code audit & refactoring plan
+- `docs/archive/plans/database/PHASE4_CODE_AUDIT.md` — Archived code audit (pre–Phase 4b snapshot)
 
 ## Configuration
 
@@ -201,3 +202,21 @@ val = get_config_value("scoring.force_rescore_default", default=False)
 - `.agent/PROJECT_GUIDE.md` — Agent workflow guide
 - `.agent/mcp_tools_reference.md` — MCP tools quick reference
 - `AGENTS.md` — MCP server configuration for Cursor/AI agents
+
+### Wiki Maintenance (LLM-maintained docs)
+
+The `docs/` directory is an LLM-maintained wiki. The LLM writes and updates it; the human curates sources and directs analysis. Full conventions in `docs/WIKI_SCHEMA.md`.
+
+**Rules for any docs change:**
+1. **Always update indexes** — every new page must appear in its folder's `INDEX.md` and in `docs/INDEX.md`
+2. **Always cross-reference** — link to related pages; link from related pages back
+3. **Always log** — append an entry to `docs/log.md` for any ingest, query-filed, lint, or significant update
+4. **Never delete pages** — archive to `docs/archive/` instead
+5. **Never modify raw sources** — files in `docs/raw/` are immutable
+6. **Prefer updates over rewrites** — minimal diffs to existing pages
+7. **Follow naming conventions** — `UPPER_SNAKE_CASE.md` (default), date-stamped for reports
+
+**Slash commands:**
+- `/wiki-ingest` — Process a source document into the wiki (read, summarize, cross-reference, index, log)
+- `/wiki-query` — Answer a question from the wiki with citations; optionally file the answer as a new page
+- `/wiki-lint` — Health-check: find orphans, broken links, stale content, missing cross-references

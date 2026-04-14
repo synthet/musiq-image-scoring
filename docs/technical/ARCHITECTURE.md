@@ -39,6 +39,8 @@ A **Gradio**-based web interface allows users to interact with the system.
 - **Tabs**: Organized by function (Gallery, Scoring, Tagging, Stacks, Culling).
 - **State**: Manages user session state and interaction logic.
 
+For how Gradio fits next to FastAPI and when a separate inference-serving stack would be warranted, see [GRADIO_SERVING_DECISION.md](../reports/GRADIO_SERVING_DECISION.md).
+
 ### 7. API (`modules/api.py`)
 A **FastAPI** layer that exposes endpoints for the WebUI and potential external consumers, wrapping the underlying engine and runners.
 

@@ -23,11 +23,16 @@ Aligned with root [`TODO.md`](../../TODO.md) **Highest-Impact Next Steps**. Tier
 
 | Document | Description |
 |----------|-------------|
+| [PHASE4_KEYWORDS_HUB.md](database/PHASE4_KEYWORDS_HUB.md) | **Start here** — index of Phase 4 keyword docs (living vs [archived](../archive/plans/database/INDEX.md)) |
+| [PHASE4_KEYWORDS_DEPRECATION.md](database/PHASE4_KEYWORDS_DEPRECATION.md) | Deprecation timeline (`IMAGES.KEYWORDS` → normalized) |
+| [PHASE4_STATUS_SUMMARY.md](database/PHASE4_STATUS_SUMMARY.md) | Phase 4 status narrative and timeline |
 | [DB_SCHEMA_REFACTOR_PLAN.md](database/DB_SCHEMA_REFACTOR_PLAN.md) | Strategic phase definitions for schema refactor |
 | [DB_SCHEMA_REFACTOR_IMPLEMENTATION.md](database/DB_SCHEMA_REFACTOR_IMPLEMENTATION.md) | Implementation guide for schema refactor |
 | [FIREBIRD_POSTGRES_MIGRATION.md](database/FIREBIRD_POSTGRES_MIGRATION.md) | Migration plan from Firebird to PostgreSQL + pgvector |
-| [NEXT_STEPS.md](database/NEXT_STEPS.md) | Keyword/metadata refactor — Phase 4 remaining steps and verification |
+| [NEXT_STEPS.md](database/NEXT_STEPS.md) | Keyword/metadata refactor — remaining steps and verification |
 | [DB_VECTORS_REFACTOR.md](database/DB_VECTORS_REFACTOR.md) | Multi-type vectors (pgvector) and optional normalization appendix |
+| [DB_STATUS_REPORT.md](database/DB_STATUS_REPORT.md) | PostgreSQL status narrative |
+| [POSTGRES_SCHEMA_OPTIMIZATIONS.md](database/POSTGRES_SCHEMA_OPTIMIZATIONS.md) | Phase 5 PostgreSQL optimizations |
 
 ## Refactoring
 

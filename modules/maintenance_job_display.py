@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-# Align with frontend `MaintenanceToolsCopy` where applicable.
+# Align with frontend `frontend/src/constants/pipelineTools.ts` (Pipeline Tools tab) where applicable.
 _DEFAULT_TITLE_BY_ACTION: Dict[str, str] = {
     "reconcile": "Reconcile Finished Phases",
     "heal_thumbnails": "Heal Thumbnails",
@@ -52,7 +52,7 @@ def maintenance_job_input_path(
     Args:
         action: `queue_payload.action` value.
         payload: Queue payload dict (limits, dry_run, etc.).
-        job_name: Optional UI-provided name (e.g. from MaintenanceToolsCopy).
+        job_name: Optional UI-provided name (e.g. from Pipeline Tools tab copy in pipelineTools.ts).
         title_override: Explicit title when there is no `job_name` and the default
             map does not apply (e.g. API-only endpoints).
     """

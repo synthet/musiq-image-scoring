@@ -677,7 +677,7 @@ Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>"
 ```bash
 git tag -a v6.3 -m "Phase 4b: Keyword primary source cutover
 
-See docs/plans/database/PHASE4B_KEYWORD_READER_AUDIT.md for details."
+See PHASE4B_KEYWORD_READER_AUDIT.md (same folder) for details."
 
 git push origin master v6.3
 ```

@@ -12,4 +12,4 @@ Historical debugging session notes and issue resolutions.
 | [GRADIO_ROUTING_ISSUE.md](GRADIO_ROUTING_ISSUE.md) | Gradio routing problem |
 | [GRADIO_ROUTING_RESOLUTION.md](GRADIO_ROUTING_RESOLUTION.md) | Gradio routing fix |
 
-**See also:** [Reports index](../INDEX.md) · [Main docs index](../../INDEX.md)
+**See also:** [Debugging sessions hub](../../../reports/DEBUGGING_SESSIONS_HUB.md) · [Reports index](../../../reports/INDEX.md) · [Main docs index](../../../INDEX.md)

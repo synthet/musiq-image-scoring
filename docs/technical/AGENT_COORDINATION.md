@@ -59,7 +59,7 @@ COALESCE(
 - **Writes:** Use backend API (`PATCH /api/images/{id}`) which dual-writes to both schemas
 - **Filtering:** Use `IMAGE_KEYWORDS` join (not `LIKE` on `IMAGES.KEYWORDS`)
 
-**Docs:** [`PHASE4_KEYWORDS_DEPRECATION.md`](../plans/database/PHASE4_KEYWORDS_DEPRECATION.md), [`PHASE4_COMPLETION_SUMMARY.md`](../plans/database/PHASE4_COMPLETION_SUMMARY.md)
+**Docs:** [`PHASE4_KEYWORDS_HUB.md`](../plans/database/PHASE4_KEYWORDS_HUB.md) (index), [`PHASE4_KEYWORDS_DEPRECATION.md`](../plans/database/PHASE4_KEYWORDS_DEPRECATION.md), archived completion summary [`PHASE4_COMPLETION_SUMMARY.md`](../archive/plans/database/PHASE4_COMPLETION_SUMMARY.md)
 
 ## 🔍 Troubleshooting with MCP
 

@@ -55,6 +55,7 @@ Endpoints:
         POST /api/maintenance/backfill-exif-dates - Queued EXIF repair
         POST /api/maintenance/regenerate-thumbnails - Queued thumb repair
         POST /api/maintenance/prune-missing-files - Queued cleanup
+        POST /api/maintenance/schedule-folder-quality-runs - Batch queue validate-and-repair runs per leaf folder
 
     General:
         GET /api/status - Get status of all runners
@@ -1064,6 +1065,29 @@ class MaintenanceStartRequest(BaseModel):
     job_name: Optional[str] = Field(
         None,
         description="Optional UI display name for this run (e.g. Tools tab label); stored as jobs.input_path.",
+    )
+
+
+class ScheduleFolderQualityRunsRequest(BaseModel):
+    """Batch-queue pipeline runs for leaf folders with data-quality issues (see folder_data_quality_report)."""
+
+    root_path: Optional[str] = Field(None, description="Only folders under this library path (prefix).")
+    stack_after_culling_only: bool = False
+    budget: int = Field(
+        10,
+        ge=1,
+        le=100,
+        description="Schedules at most max(0, budget - active_running_or_queued_jobs) folder runs.",
+    )
+    run_mode: Literal[
+        "process_all_overwrite",
+        "process_unprocessed_or_empty",
+        "validate_and_repair",
+    ] = "validate_and_repair"
+    dry_run: bool = False
+    heal_thumbnails_global: bool = Field(
+        False,
+        description="If any selected folder has thumb_missing>0, enqueue global heal_thumbnails once before per-folder runs.",
     )
 
 
@@ -5748,6 +5772,46 @@ def create_api_router() -> APIRouter:
             message=f"Index/Meta backfill job queued (Run ID: {job_id})",
             data={"run_id": job_id},
         )
+
+    @router.post(
+        "/maintenance/schedule-folder-quality-runs",
+        response_model=ApiResponse,
+        summary="Queue validate-and-repair runs for top issue folders (capacity-aware)",
+        description=(
+            "Selects leaf folders with quality issues (same rollup as "
+            "`scripts/maintenance/folder_data_quality_report.py`), excludes folders already "
+            "covered by running/queued jobs, then enqueues up to "
+            "`max(0, budget - active_jobs)` runs — one pipeline job per folder. "
+            "Stages are derived from per-folder issue columns (scoring, thumbs, stacks, bird species)."
+        ),
+        tags=["General API"],
+    )
+    async def maintenance_schedule_folder_quality_runs(request: ScheduleFolderQualityRunsRequest):
+        from modules.ui.security import _check_rate_limit
+        from modules import folder_quality_schedule
+
+        _check_rate_limit("maintenance_schedule_folder_quality_runs")
+        try:
+            data = await asyncio.to_thread(
+                folder_quality_schedule.schedule_folder_quality_runs,
+                root_path=request.root_path,
+                stack_after_culling_only=request.stack_after_culling_only,
+                budget=request.budget,
+                run_mode=request.run_mode,
+                dry_run=request.dry_run,
+                heal_thumbnails_global=request.heal_thumbnails_global,
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+        n = int(data.get("scheduled_this_round") or 0)
+        rem = int(data.get("folders_remaining_after") or 0)
+        msg = (
+            f"Scheduled {n} folder run(s); {rem} folder(s) still need work after this round."
+            if not request.dry_run
+            else f"Dry run: would schedule {n} folder run(s); {rem} folder(s) would remain after cap."
+        )
+        return ApiResponse(success=True, message=msg, data=data)
 
     @router.post(
         "/maintenance/recalculate-status-from-data",

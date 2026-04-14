@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # Create WSL venv for research (all 3 models: SPAQ, AVA, LIQE).
 # Run from project root in WSL: bash scripts/setup_wsl_research_env.sh
+#
+# Default location is the project-local .venv (same directory name as Windows native
+# setup_windows_native.bat). Do not use one .venv for both Windows and WSL Python on
+# the same clone — use separate clones, or VENV_DIR to point elsewhere.
 
 set -e
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
-VENV_DIR="${VENV_DIR:-$ROOT/.venv_wsl}"
+VENV_DIR="${VENV_DIR:-$ROOT/.venv}"
 
 echo "Project root: $ROOT"
 echo "Venv directory: $VENV_DIR"

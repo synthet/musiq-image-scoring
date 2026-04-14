@@ -13,6 +13,13 @@ Historical reports, research, reviews, and debugging sessions.
 | [IAA_MODELS_LOCAL_DEPLOYMENT.md](IAA_MODELS_LOCAL_DEPLOYMENT.md) | IAA models overview (converted from PDF) |
 | [IAA_MODELS_SURVEY_2024_2025.md](IAA_MODELS_SURVEY_2024_2025.md) | 2024–2025 IAA models survey (converted from PDF) |
 
+## Architecture & pipeline notes
+
+| Document | Description |
+|----------|-------------|
+| [GRADIO_SERVING_DECISION.md](GRADIO_SERVING_DECISION.md) | Why Gradio + FastAPI fits this product; when Triton/BentoML would matter |
+| [CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md](CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md) | Culling phase done but no stacks — SelectionRunner phase-order bug (fixed) |
+
 ## Project Reviews
 
 | Document | Description |
@@ -22,10 +29,18 @@ Historical reports, research, reviews, and debugging sessions.
 | [CODE_DESIGN_REVIEW.md](CODE_DESIGN_REVIEW.md) | Code and design review |
 | [2026_02_09_CODE_AND_DESIGN_REVIEW.md](2026_02_09_CODE_AND_DESIGN_REVIEW.md) | Code & design review |
 
-## Debugging Sessions
+## Debugging sessions (historical)
 
 | Document | Description |
 |----------|-------------|
-| [debugging-sessions/INDEX.md](debugging-sessions/INDEX.md) | Historical debugging session notes |
+| [DEBUGGING_SESSIONS_HUB.md](DEBUGGING_SESSIONS_HUB.md) | Hub — links to archived Gradio/fullscreen incident notes |
+
+**Archive:** [archive/reports/debugging-sessions/](../archive/reports/debugging-sessions/INDEX.md) (full session files).
+
+## Release snapshots (dated)
+
+| Document | Description |
+|----------|-------------|
+| [RELEASE_HANDOFF_2026-04-10_2026-04-11.md](RELEASE_HANDOFF_2026-04-10_2026-04-11.md) | Cross-repo release handoff (dated snapshot) |
 
 **See also:** [Main docs index](../INDEX.md) · [Plans & proposals](../plans/INDEX.md)

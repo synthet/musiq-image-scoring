@@ -42,7 +42,7 @@ Existing features and implementation docs only. Plans and proposals → [plans/I
 | [CULLING_REWORK_DESIGN_REVIEW.md](CULLING_REWORK_DESIGN_REVIEW.md) | Pick/Reject flag rework review |
 | [STACKS_MANUAL_MANAGEMENT.md](STACKS_MANUAL_MANAGEMENT.md) | Manual stack management design |
 
-*Plan:* [Stack/Culling refactor](../plans/refactoring/STACK_CULLING_REFACTOR_PLAN.md)
+*Plan:* [Stack/Culling refactor](../plans/refactoring/STACK_CULLING_REFACTOR_PLAN.md) · *Investigation:* [Culling done / no stacks](../reports/CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md)
 
 ## Other Features
 

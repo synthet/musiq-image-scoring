@@ -305,10 +305,12 @@ def _init_db_transaction():
                 phase_agg_dirty     INTEGER DEFAULT 1,
                 phase_agg_updated_at TIMESTAMP,
                 phase_agg_json      TEXT,
+                image_count         INTEGER DEFAULT 0,
                 created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             """)
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_folders_path ON folders(path);")
+            cur.execute("ALTER TABLE folders ADD COLUMN IF NOT EXISTS image_count INTEGER DEFAULT 0;")
 
             # ------------------------------------------------------------------
             # STACKS

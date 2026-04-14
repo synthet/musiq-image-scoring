@@ -1,6 +1,6 @@
 # Unit Test Status
 
-**Last updated**: 2026-04-02
+**Last updated**: 2026-04-13
 
 ## Overview
 
@@ -53,5 +53,6 @@ The test suite is split into:
 ## Related Documents
 
 - [WSL_TESTS.md](WSL_TESTS.md) — WSL test setup and markers
-- [DOCUMENTATION_ISSUES.md](DOCUMENTATION_ISSUES.md) — Testing documentation issues
 - [ENVIRONMENTS.md](../setup/ENVIRONMENTS.md) — Virtual environment overview
+
+**Note:** Periodically re-run `pytest -m wsl -ra` (WSL test venv) and update the “Current State” sections above. Former meta-tracker: [archive/testing/DOCUMENTATION_ISSUES.md](../archive/testing/DOCUMENTATION_ISSUES.md).

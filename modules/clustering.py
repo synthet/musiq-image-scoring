@@ -214,9 +214,11 @@ class ClusteringEngine(IClusteringEngine):
         uncached_paths = []
         uncached_indices = []
         path_to_hash = {}
+        cached_count = 0
 
         for i, (path, orig_path) in enumerate(zip(image_paths, original_paths)):
             if not os.path.exists(path):
+                logger.debug(f"[Clustering] File not found for feature extraction: {path}")
                 continue
 
             # Get hash for cache lookup using original path (DB stores original paths)
@@ -227,21 +229,26 @@ class ClusteringEngine(IClusteringEngine):
                 # Use cached feature
                 features_list.append(self.feature_cache[img_hash])
                 valid_indices.append(i)
+                cached_count += 1
             else:
                 # Need to extract
                 uncached_paths.append(path)
                 uncached_indices.append(i)
         
+        if cached_count > 0:
+            logger.debug(f"[Clustering] Found {cached_count} image(s) in feature cache.")
+        
         # Process uncached images in batches (model loaded only when needed)
         if uncached_paths:
             if progress_log:
-                n_cached = len(features_list)
+                n_cached = cached_count
                 progress_log(
                     f"Computing embeddings for {len(uncached_paths)} image(s) "
                     f"({n_cached} from cache); loading MobileNetV2 if needed — "
                     f"first load or large batches can take several minutes.",
                     "INFO",
                 )
+            logger.info(f"[Clustering] Computing embeddings for {len(uncached_paths)} image(s) ({cached_count} hit cache)")
             self.load_model()
             batch_images = []
             batch_paths = []
@@ -267,6 +274,7 @@ class ClusteringEngine(IClusteringEngine):
                     batch_indices.append(idx)
                     
                     if len(batch_images) >= batch_size:
+                        logger.debug(f"[Clustering] Predicting batch of {len(batch_images)} images...")
                         batch_arr = np.array(batch_images)
                         preds = self.model.predict(batch_arr, verbose=0)
                         
@@ -277,11 +285,13 @@ class ClusteringEngine(IClusteringEngine):
                                 self.feature_cache[h] = feat
                             new_features.append((batch_indices[j], feat))
                         
+                        logger.debug(f"[Clustering] Batch prediction complete. Processed {len(new_features)} uncached images so far.")
                         batch_images = []
                         batch_paths = []
                         batch_indices = []
                     
                     if stop_event and stop_event.is_set():
+                        logger.info("[Clustering] Feature extraction interrupted by stop event.")
                         break
                         
                 except Exception as e:
@@ -289,6 +299,7 @@ class ClusteringEngine(IClusteringEngine):
             
             # Process remaining batch
             if batch_images:
+                logger.debug(f"[Clustering] Predicting final batch of {len(batch_images)} images...")
                 batch_arr = np.array(batch_images)
                 preds = self.model.predict(batch_arr, verbose=0)
                 
@@ -297,6 +308,7 @@ class ClusteringEngine(IClusteringEngine):
                     if h:
                         self.feature_cache[h] = feat
                     new_features.append((batch_indices[j], feat))
+                logger.debug(f"[Clustering] Final batch prediction complete.")
             
             # Add new features to results in original index order
             for orig_idx, feat in new_features:
@@ -451,6 +463,14 @@ class ClusteringEngine(IClusteringEngine):
         if force_rescan is None:
             clustering_config = config.get_config_section('clustering')
             force_rescan = clustering_config.get('force_rescan_default', False)
+        
+        startup_msg = (
+            f"Clustering started. Parameters: distance_threshold={distance_threshold}, "
+            f"time_gap={time_gap_seconds}s, force_rescan={force_rescan}"
+        )
+        logger.info(f"[Clustering] {startup_msg}")
+        if progress_log:
+            progress_log(startup_msg)
         
         logging.info("Fetching images for clustering...")
         
@@ -613,6 +633,7 @@ class ClusteringEngine(IClusteringEngine):
                     except Exception:
                         pass
                 yield update_status(f"Skipping folder: {folder} (all images current)", processed_count, len(images_rows))
+                logger.debug(f"[Clustering] Skipping folder {folder}: all images are already up to date according to version {CLUSTER_VERSION}.")
                 continue
 
             logger.info(
@@ -696,12 +717,16 @@ class ClusteringEngine(IClusteringEngine):
                     'image_ids': img_ids,
                     'burst_uuid': burst_uuid
                 })
+                logger.debug(f"[Clustering] Grouped {len(img_ids)} images into burst stack: {s_name} (UUID: {burst_uuid})")
                 folder_stacks += 1
                 total_clusters += 1
             
             # Create burst stacks
             if burst_stacks_data:
-                logging.info(f"[Clustering] Creating {len(burst_stacks_data)} burst stacks")
+                msg = f"Created {len(burst_stacks_data)} burst stacks from BurstUUID in {folder}"
+                logging.info(f"[Clustering] {msg}")
+                if progress_log:
+                    progress_log(msg)
                 db.create_stacks_batch(burst_stacks_data)
                 # Update burst_uuid in database for these images
                 for stack_data in burst_stacks_data:
@@ -744,7 +769,14 @@ class ClusteringEngine(IClusteringEngine):
             
             if current_batch:
                 time_batches.append(current_batch)
-            logging.info(f"[Clustering] time_batches={len(time_batches)}, batches with len>=2: {sum(1 for b in time_batches if len(b)>=2)}")
+            
+            non_burst_msg = (
+                f"Temporal analysis in {folder}: split {len(non_burst_rows)} images into {len(time_batches)} batch(es) "
+                f"(max gap: {time_gap_seconds}s). Batches with >=2 images: {sum(1 for b in time_batches if len(b)>=2)}"
+            )
+            logger.info(f"[Clustering] {non_burst_msg}")
+            if progress_log:
+                progress_log(non_burst_msg)
             for b_idx, batch in enumerate(time_batches):
                 if stop_event and stop_event.is_set():
                     break
@@ -810,6 +842,7 @@ class ClusteringEngine(IClusteringEngine):
                     continue
 
                 # Cluster
+                logger.debug(f"[Clustering] Batch {b_idx+1}: Running AgglomerativeClustering on {len(features)} images (threshold={distance_threshold})...")
                 clustering = AgglomerativeClustering(
                     n_clusters=None,
                     distance_threshold=distance_threshold,
@@ -817,6 +850,7 @@ class ClusteringEngine(IClusteringEngine):
                     linkage='average'
                 )
                 labels = clustering.fit_predict(features)
+                logger.debug(f"[Clustering] Batch {b_idx+1}: Clustering algorithm finished.")
                 
                 # Build id -> feature map for centroid/balanced strategies
                 id_to_feature = {}
@@ -847,6 +881,7 @@ class ClusteringEngine(IClusteringEngine):
                         continue
 
                     best_id = self._select_best_image(img_ids, id_to_score_batch, id_to_feature)
+                    logger.debug(f"[Clustering] Batch {b_idx+1}: Found similarity group with {len(img_ids)} images. Best representative selected: {best_id}")
                             
                     # Name based on Time? or Folder?
                     # Stack (Time)
@@ -864,7 +899,10 @@ class ClusteringEngine(IClusteringEngine):
                 
                 # Execute batch for this time-group
                 if batch_stacks_data:
-                    logging.info(f"[Clustering] Creating {len(batch_stacks_data)} visual stacks for batch {b_idx+1}")
+                    batch_msg = f"Creating {len(batch_stacks_data)} visual stacks for batch {b_idx+1} in {folder}"
+                    logging.info(f"[Clustering] {batch_msg}")
+                    if progress_log:
+                        progress_log(batch_msg)
                     db.create_stacks_batch(batch_stacks_data)
                     
                     # Generate and write BurstUUID for newly created stacks
@@ -907,7 +945,8 @@ class ClusteringEngine(IClusteringEngine):
                 except Exception:
                     pass
 
-            logging.info(f"[Clustering] Finished {folder}: created {folder_stacks} stacks total")
+            finish_folder_msg = f"Finished {folder}: created {folder_stacks} stacks total"
+            logging.info(f"[Clustering] {finish_folder_msg}")
             yield update_status(f"Finished {folder}. Created {folder_stacks} stacks.", processed_count, len(images_rows))
             
             # Broadcast final event for folder
@@ -933,6 +972,9 @@ class ClusteringEngine(IClusteringEngine):
                 f"Total: {db.get_stack_count()}"
             )
         yield update_status(msg, len(images_rows), len(images_rows))
+        logger.info(f"[Clustering] {msg}")
+        if progress_log:
+            progress_log(msg)
 
 
 class ClusteringRunner:

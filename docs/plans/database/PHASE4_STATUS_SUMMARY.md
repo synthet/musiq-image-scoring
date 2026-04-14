@@ -25,7 +25,7 @@ date: 2026-04-03
 - Normalized keyword query: 7.01ms (vs 80ms legacy)
 - 12.10x performance improvement
 
-**Docs:** PHASE4_RESULTS_SNAPSHOT.md
+**Docs:** [PHASE4_RESULTS_SNAPSHOT.md](../../archive/plans/database/PHASE4_RESULTS_SNAPSHOT.md) (archived snapshot)
 
 ---
 
@@ -79,7 +79,7 @@ date: 2026-04-03
 - Performance benchmark: `python scripts/db/phase4_performance_benchmark.py`
 - Manual WebUI tests: Gallery load, keyword display, API PATCH
 
-**Test Checklist:** PHASE4B_TEST_CHECKLIST.md
+**Test Checklist:** [PHASE4B_TEST_CHECKLIST.md](../../archive/plans/database/PHASE4B_TEST_CHECKLIST.md) (archived)
 
 ### Backward Compatibility
 
@@ -91,7 +91,7 @@ date: 2026-04-03
 ### Documentation
 
 **New/Updated:**
-- PHASE4B_TEST_CHECKLIST.md — Comprehensive test validation steps
+- [PHASE4B_TEST_CHECKLIST.md](../../archive/plans/database/PHASE4B_TEST_CHECKLIST.md) — Comprehensive test validation steps (archived)
 - PHASE4C_SOFT_DEPRECATION_PLAN.md — Phase 4c planning
 - CHANGELOG.md — v6.3.1 entry with Phase 4b details
 
@@ -223,7 +223,7 @@ All keyword writes go to both schemas:
 | `modules/db.py:3610` | `get_images_by_folder()` | 2026-04-03 |
 | `CHANGELOG.md` | Release notes | 2026-04-03 |
 | `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md` | Overall timeline | 2026-04-02 |
-| `docs/plans/database/PHASE4B_TEST_CHECKLIST.md` | Phase 4b tests | 2026-04-03 |
+| `docs/archive/plans/database/PHASE4B_TEST_CHECKLIST.md` | Phase 4b tests (archived) | 2026-04-03 |
 | `docs/plans/database/PHASE4C_SOFT_DEPRECATION_PLAN.md` | Phase 4c plan | 2026-04-03 |
 
 ---
@@ -259,13 +259,14 @@ Phase 4d (v7.0) 🔲 SCHEDULED
 
 ## Quick Links
 
-- **Phase 4 Overview:** PHASE4_KEYWORDS_DEPRECATION.md
-- **Phase 4a Results:** PHASE4_RESULTS_SNAPSHOT.md
-- **Phase 4b Audit:** PHASE4B_KEYWORD_READER_AUDIT.md
-- **Phase 4b Implementation:** PHASE4B_IMPLEMENTATION_STEPS.md
-- **Phase 4b Tests:** PHASE4B_TEST_CHECKLIST.md
-- **Phase 4c Plan:** PHASE4C_SOFT_DEPRECATION_PLAN.md
-- **Development Guide:** CLAUDE.md (Keyword Storage section)
+- **Hub (start here):** [PHASE4_KEYWORDS_HUB.md](PHASE4_KEYWORDS_HUB.md)
+- **Phase 4 Overview:** [PHASE4_KEYWORDS_DEPRECATION.md](PHASE4_KEYWORDS_DEPRECATION.md)
+- **Phase 4a Results (archived):** [PHASE4_RESULTS_SNAPSHOT.md](../../archive/plans/database/PHASE4_RESULTS_SNAPSHOT.md)
+- **Phase 4b Audit (archived):** [PHASE4B_KEYWORD_READER_AUDIT.md](../../archive/plans/database/PHASE4B_KEYWORD_READER_AUDIT.md)
+- **Phase 4b Implementation (archived):** [PHASE4B_IMPLEMENTATION_STEPS.md](../../archive/plans/database/PHASE4B_IMPLEMENTATION_STEPS.md)
+- **Phase 4b Tests (archived):** [PHASE4B_TEST_CHECKLIST.md](../../archive/plans/database/PHASE4B_TEST_CHECKLIST.md)
+- **Phase 4c Plan:** [PHASE4C_SOFT_DEPRECATION_PLAN.md](PHASE4C_SOFT_DEPRECATION_PLAN.md)
+- **Development Guide:** [CLAUDE.md](../../../CLAUDE.md) (Keyword Storage section)
 
 ---
 

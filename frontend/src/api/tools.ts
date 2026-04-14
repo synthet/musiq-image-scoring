@@ -1,9 +1,9 @@
 import { api, ApiError, parseApiErrorDetail } from '@/api/client'
 
-export interface ApiEnvelope {
+export interface ApiEnvelope<T = Record<string, unknown>> {
   success: boolean
   message: string
-  data?: Record<string, unknown>
+  data?: T
 }
 
 export interface StaleRunningPhasesResponse {
@@ -47,6 +47,24 @@ export interface RecalculateStatusSummary {
   warnings: string[]
 }
 
+export interface ScheduleFolderQualityRunsData {
+  budget: number
+  active_jobs: number
+  capacity_slots: number
+  folders_total_needing_work: number
+  scheduled_this_round: number
+  folders_remaining_after: number
+  scheduled: Array<{
+    folder_path: string
+    stages: string[]
+    run_id: number | null
+    queue_position: number | null
+  }>
+  errors: string[]
+  global_thumbnail_heal_run_id: number | null
+  dry_run: boolean
+}
+
 export const toolsApi = {
   staleRunningPhases: (minAgeSeconds = 3600, limit = 50) =>
     api.get<StaleRunningPhasesResponse>(
@@ -82,6 +100,23 @@ export const toolsApi = {
     const q = p.toString()
     return api.post<ApiEnvelope>(`/maintenance/recalculate-status-from-data${q ? `?${q}` : ''}`)
   },
+
+  /** Global index/meta phase backfill (batched maintenance job). */
+  backfillIndexMeta: (limit = 1000) =>
+    api.post<ApiEnvelope>(`/maintenance/backfill-index-meta?limit=${encodeURIComponent(String(limit))}`),
+
+  /**
+   * Queue up to `max(0, budget - active_jobs)` validate-and-repair runs — one job per leaf folder
+   * with data-quality issues (same rollup as folder_data_quality_report / schedule_folder_quality_fix_runs.py).
+   */
+  scheduleFolderQualityRuns: (body?: {
+    root_path?: string | null
+    stack_after_culling_only?: boolean
+    budget?: number
+    run_mode?: 'validate_and_repair' | 'process_unprocessed_or_empty' | 'process_all_overwrite'
+    dry_run?: boolean
+    heal_thumbnails_global?: boolean
+  }) => api.post<ApiEnvelope<ScheduleFolderQualityRunsData>>(`/maintenance/schedule-folder-quality-runs`, body ?? {}),
 }
 
 export function formatToolError(err: unknown): string {

@@ -1825,7 +1825,8 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
             cluster_path,
             threshold=args.get("threshold"),
             time_gap=args.get("time_gap"),
-            force_rescan=args.get("force_rescan", False)
+            force_rescan=args.get("force_rescan", False),
+            job_id=job_id
         )
         return {"status": res, "job_id": job_id}
 

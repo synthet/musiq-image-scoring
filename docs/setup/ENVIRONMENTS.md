@@ -8,9 +8,11 @@ This document describes each Python environment referenced in the image-scoring 
 |-------------|----------|---------|---------|
 | **Web UI / app (default)** | `~/.venvs/tf` (WSL) | Main app: TensorFlow, Firebird, Gradio, MCP | `run_webui.bat`, all WSL-invoked scripts |
 | **Tests** | `~/.venvs/image-scoring-tests` (WSL) | Pytest WSL-marked tests | `run_wsl_tests.sh`, `Run-WSLTests.ps1` |
-| **Windows native (optional)** | `.venv` (project root) | Windows native WebUI + CLI (CPU, no VILA) | `run_webui_windows.bat` |
+| **Project local (optional)** | `.venv` (project root) | Windows WebUI + CLI (CPU, no VILA); or WSL research env (SPAQ/AVA/LIQE) | `run_webui_windows.bat`, `scripts/setup_wsl_research_env.sh` |
 
-**Default for the Web UI:** The app is started by **`run_webui.bat`**, which runs in **WSL** and uses **`~/.venvs/tf`**. No project-local `.venv` is used for the Web UI. Any project-local `.venv*` directory is gitignored and excluded from pytest.
+**Default for the Web UI:** The app is started by **`run_webui.bat`**, which runs in **WSL** and uses **`~/.venvs/tf`**. No project-local `.venv` is used for that path.
+
+**Project-local venv:** The only conventional directory name at the repo root is **`.venv`** (gitignored). It is optional and used for Windows-native workflows and/or WSL research (see **section 3** below). It is excluded from pytest collection (`pytest.ini`).
 
 ---
 
@@ -27,7 +29,7 @@ This document describes each Python environment referenced in the image-scoring 
   source ~/.venvs/tf/bin/activate
   pip install -r requirements.txt  # and any GPU/requirements variants
   ```
-- **Note:** The path is in the **WSL home directory** (`~`), not under the project. Project-local `.venv*` directories are gitignored and not used by `run_webui.bat` or these scripts.
+- **Note:** The path is in the **WSL home directory** (`~`), not under the project. Project-local `.venv` is not used by `run_webui.bat` or these scripts.
 
 ---
 
@@ -43,12 +45,22 @@ This document describes each Python environment referenced in the image-scoring 
 
 ---
 
-## 3. `.venv` (project root, Windows)
+## 3. `.venv` (project root — optional local)
 
-- **Purpose:** **Windows-native** virtual environment for WebUI and CLI (CPU-only, no VILA, no GPU). Documented as "Option 3" and "Option 3b" in the main README.
-- **Used by:** **`run_webui_windows.bat`** — activates this venv and runs `python launch.py` (which then runs `webui.py`). You can also activate it manually for CLI use.
-- **Setup:** Run `scripts\setup\setup_windows_native.bat` to create the venv and install dependencies.
-- **Limitations:** CPU-only, no VILA; not the same environment as the Web UI when started via `run_webui.bat` (which uses WSL + `~/.venvs/tf`).
+There is **one** conventional name for a virtual environment in the repository: **`.venv`** at the project root (gitignored). It is **not** used by `run_webui.bat` (which uses `~/.venvs/tf`). Use it only when you want a project-local venv instead of or in addition to the home-directory WSL envs above.
+
+### Windows native
+
+- **Purpose:** **Windows-native** Python for WebUI and CLI (CPU-only, no VILA, no GPU). Documented as "Option 3" / "Option 3b" in the main README.
+- **Used by:** **`run_webui_windows.bat`** — activates `.venv` and runs `python launch.py` → `webui.py`. You can activate it manually for CLI use.
+- **Setup:** `scripts\setup\setup_windows_native.bat` creates `.venv` and installs dependencies.
+- **Limitations:** CPU-only, no VILA; not the same stack as `run_webui.bat` (WSL + `~/.venvs/tf`).
+
+### WSL — research stack (optional)
+
+- **Purpose:** SPAQ / AVA / LIQE research tooling (`requirements/requirements_research.txt`).
+- **Used by:** **`scripts/setup_wsl_research_env.sh`** — creates or uses **`$ROOT/.venv`** in WSL (override with `VENV_DIR=...`).
+- **Important:** A `.venv` created with **Windows** `python -m venv` and one created with **WSL** `python3 -m venv` are **not interchangeable** if they share the same path on a `/mnt/...` drive — binaries and layout differ. Use **either** Windows `.venv` **or** WSL `.venv` on a given clone for local work, or keep research in a separate clone. Do not alternate without removing and recreating `.venv`.
 
 ---
 
@@ -86,5 +98,5 @@ See also the Cursor rule **Run Python in WSL (Webapp Environment)** (`.cursor/ru
 | Question | Answer |
 |----------|--------|
 | What does the Web UI use? | WSL + **`~/.venvs/tf`** (via `run_webui.bat`). |
-| Does the Web UI use project `.venv`? | No. |
+| Does default Web UI (`run_webui.bat`) use project `.venv`? | No — it uses `~/.venvs/tf`. |
 | Where do WSL pytest tests run? | In **`~/.venvs/image-scoring-tests`** (or custom `VENV_DIR`). |

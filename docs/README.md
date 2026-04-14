@@ -15,6 +15,14 @@ Complete documentation for the Image Scoring project.
 - New to the project? Start with the [Project README](../README.md), then [SCORING_GUIDE.md](getting-started/SCORING_GUIDE.md) or [SIMPLE_CLI_GUIDE.md](getting-started/SIMPLE_CLI_GUIDE.md).
 - Creating a gallery? See [GALLERY_CREATION.md](gallery/GALLERY_CREATION.md) or [QUICK_REFERENCE.md](gallery/QUICK_REFERENCE.md).
 
+## Wiki Maintenance
+
+This documentation is an LLM-maintained wiki — see [WIKI_SCHEMA.md](WIKI_SCHEMA.md) for conventions. Prefer **small linked pages** (entities/concepts) over monolithic dumps; example hubs: [PHASE4_KEYWORDS_HUB.md](plans/database/PHASE4_KEYWORDS_HUB.md), [DEBUGGING_SESSIONS_HUB.md](reports/DEBUGGING_SESSIONS_HUB.md).
+
+- **[WIKI_SCHEMA.md](WIKI_SCHEMA.md)** — Page types, naming, linking rules, operations
+- **[log.md](log.md)** — Chronological record of all wiki operations
+- **Slash commands:** `/wiki-ingest`, `/wiki-query`, `/wiki-lint`
+
 ## AI & Agent Helpers
 
 - [AGENTS.md](../AGENTS.md) — MCP server configuration

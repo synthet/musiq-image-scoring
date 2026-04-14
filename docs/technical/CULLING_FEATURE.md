@@ -220,4 +220,5 @@ def get_session_stats(session_id) -> dict
 - [TODO / roadmap](../../TODO.md)
 - [Stacks manual management](STACKS_MANUAL_MANAGEMENT.md)
 - [XMP](../../modules/xmp.py)
+- [Culling done but no stacks (investigation, 2026-03)](../reports/CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md)
 

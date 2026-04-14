@@ -280,10 +280,11 @@ Phase 4c has no breaking changes:
 
 ## Related Docs
 
-- `PHASE4_KEYWORDS_DEPRECATION.md` — Full deprecation timeline
-- `PHASE4B_KEYWORD_READER_AUDIT.md` — Phase 4b audit results
-- `PHASE4B_IMPLEMENTATION_STEPS.md` — Phase 4b implementation details
-- `PHASE4B_TEST_CHECKLIST.md` — Phase 4b test results
+- [PHASE4_KEYWORDS_DEPRECATION.md](PHASE4_KEYWORDS_DEPRECATION.md) — Full deprecation timeline
+- [PHASE4_KEYWORDS_HUB.md](PHASE4_KEYWORDS_HUB.md) — Index of Phase 4 docs (current vs archived)
+- [PHASE4B_KEYWORD_READER_AUDIT.md](../../archive/plans/database/PHASE4B_KEYWORD_READER_AUDIT.md) — Phase 4b audit results (archived)
+- [PHASE4B_IMPLEMENTATION_STEPS.md](../../archive/plans/database/PHASE4B_IMPLEMENTATION_STEPS.md) — Phase 4b implementation details (archived)
+- [PHASE4B_TEST_CHECKLIST.md](../../archive/plans/database/PHASE4B_TEST_CHECKLIST.md) — Phase 4b test checklist (archived)
 
 ---
 

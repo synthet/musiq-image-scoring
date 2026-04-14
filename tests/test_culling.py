@@ -20,6 +20,7 @@ import pytest
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from modules import config as app_config
 from modules import db
 from modules.culling import CullingEngine
 from modules.xmp import NAMESPACES
@@ -52,8 +53,20 @@ class TestCullingWorkflow:
     """Test suite for culling workflow operations."""
 
     @pytest.fixture(scope="class", autouse=True)
-    def setup_database_fixture(self):
+    def setup_database_fixture(self, postgres_test_session):
         """Fixture: use scoring_history_test.fdb, create temp dir for test image files."""
+        if app_config.get_database_engine() == "postgres":
+            from modules import db_postgres
+
+            db_postgres.truncate_app_tables()
+            db_postgres.reset_pool()
+            try:
+                from modules.db_connector import reset_connector
+
+                reset_connector()
+            except Exception:
+                pass
+
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         temp_dir = os.path.join(project_root, 'temp_test_cull')
         if os.path.exists(temp_dir):
@@ -103,8 +116,9 @@ class TestCullingWorkflow:
         
         for path, name, gen, tech, aes, fid in test_images:
             c.execute("""
-                INSERT INTO images (file_path, file_name, score_general, score_technical, score_aesthetic, folder_id)
+                UPDATE OR INSERT INTO images (file_path, file_name, score_general, score_technical, score_aesthetic, folder_id)
                 VALUES (?, ?, ?, ?, ?, ?)
+                MATCHING (file_path)
             """, (path, name, gen, tech, aes, fid))
             
             # Create dummy image files for XMP tests
@@ -145,7 +159,7 @@ class TestCullingWorkflow:
         # Cleanup
         self._cleanup_session(session_id)
 
-
+    @pytest.mark.ml
     def test_import_images(self):
         """Test image import and grouping functionality."""
         
@@ -169,7 +183,7 @@ class TestCullingWorkflow:
         # Cleanup
         self._cleanup_session(session_id)
 
-
+    @pytest.mark.ml
     def test_auto_pick(self):
         """Test auto-pick selects best image in each group."""
         
@@ -192,7 +206,7 @@ class TestCullingWorkflow:
         # Cleanup
         self._cleanup_session(session_id)
 
-
+    @pytest.mark.ml
     def test_export_xmp(self):
         """Test XMP sidecar export for culling decisions and verify format (xmpDM:pick, xmpDM:good)."""
         engine = CullingEngine()
@@ -239,7 +253,7 @@ class TestCullingWorkflow:
             except Exception:
                 pass
 
-
+    @pytest.mark.ml
     def test_full_workflow(self):
         """End-to-end test of complete culling workflow."""
         
@@ -272,6 +286,7 @@ class TestCullingWorkflow:
             except Exception:
                 pass
 
+    @pytest.mark.ml
     @pytest.mark.sample_data
     def test_full_workflow_real_data(self):
         """Optional: run full cull on a folder with real scored images. Set IMAGE_SCORING_TEST_CULLING_FOLDER."""

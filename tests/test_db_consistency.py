@@ -10,12 +10,12 @@ from modules import db
 
 
 @pytest.fixture
-def test_db():
-    """Returns a connection to the test database."""
+def test_db(clean_postgres):
+    """Returns a connection to the test database (clean slate for PostgreSQL)."""
     # Ensure we are using the test DB filename
     db.DB_FILE = "scoring_history_test.fdb"
     db.DB_PATH = os.path.join(db._PROJECT_ROOT, db.DB_FILE)
-    
+
     conn = db.get_db()
     yield conn
     conn.close()

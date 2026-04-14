@@ -8,7 +8,7 @@
 - **Phase 3 (Query Refactor):** ✅ Complete.
   - All 6 `keywords LIKE ?` locations replaced with `EXISTS` on `IMAGE_KEYWORDS`/`KEYWORDS_DIM`.
   - New `_add_keyword_filter()` helper centralizes the pattern.
-- **Phase 4 (Validation & Cleanup):** ✅ **4a–4c complete** on the Python side (primary reads, soft-deprecation logging); **4d** (hard removal of legacy `IMAGES.KEYWORDS`) scheduled for v7.0 (July 2026). See [PHASE4_STATUS_SUMMARY.md](PHASE4_STATUS_SUMMARY.md), [DB_STATUS_REPORT.md](DB_STATUS_REPORT.md).
+- **Phase 4 (Validation & Cleanup):** ✅ **4a–4c complete** on the Python side (primary reads, soft-deprecation logging); **4d** (hard removal of legacy `IMAGES.KEYWORDS`) scheduled for v7.0 (July 2026). See [PHASE4_KEYWORDS_HUB.md](PHASE4_KEYWORDS_HUB.md), [PHASE4_STATUS_SUMMARY.md](PHASE4_STATUS_SUMMARY.md), [DB_STATUS_REPORT.md](DB_STATUS_REPORT.md).
 - **Phase 5 (PostgreSQL Optimizations):** 🔲 Planned — **high-priority** items include embedding storage consolidation and status integrity constraints; see [POSTGRES_SCHEMA_OPTIMIZATIONS.md](POSTGRES_SCHEMA_OPTIMIZATIONS.md).
 
 ---

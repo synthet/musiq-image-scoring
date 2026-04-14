@@ -1,9 +1,9 @@
 # Requirements for scripts/research_models.py
 # Minimal set for the input format assessment research script.
 #
-# Usage (WSL):
-#   python3 -m venv .venv_research
-#   source .venv_research/bin/activate
+# Usage (WSL): prefer scripts/setup_wsl_research_env.sh (creates project .venv), or:
+#   python3 -m venv .venv
+#   source .venv/bin/activate
 #   pip install -r requirements/requirements_research.txt
 #   python scripts/research_models.py --dry-run   # pipeline test
 #   python scripts/research_models.py              # full run with models

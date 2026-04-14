@@ -3502,9 +3502,15 @@ def register_image_for_import(file_path, file_name, file_type, folder_id, image_
     On duplicate (UQ_IMAGES_FILE_PATH), returns the existing image_id with was_new=False.
     """
     try:
+        # Check if already exists to satisfy was_new return value
+        existing_id = find_image_id_by_path(file_path)
+        if existing_id:
+            return (existing_id, False)
+
         rows = get_connector().execute_returning(
-            """INSERT INTO images (file_path, file_name, file_type, folder_id, image_uuid, created_at)
-               VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP) RETURNING id""",
+            """UPDATE OR INSERT INTO images (file_path, file_name, file_type, folder_id, image_uuid, created_at)
+               VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+               MATCHING (file_path) RETURNING id""",
             (file_path, file_name, file_type, folder_id, image_uuid or None)
         )
         image_id = rows[0]["id"] if rows else None
@@ -3516,6 +3522,7 @@ def register_image_for_import(file_path, file_name, file_type, folder_id, image_
                 pass
         return (image_id, True)
     except Exception as e:
+        # Final fallback for races
         err_str = str(e)
         if "UQ_IMAGES_FILE_PATH" in err_str or "duplicate value" in err_str.lower():
             existing_id = find_image_id_by_path(file_path)
@@ -6489,20 +6496,30 @@ def backup_database(max_backups=5) -> str:
     """
     Copy the configured Firebird .fdb file to ./backups/ with simple rotation.
 
-    Does not run pg_dump or other PostgreSQL backups. If no local .fdb exists
-    (common when ``database.engine`` is PostgreSQL), returns a skip message instead.
+    Does not run pg_dump or other PostgreSQL backups. When ``database.engine``
+    is PostgreSQL, skips immediately (no Firebird file copy; use pg_dump).
+
+    If the configured path is missing or not a regular file (e.g. mis-set to a
+    directory), returns a skip message instead of attempting ``shutil.copy2``.
 
     Returns:
         One line for job logs / APIs describing what happened.
     """
+    engine = (config.get_database_engine() or "").strip().lower()
+    if engine == "postgres":
+        return (
+            "Skipped Firebird file backup: database engine is PostgreSQL "
+            "(no .fdb file copy; use pg_dump for a logical backup)."
+        )
+
     if not os.path.exists(DB_PATH):
-        engine = (config.get_database_engine() or "").strip().lower()
-        if engine == "postgres":
-            return (
-                "Skipped Firebird file backup: no local .fdb at "
-                f"{DB_PATH!r} (engine is PostgreSQL; use pg_dump for a logical backup)."
-            )
         return f"Skipped Firebird file backup: file not found at {DB_PATH!r}."
+
+    if not os.path.isfile(DB_PATH):
+        return (
+            "Skipped Firebird file backup: path is not a regular file "
+            f"(check database.filename): {DB_PATH!r}"
+        )
 
     backup_dir = os.path.join(_PROJECT_ROOT, "backups")
     if not os.path.exists(backup_dir):

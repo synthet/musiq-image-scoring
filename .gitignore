@@ -171,6 +171,11 @@ _cli_test_export.json
 test_export_verify.json
 image_scoring.db
 error_output.txt
+# Local pytest/terminal capture (scratch)
+_pytest_err.txt
+_pytest_out.txt
+_terr.txt
+_tout.txt
 
 
 # Firebird Binaries

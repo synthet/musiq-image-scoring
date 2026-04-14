@@ -6,6 +6,8 @@ status: draft
 
 # Phase 4: IMAGES.KEYWORDS Deprecation Plan
 
+**Navigation:** [PHASE4_KEYWORDS_HUB.md](PHASE4_KEYWORDS_HUB.md) (index of Phase 4 keyword docs and archived snapshots).
+
 ## Current State (as of 2026-04-02)
 
 - **Legacy column:** `IMAGES.KEYWORDS` (TEXT, comma-separated string)

@@ -29,6 +29,23 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 3. Monitor logs for deprecation warnings when Phase 4c ships
 4. Complete migration before v7.0 (July 2026)
 
+## [7.2.0] - 2026-04-13
+
+### Added
+
+- **`POST /api/maintenance/schedule-folder-quality-runs`**: capacity-aware batch queue of validate-and-repair pipeline runs for leaf folders with data-quality issues (same rollups as `folder_data_quality_report.py`); **`modules/folder_quality_schedule.py`** implements scheduling and stage selection.
+- **React `/ui` — Pipeline Tools**: `pipelineTools.ts` + `usePipelineToolAction` replace scattered copy; refactored **`RunsToolsTab`** and API client updates (**`gallery.ts`**, **`tools.ts`**).
+- **Docs**: wiki schema and navigation updates ([`WIKI_SCHEMA.md`](docs/WIKI_SCHEMA.md)), Phase 4 keyword [hub](docs/plans/database/PHASE4_KEYWORDS_HUB.md), archived plans/debugging indexes, reports ([Gradio serving](docs/reports/GRADIO_SERVING_DECISION.md), [culling investigation](docs/reports/CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md), [release handoff](docs/reports/RELEASE_HANDOFF_2026-04-10_2026-04-11.md)); raw sources under `docs/raw/`; plan stub [`FIX_THUMBNAIL_GENERATION_SPEC.md`](docs/plans/FIX_THUMBNAIL_GENERATION_SPEC.md).
+- **Tests**: `tests/test_folder_quality_schedule.py`; culling/DB tests aligned with PostgreSQL fixtures (`@pytest.mark.ml` on heavy culling cases, `clean_postgres` / `postgres_test_session` where applicable).
+
+### Changed
+
+- **`modules/clustering.py`**: clearer cache-hit accounting and diagnostic logging during embedding batches.
+- **`modules/db.py`**, **`db_postgres.py`**, **`maintenance_job_display.py`**, **`mcp_server.py`**: supporting changes for maintenance scheduling and tooling.
+- **Static `/app` bundle**: rebuilt hashed assets and `index.html`.
+- **XMP fixtures** (`tests/fixtures/testing_samples/`): minor touch-ups for sample sidecars.
+- **Research**: `requirements/requirements_research.txt`, `scripts/setup_wsl_research_env.sh`.
+
 ## [7.1.0] - 2026-04-13
 
 ### Added
@@ -769,7 +786,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 
 ### Added
 - **OpenAPI export**: `scripts/export_openapi.py` and `openapi.json` for API schema export.
-- **Documentation**: `docs/gradio-serving-comparison.md`, `docs/technical/PIPELINE_PHASE_RUNNERS.md`.
+- **Documentation**: Gradio serving note (`docs/reports/GRADIO_SERVING_DECISION.md`), `docs/technical/PIPELINE_PHASE_RUNNERS.md`.
 - **Tests**: `test_selector_resolver.py` for selector resolver behavior.
 
 ### Changed
