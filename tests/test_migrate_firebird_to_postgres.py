@@ -35,6 +35,9 @@ class _RecordingCursor:
     def execute(self, sql, params=None):
         self.executed.append((sql, params))
 
+    def close(self):
+        return None
+
 
 class _RecordingConn:
     def __init__(self):
@@ -54,6 +57,9 @@ class _SkipCursor:
 
     def fetchone(self):
         return [3]
+
+    def close(self):
+        return None
 
 
 class _SkipConn:

@@ -22,6 +22,7 @@ LOG_LOCATIONS = [
     ("logs", "*.txt"),           # console logs
     (".", "debug.log"),         # root debug.log (fallback)
     (".", "webui.log"),
+    (".", "webui.log.*"),       # RotatingFileHandler backups (webui.log.1, …)
     (".", "process_missing_stacks.log"),
     ("Firebird", "firebird.log"),
     ("FirebirdLinux", "**/firebird.log"),  # nested under Firebird-5.x/
@@ -76,6 +77,52 @@ def format_size(path: str) -> str:
         return f"{n} B"
     except OSError:
         return "?"
+
+
+def cleanup_job_image_actions(days: int, dry_run: bool = False) -> int:
+    """Remove old job_image_actions rows older than *days*.
+
+    Returns the number of rows deleted (or that would be deleted in dry-run mode).
+    Uses the config value ``processing.job_action_log_retention_days`` as override
+    when *days* is not explicitly provided by the caller.
+    """
+    try:
+        sys.path.insert(0, PROJECT_ROOT)
+        from modules.config import get_config_value
+        from modules.db_connector import get_connector
+
+        retention = get_config_value("processing.job_action_log_retention_days", default=days)
+        conn = get_connector()
+
+        # Count rows to be removed
+        count_sql = (
+            "SELECT COUNT(*) FROM job_image_actions "
+            "WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '? days'"
+        )
+        # Postgres requires proper interval syntax; use parameterised query
+        count_sql = "SELECT COUNT(*) FROM job_image_actions WHERE created_at < CURRENT_TIMESTAMP - make_interval(days => ?)"
+        rows = conn.execute(count_sql, [retention])
+        total = rows[0][0] if rows else 0
+
+        if total == 0:
+            print(f"No job_image_actions rows older than {retention} days.")
+            return 0
+
+        label = "Would remove" if dry_run else "Removing"
+        print(f"\n{label} {total} job_image_actions row(s) older than {retention} days.")
+
+        if not dry_run:
+            delete_sql = "DELETE FROM job_image_actions WHERE created_at < CURRENT_TIMESTAMP - make_interval(days => ?)"
+            conn.execute(delete_sql, [retention])
+            print(f"  Deleted {total} row(s) from job_image_actions.")
+
+        return total
+    except ImportError:
+        print("  Skipping DB cleanup (modules not available).")
+        return 0
+    except Exception as exc:
+        print(f"  DB cleanup error: {exc}", file=sys.stderr)
+        return 0
 
 
 def main():
@@ -138,6 +185,9 @@ def main():
         print(f"\nCleaned {len(to_remove)} log(s).")
     else:
         print("\nDry run - no files removed. Run without -n to apply.")
+
+    # DB cleanup: prune old job_image_actions rows
+    cleanup_job_image_actions(days=args.days, dry_run=args.dry_run)
 
     return 0
 

@@ -12,6 +12,7 @@ import { Progress } from '@/components/ui/progress'
 import { STAGE_DISPLAY, STEP_DISPLAY } from '@/types/api'
 import type { Stage, Step, WorkItem } from '@/types/api'
 import { useWsStore } from '@/stores/wsStore'
+import { RUNS_QUERY_ROOT, runDetailQueryKey, runStagesQueryKey } from '@/queryKeys/runs'
 
 const WORK_ITEMS_PAGE_SIZE = 50
 
@@ -50,6 +51,7 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
 
   useEffect(() => {
     setWorkItemsPage(0)
+    setShowItems(false)
   }, [runId, stage.phase_code])
 
   useEffect(() => {
@@ -62,18 +64,18 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
 
   const retryMut = useMutation({
     mutationFn: () => runsApi.retryStage(runId, stage.phase_code),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['run-stages', runId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: runStagesQueryKey(runId) }),
   })
   const skipMut = useMutation({
     mutationFn: () => runsApi.skipStage(runId, stage.phase_code),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['run-stages', runId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: runStagesQueryKey(runId) }),
   })
   const cancelMut = useMutation({
     mutationFn: () => runsApi.cancel(runId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['run', runId] })
-      qc.invalidateQueries({ queryKey: ['run-stages', runId] })
-      qc.invalidateQueries({ queryKey: ['runs'] })
+      qc.invalidateQueries({ queryKey: runDetailQueryKey(runId) })
+      qc.invalidateQueries({ queryKey: runStagesQueryKey(runId) })
+      qc.invalidateQueries({ queryKey: RUNS_QUERY_ROOT })
     },
   })
 
@@ -295,6 +297,7 @@ function WorkItemsTable({
             <tr className="text-[#6d6d6d] border-b border-[#3c3c3c]">
               <th className="text-left px-4 py-2 font-medium">File</th>
               <th className="text-left px-4 py-2 font-medium">Status</th>
+              <th className="text-left px-4 py-2 font-medium">Details</th>
               <th className="text-right px-4 py-2 font-medium">Duration</th>
             </tr>
           </thead>
@@ -309,6 +312,16 @@ function WorkItemsTable({
                 </td>
                 <td className="px-4 py-1.5">
                   <WorkItemStatus status={item.status} />
+                </td>
+                <td
+                  className="px-4 py-1.5 text-[#9d9d9d] max-w-[240px] truncate text-left"
+                  title={
+                    [item.error, item.skip_reason, item.skipped_by ? `by ${item.skipped_by}` : null]
+                      .filter(Boolean)
+                      .join(' · ') || undefined
+                  }
+                >
+                  {item.error ?? item.skip_reason ?? (item.skipped_by ? `skipped by ${item.skipped_by}` : '—')}
                 </td>
                 <td className="px-4 py-1.5 text-[#9d9d9d] text-right">
                   {item.duration_ms != null ? `${(item.duration_ms / 1000).toFixed(2)}s` : '—'}

@@ -37,7 +37,7 @@ def test_tasks_active_returns_unified_state(monkeypatch):
         "is_dispatcher_running": True,
     })
     monkeypatch.setattr(db, "get_queued_jobs", lambda limit=200: [{"id": 10, "job_type": "scoring", "status": "pending"}])
-    monkeypatch.setattr(db, "get_jobs", lambda limit=20: [])
+    monkeypatch.setattr(db, "get_jobs", lambda *a, **k: [])
     monkeypatch.setattr(db, "get_job_by_id", lambda jid: None)
 
     with _build_client() as client:
@@ -92,11 +92,12 @@ def test_pipeline_submit_cluster_enqueues_full_payload(monkeypatch, tmp_path):
 
     captured = {}
 
-    def fake_enqueue_job(input_path, phase_code, job_type=None, queue_payload=None):
+    def fake_enqueue_job(input_path, phase_code, job_type=None, queue_payload=None, description=None):
         captured["input_path"] = input_path
         captured["phase_code"] = phase_code
         captured["job_type"] = job_type
         captured["queue_payload"] = queue_payload
+        captured["description"] = description
         return 321, 7
 
     monkeypatch.setattr(db, "enqueue_job", fake_enqueue_job)
@@ -153,11 +154,12 @@ def test_pipeline_submit_metadata_enqueues_scoring_runner_with_target_phases(mon
 
     captured = {}
 
-    def fake_enqueue_job(input_path, phase_code, job_type=None, queue_payload=None):
+    def fake_enqueue_job(input_path, phase_code, job_type=None, queue_payload=None, description=None):
         captured["input_path"] = input_path
         captured["phase_code"] = phase_code
         captured["job_type"] = job_type
         captured["queue_payload"] = queue_payload
+        captured["description"] = description
         return 222, 3
 
     monkeypatch.setattr(db, "enqueue_job", fake_enqueue_job)
@@ -205,10 +207,11 @@ def test_pipeline_submit_mixed_operations_only_targets_scoring_side(monkeypatch,
 
     captured = {}
 
-    def fake_enqueue_job(input_path, phase_code, job_type=None, queue_payload=None):
+    def fake_enqueue_job(input_path, phase_code, job_type=None, queue_payload=None, description=None):
         captured["phase_code"] = phase_code
         captured["job_type"] = job_type
         captured["queue_payload"] = queue_payload
+        captured["description"] = description
         return 444, 2
 
     monkeypatch.setattr(db, "enqueue_job", fake_enqueue_job)
@@ -774,7 +777,7 @@ def test_ipc_bridge_routes_tasks_active(monkeypatch):
         "is_dispatcher_running": True,
     })
     monkeypatch.setattr(db, "get_queued_jobs", lambda limit=200: [])
-    monkeypatch.setattr(db, "get_jobs", lambda limit=20: [])
+    monkeypatch.setattr(db, "get_jobs", lambda *a, **k: [])
     monkeypatch.setattr(db, "get_job_by_id", lambda job_id: None)
 
     with _build_client() as client:

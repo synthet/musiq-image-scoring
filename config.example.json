@@ -12,7 +12,10 @@
     "prep_queue_size": 50,
     "scoring_queue_size": 10,
     "result_queue_size": 50,
-    "clustering_batch_size": 32
+    "clustering_batch_size": 32,
+    "post_run_data_quality_audit": false,
+    "post_run_audit_fail_job_on_issues": false,
+    "job_action_log_retention_days": 30
   },
   "clustering": {
     "stack_representative_strategy": "score",
@@ -56,7 +59,9 @@
       "C:/",
       "/mnt/"
     ],
-    "log_dir": ".cursor"
+    "log_dir": ".cursor",
+    "log_max_bytes": 10485760,
+    "log_backup_count": 5
   },
   "raw_conversion": {
     "method": "rawpy_half",

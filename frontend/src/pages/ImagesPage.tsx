@@ -1,0 +1,203 @@
+import { useEffect, useMemo, useState } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
+import { clsx } from 'clsx'
+import { ChevronLeft, ChevronRight, Database } from 'lucide-react'
+import { galleryApi } from '@/api/gallery'
+import { useUiStore } from '@/stores/uiStore'
+import { Button } from '@/components/ui/button'
+import type { Image } from '@/types/api'
+
+const PAGE_SIZES = [25, 50, 100] as const
+
+const SORT_COLUMNS: { key: string; label: string }[] = [
+  { key: 'id', label: 'ID' },
+  { key: 'file_name', label: 'File' },
+  { key: 'file_path', label: 'Path' },
+  { key: 'score_general', label: 'Score' },
+  { key: 'rating', label: 'Rating' },
+  { key: 'label', label: 'Label' },
+  { key: 'created_at', label: 'Created' },
+  { key: 'updated_at', label: 'Updated' },
+]
+
+function truncatePath(s: string, max = 64): string {
+  if (s.length <= max) return s
+  return `…${s.slice(-(max - 1))}`
+}
+
+export function ImagesPage() {
+  const navigate = useNavigate()
+  const selectedScopePath = useUiStore((s) => s.selectedScopePath)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(50)
+  const [sortBy, setSortBy] = useState('score_general')
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc')
+
+  useEffect(() => {
+    setPage(1)
+  }, [selectedScopePath, pageSize, sortBy, order])
+
+  const { data, isLoading, isFetching, isPlaceholderData } = useQuery({
+    queryKey: ['images', 'browse', selectedScopePath, page, pageSize, sortBy, order],
+    queryFn: () =>
+      galleryApi.list({
+        folder_path: selectedScopePath ?? undefined,
+        page,
+        page_size: pageSize,
+        sort_by: sortBy,
+        order,
+      }),
+    placeholderData: keepPreviousData,
+  })
+
+  const totalPages = data?.total_pages ?? 0
+  const total = data?.total ?? 0
+  const images: Image[] = data?.images ?? []
+
+  const canPrev = page > 1
+  const canNext = totalPages > 0 && page < totalPages
+
+  function onHeaderClick(key: string) {
+    if (sortBy === key) {
+      setOrder((o) => (o === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(key)
+      setOrder(key === 'file_name' || key === 'file_path' ? 'asc' : 'desc')
+    }
+  }
+
+  const scopeLabel = useMemo(() => {
+    if (!selectedScopePath) return 'All indexed images'
+    return selectedScopePath
+  }, [selectedScopePath])
+
+  return (
+    <div className="flex flex-col h-full min-h-0 bg-[#1e1e1e]">
+      <div className="shrink-0 border-b border-[#3c3c3c] px-4 py-3 flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 text-[#cccccc]">
+          <Database size={16} className="text-[#4fc1ff]" />
+          <span className="text-sm font-semibold">Images</span>
+        </div>
+        <div className="text-xs text-[#6d6d6d] max-w-[min(100%,42rem)] truncate" title={scopeLabel}>
+          Scope: <span className="text-[#9d9d9d]">{scopeLabel}</span>
+        </div>
+        <div className="ml-auto flex items-center gap-2 text-xs text-[#6d6d6d]">
+          <span>
+            {total.toLocaleString()} row{total !== 1 ? 's' : ''}
+            {isFetching && !isLoading ? ' · …' : ''}
+          </span>
+          <label className="flex items-center gap-1">
+            <span>Page size</span>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])}
+              className="bg-[#252526] border border-[#474747] rounded px-1.5 py-0.5 text-[#cccccc] outline-none focus:border-[#4fc1ff]"
+            >
+              {PAGE_SIZES.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-auto">
+        {isLoading && !isPlaceholderData && (
+          <div className="p-4 text-sm text-[#6d6d6d]">Loading…</div>
+        )}
+        {!isLoading && images.length === 0 && (
+          <div className="p-4 text-sm text-[#6d6d6d]">No images in this scope.</div>
+        )}
+        {images.length > 0 && (
+          <table
+            className={clsx(
+              'w-full text-xs border-collapse',
+              isPlaceholderData && 'opacity-70',
+            )}
+          >
+            <thead className="sticky top-0 z-[1] bg-[#252526] border-b border-[#3c3c3c]">
+              <tr>
+                {SORT_COLUMNS.map((col) => (
+                  <th key={col.key} className="text-left font-semibold text-[#9d9d9d] px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => onHeaderClick(col.key)}
+                      className={clsx(
+                        'inline-flex items-center gap-1 hover:text-[#4fc1ff] transition-colors',
+                        sortBy === col.key && 'text-[#4fc1ff]',
+                      )}
+                    >
+                      {col.label}
+                      {sortBy === col.key && (
+                        <span className="text-[10px] font-mono">{order === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </button>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {images.map((row) => (
+                <tr
+                  key={row.id}
+                  onClick={() => navigate(`/images/${row.id}`)}
+                  className="border-b border-[#2d2d2d] hover:bg-[#2a2d2e] cursor-pointer"
+                >
+                  <td className="px-3 py-1.5 font-mono text-[#4fc1ff]">{row.id}</td>
+                  <td className="px-3 py-1.5 text-[#cccccc] max-w-[14rem] truncate" title={row.file_name}>
+                    {row.file_name}
+                  </td>
+                  <td
+                    className="px-3 py-1.5 text-[#9d9d9d] max-w-[min(40vw,28rem)] truncate font-mono"
+                    title={row.file_path}
+                  >
+                    {truncatePath(row.file_path, 72)}
+                  </td>
+                  <td className="px-3 py-1.5 text-[#cccccc]">
+                    {row.score_general != null ? (row.score_general * 100).toFixed(1) : '—'}
+                  </td>
+                  <td className="px-3 py-1.5">{row.rating ?? '—'}</td>
+                  <td className="px-3 py-1.5">{row.label ?? '—'}</td>
+                  <td className="px-3 py-1.5 text-[#6d6d6d] font-mono">
+                    {row.created_at ? String(row.created_at).slice(0, 19) : '—'}
+                  </td>
+                  <td className="px-3 py-1.5 text-[#6d6d6d] font-mono">
+                    {row.updated_at ? String(row.updated_at).slice(0, 19) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="shrink-0 border-t border-[#3c3c3c] px-4 py-2 flex items-center gap-2 bg-[#252526]">
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!canPrev}
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+        >
+          <ChevronLeft size={12} />
+          Prev
+        </Button>
+        <span className="text-xs text-[#9d9d9d]">
+          Page {page}
+          {totalPages > 0 ? ` / ${totalPages}` : ''}
+        </span>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!canNext}
+          onClick={() => setPage((p) => p + 1)}
+        >
+          Next
+          <ChevronRight size={12} />
+        </Button>
+      </div>
+    </div>
+  )
+}

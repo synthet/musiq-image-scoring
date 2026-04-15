@@ -29,6 +29,8 @@ Endpoints:
         GET /api/images/by-uuid/{image_uuid} - Get single image details by image_uuid
         GET /api/images/by-hash/{image_hash} - Get single image details by content hash
         GET /api/images/{image_id} - Get single image details
+        GET /api/images/{image_id}/exif - Cached EXIF row (image_exif)
+        GET /api/images/{image_id}/xmp - Cached XMP row (image_xmp)
 
     Public (read-only image JSON, same payloads as above where applicable):
         GET /public/api/images - Paginated list (page_size max 200)
@@ -60,6 +62,8 @@ Endpoints:
     General:
         GET /api/status - Get status of all runners
         GET /api/health - Health check endpoint
+        GET /api/incidents - Paginated image incidents (failures / validations; PostgreSQL)
+        GET /api/incidents/{incident_id} - Single incident row
 
     Electron HTTP DB (optional, gated by config):
         POST /api/db/query - Parameterized SQL for local gallery ``engine: api`` mode (SELECT/WITH or writes)
@@ -91,7 +95,16 @@ from modules.pipeline_selector_composer import (
 from modules.run_modes import infer_run_mode, resolve_run_mode_flags
 
 from modules.job_dispatcher import JobDispatcher
-from modules.maintenance_job_display import maintenance_job_input_path
+from modules.maintenance_job_display import maintenance_job_input_path, build_default_maintenance_description
+from modules.job_description import (
+    augment_queue_payload_for_audit,
+    build_run_submit_description,
+    build_scoring_job_description,
+    build_clustering_job_description,
+    build_tagging_job_description,
+    build_bird_species_job_description,
+    build_workflow_run_description,
+)
 from modules import db
 
 logger = logging.getLogger(__name__)
@@ -164,6 +177,18 @@ def _normalize_jobs_table_row(d: dict) -> dict:
     if isinstance(qp, str) and qp.strip():
         try:
             out["queue_payload"] = json.loads(qp)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return out
+
+
+def _normalize_incident_row(d: dict) -> dict:
+    """image_incidents row: decode blobs; ensure ``detail`` is dict or None."""
+    out = _decode_db_row_blobs(d)
+    det = out.get("detail")
+    if isinstance(det, str) and det.strip():
+        try:
+            out["detail"] = json.loads(det)
         except (json.JSONDecodeError, TypeError):
             pass
     return out
@@ -242,7 +267,7 @@ def _image_detail_payload(image_id: int) -> dict:
         if not row:
             raise HTTPException(status_code=404, detail=f"Image not found: id={image_id}")
 
-        data = row.to_dict()
+        data = _row_to_dict(row, exclude_keys={"image_embedding"})
         data["file_paths"] = db.get_all_paths(image_id)
         data["resolved_path"] = db.get_resolved_path(image_id, verified_only=False)
         data["phase_statuses"] = db.get_image_phase_statuses(image_id)
@@ -253,6 +278,43 @@ def _image_detail_payload(image_id: int) -> dict:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+
+def _json_safe_metadata_row(row: Optional[dict]) -> dict:
+    """Serialize image_exif / image_xmp row dicts for JSON (omit binary columns)."""
+    if not row:
+        return {}
+    out: Dict[str, Any] = {}
+    for k, v in row.items():
+        if isinstance(v, bytes):
+            continue
+        if hasattr(v, "isoformat") and callable(getattr(v, "isoformat", None)):
+            try:
+                out[k] = v.isoformat()
+            except Exception:
+                out[k] = str(v)
+        else:
+            out[k] = v
+    return out
+
+
+def _row_to_dict(row, exclude_keys=None):
+    """Normalize a RowWrapper or plain dict to a JSON-serializable dict."""
+    if hasattr(row, "to_dict"):
+        return row.to_dict(exclude_keys=exclude_keys)
+    # Plain dict from db_connector — apply same filtering as RowWrapper.to_dict
+    exclude = exclude_keys or set()
+    out: Dict[str, Any] = {}
+    for k, v in row.items():
+        if k in exclude:
+            continue
+        if isinstance(v, bytes):
+            continue
+        if isinstance(v, (datetime, date)):
+            out[k] = v.isoformat()
+        else:
+            out[k] = v
+    return out
 
 
 def _images_list_payload(
@@ -288,7 +350,7 @@ def _images_list_payload(
             stack_id=stack_id,
         )
         return {
-            "images": [img.to_dict(exclude_keys={"image_embedding"}) for img in images],
+            "images": [_row_to_dict(img, exclude_keys={"image_embedding"}) for img in images],
             "total": total_count,
             "page": page,
             "page_size": page_size,
@@ -1066,6 +1128,22 @@ class MaintenanceStartRequest(BaseModel):
         None,
         description="Optional UI display name for this run (e.g. Tools tab label); stored as jobs.input_path.",
     )
+    description: Optional[str] = Field(
+        None,
+        description="Human-readable reason for this run (jobs.description). Server fills a default if omitted.",
+    )
+    trigger: str = Field(
+        "api",
+        description="Audit: who queued the job (e.g. runs_tools_tab, api). Stored in queue_payload.trigger.",
+    )
+    tool_id: Optional[str] = Field(
+        None,
+        description="Optional stable id for the UI control (queue_payload.tool_id).",
+    )
+    ui_selected_scope_path: Optional[str] = Field(
+        None,
+        description="Scope navigator selection when relevant (queue_payload.ui_selected_scope_path).",
+    )
 
 
 class ScheduleFolderQualityRunsRequest(BaseModel):
@@ -1709,6 +1787,16 @@ def create_api_router() -> APIRouter:
                         "path_params": {
                             "job_id": {"type": "integer"}
                         }
+                    },
+                    "incidents": {
+                        "method": "GET",
+                        "path": "/api/incidents",
+                        "description": "Paginated image incidents (PostgreSQL)"
+                    },
+                    "incident_detail": {
+                        "method": "GET",
+                        "path": "/api/incidents/{incident_id}",
+                        "description": "Single incident by id"
                     }
                 }
             },
@@ -1838,11 +1926,13 @@ def create_api_router() -> APIRouter:
             "input_path": request.input_path,
             "resolved_image_ids": selector_result.get("resolved_image_ids"),
         }
+        queue_payload = augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id="scoring_start")
         job_id, queue_position = db.enqueue_job(
             job_source,
             phase_code="scoring",
             job_type="scoring",
             queue_payload=queue_payload,
+            description=build_scoring_job_description(request.input_path, resolved_count=resolved_count),
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue scoring job")
@@ -2078,17 +2168,23 @@ def create_api_router() -> APIRouter:
         resolved_ids = selector_result.get("resolved_image_ids")
         resolved_count = len(resolved_ids or []) if resolved_ids is not None else None
         job_source = request.input_path or "SELECTOR_TAGGING"
-        job_id, queue_position = db.enqueue_job(
-            job_source,
-            phase_code="keywords",
-            job_type="tagging",
-            queue_payload={
+        t_payload = augment_queue_payload_for_audit(
+            {
                 "input_path": request.input_path,
                 "custom_keywords": request.custom_keywords,
                 "overwrite": request.overwrite,
                 "generate_captions": request.generate_captions,
                 "resolved_image_ids": selector_result.get("resolved_image_ids"),
             },
+            trigger="api",
+            tool_id="tagging_start",
+        )
+        job_id, queue_position = db.enqueue_job(
+            job_source,
+            phase_code="keywords",
+            job_type="tagging",
+            queue_payload=t_payload,
+            description=build_tagging_job_description(request.input_path),
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue tagging job")
@@ -2278,11 +2374,8 @@ def create_api_router() -> APIRouter:
         resolved_count = len(resolved_ids) if resolved_ids is not None else None
         job_source = request.input_path or "SELECTOR_BIRD_SPECIES"
 
-        job_id, queue_position = db.enqueue_job(
-            job_source,
-            phase_code=None,
-            job_type="bird_species",
-            queue_payload={
+        bs_payload = augment_queue_payload_for_audit(
+            {
                 "input_path": request.input_path,
                 "candidate_species": request.candidate_species,
                 "threshold": request.threshold,
@@ -2290,6 +2383,15 @@ def create_api_router() -> APIRouter:
                 "overwrite": request.overwrite,
                 "resolved_image_ids": resolved_ids,
             },
+            trigger="api",
+            tool_id="bird_species_start",
+        )
+        job_id, queue_position = db.enqueue_job(
+            job_source,
+            phase_code=None,
+            job_type="bird_species",
+            queue_payload=bs_payload,
+            description=build_bird_species_job_description(request.input_path),
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue bird species job")
@@ -2919,17 +3021,41 @@ def create_api_router() -> APIRouter:
         
         **Query Parameters:**
         - limit: Maximum number of jobs to return (default: 10, max: 1000)
+        - offset: Skip this many jobs (newest-first order; default 0)
+        - history: When true, only terminal statuses (completed/failed/canceled/interrupted);
+          response is JSON `{"runs":[...],"total":N}` for pagination (default response remains a JSON array).
         """
     )
-    async def get_recent_jobs(limit: int = 10):
+    async def get_recent_jobs(
+        limit: int = 10,
+        offset: int = 0,
+        history: bool = Query(
+            False,
+            description="Terminal jobs only; JSON object with runs + total for pagination.",
+        ),
+    ):
         """Get recent job history."""
         from modules import db
         try:
-            jobs = await asyncio.wait_for(
-                asyncio.to_thread(db.get_jobs, limit),
+
+            def _fetch_recent():
+                if history:
+                    rows = db.get_jobs(limit, offset, history_only=True)
+                    total = db.count_jobs(history_only=True)
+                    return rows, total
+                rows = db.get_jobs(limit, offset, history_only=False)
+                return rows, None
+
+            jobs, total = await asyncio.wait_for(
+                asyncio.to_thread(_fetch_recent),
                 timeout=30.0,
             )
             result = [_normalize_jobs_table_row(dict(j)) for j in jobs]
+            if history:
+                return _json_response_db(
+                    {"runs": result, "total": int(total or 0)},
+                    "GET /api/jobs/recent",
+                )
             return _json_response_db(result, "GET /api/jobs/recent")
         except asyncio.TimeoutError:
             raise HTTPException(
@@ -2983,6 +3109,73 @@ def create_api_router() -> APIRouter:
                 _decode_db_row_blobs(dict(p)) for p in db.get_job_phases(job_id)
             ]
             return _json_response_db(payload, f"GET /api/jobs/{job_id}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get(
+        "/incidents",
+        summary="List image incidents",
+        description="""
+        Paginated append-only incidents (phase failures, validation, etc.) linked to images.
+        PostgreSQL only; returns empty items when the engine is not PostgreSQL.
+
+        Query: limit, offset, folder_id, job_id, phase_code, kind, since (ISO-8601).
+        """,
+    )
+    async def list_incidents(
+        limit: int = Query(50, ge=1, le=500),
+        offset: int = Query(0, ge=0),
+        folder_id: Optional[int] = None,
+        job_id: Optional[int] = None,
+        phase_code: Optional[str] = None,
+        kind: Optional[str] = None,
+        since: Optional[str] = Query(
+            None,
+            description="ISO-8601 datetime; return rows with created_at >= since",
+        ),
+    ):
+        since_dt = None
+        if since:
+            try:
+                since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=f"Invalid since: {e}") from e
+        try:
+            raw = db.list_image_incidents(
+                limit=limit,
+                offset=offset,
+                folder_id=folder_id,
+                job_id=job_id,
+                phase_code=phase_code,
+                kind=kind,
+                since=since_dt,
+            )
+            items = [_normalize_incident_row(dict(x)) for x in raw.get("items") or []]
+            return _json_response_db(
+                {"items": items, "total": int(raw.get("total") or 0)},
+                "GET /api/incidents",
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get(
+        "/incidents/{incident_id}",
+        summary="Get one image incident",
+        description="Returns a single incident by id with file_path and phase_code.",
+    )
+    async def get_incident(incident_id: int):
+        try:
+            row = db.get_image_incident(incident_id)
+            if not row:
+                raise HTTPException(status_code=404, detail="Incident not found")
+            return _json_response_db(
+                _normalize_incident_row(dict(row)),
+                f"GET /api/incidents/{incident_id}",
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -3444,17 +3637,27 @@ def create_api_router() -> APIRouter:
         resolved_ids = selector_result.get("resolved_image_ids")
         resolved_count = len(resolved_ids or []) if resolved_ids is not None else None
         job_source = request.input_path or "SELECTOR_CLUSTERING"
-        job_id, queue_position = db.enqueue_job(
-            job_source,
-            phase_code="culling",
-            job_type="clustering",
-            queue_payload={
+        cl_payload = augment_queue_payload_for_audit(
+            {
                 "input_path": request.input_path,
                 "threshold": request.threshold,
                 "time_gap": request.time_gap,
                 "force_rescan": request.force_rescan,
                 "resolved_image_ids": selector_result.get("resolved_image_ids"),
             },
+            trigger="api",
+            tool_id="clustering_start",
+        )
+        job_id, queue_position = db.enqueue_job(
+            job_source,
+            phase_code="culling",
+            job_type="clustering",
+            queue_payload=cl_payload,
+            description=build_clustering_job_description(
+                request.input_path,
+                force_rescan=bool(request.force_rescan),
+                resolved_count=resolved_count,
+            ),
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue clustering job")
@@ -3574,6 +3777,24 @@ def create_api_router() -> APIRouter:
         hash_version: Optional[int] = Query(None, description="images.hash_version (1=full file, 2=preview)"),
     ):
         return _image_detail_for_hash_str(image_hash, hash_version=hash_version)
+
+    @router.get(
+        "/images/{image_id}/exif",
+        summary="Get cached EXIF row for an image",
+        description="Returns columns from image_exif for inspector UIs. Empty object when no cached row exists.",
+    )
+    async def get_image_exif_row(image_id: int):
+        row = db.get_image_exif(image_id)
+        return _json_safe_metadata_row(row)
+
+    @router.get(
+        "/images/{image_id}/xmp",
+        summary="Get cached XMP row for an image",
+        description="Returns columns from image_xmp for inspector UIs. Empty object when no cached row exists.",
+    )
+    async def get_image_xmp_row(image_id: int):
+        row = db.get_image_xmp(image_id)
+        return _json_safe_metadata_row(row)
 
     @router.get(
         "/images/{image_id}",
@@ -4058,6 +4279,15 @@ def create_api_router() -> APIRouter:
         }
         phase_plan_codes = [op_to_phase_code.get(op, op) for op in request.stage_codes]
 
+        wf_desc = build_workflow_run_description(first_op, wt or queue_input_path, list(request.stage_codes))
+
+        def _pipeline_queue_payload(base: dict) -> dict:
+            return augment_queue_payload_for_audit(
+                serialize_queue_payload(base, preview),
+                trigger="api",
+                tool_id="pipeline_submit",
+            )
+
         if first_op == "indexing":
             if _indexing_runner is None:
                 raise HTTPException(status_code=503, detail="Indexing runner not available")
@@ -4065,7 +4295,7 @@ def create_api_router() -> APIRouter:
                 queue_input_path,
                 phase_code="indexing",
                 job_type="indexing",
-                queue_payload=serialize_queue_payload(
+                queue_payload=_pipeline_queue_payload(
                     {
                         "input_path": wt or None,
                         "workspace_target": wt or None,
@@ -4073,8 +4303,8 @@ def create_api_router() -> APIRouter:
                         "stage_codes": request.stage_codes,
                         "skip_existing": request.skip_existing,
                     },
-                    preview,
                 ),
+                description=wf_desc,
             )
         elif first_op == "metadata":
             if _metadata_runner is None:
@@ -4083,7 +4313,7 @@ def create_api_router() -> APIRouter:
                 queue_input_path,
                 phase_code="metadata",
                 job_type="metadata",
-                queue_payload=serialize_queue_payload(
+                queue_payload=_pipeline_queue_payload(
                     {
                         "input_path": wt or None,
                         "workspace_target": wt or None,
@@ -4091,8 +4321,8 @@ def create_api_router() -> APIRouter:
                         "stage_codes": request.stage_codes,
                         "skip_existing": request.skip_existing,
                     },
-                    preview,
                 ),
+                description=wf_desc,
             )
         elif first_op == "score":
             if _scoring_runner is None:
@@ -4105,7 +4335,7 @@ def create_api_router() -> APIRouter:
                 queue_input_path,
                 phase_code="scoring",
                 job_type="scoring",
-                queue_payload=serialize_queue_payload(
+                queue_payload=_pipeline_queue_payload(
                     {
                         "input_path": wt or None,
                         "workspace_target": wt or None,
@@ -4114,8 +4344,8 @@ def create_api_router() -> APIRouter:
                         "skip_existing": request.skip_existing,
                         "target_phases": target_phases,
                     },
-                    preview,
                 ),
+                description=wf_desc,
             )
         elif first_op == "tag":
             if _tagging_runner is None:
@@ -4124,7 +4354,7 @@ def create_api_router() -> APIRouter:
                 queue_input_path,
                 phase_code="keywords",
                 job_type="tagging",
-                queue_payload=serialize_queue_payload(
+                queue_payload=_pipeline_queue_payload(
                     {
                         "input_path": wt or None,
                         "workspace_target": wt or None,
@@ -4134,8 +4364,8 @@ def create_api_router() -> APIRouter:
                         "overwrite": not request.skip_existing,
                         "generate_captions": request.generate_captions,
                     },
-                    preview,
                 ),
+                description=wf_desc,
             )
         else:
             if _clustering_runner is None:
@@ -4144,7 +4374,7 @@ def create_api_router() -> APIRouter:
                 queue_input_path,
                 phase_code="culling",
                 job_type="clustering",
-                queue_payload=serialize_queue_payload(
+                queue_payload=_pipeline_queue_payload(
                     {
                         "input_path": wt or None,
                         "workspace_target": wt or None,
@@ -4154,8 +4384,8 @@ def create_api_router() -> APIRouter:
                         "time_gap": request.clustering_time_gap,
                         "force_rescan": request.clustering_force_rescan,
                     },
-                    preview,
                 ),
+                description=wf_desc,
             )
 
         if job_id is None:
@@ -4366,11 +4596,17 @@ def create_api_router() -> APIRouter:
         for phase in ("indexing", "metadata", "scoring", "culling", "keywords"):
             _stop_runner_for_phase(phase)
 
+        rp = augment_queue_payload_for_audit(
+            {"input_path": input_path, "skip_existing": False},
+            trigger="api",
+            tool_id="pipeline_run_restart",
+        )
         job_id, queue_position = db.enqueue_job(
             input_path,
             phase_code="indexing",
             job_type="indexing",
-            queue_payload={"input_path": input_path, "skip_existing": False},
+            queue_payload=rp,
+            description=f"Pipeline restart from API: full Discovery→Inspection→Quality for {input_path}.",
         )
         if job_id is not None:
             db.create_job_phases(
@@ -4805,6 +5041,14 @@ def create_api_router() -> APIRouter:
         fix_incomplete_stages: Optional[bool] = None
         validation_repair_mode: bool = False
         validation_repair_dry_run: bool = False
+        description: Optional[str] = Field(
+            None,
+            description="Human-readable reason/scope for this run (stored on jobs.description).",
+        )
+        post_run_audit: Optional[bool] = Field(
+            None,
+            description="When true, force post-completion data-quality audit (see processing.post_run_data_quality_audit).",
+        )
 
         @model_validator(mode="after")
         def _normalize_run_mode_and_legacy_flags(self):
@@ -4928,6 +5172,17 @@ def create_api_router() -> APIRouter:
             "phases": phase_values,
             "target_phases": phase_values,
         }
+        payload = augment_queue_payload_for_audit(payload, trigger="api", tool_id="run_submit")
+        run_description = build_run_submit_description(
+            scope_type=request.scope_type,
+            scope_paths=scope_paths,
+            run_mode=request.run_mode,
+            validation_repair_mode=bool(request.validation_repair_mode),
+            phase_values=phase_values,
+            client_description=request.description,
+        )
+        if request.post_run_audit is not None:
+            payload["post_run_audit"] = bool(request.post_run_audit)
         if request.validation_repair_mode:
             try:
                 repair_plan = await asyncio.to_thread(
@@ -4955,6 +5210,7 @@ def create_api_router() -> APIRouter:
                     phase_code,
                     job_type,
                     payload,
+                    run_description,
                 ),
                 timeout=30.0,
             )
@@ -5245,11 +5501,19 @@ def create_api_router() -> APIRouter:
         }
         phase_code = _phase_code_map.get(orig_job_type, "indexing")
 
+        prior = job.get("description")
+        retry_desc = (
+            f"{str(prior).strip()} (re-queued via force_run)"
+            if prior and str(prior).strip()
+            else f"Retry via force_run of job #{job.get('id')} ({orig_job_type}) for {job.get('input_path') or ''}."
+        )
+
         new_job_id, position = db.enqueue_job(
             input_path=job.get("input_path", ""),
             phase_code=phase_code,
             job_type=orig_job_type,
             queue_payload=json.dumps(payload),
+            description=retry_desc,
         )
         from modules.phases import sort_phase_value_strings
 
@@ -5292,11 +5556,18 @@ def create_api_router() -> APIRouter:
                 "selection": "culling",
             }
             phase_code = _phase_code_map.get(orig_job_type, "scoring")
+            prior = job.get("description")
+            retry_desc = (
+                f"{str(prior).strip()} (retry from Runs UI)"
+                if prior and str(prior).strip()
+                else f"Retry of run #{run_id} ({orig_job_type}) for {job.get('input_path') or ''}."
+            )
             new_job_id, position = db.enqueue_job(
                 input_path=job.get("input_path", ""),
                 phase_code=phase_code,
                 job_type=orig_job_type,
                 queue_payload=json.dumps(payload),
+                description=retry_desc,
             )
             # Copy phases from original job, or default from job_type
             from modules.phases import sort_phase_value_strings
@@ -5379,6 +5650,67 @@ def create_api_router() -> APIRouter:
             return items_data
         except AttributeError:
             return {"items": [], "total": 0}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get(
+        "/runs/{run_id}/diagnostics",
+        summary="Run diagnostics (post-run audit + per-phase image_phase_status counts)",
+        description="""
+        Returns ``post_run_audit`` from the job queue_payload (when present) and aggregated
+        ``image_phase_status`` counts for this run. Use with ``GET .../stages/{stage_code}/items``
+        for per-image details.
+        """,
+    )
+    async def get_run_diagnostics(run_id: int):
+        from modules import db
+        try:
+            out = await asyncio.to_thread(db.get_run_diagnostics, run_id)
+            if out.get("error") == "job_not_found":
+                raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+            return out
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get(
+        "/runs/{run_id}/report",
+        summary="Get job execution report",
+        description="Returns the structured execution report (report_json) for a completed job.",
+    )
+    async def get_run_report(run_id: int):
+        from modules import db
+        try:
+            report = await asyncio.to_thread(db.get_job_report, run_id)
+            if report is None:
+                raise HTTPException(status_code=404, detail=f"No execution report for run {run_id}")
+            return report
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get(
+        "/runs/{run_id}/report/images",
+        summary="Get per-image execution actions",
+        description=(
+            "Paginated per-image action log with before/after score snapshots. "
+            "Filter by phase_code and/or action (processed, skipped, failed, unchanged)."
+        ),
+    )
+    async def get_run_report_images(
+        run_id: int,
+        phase_code: Optional[str] = None,
+        action: Optional[str] = None,
+        offset: int = 0,
+        limit: int = 50,
+    ):
+        from modules import db
+        try:
+            return await asyncio.to_thread(
+                db.get_job_image_actions, run_id, phase_code, action, offset, limit
+            )
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -5724,11 +6056,13 @@ def create_api_router() -> APIRouter:
             "action": "reconcile",
             "limit": limit,
         }
+        queue_payload = augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id="reconcile_terminal_phases")
         job_id, _ = db.enqueue_job(
             maintenance_job_input_path("reconcile", queue_payload),
             None,
             job_type="maintenance",
             queue_payload=queue_payload,
+            description=build_default_maintenance_description("reconcile", queue_payload),
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
@@ -5759,11 +6093,13 @@ def create_api_router() -> APIRouter:
             "action": "backfill_index_meta",
             "limit": limit,
         }
+        queue_payload = augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id="backfill_index_meta_global")
         job_id, _ = db.enqueue_job(
             maintenance_job_input_path("backfill_index_meta", queue_payload),
             None,
             job_type="maintenance",
             queue_payload=queue_payload,
+            description=build_default_maintenance_description("backfill_index_meta", queue_payload),
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
@@ -6077,6 +6413,50 @@ def create_api_router() -> APIRouter:
             "warnings": warnings,
         }
 
+        # Durable audit row (sync endpoint): appears in Runs/history with full summary in jobs.log.
+        audit_run_id = None
+        try:
+            audit_payload = augment_queue_payload_for_audit(
+                {
+                    "action": "recalculate_status_from_data",
+                    "scope": selected_scope,
+                    "scope_path": target_scope_path,
+                },
+                trigger="api",
+                tool_id="recalculate_status_from_data",
+            )
+            audit_desc = (
+                "Sync tool: recalculate derivable per-image phase statuses and folder aggregates. "
+                + (
+                    f"Folder scope: {target_scope_path}. "
+                    if target_scope_path
+                    else "Scope: entire database. "
+                )
+                + "Metrics: jobs.log JSON on this run."
+            )
+            audit_run_id = db.create_job(
+                maintenance_job_input_path(
+                    "recalculate_status_from_data",
+                    {**audit_payload, "audit": True},
+                    title_override="Recalculate status from data",
+                ),
+                job_type="maintenance",
+                status="completed",
+                queue_payload={**audit_payload, "summary": summary},
+                description=audit_desc,
+            )
+            if audit_run_id:
+                now = datetime.now()
+                log_text = json.dumps({"summary": summary}, default=str)
+                db.get_connector().execute(
+                    "UPDATE jobs SET log = ?, started_at = ?, finished_at = ?, completed_at = ? WHERE id = ?",
+                    (log_text, now, now, now, audit_run_id),
+                )
+                db.create_job_phases(audit_run_id, ["maintenance"], first_phase_state=None)
+                db.set_job_phase_state(audit_run_id, "maintenance", "completed")
+        except Exception as audit_err:
+            logger.warning("recalculate_status_from_data: audit job row skipped: %s", audit_err)
+
         return ApiResponse(
             success=True,
             message=(
@@ -6084,7 +6464,7 @@ def create_api_router() -> APIRouter:
                 f"{summary['per_image_changes']['total_rows_changed_estimate']} per-image row changes "
                 f"(heuristic estimate), {folders_recomputed} folder aggregate(s) rebuilt."
             ),
-            data={"summary": summary},
+            data={"summary": summary, "audit_run_id": audit_run_id},
         )
 
     @router.post(
@@ -6108,11 +6488,13 @@ def create_api_router() -> APIRouter:
             "action": "backfill_exif",
             "limit": limit,
         }
+        queue_payload = augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id="backfill_exif_dates")
         job_id, _ = db.enqueue_job(
             maintenance_job_input_path("backfill_exif", queue_payload),
             None,
             job_type="maintenance",
             queue_payload=queue_payload,
+            description=build_default_maintenance_description("backfill_exif", queue_payload),
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
@@ -6140,11 +6522,13 @@ def create_api_router() -> APIRouter:
             "action": "heal_thumbnails",
             "limit": 500,
         }
+        queue_payload = augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id="regenerate_thumbnails")
         job_id, _ = db.enqueue_job(
             maintenance_job_input_path("heal_thumbnails", queue_payload),
             None,
             job_type="maintenance",
             queue_payload=queue_payload,
+            description=build_default_maintenance_description("heal_thumbnails", queue_payload),
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
@@ -6317,6 +6701,18 @@ def create_api_router() -> APIRouter:
         if request.input_path and str(request.input_path).strip():
             payload_dict["input_path"] = str(request.input_path).strip()
 
+        payload_dict = augment_queue_payload_for_audit(
+            payload_dict,
+            trigger=(request.trigger or "api").strip() or "api",
+            tool_id=request.tool_id,
+            ui_selected_scope_path=request.ui_selected_scope_path,
+        )
+        maint_desc = (request.description or "").strip() or build_default_maintenance_description(
+            request.action,
+            payload_dict,
+            job_name=request.job_name,
+        )
+
         job_id, _ = db.enqueue_job(
             maintenance_job_input_path(
                 request.action,
@@ -6326,6 +6722,7 @@ def create_api_router() -> APIRouter:
             None,
             job_type="maintenance",
             queue_payload=payload_dict,
+            description=maint_desc,
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")

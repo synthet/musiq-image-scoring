@@ -10,6 +10,7 @@ import { useUiStore } from '@/stores/uiStore'
 import { STAGE_DISPLAY } from '@/types/api'
 import type { StageCode, ScopePreviewResult, ValidationRepairPreview } from '@/types/api'
 import { FULL_PIPELINE_STAGE_CODES } from '@/constants/pipeline'
+import { RUNS_QUERY_ROOT } from '@/queryKeys/runs'
 
 const ALL_STAGES: StageCode[] = [...FULL_PIPELINE_STAGE_CODES]
 
@@ -142,7 +143,7 @@ export function ScopeSelector() {
   const submitMut = useMutation({
     mutationFn: (req: RunSubmitRequest) => runsApi.submit(req),
     onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ['runs'] })
+      qc.invalidateQueries({ queryKey: RUNS_QUERY_ROOT })
       qc.invalidateQueries({ queryKey: ['folders-tree'] })
       const paths = variables.scope_paths ?? []
       setPendingTreeRevealPaths(paths.length > 0 ? [...paths] : null)

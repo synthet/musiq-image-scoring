@@ -39,7 +39,9 @@ export function LogPanel({ runId, persistedLog, runStatus, startedAt }: LogPanel
   const [filter, setFilter] = useState<LogLevel>('INFO')
   const [autoScroll, setAutoScroll] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const isProgrammaticScrollRef = useRef(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  /** Tracks last scroll position; used to detect user scrolling back to bottom without overriding an explicit "off" while already at bottom. */
+  const wasAtBottomRef = useRef(true)
 
   const filtered = displayLines.filter((l) => {
     if (filter === 'ALL') return true
@@ -53,15 +55,10 @@ export function LogPanel({ runId, persistedLog, runStatus, startedAt }: LogPanel
 
   useEffect(() => {
     if (!autoScroll) return
-    isProgrammaticScrollRef.current = true
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-    const t = setTimeout(() => {
-      isProgrammaticScrollRef.current = false
-    }, 300)
-    return () => {
-      clearTimeout(t)
-      isProgrammaticScrollRef.current = false
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
     }
+    wasAtBottomRef.current = true
   }, [filtered.length, autoScroll])
 
   return (
@@ -98,12 +95,22 @@ export function LogPanel({ runId, persistedLog, runStatus, startedAt }: LogPanel
       </div>
 
       <div
+        ref={scrollContainerRef}
         className="flex-1 overflow-y-auto font-mono text-[11px] px-4 py-2 min-h-[120px] max-h-[240px]"
         onScroll={(e) => {
-          if (isProgrammaticScrollRef.current) return
           const el = e.currentTarget
           const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30
-          setAutoScroll(atBottom)
+          if (!atBottom) {
+            setAutoScroll(false)
+            wasAtBottomRef.current = false
+            return
+          }
+          // Re-enable follow only when the user scrolls back to the bottom from above — not when
+          // they unchecked while already at bottom (still atBottom but wasAtBottomRef stayed true).
+          if (!wasAtBottomRef.current) {
+            setAutoScroll(true)
+          }
+          wasAtBottomRef.current = true
         }}
       >
         {filtered.length === 0 ? (

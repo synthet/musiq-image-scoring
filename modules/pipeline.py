@@ -49,6 +49,7 @@ class ImageJob:
     thumbnail_path: Optional[str] = None
     image_id: Optional[int] = None  # DB id, set when image is found/created
     target_phases: List[PhaseCode] = field(default_factory=list) # List of phases to execute in this job
+    skip_reason: Optional[str] = None  # Reason from policy/runner when status is "skipped"
 
 
 def _is_phase_targeted(target_phases: List[Any], phase_code: PhaseCode) -> bool:
@@ -157,7 +158,19 @@ class PrepWorker(PipelineWorker):
                         force_run=False,
                     )
                     if not decision['should_run']:
+                        skip_reason = decision.get("reason", "scoring_policy_skip")
                         job.status = "skipped"
+                        job.skip_reason = skip_reason
+                        db.set_image_phase_status(
+                            job.image_id,
+                            PhaseCode.SCORING,
+                            PhaseStatus.SKIPPED,
+                            app_version=APP_VERSION,
+                            executor_version=self.scorer.VERSION if self.scorer else None,
+                            job_id=job.job_id,
+                            skip_reason=skip_reason,
+                            skipped_by="scoring_pipeline",
+                        )
                         if job.job_id:
                             emit_run_log(
                                 job.job_id,
@@ -389,6 +402,8 @@ class ResultWorker(PipelineWorker):
             self.progress_callback(msg)
 
     def process(self, job: ImageJob):
+        collector = getattr(self, "report_collector", None)
+
         # 1. Handle Status
         if job.status == "skipped":
             self._progress(f"Skipped: {job.image_path}", "INFO")
@@ -398,6 +413,8 @@ class ResultWorker(PipelineWorker):
                     thumb = thumbnails.get_thumb_path(job.image_path)
                 if thumb and os.path.isfile(thumb):
                     db.update_image_thumbnail_paths(job.image_id, thumb, None)
+                if collector and job.image_id:
+                    collector.record_skip(job.image_id, job.skip_reason or "scoring_policy_skip")
 
         elif job.status == "failed":
             self._progress(f"FAILED: {job.image_path} - {job.error}", "ERROR")
@@ -411,6 +428,8 @@ class ResultWorker(PipelineWorker):
                     job_id=job.job_id,
                     error=job.error,
                 )
+                if collector:
+                    collector.record_failure(job.image_id, job.error or "unknown")
                 
         elif job.status == "success":
             # Write Metadata using unified XMP module
@@ -496,11 +515,34 @@ class ResultWorker(PipelineWorker):
 
                 score = job.result.get("summary", {}).get("weighted_scores", {}).get("general", 0)
                 self._progress(f"Scored: {Path(job.image_path).name} - {score:.2f}", "INFO")
+
+                # Record after-snapshot for execution trail.
+                if collector and job.image_id:
+                    try:
+                        ws = job.result.get("summary", {}).get("weighted_scores", {})
+                        models = job.result.get("models", {})
+                        nef_meta = job.result.get("nef_metadata", {})
+                        after = {
+                            "score": ws.get("general"),
+                            "score_general": ws.get("general"),
+                            "score_technical": ws.get("technical"),
+                            "score_aesthetic": ws.get("aesthetic"),
+                            "rating": nef_meta.get("rating"),
+                            "label": nef_meta.get("label"),
+                        }
+                        for m_name in ("spaq", "ava", "koniq", "paq2piq", "liqe"):
+                            m_data = models.get(m_name, {})
+                            after[f"score_{m_name}"] = m_data.get("normalized_score")
+                        collector.record_after(job.image_id, after)
+                    except Exception:
+                        logger.debug("ResultWorker: after-snapshot recording failed for image %s", job.image_id, exc_info=True)
             except Exception as e:
                 # Phase C (Scoring) — failed
                 if job.image_id:
                     db.set_image_phase_status(job.image_id, PhaseCode.SCORING, PhaseStatus.FAILED,
                                               job_id=job.job_id, error=str(e))
+                    if collector:
+                        collector.record_failure(job.image_id, str(e))
                 self._progress(f"DB Error: {e}", "ERROR")
         
         # 2. Cleanup

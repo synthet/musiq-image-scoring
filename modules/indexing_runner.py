@@ -200,22 +200,22 @@ class IndexingRunner:
     def get_status(self):
         return self.is_running, "\n".join(self.log_history), self.status_message, self.current_count, self.total_count
 
-    def start_batch(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None):
+    def start_batch(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None, report_collector=None):
         if self.is_running:
             return "Error: Already running."
-            
+
         self.is_running = True
         self.log_history = []
         self.status_message = "Starting..."
         self.current_count = 0
         self.total_count = 0
-        
+
         if job_id is None:
             job_id = db.create_job(input_path or "ALL_IMAGES_INDEXING", job_type="indexing")
-            
+
         def target():
             try:
-                self._run_batch_internal(input_path, job_id, skip_existing, resolved_image_ids)
+                self._run_batch_internal(input_path, job_id, skip_existing, resolved_image_ids, report_collector=report_collector)
             except Exception:
                 logger.exception("IndexingRunner thread crashed (job_id=%s)", job_id)
                 self.status_message = "Failed"
@@ -261,7 +261,7 @@ class IndexingRunner:
                     valid_files.append(fp)
         return valid_files
 
-    def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None):
+    def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None, report_collector=None):
         PROGRESS_INTERVAL = 50
 
         def log(level: str, msg: str) -> None:
@@ -327,6 +327,10 @@ class IndexingRunner:
         self.total_count = len(all_files)
         self.current_count = 0
 
+        if report_collector is not None:
+            targeted = len(resolved_image_ids) if resolved_image_ids is not None else len(all_files)
+            report_collector.set_scope_counts(in_scope=len(all_files), targeted=targeted)
+
         scan_stop: Optional[str] = None
         nef_cache: Dict[str, bool] = {}
         if resolved_image_ids is None and input_path and os.path.exists(input_path):
@@ -365,8 +369,11 @@ class IndexingRunner:
                             executor_version=INDEXING_VERSION,
                             job_id=job_id,
                             skip_reason="already_indexed",
+                            skipped_by="indexing_runner",
                         )
                         skipped_count += 1
+                        if report_collector:
+                            report_collector.record_skip(sid, "already_indexed")
                         log("DEBUG", f"Skip (already indexed): {file_path}")
                         if self.current_count % PROGRESS_INTERVAL == 0:
                             log(
@@ -502,6 +509,8 @@ class IndexingRunner:
                         job_id=job_id,
                     )
                     processed_count += 1
+                    if report_collector:
+                        report_collector.record_after(int(image_id), {}, action="processed")
                     log("DEBUG", f"Indexed image_id={image_id}: {file_path}")
                 else:
                     skipped_count += 1
@@ -510,6 +519,8 @@ class IndexingRunner:
             except Exception as e:
                 log("ERROR", f"Error indexing {file_path}: {e}")
                 skipped_count += 1
+                if report_collector and (track_id or image_id):
+                    report_collector.record_failure(int(track_id or image_id), str(e))
                 fail_id = track_id
                 try:
                     if existing and existing.get("id"):
@@ -589,6 +600,7 @@ class IndexingRunner:
                     except Exception:
                         pass
             else:
+                self._finalize_report(job_id, report_collector)
                 job = db.get_job(job_id)
                 st = (job.get("status") or "").strip().lower() if job else ""
                 if st not in db.JOB_TERMINAL_STATES:
@@ -596,6 +608,16 @@ class IndexingRunner:
                     if len(final_log) > _MAX_PERSISTED_JOB_LOG_CHARS:
                         final_log = final_log[-_MAX_PERSISTED_JOB_LOG_CHARS:]
                     db.update_job_status(job_id, "completed", log=final_log)
+
+    @staticmethod
+    def _finalize_report(job_id, report_collector):
+        if report_collector is None:
+            return
+        try:
+            from modules.report_collector import finalize_and_save_report
+            finalize_and_save_report(job_id, report_collector.run_mode, [report_collector])
+        except Exception:
+            logger.debug("Failed to finalize report for job %s", job_id, exc_info=True)
 
     def stop(self):
         self.stop_event.set()

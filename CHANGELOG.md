@@ -29,6 +29,39 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 3. Monitor logs for deprecation warnings when Phase 4c ships
 4. Complete migration before v7.0 (July 2026)
 
+## [7.3.0] - 2026-04-15
+
+### Added
+
+- **Job execution trail** (`modules/report_collector.py`, `job_image_actions` table): per-image before/after score snapshots recorded during scoring, indexing, and metadata phases; `report_json` JSONB summary persisted on `jobs` table. New `ReportCollector` wired into `ScoringRunner`, `IndexingRunner`, `MetadataRunner`, and `BatchImageProcessor`.
+- **Image incidents** (`image_incidents` table): append-only failure/validation log scoped to images; `record_image_incident()` in `db.py`; `GET /api/incidents` and `GET /api/incidents/{incident_id}` API endpoints; React **Issues** page in `/ui`.
+- **Post-run data quality audit**: `run_post_completion_data_quality_audit()` auto-runs when a job completes, recording phase-status anomalies and incidents; gated by `processing.post_run_data_quality_audit` config flag.
+- **Job descriptions** (`modules/job_description.py`): human-readable `jobs.description` column; `build_*_description()` helpers for scoring, tagging, clustering, workflow runs; `augment_queue_payload_for_audit()` stamps trigger/tool_id on queue payloads.
+- **New API endpoints**: `GET /api/images/{image_id}/exif`, `GET /api/images/{image_id}/xmp` (cached EXIF/XMP rows); `GET /api/status/log-tails` (JSON tails for webui.log and debug.log).
+- **New MCP tools**: `get_run_diagnostics` (post-run audit snapshot), `get_job_execution_report` (structured report + paginated per-image actions), `get_server_log_tail` (log tails).
+- **React `/ui`**: Images page, Image Inspector page, Issues page, Run Report panel (`ReportPanel.tsx`), query key module, status log parsing utilities.
+- **Job progress broadcast**: `update_job_progress()` sends percent-complete over WebSocket for long-running maintenance jobs.
+- **Log views module** (`modules/ui/log_views.py`): refactored log tail reading shared by Gradio status page, REST API, and MCP tools.
+- **Alembic migrations**: `0009_jobs_description`, `0010_job_execution_trail` (`job_image_actions` table, `report_json` column, `job_phases` counter columns), `0011_image_incidents`.
+- **CI**: `.github/workflows/frontend-test.yml` for frontend test automation.
+- **Tests**: `test_report_collector`, `test_image_incidents`, `test_post_run_audit`, `test_update_job_progress`, `test_log_views`; frontend unit tests for `client`, `button`, `runLog`, `statusLogParse`, `treePaths`, `runs` query keys.
+
+### Changed
+
+- **`modules/events.py`**: simplified `broadcast_threadsafe` — properly checks `loop.is_closed()` instead of nested try/except for event loop discovery.
+- **`modules/api.py`**: `_row_to_dict` helper handles plain dict rows from `db_connector` (not just `RowWrapper`); `MaintenanceStartRequest` gains `description`, `trigger`, `tool_id`, `ui_selected_scope_path` fields; all job-enqueue paths now stamp audit metadata and descriptions.
+- **`modules/pipeline.py`**: `PrepWorker` records `image_phase_status` with skip reason during scoring policy skips; `ResultWorker` integrates `ReportCollector` for after-snapshot recording.
+- **`modules/scoring.py`**, **`indexing_runner.py`**, **`metadata_runner.py`**: accept and thread `report_collector` through batch processing; finalize reports on completion/failure.
+- **`modules/job_dispatcher.py`**: builds `ReportCollector` with before-snapshots for scoring dispatches; passes collectors to all phase runners.
+- **`modules/command_dispatcher.py`**, **`selection_runner.py`**: stamp audit metadata and descriptions on enqueued jobs.
+- **`modules/mcp_server.py`**: `read_debug_log` refactored to use `log_views` module; returns structured JSON-line entries.
+- **`modules/db.py`**: `create_job` / `enqueue_job` accept `description`; `update_job_status` triggers post-completion audit; new functions for job reports, image actions, incidents, phase counters, run diagnostics.
+- **`modules/db_postgres.py`**: DDL for `job_image_actions`, `image_incidents` tables; `job_phases` counter columns; `truncate_app_tables` re-seeds `pipeline_phases`.
+- **`modules/ui/status_gradio.py`**: recent jobs table gains clickable "View" links for completed runs; log rendering delegates to `log_views`.
+- **Static `/app` bundle**: rebuilt hashed assets and `index.html`.
+- **XMP fixtures** (`tests/fixtures/testing_samples/`): minor touch-ups.
+- **Config**: `config.example.json` and `environment.example.json` updated for new processing flags.
+
 ## [7.2.0] - 2026-04-13
 
 ### Added

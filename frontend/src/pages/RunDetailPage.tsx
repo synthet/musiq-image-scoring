@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -11,9 +11,11 @@ import { WorkflowGraph } from '@/components/runs/WorkflowGraph'
 import { StagePanel } from '@/components/runs/StagePanel'
 import { LogPanel } from '@/components/runs/LogPanel'
 import { RunQueuePayloadPanel } from '@/components/runs/RunQueuePayloadPanel'
+import { ReportPanel } from '@/components/runs/ReportPanel'
 import { useWsStore } from '@/stores/wsStore'
 import type { StageCode } from '@/types/api'
 import { STAGE_DISPLAY } from '@/types/api'
+import { RUNS_QUERY_ROOT, runDetailQueryKey, runStagesQueryKey } from '@/queryKeys/runs'
 
 export function RunDetailPage() {
   const { runId } = useParams<{ runId: string }>()
@@ -21,26 +23,32 @@ export function RunDetailPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const runsVersion = useWsStore((s) => s.runsVersion)
-  const lastTransition = useWsStore((s) => s.lastStageTransition)
 
   const [selectedStage, setSelectedStage] = useState<string | null>(null)
 
   const { data: run, isLoading: runLoading } = useQuery({
-    queryKey: ['run', id, runsVersion],
+    queryKey: runDetailQueryKey(id),
     queryFn: () => runsApi.get(id),
     refetchInterval: 5000,
   })
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
-    queryKey: ['run-stages', id, runsVersion, lastTransition?.run_id === id ? lastTransition.to_state : null],
+    queryKey: runStagesQueryKey(id),
     queryFn: () => runsApi.getStages(id),
     refetchInterval: run?.status === 'running' ? 5000 : false,
   })
   const stages = Array.isArray(stagesData) ? stagesData : []
 
+  useEffect(() => {
+    if (runsVersion === 0) return
+    qc.invalidateQueries({ queryKey: runDetailQueryKey(id) })
+    qc.invalidateQueries({ queryKey: runStagesQueryKey(id) })
+  }, [runsVersion, id, qc])
+
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ['run', id] })
-    qc.invalidateQueries({ queryKey: ['runs'] })
+    qc.invalidateQueries({ queryKey: runDetailQueryKey(id) })
+    qc.invalidateQueries({ queryKey: runStagesQueryKey(id) })
+    qc.invalidateQueries({ queryKey: RUNS_QUERY_ROOT })
   }
 
   const pauseMut = useMutation({ mutationFn: () => runsApi.pause(id), onSuccess: invalidate })
@@ -103,6 +111,9 @@ export function RunDetailPage() {
             <FolderOpen size={13} />
             <span className="truncate">{scopePaths.join(', ')}</span>
           </div>
+          {run.description?.trim() && (
+            <p className="text-xs text-[#b8b8b8] mt-2 leading-relaxed max-w-3xl">{run.description.trim()}</p>
+          )}
           <div className="flex gap-3 text-xs text-[#6d6d6d] mt-1">
             {run.created_at && <span>Created {new Date(run.created_at).toLocaleString()}</span>}
             {run.started_at && <span>Started {new Date(run.started_at).toLocaleString()}</span>}
@@ -181,6 +192,21 @@ export function RunDetailPage() {
       {/* Queued flags / mode (jobs.queue_payload) */}
       <RunQueuePayloadPanel jobType={run.job_type} queuePayload={run.queue_payload} />
 
+      {/* Post-run data quality audit (queue_payload.post_run_audit) */}
+      {run.queue_payload && typeof run.queue_payload.post_run_audit === 'object' && run.queue_payload.post_run_audit != null && (
+        <div className="rounded-md border border-[#474747] bg-[#1e1e1e] p-4">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6d6d6d] mb-2">
+            Data quality (post-run)
+          </div>
+          <PostRunAuditSummary audit={run.queue_payload.post_run_audit as Record<string, unknown>} runId={id} />
+        </div>
+      )}
+
+      {/* Execution report (for terminal jobs) */}
+      {(run.status === 'completed' || run.status === 'failed' || run.status === 'canceled' || run.status === 'interrupted') && (
+        <ReportPanel runId={id} />
+      )}
+
       {/* Log panel */}
       <div>
         <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6d6d6d] mb-2">
@@ -201,4 +227,34 @@ function formatDuration(start: string, end: string): string {
   const ms = new Date(end).getTime() - new Date(start).getTime()
   if (ms < 60000) return `${(ms / 1000).toFixed(0)}s`
   return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`
+}
+
+function PostRunAuditSummary({ audit, runId }: { audit: Record<string, unknown>; runId: number }) {
+  const status = String(audit.status ?? '—')
+  const severity = String(audit.severity ?? '')
+  const counts = audit.issue_counts
+  const note = typeof audit.notes === 'string' ? audit.notes : null
+  return (
+    <div className="space-y-2 text-xs text-[#cccccc]">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <span>
+          Status: <span className="text-[#9d9d9d]">{status}</span>
+        </span>
+        {severity ? (
+          <span>
+            Severity: <span className="text-[#9d9d9d]">{severity}</span>
+          </span>
+        ) : null}
+      </div>
+      {counts != null && typeof counts === 'object' ? (
+        <pre className="text-[10px] text-[#9d9d9d] whitespace-pre-wrap break-words max-h-32 overflow-auto rounded bg-[#252526] p-2 border border-[#3c3c3c]">
+          {JSON.stringify(counts, null, 2)}
+        </pre>
+      ) : null}
+      {note ? <p className="text-[#6d6d6d] leading-relaxed">{note}</p> : null}
+      <p className="text-[#6d6d6d]">
+        Full JSON: <code className="text-[#4fc1ff]">GET /api/runs/{runId}/diagnostics</code>
+      </p>
+    </div>
+  )
 }

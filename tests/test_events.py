@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
 from fastapi.testclient import TestClient
 from modules.events import event_manager
+import threading
+import queue
 
 
 def _make_ws_app():
@@ -32,7 +34,8 @@ def _make_ws_app():
 
 @pytest.fixture
 def ws_client():
-    return TestClient(_make_ws_app())
+    with TestClient(_make_ws_app()) as client:
+        yield client
 
 
 def test_websocket_connection(ws_client):
@@ -43,7 +46,18 @@ def test_websocket_connection(ws_client):
         test_data = {"test": "data"}
         event_manager.broadcast_threadsafe("test_event", test_data)
 
-        data = websocket.receive_json()
+        q: "queue.Queue[dict]" = queue.Queue()
+
+        def _recv():
+            try:
+                q.put(websocket.receive_json())
+            except Exception as e:
+                q.put({"_error": repr(e)})
+
+        t = threading.Thread(target=_recv, daemon=True)
+        t.start()
+        data = q.get(timeout=5)
+        assert "_error" not in data, data["_error"]
         assert data["type"] == "test_event"
         assert data["data"] == test_data
 

@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from modules import db
-from modules.maintenance_job_display import maintenance_job_input_path
+from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
+from modules.maintenance_job_display import maintenance_job_input_path, build_default_maintenance_description
 from modules.phases import PhaseCode, normalize_phase_codes, sort_phase_value_strings
 from modules.run_modes import resolve_run_mode_flags
 
@@ -130,12 +131,22 @@ def _enqueue_pipeline_run(
         "phases": phase_values,
         "target_phases": phase_values,
     }
+    payload = augment_queue_payload_for_audit(payload, trigger="api", tool_id="schedule_folder_quality_runs")
+    run_desc = build_run_submit_description(
+        scope_type="folder_recursive",
+        scope_paths=scope_paths,
+        run_mode=run_mode,
+        validation_repair_mode=(str(run_mode).strip() == "validate_and_repair"),
+        phase_values=phase_values,
+        client_description=f"Folder quality scheduler: address detected issues under {primary_path}.",
+    )
 
     job_id, position = db.enqueue_job(
         primary_path,
         phase_code,
         job_type,
         payload,
+        run_desc,
     )
     db.create_job_phases(job_id, phase_values, "queued")
     return job_id, position
@@ -147,11 +158,21 @@ def _maybe_queue_global_thumbnail_heal() -> int | None:
         "action": "heal_thumbnails",
         "limit": 500,
     }
+    queue_payload = augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id="schedule_folder_heal_global")
     job_id, _ = db.enqueue_job(
-        maintenance_job_input_path("heal_thumbnails", queue_payload),
+        maintenance_job_input_path(
+            "heal_thumbnails",
+            queue_payload,
+            job_name="Heal Thumbnails (global, before folder runs)",
+        ),
         None,
         job_type="maintenance",
         queue_payload=queue_payload,
+        description=build_default_maintenance_description(
+            "heal_thumbnails",
+            queue_payload,
+            job_name="Heal Thumbnails (global, before folder runs)",
+        ),
     )
     return job_id
 

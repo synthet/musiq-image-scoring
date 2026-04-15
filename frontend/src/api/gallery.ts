@@ -77,4 +77,9 @@ export const galleryApi = {
   update: (id: number, data: ImageUpdateRequest) => api.patch<Image>(`/images/${id}`, data),
   delete: (id: number) => api.delete<void>(`/images/${id}`),
   similar: (id: number, limit = 12) => api.get<Image[]>(`/similar?image_id=${id}&limit=${limit}`),
+
+  /** Cached EXIF row (`image_exif`); empty object if not present. */
+  getExif: (id: number) => api.get<Record<string, unknown>>(`/images/${id}/exif`),
+  /** Cached XMP row (`image_xmp`); empty object if not present. */
+  getXmp: (id: number) => api.get<Record<string, unknown>>(`/images/${id}/xmp`),
 }

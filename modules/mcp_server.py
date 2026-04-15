@@ -1031,6 +1031,34 @@ def get_job_stage_images(
 
 @mcp.tool(annotations=_RO)
 @_require_db
+def get_run_diagnostics(run_id: int) -> dict:
+    """Post-run audit snapshot from queue_payload plus per-phase image_phase_status counts for this job/run id."""
+    jid = int(run_id)
+    data = db.get_run_diagnostics(jid)
+    return _sanitize_for_mcp(data)
+
+
+@mcp.tool(annotations=_RO)
+@_require_db
+def get_job_execution_report(run_id: int, phase_code: Optional[str] = None, action: Optional[str] = None, offset: int = 0, limit: int = 20) -> dict:
+    """Structured execution report for a job: what the run did to each image.
+
+    Returns report_json summary (per-phase stats, before/after aggregates) and
+    paginated per-image action log with before/after score snapshots.
+    Filter with phase_code (scoring, metadata, indexing) and action (processed, skipped, failed).
+    """
+    jid = int(run_id)
+    report = db.get_job_report(jid)
+    actions = db.get_job_image_actions(jid, phase_code, action, offset, limit)
+    return _sanitize_for_mcp({
+        "job_id": jid,
+        "report": report,
+        "image_actions": actions,
+    })
+
+
+@mcp.tool(annotations=_RO)
+@_require_db
 def get_embedding_stats(folder_path: Optional[str] = None) -> dict:
     """Counts of images with vs without image_embedding (MobileNetV2 / similar-search). Optional folder_path filters by exact folders.path match."""
     try:
@@ -1892,31 +1920,40 @@ def set_config_value(key: str, value: Any) -> dict:
 
 @mcp.tool(annotations=_RO)
 def read_debug_log(lines: int = 100) -> dict:
-    """Read recent entries from the debug log file."""
-    from modules import utils
-    log_path = utils.get_debug_log_path()
+    """Read recent entries from debug.log (JSON lines); falls back to raw line in entries."""
+    from modules.ui import log_views
 
-    if not os.path.exists(log_path):
-        return {"error": "Debug log file not found", "path": log_path}
+    n = log_views.clamp_tail_lines(lines)
+    path = log_views.resolve_debug_log_path()
+    tail = log_views.read_log_tail(path, n)
+    if not tail["exists"]:
+        return {"error": "Debug log file not found", "path": tail["path"]}
+    if tail.get("error"):
+        return {"error": tail["error"], "path": tail["path"]}
+
+    entries = []
+    for line in tail["lines"]:
+        try:
+            entries.append(json.loads(line.strip()))
+        except (json.JSONDecodeError, ValueError):
+            entries.append({"raw": line.strip()})
+
+    return {
+        "path": tail["path"],
+        "total_lines": tail["total_lines"],
+        "returned_lines": len(entries),
+        "entries": entries,
+    }
+
+
+@mcp.tool(annotations=_RO)
+def get_server_log_tail(sources: str = "all", lines: int = 100) -> dict:
+    """Tail webui.log and/or debug.log (same paths and caps as GET /api/status/log-tails)."""
+    from modules.ui import log_views
 
     try:
-        with open(log_path, 'r', encoding='utf-8') as f:
-            all_lines = f.readlines()
-
-        recent = all_lines[-lines:]
-        entries = []
-        for line in recent:
-            try:
-                entries.append(json.loads(line.strip()))
-            except (json.JSONDecodeError, ValueError):
-                entries.append({"raw": line.strip()})
-
-        return {
-            "total_lines": len(all_lines),
-            "returned_lines": len(entries),
-            "entries": entries
-        }
-    except Exception as e:
+        return log_views.build_log_tails_payload(sources, lines)
+    except ValueError as e:
         return {"error": str(e)}
 
 

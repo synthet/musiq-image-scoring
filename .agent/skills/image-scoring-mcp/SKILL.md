@@ -5,7 +5,7 @@ description: Image Scoring MCP server tools — diagnostics, queries, monitoring
 
 # Image Scoring MCP Server
 
-The project includes a Model Context Protocol (MCP) server that exposes **44** diagnostic and query tools. Implementation: [`modules/mcp_server.py`](../../../modules/mcp_server.py). Full index: [`mcp_tools_reference.md`](../../mcp_tools_reference.md).
+The project includes a Model Context Protocol (MCP) server that exposes **45** diagnostic and query tools. Implementation: [`modules/mcp_server.py`](../../../modules/mcp_server.py). Full index: [`mcp_tools_reference.md`](../../mcp_tools_reference.md).
 
 ## Configuration
 

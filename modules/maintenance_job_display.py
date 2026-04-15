@@ -62,3 +62,33 @@ def maintenance_job_input_path(
         raw_title = _DEFAULT_TITLE_BY_ACTION.get((action or "").strip(), action or "maintenance")
     suffix = _format_param_suffix(payload)
     return f"Tools: {raw_title}{suffix}"
+
+
+def build_default_maintenance_description(
+    action: str,
+    payload: Optional[Dict[str, Any]] = None,
+    *,
+    job_name: Optional[str] = None,
+) -> str:
+    """Default ``jobs.description`` when the client omits ``description`` (plain text, troubleshooting)."""
+    payload = dict(payload) if payload else {}
+    ac = (action or "").strip()
+    title = (job_name or "").strip() or _DEFAULT_TITLE_BY_ACTION.get(ac, action or "maintenance")
+    parts = [f"Tools maintenance: {title} (action={ac or 'unknown'})."]
+    scope = payload.get("input_path") or payload.get("scope_path")
+    if scope and str(scope).strip():
+        parts.append(f"Folder scope: {str(scope).strip()}.")
+    elif ac in ("reconcile", "backfill_index_meta"):
+        parts.append("Scope: entire database (batch limits apply).")
+    extras: list[str] = []
+    if payload.get("dry_run"):
+        extras.append("dry_run=True")
+    if "limit" in payload and payload["limit"] is not None:
+        extras.append(f"limit={payload['limit']}")
+    if "repair_limit" in payload and payload.get("repair_limit") is not None:
+        extras.append(f"repair_limit={payload['repair_limit']}")
+    if "regen_limit" in payload and payload.get("regen_limit") is not None:
+        extras.append(f"regen_limit={payload['regen_limit']}")
+    if extras:
+        parts.append("Parameters: " + ", ".join(extras) + ".")
+    return " ".join(parts)

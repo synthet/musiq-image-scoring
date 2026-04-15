@@ -34,6 +34,10 @@ import psycopg2
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
 
+_THIS_DIR = Path(__file__).resolve().parent
+if str(_THIS_DIR) not in sys.path:
+    sys.path.insert(0, str(_THIS_DIR))
+
 from postgres_sequence_repair import reset_sequences
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

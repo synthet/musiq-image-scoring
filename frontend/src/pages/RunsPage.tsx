@@ -1,31 +1,47 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { runsApi } from '@/api/runs'
 import { RunCard } from '@/components/runs/RunCard'
 import { Button } from '@/components/ui/button'
 import { useWsStore } from '@/stores/wsStore'
 import { useUiStore } from '@/stores/uiStore'
-import { Plus, Inbox } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Inbox, Plus } from 'lucide-react'
 import type { Run } from '@/types/api'
 import { RunsToolsTab } from '@/components/runs/RunsToolsTab'
 
 type TabFilter = 'active' | 'queue' | 'history' | 'tools'
 
+const HISTORY_PAGE_SIZE = 25
+
 export function RunsPage() {
   const { openNewRun } = useUiStore()
   const runsVersion = useWsStore((s) => s.runsVersion)
   const [tab, setTab] = useState<TabFilter>('active')
+  const [historyPage, setHistoryPage] = useState(0)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['runs', runsVersion],
-    queryFn: () => runsApi.list({ limit: 100 }),
+  const { data: overview, isLoading: overviewLoading } = useQuery({
+    queryKey: ['runs', 'list', runsVersion],
+    queryFn: () => runsApi.list({ limit: 120 }),
     refetchInterval: 5000,
   })
-  const runs: Run[] = Array.isArray(data) ? data : []
+  const runs: Run[] = Array.isArray(overview) ? overview : []
+
+  const { data: historyPayload, isLoading: historyLoading } = useQuery({
+    queryKey: ['runs', 'history', historyPage, runsVersion],
+    queryFn: () =>
+      runsApi.list({
+        limit: HISTORY_PAGE_SIZE,
+        offset: historyPage * HISTORY_PAGE_SIZE,
+        history: true,
+      }),
+    enabled: tab === 'history',
+    refetchInterval: tab === 'history' ? 5000 : false,
+    placeholderData: keepPreviousData,
+  })
 
   const active = runs.filter((r) => r.status === 'running' || r.status === 'paused')
   const queued = runs.filter((r) => r.status === 'queued' || r.status === 'pending')
-  const history = runs.filter(
+  const overviewHistory = runs.filter(
     (r) =>
       r.status === 'completed' ||
       r.status === 'failed' ||
@@ -33,8 +49,44 @@ export function RunsPage() {
       r.status === 'interrupted',
   )
 
+  const historyTotal =
+    tab === 'history' && historyPayload && 'total' in historyPayload
+      ? historyPayload.total
+      : overviewHistory.length
+
+  const historyRuns: Run[] =
+    tab === 'history' && historyPayload && 'runs' in historyPayload ? historyPayload.runs : []
+
+  useEffect(() => {
+    if (tab !== 'history' || !historyPayload || !('total' in historyPayload)) return
+    const t = historyPayload.total
+    const maxPage = Math.max(0, Math.ceil(t / HISTORY_PAGE_SIZE) - 1)
+    if (historyPage > maxPage) setHistoryPage(maxPage)
+  }, [tab, historyPayload, historyPage])
+
   const displayed: Run[] =
-    tab === 'active' ? [...active, ...queued] : tab === 'queue' ? queued : history
+    tab === 'active'
+      ? [...active, ...queued]
+      : tab === 'queue'
+        ? queued
+        : tab === 'history'
+          ? historyRuns
+          : []
+
+  const listLoading = tab === 'history' ? historyLoading : overviewLoading
+  const historyHasPrev = tab === 'history' && historyPage > 0
+  const historyHasNext =
+    tab === 'history' && historyPayload && 'total' in historyPayload
+      ? (historyPage + 1) * HISTORY_PAGE_SIZE < historyPayload.total
+      : false
+
+  const rangeStart = tab === 'history' && historyPayload && 'total' in historyPayload && historyPayload.total > 0
+    ? historyPage * HISTORY_PAGE_SIZE + 1
+    : 0
+  const rangeEnd =
+    tab === 'history' && historyPayload && 'total' in historyPayload
+      ? Math.min((historyPage + 1) * HISTORY_PAGE_SIZE, historyPayload.total)
+      : 0
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -52,17 +104,22 @@ export function RunsPage() {
       <div className="flex items-center gap-1 mb-5 border-b border-[#3c3c3c]">
         <TabButton label="Active" count={active.length} active={tab === 'active'} onClick={() => setTab('active')} />
         <TabButton label="Queued" count={queued.length} active={tab === 'queue'} onClick={() => setTab('queue')} />
-        <TabButton label="History" count={history.length} active={tab === 'history'} onClick={() => setTab('history')} />
+        <TabButton
+          label="History"
+          count={historyTotal}
+          active={tab === 'history'}
+          onClick={() => setTab('history')}
+        />
         <TabButton label="Tools" active={tab === 'tools'} onClick={() => setTab('tools')} />
       </div>
 
       {tab === 'tools' && <RunsToolsTab />}
 
-      {tab !== 'tools' && isLoading && (
+      {tab !== 'tools' && listLoading && (
         <div className="text-sm text-[#6d6d6d]">Loading…</div>
       )}
 
-      {tab !== 'tools' && !isLoading && displayed.length === 0 && (
+      {tab !== 'tools' && !listLoading && displayed.length === 0 && (
         <EmptyState tab={tab} onNewRun={() => openNewRun()} />
       )}
 
@@ -71,6 +128,36 @@ export function RunsPage() {
           {displayed.map((run) => (
             <RunCard key={run.id} run={run} />
           ))}
+        </div>
+      )}
+
+      {tab === 'history' && !listLoading && historyPayload && 'total' in historyPayload && historyPayload.total > 0 && (
+        <div className="flex items-center justify-between mt-6 pt-4 border-t border-[#3c3c3c]">
+          <span className="text-xs text-[#9d9d9d]">
+            {rangeStart}–{rangeEnd} of {historyPayload.total}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!historyHasPrev}
+              onClick={() => setHistoryPage((p) => Math.max(0, p - 1))}
+              className="text-[#cccccc]"
+            >
+              <ChevronLeft size={16} />
+              Previous
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!historyHasNext}
+              onClick={() => setHistoryPage((p) => p + 1)}
+              className="text-[#cccccc]"
+            >
+              Next
+              <ChevronRight size={16} />
+            </Button>
+          </div>
         </div>
       )}
     </div>

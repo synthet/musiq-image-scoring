@@ -143,6 +143,80 @@ describe('job_completed / job_failed → log_line + bumpRuns', () => {
   })
 })
 
+describe('job_started', () => {
+  it('emits log_line plus run_progress and bumps runs', () => {
+    const raw = msg('job_started', { job_id: 88001, job_type: 'scoring', current: 0, total: 50 })
+    const { events, bumpRuns } = adaptBackendMessage(raw)
+    expect(bumpRuns).toBe(true)
+    expect(events).toHaveLength(2)
+    expect(events[0].type).toBe('log_line')
+    if (events[0].type === 'log_line') {
+      expect(events[0].run_id).toBe(88001)
+      expect(events[0].message).toContain('88001')
+      expect(events[0].message).toContain('scoring')
+    }
+    const rp = events[1]
+    expect(rp.type).toBe('run_progress')
+    if (rp.type === 'run_progress') {
+      expect(rp.run_id).toBe(88001)
+      expect(rp.stage).toBe('scoring')
+      expect(rp.items_done).toBe(0)
+      expect(rp.items_total).toBe(50)
+    }
+  })
+
+  it('defaults stage to scoring when job_type is missing', () => {
+    const raw = msg('job_started', { job_id: 88002, current: 0, total: 1 })
+    const { events } = adaptBackendMessage(raw)
+    const rp = events.find((e) => e.type === 'run_progress')
+    expect(rp && rp.type === 'run_progress' && rp.stage).toBe('scoring')
+  })
+})
+
+describe('job_progress stage from phase_code and job_type mapping', () => {
+  it('prefers phase_code over job_type for stage', () => {
+    const raw = msg('job_progress', {
+      job_id: 88200,
+      current: 1,
+      total: 2,
+      phase_code: 'metadata',
+      job_type: 'scoring',
+    })
+    const { events } = adaptBackendMessage(raw)
+    const rp = events[0]
+    expect(rp.type).toBe('run_progress')
+    if (rp.type === 'run_progress') expect(rp.stage).toBe('metadata')
+  })
+
+  it.each([
+    { jobId: 88401, jobType: 'tagging', uiStage: 'keywords' },
+    { jobId: 88402, jobType: 'clustering', uiStage: 'culling' },
+    { jobId: 88403, jobType: 'cluster', uiStage: 'culling' },
+    { jobId: 88404, jobType: 'selection', uiStage: 'culling' },
+    { jobId: 88405, jobType: 'fix_db', uiStage: 'scoring' },
+  ])('maps job_type $jobType to UI stage $uiStage', ({ jobId, jobType, uiStage }) => {
+    const raw = msg('job_progress', { job_id: jobId, current: 0, total: 1, job_type: jobType })
+    const { events } = adaptBackendMessage(raw)
+    const rp = events[0]
+    expect(rp.type).toBe('run_progress')
+    if (rp.type === 'run_progress') expect(rp.stage).toBe(uiStage)
+  })
+})
+
+describe('job_progress uses job_type hint from prior job_started', () => {
+  it('uses stored job_type when job_progress omits job_type', () => {
+    const rid = 987654
+    adaptBackendMessage(msg('job_started', { job_id: rid, job_type: 'tagging', current: 0, total: 1 }))
+    const { events } = adaptBackendMessage(
+      msg('job_progress', { job_id: rid, current: 2, total: 10 }),
+    )
+    expect(events).toHaveLength(1)
+    const rp = events[0]
+    expect(rp.type).toBe('run_progress')
+    if (rp.type === 'run_progress') expect(rp.stage).toBe('keywords')
+  })
+})
+
 describe('bumpRuns for job status change events', () => {
   const statusEvents = [
     'job_queued', 'job_running', 'job_pending', 'job_canceled',

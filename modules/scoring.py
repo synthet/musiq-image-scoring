@@ -65,30 +65,30 @@ class ScoringRunner:
         depth = processor.get_pipeline_depth() if processor else 0
         return self.is_running, "\n".join(self.log_history), self.status_message, self.current_count, self.total_count, depth
 
-    def start_batch(self, input_path, job_id, skip_existing=False, resolved_image_ids=None, target_phases=None):
+    def start_batch(self, input_path, job_id, skip_existing=False, resolved_image_ids=None, target_phases=None, report_collector=None):
         """
         Starts batch processing in a background thread. Non-blocking.
         """
         if self.is_running:
             return "Error: Already running."
-            
+
         self.is_running = True
         self.job_type = 'scoring'
         self.log_history = []
         self.status_message = "Starting..."
         self.current_count = 0
         self.total_count = 0
-        
+
         # Convert Windows path to WSL path if running in WSL (legacy check)
         if input_path and ":" in input_path and len(input_path) > 1 and input_path[1] == ":":
             drive = input_path[0].lower()
             path = input_path[2:].replace("\\", "/")
             wsl_path = f"/mnt/{drive}{path}"
             # Check if we are actually in WSL context
-            if os.path.exists("/mnt/"): 
+            if os.path.exists("/mnt/"):
                  if os.path.exists(wsl_path):
                      input_path = wsl_path
-                     
+
         if resolved_image_ids is None and (not input_path or not os.path.exists(input_path)):
             self.log_history.append(f"Error: Path not found: {input_path}")
             self.is_running = False
@@ -100,7 +100,7 @@ class ScoringRunner:
                 run_kwargs = {"resolved_image_ids": resolved_image_ids}
                 if target_phases is not None:
                     run_kwargs["target_phases"] = target_phases
-                self._run_batch_internal(input_path, job_id, skip_existing, **run_kwargs)
+                self._run_batch_internal(input_path, job_id, skip_existing, report_collector=report_collector, **run_kwargs)
             except Exception:
                 logger.exception("ScoringRunner thread crashed (job_id=%s)", job_id)
                 self.status_message = "Failed"
@@ -115,7 +115,7 @@ class ScoringRunner:
         self._thread.start()
         return "Started"
 
-    def _run_batch_internal(self, input_path, job_id, skip_existing, resolved_image_ids=None, target_phases=None):
+    def _run_batch_internal(self, input_path, job_id, skip_existing, resolved_image_ids=None, target_phases=None, report_collector=None):
         """
         Internal synchronous runner.
         """
@@ -180,6 +180,9 @@ class ScoringRunner:
         
         # Inject job_id for DB upserts (Engine HACK)
         processor.current_job_id = job_id
+
+        # Attach report collector for execution trail
+        processor.report_collector = report_collector
         
         # Setup log capture
         # We hook directly to self.log_history via wrapper
@@ -199,6 +202,7 @@ class ScoringRunner:
                 if not resolved_image_ids:
                     log("No images matched selectors.")
                     self.status_message = "Done (no images)"
+                    self._finalize_report(job_id, report_collector)
                     db.update_job_status(job_id, "completed", "\n".join(self.log_history))
                     event_manager.broadcast_threadsafe("job_completed", {"job_id": job_id, "status": "completed"})
                     return
@@ -263,12 +267,14 @@ class ScoringRunner:
                 )
             else:
                 log("Processing finished.")
+                self._finalize_report(job_id, report_collector)
                 db.update_job_status(job_id, "completed", "\n".join(self.log_history))
                 event_manager.broadcast_threadsafe("job_completed", {"job_id": job_id, "status": "completed"})
 
         except Exception as e:
             log(f"Error: {e}", "ERROR")
             self.status_message = "Error in processing"
+            self._finalize_report(job_id, report_collector)
             db.update_job_status(job_id, "failed", "\n".join(self.log_history))
             event_manager.broadcast_threadsafe("job_completed", {"job_id": job_id, "status": "failed", "error": str(e)})
 
@@ -277,6 +283,100 @@ class ScoringRunner:
         if _backup_msg:
             log(_backup_msg)
 
+
+    @staticmethod
+    def _finalize_report(job_id, report_collector):
+        """Finalize and save the execution report if a collector was provided."""
+        if report_collector is None:
+            return
+        try:
+            from modules.report_collector import finalize_and_save_report
+
+            # Compute aggregate before/after score stats.
+            aggregate_before = ScoringRunner._compute_aggregate_before(report_collector)
+            aggregate_after = ScoringRunner._compute_aggregate_after(report_collector)
+
+            finalize_and_save_report(
+                job_id,
+                report_collector.run_mode,
+                [report_collector],
+                aggregate_before=aggregate_before,
+                aggregate_after=aggregate_after,
+            )
+        except Exception:
+            logger.debug("Failed to finalize report for job %s", job_id, exc_info=True)
+
+    @staticmethod
+    def _compute_aggregate_before(collector):
+        """Compute mean/stddev/incomplete from collector's pending before_snapshots."""
+        from modules.report_collector import SCORE_SNAPSHOT_COLUMNS
+        import statistics as _stats
+
+        scores = []
+        incomplete = 0
+        for rec in collector._pending:
+            snap = rec.get("before_snapshot")
+            if snap is None:
+                continue
+            s = snap.get("score")
+            if s is not None and isinstance(s, (int, float)):
+                scores.append(float(s))
+            for col in SCORE_SNAPSHOT_COLUMNS:
+                if col in ("rating", "label"):
+                    continue
+                v = snap.get(col)
+                if v is None or (isinstance(v, (int, float)) and v <= 0):
+                    incomplete += 1
+                    break
+
+        if not scores:
+            return None
+        return {
+            "score_mean": round(_stats.mean(scores), 4),
+            "score_stddev": round(_stats.stdev(scores) if len(scores) > 1 else 0.0, 4),
+            "incomplete_count": incomplete,
+        }
+
+    @staticmethod
+    def _compute_aggregate_after(collector):
+        """Compute after-aggregate by querying current DB state for processed images."""
+        import statistics as _stats
+
+        processed_ids = [
+            rec["image_id"] for rec in collector._pending if rec.get("action") == "processed"
+        ]
+        if not processed_ids:
+            return None
+
+        try:
+            placeholders = ",".join("?" * len(processed_ids))
+            rows = db.get_connector().query(
+                f"SELECT score, score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe "
+                f"FROM images WHERE id IN ({placeholders})",
+                tuple(processed_ids),
+            )
+        except Exception:
+            return None
+
+        scores = []
+        incomplete = 0
+        for r in rows or []:
+            s = r.get("score")
+            if s is not None:
+                scores.append(float(s))
+            for col in ("score_spaq", "score_ava", "score_koniq", "score_paq2piq", "score_liqe"):
+                v = r.get(col)
+                if v is None or (isinstance(v, (int, float)) and v <= 0):
+                    incomplete += 1
+                    break
+
+        if not scores:
+            return None
+        return {
+            "score_mean": round(_stats.mean(scores), 4),
+            "score_stddev": round(_stats.stdev(scores) if len(scores) > 1 else 0.0, 4),
+            "incomplete_count": incomplete,
+        }
 
     def stop(self):
         if self.current_processor:

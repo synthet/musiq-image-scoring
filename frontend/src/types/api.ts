@@ -10,6 +10,28 @@ export type RunStatus =
   | 'canceled'
   | 'interrupted'
 
+// ─── Image incident (image_incidents table) ──────────────────────────────
+
+export interface ImageIncident {
+  id: number
+  image_id: number
+  folder_id: number | null
+  job_id: number | null
+  phase_id: number | null
+  kind: string
+  source: string | null
+  message: string
+  detail: Record<string, unknown> | null
+  created_at: string
+  file_path: string | null
+  phase_code: string | null
+}
+
+export interface ImageIncidentsListResponse {
+  items: ImageIncident[]
+  total: number
+}
+
 export interface Run {
   id: number
   scope_type: 'file' | 'folder' | 'folder_recursive' | 'path_list'
@@ -29,6 +51,8 @@ export interface Run {
   runner_state: string | null
   /** Parsed jobs.queue_payload — run_mode, force_rescan, scope, clustering params, etc. */
   queue_payload?: Record<string, unknown> | null
+  /** Human-readable reason / scope for troubleshooting (jobs.description). */
+  description?: string | null
 }
 
 // ─── Stage (maps to job_phases) ──────────────────────────────────────────
@@ -108,6 +132,9 @@ export interface WorkItem {
   status: 'pending' | 'running' | 'done' | 'skipped' | 'failed'
   duration_ms: number | null
   error: string | null
+  skip_reason?: string | null
+  skipped_by?: string | null
+  attempt_count?: number | null
 }
 
 // ─── Scope ───────────────────────────────────────────────────────────────
@@ -135,6 +162,48 @@ export interface ValidationRepairPreview {
   skipped: number
   failed: number
   dry_run: boolean
+}
+
+// ─── Execution Report (per-image action log & before/after snapshots) ────
+
+export interface PhaseExecutionReport {
+  images_in_scope: number
+  images_targeted: number
+  images_processed: number
+  images_skipped: number
+  images_failed: number
+  duration_seconds: number
+  incomplete_fields_breakdown?: Record<string, number>
+}
+
+export interface ScoreAggregate {
+  score_mean: number
+  score_stddev: number
+  incomplete_count: number
+}
+
+export interface JobExecutionReport {
+  run_mode: string
+  phases: Record<string, PhaseExecutionReport>
+  aggregate_before?: ScoreAggregate
+  aggregate_after?: ScoreAggregate
+}
+
+export interface ImageAction {
+  id: number
+  image_id: number
+  file_path: string | null
+  phase_code: string
+  action: 'processed' | 'skipped' | 'failed' | 'unchanged'
+  reason: string | null
+  before_snapshot: Record<string, number | string | null> | null
+  after_snapshot: Record<string, number | string | null> | null
+  created_at: string
+}
+
+export interface ImageActionsResponse {
+  items: ImageAction[]
+  total: number
 }
 
 // ─── Folder tree ─────────────────────────────────────────────────────────
@@ -202,6 +271,7 @@ export interface Image {
 
   // File metadata
   created_at?: string | null
+  updated_at?: string | null
   file_type?: string | null
   file_size?: number | null
   image_hash?: string | null
@@ -215,11 +285,24 @@ export interface Image {
   model_version?: string | null
 }
 
+/** Per-phase row from `get_image_phase_statuses` (GET /api/images/{id}). */
+export interface ImagePhaseStatusRow {
+  status: string
+  executor_version?: string | null
+  app_version?: string | null
+  updated_at?: string | null
+  attempt_count?: number | null
+  last_error?: string | null
+  skip_reason?: string | null
+  skipped_by?: string | null
+}
+
 /** Payload from GET /api/images/{id}, by-uuid, or by-hash */
 export interface ImageDetail extends Image {
   file_paths?: string[] | null
   resolved_path?: string | null
-  phase_statuses?: Record<string, string> | null
+  /** Phase code → status info (legacy responses may use plain string values). */
+  phase_statuses?: Record<string, ImagePhaseStatusRow | string> | null
 }
 
 // ─── WebSocket events ────────────────────────────────────────────────────

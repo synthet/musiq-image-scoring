@@ -25,7 +25,9 @@
       "D:/",
       "/mnt/"
     ],
-    "log_dir": ".cursor"
+    "log_dir": ".cursor",
+    "log_max_bytes": 10485760,
+    "log_backup_count": 5
   },
   "indexing": {
     "excluded_paths": [],

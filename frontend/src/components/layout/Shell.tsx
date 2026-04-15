@@ -1,12 +1,23 @@
+import { useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { PanelLeft, Zap, Settings, Workflow, Stethoscope, ScrollText } from 'lucide-react'
+import {
+  PanelLeft,
+  Zap,
+  Settings,
+  Workflow,
+  Stethoscope,
+  ScrollText,
+  AlertTriangle,
+  Database,
+} from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { useUiStore } from '@/stores/uiStore'
 import { useWsStore } from '@/stores/wsStore'
 import { useWebSocket } from '@/hooks/useWebSocket'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { runsApi } from '@/api/runs'
+import { RUNS_ACTIVE_QUERY_KEY } from '@/queryKeys/runs'
 
 export function Shell() {
   useWebSocket()
@@ -14,12 +25,19 @@ export function Shell() {
   const { sidebarOpen, toggleSidebar } = useUiStore()
   const connected = useWsStore((s) => s.connected)
   const runsVersion = useWsStore((s) => s.runsVersion)
+  const qc = useQueryClient()
 
-  const { data: runs } = useQuery({
-    queryKey: ['runs-active', runsVersion],
+  const { data: runsRaw } = useQuery({
+    queryKey: RUNS_ACTIVE_QUERY_KEY,
     queryFn: () => runsApi.list({ limit: 50 }),
     refetchInterval: 5000,
   })
+  const runs = Array.isArray(runsRaw) ? runsRaw : []
+
+  useEffect(() => {
+    if (runsVersion === 0) return
+    qc.invalidateQueries({ queryKey: RUNS_ACTIVE_QUERY_KEY })
+  }, [runsVersion, qc])
 
   const activeCount = runs?.filter((r) => r.status === 'running').length ?? 0
   const queuedCount = runs?.filter((r) => r.status === 'queued' || r.status === 'pending').length ?? 0
@@ -42,6 +60,8 @@ export function Shell() {
 
         <nav className="flex items-center gap-1">
           <NavItem to="/runs" icon={<Workflow size={14} />} label="Runs" />
+          <NavItem to="/images" icon={<Database size={14} />} label="Images" />
+          <NavItem to="/issues" icon={<AlertTriangle size={14} />} label="Issues" />
           <NavItem to="/diagnostics" icon={<Stethoscope size={14} />} label="Diagnostics" />
           <NavItem to="/logs" icon={<ScrollText size={14} />} label="Logs" />
           <NavItem to="/settings" icon={<Settings size={14} />} label="Settings" />

@@ -7,8 +7,9 @@ import pytest
 import tempfile
 from unittest.mock import patch
 
-from modules import db, clustering, selection_runner, db_postgres
+from modules import db, selection_runner, db_postgres
 from modules.phases import PhaseCode, PhaseStatus
+from modules.selection import SelectionSummary
 
 # Force pool reset to ensure we use the test database configuration
 db_postgres.reset_pool()
@@ -17,7 +18,7 @@ db_postgres.reset_pool()
 @pytest.fixture
 def setup_db_and_images():
     # Use test DB
-    os.environ["SKIP_DB_INIT"] = "0"
+    os.environ.pop("SKIP_DB_INIT", None)
     db.init_db()
 
     # Unique folder per test run avoids stale rows / file_paths collisions in Postgres
@@ -51,28 +52,28 @@ def test_selection_runner_graceful_stop(setup_db_and_images):
     
     runner = selection_runner.SelectionRunner()
     job_id = db.create_job(test_dir)
-    
-    # Mock ClusteringEngine to be slow and check stop_event (force_rescan: engine sets RUNNING here)
-    def mock_cluster(*args, **kwargs):
-        stop_event = kwargs.get("stop_event")
-        for iid in image_ids:
-            db.set_image_phase_status(
-                iid, PhaseCode.CULLING, PhaseStatus.RUNNING, job_id=job_id
-            )
-        yield ("Starting Clustering...", 0, 100)
-        for i in range(10):
-            if stop_event and stop_event.is_set():
-                yield ("Interrupted", i, 100)
-                return
-            time.sleep(0.1)
-        yield ("Done", 100, 100)
 
-    with patch.object(clustering.ClusteringEngine, "cluster_images", side_effect=mock_cluster):
-        # force_rescan: clustering drives RUNNING; mock_cluster also sets RUNNING once cluster starts
-        runner.start_batch(test_dir, job_id=job_id, force_rescan=True)
+    def mock_run(_input_path, cfg=None, progress_cb=None):
+        # Hold until stop is requested; SelectionRunner.stop() calls SelectionService.stop().
+        while not runner._service._stop_requested.is_set():
+            time.sleep(0.05)
+        return SelectionSummary(
+            total_images=len(image_ids),
+            total_stacks=0,
+            picked=0,
+            rejected=0,
+            neutral=len(image_ids),
+            sidecar_written=0,
+            sidecar_errors=0,
+            status="stopped",
+        )
+
+    with patch.object(runner._service, "run", side_effect=mock_run):
+        # force_rescan=False: SelectionRunner pre-marks policy-eligible images as RUNNING.
+        runner.start_batch(test_dir, job_id=job_id, force_rescan=False)
 
         for _ in range(30):
-            ph0 = db.get_image_phase_status(image_ids[0], PhaseCode.CULLING)
+            ph0 = db.get_image_phase_status(image_ids[0], PhaseCode.CULLING.value)
             if ph0 and ph0.get("status") == PhaseStatus.RUNNING.value:
                 break
             time.sleep(0.1)
@@ -91,7 +92,7 @@ def test_selection_runner_graceful_stop(setup_db_and_images):
         assert status == "stopped"
 
         for iid in image_ids:
-            ph = db.get_image_phase_status(iid, PhaseCode.CULLING)
+            ph = db.get_image_phase_status(iid, PhaseCode.CULLING.value)
             assert ph is not None
             assert ph["status"] == PhaseStatus.RUNNING.value
             
@@ -100,7 +101,7 @@ def test_selection_runner_graceful_stop(setup_db_and_images):
         db.update_job_status(job_id, "interrupted")
 
         for iid in image_ids:
-            ph = db.get_image_phase_status(iid, PhaseCode.CULLING)
+            ph = db.get_image_phase_status(iid, PhaseCode.CULLING.value)
             assert ph["status"] == PhaseStatus.NOT_STARTED.value
             
         print("Test passed successfully!")

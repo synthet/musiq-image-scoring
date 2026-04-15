@@ -186,7 +186,9 @@ class BatchImageProcessor:
             item_finished_callback=self._on_item_finished,
             folder_agg_dirty_ids=self._folder_agg_dirty_ids,
         )
-        
+        # Attach report collector to result worker for after-snapshot recording.
+        result_worker.report_collector = getattr(self, "report_collector", None)
+
         workers = [prep_worker, scoring_worker, result_worker]
         for w in workers:
             w.start()
@@ -319,6 +321,8 @@ class BatchImageProcessor:
             item_finished_callback=self._on_item_finished,
             folder_agg_dirty_ids=self._folder_agg_dirty_ids,
         )
+        # Attach report collector to result worker for after-snapshot recording.
+        result_worker.report_collector = getattr(self, "report_collector", None)
 
         workers = [prep_worker, scoring_worker, result_worker]
         for w in workers:

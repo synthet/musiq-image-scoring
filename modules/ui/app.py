@@ -115,6 +115,8 @@ from modules.ui.security import (          # noqa: F401
 def setup_server_endpoints(fastapi_app, scoring_runner=None, tagging_runner=None, clustering_runner=None, selection_runner=None, orchestrator=None, indexing_runner=None, metadata_runner=None, maintenance_runner=None):
     """Configures FastAPI endpoints for the Gradio app."""
 
+    from fastapi import HTTPException, Query
+
     from modules import api, api_db
     api.set_runners(
         scoring_runner, tagging_runner, clustering_runner, selection_runner, 
@@ -153,6 +155,29 @@ def setup_server_endpoints(fastapi_app, scoring_runner=None, tagging_runner=None
 
         log_html = await asyncio.to_thread(_render_log)
         return {"ts": datetime.now().strftime("%H:%M:%S"), "log": log_html}
+
+    @fastapi_app.get("/api/status/log-tails", tags=["Status"])
+    async def status_log_tails_endpoint(
+        sources: str = Query(
+            "all",
+            description="Which log file(s): all (webui + debug), webui, or debug.",
+        ),
+        lines: int = Query(
+            100,
+            ge=1,
+            le=2000,
+            description="Max lines per log source (server caps at 2000).",
+        ),
+    ):
+        """JSON tails for webui.log and/or debug.log (same paths as /api/status/logs)."""
+        import asyncio
+
+        from modules.ui.log_views import build_log_tails_payload
+
+        try:
+            return await asyncio.to_thread(build_log_tails_payload, sources, lines)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
     @fastapi_app.get("/manifest.json")
     async def manifest_endpoint():

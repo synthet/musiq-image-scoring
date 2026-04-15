@@ -7,6 +7,7 @@ Requires ``psycopg2-binary``, ``pgvector``, and a reachable server (e.g. ``docke
 
 import os
 import sys
+import uuid
 
 import numpy as np
 import pytest
@@ -67,27 +68,31 @@ def test_embedding_spaces_and_image_embeddings_tables():
 def test_insert_folder_and_image_with_embedding():
     from modules import db_postgres
 
+    suffix = uuid.uuid4().hex[:10]
+    folder_path = f"integration/test_folder_{suffix}"
     folder = db_postgres.execute_write_returning(
         "INSERT INTO folders (path) VALUES (%s) RETURNING id",
-        ("integration/test_folder",),
+        (folder_path,),
     )
     assert folder is not None
     folder_id = folder["id"]
 
     emb = np.random.rand(1280).astype(np.float32)
+    file_path = f"integration/a_{suffix}.jpg"
+    file_name = f"a_{suffix}.jpg"
     img = db_postgres.execute_write_returning(
         "INSERT INTO images (file_path, file_name, folder_id, score, image_embedding) "
         "VALUES (%s, %s, %s, %s, %s) RETURNING id, file_name",
-        ("integration/a.jpg", "a.jpg", folder_id, 0.42, emb),
+        (file_path, file_name, folder_id, 0.42, emb),
     )
     assert img is not None
-    assert img["file_name"] == "a.jpg"
+    assert img["file_name"] == file_name
 
     row = db_postgres.execute_select_one(
         "SELECT file_name, score, folder_id FROM images WHERE id = %s",
         (img["id"],),
     )
-    assert row["file_name"] == "a.jpg"
+    assert row["file_name"] == file_name
     assert abs(row["score"] - 0.42) < 1e-9
     assert row["folder_id"] == folder_id
 
@@ -129,3 +134,17 @@ def test_upsert_image_re_resolves_stale_folder_id():
     assert fid != bogus_id
     ok = db.get_connector().query_one("SELECT 1 AS ok FROM folders WHERE id = ?", (fid,))
     assert ok is not None
+
+
+def test_enqueue_job_round_trips_description():
+    from modules import db
+
+    jid, _ = db.enqueue_job(
+        "/tmp/scope_desc_test",
+        phase_code="scoring",
+        job_type="scoring",
+        queue_payload={"trigger": "postgres_integration"},
+        description="Integration test: jobs.description round-trip.",
+    )
+    row = db.get_job(jid)
+    assert row.get("description") == "Integration test: jobs.description round-trip."

@@ -150,6 +150,17 @@ class JobDispatcher:
             )
         return resolve_run_mode_flags(run_mode)
 
+    @staticmethod
+    def _make_collector(job_id: int, phase_code: str, payload: Dict[str, Any]):
+        """Create a ReportCollector for a phase dispatch. Returns None on failure."""
+        try:
+            from modules.report_collector import ReportCollector
+            run_mode = (payload.get("run_mode") or "").strip()
+            return ReportCollector(job_id, phase_code, run_mode)
+        except Exception:
+            logger.debug("Failed to create ReportCollector for job %s phase %s", job_id, phase_code, exc_info=True)
+            return None
+
     def _start_job(self, job: Dict[str, Any], payload: Dict[str, Any], phase_override: Optional[str] = None) -> tuple:
         """Try to start the job. Returns (success: bool, error_msg: str|None)."""
         phase = (phase_override or job.get("job_type") or "").lower()
@@ -226,26 +237,32 @@ class JobDispatcher:
 
         if phase_key == "indexing":
             mode_flags = self._run_mode_flags(payload)
+            report_collector = self._make_collector(job_id, "indexing", payload)
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
                 skip_existing=bool(mode_flags["skip_existing"]),
                 resolved_image_ids=scoped_resolved,
+                report_collector=report_collector,
             )
 
         if phase_key == "metadata":
             mode_flags = self._run_mode_flags(payload)
+            report_collector = self._make_collector(job_id, "metadata", payload)
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
                 skip_existing=bool(mode_flags["skip_existing"]),
                 resolved_image_ids=scoped_resolved,
+                report_collector=report_collector,
             )
 
         if phase_key in ("score", "scoring"):
             mode_flags = self._run_mode_flags(payload)
             skip_existing_val = bool(mode_flags["skip_existing"])
             resolved = scoped_resolved
+            run_mode = (payload.get("run_mode") or "").strip()
+            report_collector = None
             # Short-term behavior: fix_incomplete_stages resolves scoped IDs only for scoring.
             # Metadata/tagging/culling continue to use their normal skip/re-run semantics.
             if bool(mode_flags["fix_incomplete_stages"]) and not resolved:
@@ -261,12 +278,57 @@ class JobDispatcher:
                 resolved = sorted(id_set) if id_set else []
                 if resolved:
                     skip_existing_val = False
+
+            # Build ReportCollector with before-snapshots for resolved IDs.
+            try:
+                from modules.report_collector import (
+                    ReportCollector,
+                    extract_score_snapshot,
+                    describe_incomplete_fields,
+                )
+                report_collector = ReportCollector(job_id, "scoring", run_mode)
+                if resolved:
+                    # Batch-query current scores for before-snapshot capture.
+                    placeholders = ",".join("?" * len(resolved))
+                    rows = db.get_connector().query(
+                        f"""
+                        SELECT id, score, score_general, score_technical, score_aesthetic,
+                               score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
+                               rating, label
+                        FROM images WHERE id IN ({placeholders})
+                        """,
+                        tuple(resolved),
+                    )
+                    for r in rows or []:
+                        img_id = int(r["id"])
+                        snapshot = extract_score_snapshot(r)
+                        reason = describe_incomplete_fields(r)
+                        report_collector.record_before(img_id, snapshot, reason)
+                # Scope: total images under paths; targeted = resolved set size.
+                total_in_scope = 0
+                scope_paths = payload.get("scope_paths")
+                if isinstance(scope_paths, list) and scope_paths:
+                    for p in scope_paths:
+                        try:
+                            total_in_scope += db.get_image_count(folder_path=str(p))
+                        except Exception:
+                            pass
+                if total_in_scope == 0:
+                    total_in_scope = len(resolved) if resolved else 0
+                report_collector.set_scope_counts(
+                    in_scope=total_in_scope,
+                    targeted=len(resolved) if resolved else total_in_scope,
+                )
+            except Exception:
+                logger.debug("Failed to create scoring ReportCollector for job %s", job_id, exc_info=True)
+
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id,
                 skip_existing_val,
                 resolved_image_ids=resolved,
                 target_phases=payload.get("target_phases"),
+                report_collector=report_collector,
             )
 
         if phase_key in ("tag", "tagging", "keywords"):

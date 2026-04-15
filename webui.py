@@ -2,6 +2,7 @@ import os
 import platform
 import warnings
 import logging
+from logging.handlers import RotatingFileHandler
 import json
 import faulthandler
 import signal
@@ -30,8 +31,46 @@ warnings.filterwarnings("ignore", message="The 'head' parameter in the Blocks co
 
 _LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
+_DEFAULT_LOG_MAX_BYTES = 10 * 1024 * 1024
+_DEFAULT_LOG_BACKUP_COUNT = 5
 
-def _ensure_webui_file_handler(app_log_path: str, log_level: int) -> None:
+
+def _webui_rotation_from_config(app_config: dict) -> tuple[int, int]:
+    """Return (max_bytes, backup_count) for RotatingFileHandler from system.* keys."""
+    system = (app_config or {}).get("system") or {}
+    raw_max = system.get("log_max_bytes", _DEFAULT_LOG_MAX_BYTES)
+    raw_n = system.get("log_backup_count", _DEFAULT_LOG_BACKUP_COUNT)
+    try:
+        max_bytes = int(raw_max)
+    except (TypeError, ValueError):
+        max_bytes = _DEFAULT_LOG_MAX_BYTES
+    try:
+        backup_count = int(raw_n)
+    except (TypeError, ValueError):
+        backup_count = _DEFAULT_LOG_BACKUP_COUNT
+    max_bytes = max(1024, max_bytes)
+    backup_count = max(0, min(backup_count, 50))
+    return max_bytes, backup_count
+
+
+def _make_webui_rotating_handler(
+    app_log_path: str, log_level: int, max_bytes: int, backup_count: int
+) -> RotatingFileHandler:
+    fh = RotatingFileHandler(
+        app_log_path,
+        mode="a",
+        maxBytes=max_bytes,
+        backupCount=backup_count,
+        encoding="utf-8",
+    )
+    fh.setLevel(log_level)
+    fh.setFormatter(logging.Formatter(_LOG_FORMAT))
+    return fh
+
+
+def _ensure_webui_file_handler(
+    app_log_path: str, log_level: int, max_bytes: int, backup_count: int
+) -> None:
     """Attach project webui.log handler even if logging.basicConfig was already a no-op.
 
     Library modules (e.g. modules.pipeline) may call basicConfig at import time; then
@@ -50,10 +89,7 @@ def _ensure_webui_file_handler(app_log_path: str, log_level: int) -> None:
                     return
             except (AttributeError, OSError, ValueError, TypeError):
                 continue
-    fh = logging.FileHandler(app_log_path, mode="a", encoding="utf-8")
-    fh.setLevel(log_level)
-    fh.setFormatter(logging.Formatter(_LOG_FORMAT))
-    root.addHandler(fh)
+    root.addHandler(_make_webui_rotating_handler(app_log_path, log_level, max_bytes, backup_count))
 
 
 # Custom logging filter to suppress Gradio queue polling messages
@@ -82,15 +118,16 @@ def main():
         # Configure logging — project-root webui.log (stable regardless of process cwd)
         log_level = logging.DEBUG if debug_mode else logging.INFO
         app_log_path = str(config.BASE_DIR / "webui.log")
+        max_bytes, backup_count = _webui_rotation_from_config(app_config)
         logging.basicConfig(
             level=log_level,
             format=_LOG_FORMAT,
             handlers=[
                 logging.StreamHandler(),
-                logging.FileHandler(app_log_path, mode="a", encoding="utf-8"),
+                _make_webui_rotating_handler(app_log_path, log_level, max_bytes, backup_count),
             ],
         )
-        _ensure_webui_file_handler(app_log_path, log_level)
+        _ensure_webui_file_handler(app_log_path, log_level, max_bytes, backup_count)
         logging.getLogger().setLevel(log_level)
 
         if debug_mode:

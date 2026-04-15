@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
 import { useWsStore } from '@/stores/wsStore'
 import { STAGE_DISPLAY } from '@/types/api'
+import { RUNS_QUERY_ROOT } from '@/queryKeys/runs'
 import type { Run } from '@/types/api'
 
 interface RunCardProps {
@@ -21,7 +22,7 @@ export function RunCard({ run, compact = false }: RunCardProps) {
   const progress = useWsStore((s) => s.runProgress[run.id])
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ['runs'] })
+    qc.invalidateQueries({ queryKey: RUNS_QUERY_ROOT })
   }
 
   const pauseMut = useMutation({ mutationFn: () => runsApi.pause(run.id), onSuccess: invalidate })
@@ -73,6 +74,11 @@ export function RunCard({ run, compact = false }: RunCardProps) {
         </div>
         <RunBadge status={run.status} />
       </div>
+      {run.description?.trim() && (
+        <p className="text-[11px] text-[#8d8d8d] mb-2 line-clamp-2" title={run.description.trim()}>
+          {run.description.trim()}
+        </p>
+      )}
 
       {run.status === 'running' && (
         <div className="mb-2 space-y-1">

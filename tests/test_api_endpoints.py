@@ -352,6 +352,26 @@ def test_image_by_id_returns_404_for_missing(monkeypatch):
     assert response_public.status_code == 404
 
 
+def test_image_exif_returns_json_safe_dict(monkeypatch):
+    monkeypatch.setattr(
+        db,
+        "get_image_exif",
+        lambda _id: {"image_id": 1, "make": "Nikon", "model": "Z6"},
+    )
+    with _build_client() as client:
+        response = client.get("/api/images/1/exif")
+    assert response.status_code == 200
+    assert response.json() == {"image_id": 1, "make": "Nikon", "model": "Z6"}
+
+
+def test_image_xmp_returns_empty_when_missing(monkeypatch):
+    monkeypatch.setattr(db, "get_image_xmp", lambda _id: None)
+    with _build_client() as client:
+        response = client.get("/api/images/42/xmp")
+    assert response.status_code == 200
+    assert response.json() == {}
+
+
 # ---------------------------------------------------------------------------
 # Folders endpoints
 # ---------------------------------------------------------------------------

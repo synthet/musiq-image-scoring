@@ -16,10 +16,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TEST_URL = "http://localhost:7860"
 
 _HAS_PYTEST_PLAYWRIGHT = importlib.util.find_spec("pytest_playwright") is not None
+_RUN_RAW_UI_TESTS = os.environ.get("RUN_RAW_UI_TESTS", "").strip().lower() in ("1", "true", "yes")
 
 pytestmark = pytest.mark.skipif(
-    not _HAS_PYTEST_PLAYWRIGHT,
-    reason="pytest-playwright not installed (no `page` fixture); pip install pytest-playwright",
+    (not _HAS_PYTEST_PLAYWRIGHT) or (not _RUN_RAW_UI_TESTS),
+    reason=(
+        "requires pytest-playwright and a running WebUI with predictable test data; "
+        "enable with RUN_RAW_UI_TESTS=1"
+    ),
 )
 
 

@@ -372,16 +372,25 @@ def _render_recent_jobs() -> str:
     if not jobs:
         return _section("Recent jobs (last 10)", f"<em style='color:{_TEXT_FAINT}'>No jobs found</em>")
 
-    rows = [
-        [
-            str(j.get("id", "")),
-            html.escape(str(j.get("job_type") or "—")),
-            html.escape(str(j.get("status") or "—")),
-            html.escape(str(j.get("enqueued_at") or j.get("created_at") or "—")),
-        ]
-        for j in jobs
-    ]
-    return _section("Recent jobs (last 10)", _table(["ID", "Type", "Status", "Enqueued"], rows), open=False)
+    terminal = {"completed", "failed", "canceled", "interrupted"}
+    rows = []
+    for j in jobs:
+        jid = j.get("id", "")
+        link = (
+            f"<a href='/ui/runs/{jid}' style='color:#4fc1ff'>View</a>"
+            if j.get("status") in terminal
+            else "—"
+        )
+        rows.append(
+            [
+                str(jid),
+                html.escape(str(j.get("job_type") or "—")),
+                html.escape(str(j.get("status") or "—")),
+                html.escape(str(j.get("enqueued_at") or j.get("created_at") or "—")),
+                link,
+            ]
+        )
+    return _section("Recent jobs (last 10)", _table(["ID", "Type", "Status", "Enqueued", "Report"], rows), open=False)
 
 
 def _render_diagnostics() -> str:
@@ -456,6 +465,8 @@ def _render_log_subsection(
     max_lines: int,
 ) -> str:
     """One nested <details> block for a log file path."""
+    from modules.ui.log_views import read_log_tail
+
     path_str = html.escape(str(resolved_path))
     if not resolved_path.exists():
         # Log dir may exist (e.g. get_debug_log_path makedirs) but file not created yet — same UX as empty file
@@ -470,11 +481,9 @@ def _render_log_subsection(
             f"<div style='margin-top:6px'>{inner}</div></details>"
         )
 
-    try:
-        with open(resolved_path, "r", encoding="utf-8", errors="replace") as fh:
-            lines = fh.readlines()
-    except Exception as exc:
-        err = f"<em style='color:{_ERROR}'>Read error: {html.escape(str(exc))}</em>"
+    tail_info = read_log_tail(resolved_path, max_lines)
+    if tail_info.get("error"):
+        err = f"<em style='color:{_ERROR}'>Read error: {html.escape(str(tail_info['error']))}</em>"
         return (
             f"<details open style='margin-bottom:8px'>"
             f"<summary style='font-size:0.78em;font-weight:600;color:{_TEXT_MID};cursor:pointer;padding:4px 0'>"
@@ -482,8 +491,8 @@ def _render_log_subsection(
             f"<div style='margin-top:6px'>{err}</div></details>"
         )
 
-    tail = lines[-max_lines:]
-    if not tail:
+    tail_lines = tail_info.get("lines") or []
+    if not tail_lines:
         inner = f"<em style='color:{_TEXT_FAINT}'>No lines yet — {path_str}</em>"
         return (
             f"<details open style='margin-bottom:8px'>"
@@ -492,12 +501,12 @@ def _render_log_subsection(
             f"<div style='margin-top:6px'>{inner}</div></details>"
         )
 
-    colored = "".join(_colorize_log_line(line.rstrip("\n")) for line in tail)
+    colored = "".join(_colorize_log_line(line) for line in tail_lines)
     header_bar = (
         f"<div style='display:flex;justify-content:space-between;align-items:center;"
         f"padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid {_BORDER_DIM}'>"
         f"<span style='font-size:0.72em;color:{_TEXT_FAINT};word-break:break-all'>{path_str}</span>"
-        f"<span style='font-size:0.72em;color:{_TEXT_FAINT};white-space:nowrap'>last {len(tail)} lines</span>"
+        f"<span style='font-size:0.72em;color:{_TEXT_FAINT};white-space:nowrap'>last {len(tail_lines)} lines</span>"
         f"</div>"
     )
     console = (
@@ -514,13 +523,10 @@ def _render_log_subsection(
 
 
 def _render_log() -> str:
-    from modules.config import BASE_DIR
-    from modules import utils
+    from modules.ui.log_views import resolve_debug_log_path, resolve_webui_log_path
 
-    app_candidates = [BASE_DIR / "webui.log", Path.cwd() / "webui.log"]
-    app_path = next((p for p in app_candidates if p.exists()), app_candidates[0])
-
-    debug_path = Path(utils.get_debug_log_path())
+    app_path = resolve_webui_log_path()
+    debug_path = resolve_debug_log_path()
 
     body = (
         _render_log_subsection(

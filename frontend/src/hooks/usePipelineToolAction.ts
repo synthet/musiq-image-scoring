@@ -10,6 +10,7 @@ import {
 import { runsApi } from '@/api/runs'
 import { FULL_PIPELINE_STAGE_CODES } from '@/constants/pipeline'
 import { SCHEDULE_FOLDER_QUALITY, TOOLS_API } from '@/constants/pipelineTools'
+import { RUNS_QUERY_ROOT } from '@/queryKeys/runs'
 
 export type PipelineToolAction =
   | {
@@ -20,6 +21,9 @@ export type PipelineToolAction =
       label: string
       limit?: number
       invalidateStalePhases?: boolean
+      /** jobs.description; server default if omitted */
+      description?: string
+      ui_selected_scope_path?: string
     }
   | {
       kind: 'envelope'
@@ -36,7 +40,7 @@ export type PipelineToolAction =
       rootPath?: string
       healThumbnailsGlobal: boolean
     }
-  | { kind: 'fullPipeline'; trackingId: string; path: string }
+  | { kind: 'fullPipeline'; trackingId: string; path: string; description?: string }
   | { kind: 'recalculate'; trackingId: string; scope: 'all' | 'selected_folder'; scopePath?: string }
 
 type MaintenanceStartResult = { run_id: number }
@@ -56,6 +60,7 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
   const queryClient = useQueryClient()
   const [lastBanner, setLastBanner] = useState<{ ok: boolean; text: string } | null>(null)
   const [recalcSummary, setRecalcSummary] = useState<RecalculateStatusSummary | null>(null)
+  const [recalcAuditRunId, setRecalcAuditRunId] = useState<number | null>(null)
   const [scheduleQualityStats, setScheduleQualityStats] = useState<ScheduleFolderQualityRunsData | null>(null)
 
   const mutation = useMutation<unknown, Error, PipelineToolAction>({
@@ -66,6 +71,10 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
             action: action.action,
             limit: action.limit,
             job_name: action.label,
+            description: action.description,
+            trigger: 'runs_tools_tab',
+            tool_id: action.trackingId,
+            ui_selected_scope_path: action.ui_selected_scope_path,
           })
         case 'envelope':
           return action.request()
@@ -82,6 +91,9 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
             scope_paths: [action.path],
             stages: [...FULL_PIPELINE_STAGE_CODES],
             skip_done: true,
+            description:
+              action.description ??
+              `Tools: full pipeline for folder ${action.path} (skip_done).`,
           })
         case 'recalculate':
           return toolsApi.recalculateStatusFromData({
@@ -101,7 +113,7 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
           ok: true,
           text: `${variables.label} job queued (Run ID: ${r.run_id}). Track progress in history.`,
         })
-        void queryClient.invalidateQueries({ queryKey: ['runs'] })
+        void queryClient.invalidateQueries({ queryKey: RUNS_QUERY_ROOT })
         if (variables.invalidateStalePhases) {
           void queryClient.invalidateQueries({ queryKey: ['maintenance-stale-phases'] })
         }
@@ -118,7 +130,7 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
             : ''
         setLastBanner({ ok: data.success, text: `${variables.label}: ${data.message}${extra}` })
         if (variables.invalidateRuns !== false) {
-          void queryClient.invalidateQueries({ queryKey: ['runs'] })
+          void queryClient.invalidateQueries({ queryKey: RUNS_QUERY_ROOT })
         }
         if (variables.invalidateFolders) {
           void queryClient.invalidateQueries({ queryKey: ['folders-tree'] })
@@ -143,7 +155,7 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
           setScheduleQualityStats(null)
           setLastBanner({ ok: data.success, text: data.message })
         }
-        void queryClient.invalidateQueries({ queryKey: ['runs'] })
+        void queryClient.invalidateQueries({ queryKey: RUNS_QUERY_ROOT })
         return
       }
       if (variables.kind === 'fullPipeline') {
@@ -152,7 +164,7 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
           ok: true,
           text: `Full pipeline queued for folder (Run ID: ${r.run_id}). Position: ${r.queue_position}`,
         })
-        void queryClient.invalidateQueries({ queryKey: ['runs'] })
+        void queryClient.invalidateQueries({ queryKey: RUNS_QUERY_ROOT })
         void queryClient.invalidateQueries({ queryKey: ['folders-tree'] })
         options?.onFullPipelineQueued?.(variables.path)
         return
@@ -166,6 +178,8 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
           data.data && typeof data.data === 'object' ? ` ${JSON.stringify(data.data)}` : ''
         setLastBanner({ ok: data.success, text: `Recalculate status: ${data.message}${extra}` })
         const summaryCandidate = data.data && (data.data as { summary?: unknown }).summary
+        const auditId = data.data && (data.data as { audit_run_id?: number | null }).audit_run_id
+        setRecalcAuditRunId(typeof auditId === 'number' ? auditId : null)
         if (summaryCandidate && typeof summaryCandidate === 'object') {
           setRecalcSummary(summaryCandidate as RecalculateStatusSummary)
         } else {
@@ -173,13 +187,16 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
         }
         void queryClient.invalidateQueries({ queryKey: ['maintenance-stale-phases'] })
         void queryClient.invalidateQueries({ queryKey: ['folders-tree'] })
-        void queryClient.invalidateQueries({ queryKey: ['runs'] })
+        void queryClient.invalidateQueries({ queryKey: RUNS_QUERY_ROOT })
         options?.onRecalculateSuccess?.()
       }
     },
     onError: (e, variables) => {
       setLastBanner({ ok: false, text: formatToolError(e) })
-      if (variables.kind === 'recalculate') setRecalcSummary(null)
+      if (variables.kind === 'recalculate') {
+        setRecalcSummary(null)
+        setRecalcAuditRunId(null)
+      }
       if (variables.kind === 'scheduleFolderQuality') setScheduleQualityStats(null)
     },
   })
@@ -223,6 +240,7 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
     setLastBanner,
     recalcSummary,
     setRecalcSummary,
+    recalcAuditRunId,
     scheduleQualityStats,
     setScheduleQualityStats,
   }

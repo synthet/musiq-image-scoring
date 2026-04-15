@@ -72,19 +72,26 @@ class FakePhaseRunner:
 
         jid = int(job_id)
 
+        # Fail synchronously: a delayed failure in a background thread races the orchestrator,
+        # which can mark the job completed before we transition to failed (invalid completed→failed).
+        if self.fail_message:
+            try:
+                db.update_job_status(jid, "failed", self.fail_message)
+            finally:
+                with self._lock:
+                    self.status_message = "Failed"
+                    self.log_history.append(self.fail_message)
+                    self.is_running = False
+                    self.current_count = 1
+            return "Started"
+
         def _run():
             try:
                 time.sleep(self.delay_s)
-                if self.fail_message:
-                    db.update_job_status(jid, "failed", self.fail_message)
-                    with self._lock:
-                        self.status_message = "Failed"
-                        self.log_history.append(self.fail_message)
-                else:
-                    db.update_job_status(jid, self.complete_status, "\n".join(self.log_history))
-                    with self._lock:
-                        self.status_message = "Done"
-                        self.log_history.append("done")
+                db.update_job_status(jid, self.complete_status, "\n".join(self.log_history))
+                with self._lock:
+                    self.status_message = "Done"
+                    self.log_history.append("done")
             finally:
                 with self._lock:
                     self.is_running = False

@@ -6,6 +6,9 @@ import { RunDetailPage } from '@/pages/RunDetailPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { DiagnosticsPage } from '@/pages/DiagnosticsPage'
 import { LogsPage } from '@/pages/LogsPage'
+import { IssuesPage } from '@/pages/IssuesPage'
+import { ImagesPage } from '@/pages/ImagesPage'
+import { ImageInspectorPage } from '@/pages/ImageInspectorPage'
 import { ScopeSelector } from '@/components/scope/ScopeSelector'
 
 const queryClient = new QueryClient({
@@ -27,8 +30,11 @@ export default function App() {
             <Route index element={<Navigate to="/runs" replace />} />
             <Route path="/runs" element={<RunsPage />} />
             <Route path="/runs/:runId" element={<RunDetailPage />} />
+            <Route path="/images" element={<ImagesPage />} />
+            <Route path="/images/:imageId" element={<ImageInspectorPage />} />
             <Route path="/diagnostics" element={<DiagnosticsPage />} />
             <Route path="/logs" element={<LogsPage />} />
+            <Route path="/issues" element={<IssuesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>

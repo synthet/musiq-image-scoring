@@ -150,8 +150,19 @@ class CommandDispatcher:
             "target_phases": phases,
             "command_source": "websocket",
         }
+        from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
 
-        job_id, queue_position = db.enqueue_job(primary_path, phase_code, enqueue_job_type, payload)
+        payload = augment_queue_payload_for_audit(payload, trigger="websocket", tool_id="command_dispatcher")
+        wf_desc = build_run_submit_description(
+            scope_type=str(payload.get("scope_type") or "folder_recursive"),
+            scope_paths=list(target_paths or []),
+            run_mode="process_unprocessed_or_empty",
+            validation_repair_mode=False,
+            phase_values=list(phases or []),
+            client_description=None,
+        )
+
+        job_id, queue_position = db.enqueue_job(primary_path, phase_code, enqueue_job_type, payload, wf_desc)
         if not job_id:
             raise RuntimeError("Failed to enqueue job")
 

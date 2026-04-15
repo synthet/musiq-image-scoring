@@ -21,7 +21,7 @@ This repo vendors **[agent-sdlc](https://github.com/synthet/agent-sdlc)**-style 
 
 ## MCP servers (Image Scoring)
 
-The same FastMCP app exposes **44** tools; Cursor can attach it in two ways (separate `mcpServers` entries).
+The same FastMCP app exposes **46** tools; Cursor can attach it in two ways (separate `mcpServers` entries).
 
 **Unique server names:** Each repo’s `.cursor/mcp.json` uses a workspace prefix so keys do not collide when Cursor merges configs: **`imgscore-py-*`** (Python / `image-scoring` workspace), **`imgscore-el-*`** (`electron-image-scoring` workspace). Shared tools such as Playwright or Firebird use the same prefix (`imgscore-py-playwright`, `imgscore-el-firebird`, …).
 
@@ -99,7 +99,7 @@ ENABLE_MCP_SERVER=1 python webui.py
 
 ## Available Tools
 
-The MCP server registers **44** tools (see [`modules/mcp_server.py`](modules/mcp_server.py)). Summary:
+The MCP server registers **46** tools (see [`modules/mcp_server.py`](modules/mcp_server.py)). Summary:
 
 ### Diagnostic
 
@@ -143,6 +143,7 @@ The MCP server registers **44** tools (see [`modules/mcp_server.py`](modules/mcp
 | `get_job_details` | Single job/run by id (`jobs.id`, same as API workflow `run_id`) |
 | `get_job_phases` | Phase plan/status rows for a job |
 | `get_job_stage_images` | Per-image work items for a job+phase (`include_steps` optional) |
+| `get_run_diagnostics` | Post-run audit + per-phase `image_phase_status` counts for `run_id` |
 | `get_pipeline_stats` | Runner + dispatcher + queue config snapshot |
 | `run_processing_job` | Start scoring, tagging, or clustering job (requires runners; WebUI/SSE typical for scoring/tagging) |
 
@@ -162,7 +163,8 @@ The MCP server registers **44** tools (see [`modules/mcp_server.py`](modules/mcp
 | `validate_config` | Structural config checks + optional DB ping (`database_reachable`) |
 | `get_config` | Full `config.json` |
 | `set_config_value` | Persist a single key (dot paths supported) |
-| `read_debug_log` | Tail of debug log |
+| `read_debug_log` | Tail of `debug.log` (JSON lines + `raw` fallback) |
+| `get_server_log_tail` | Tails `webui.log` and/or `debug.log` (same as `GET /api/status/log-tails`) |
 
 ### Folders, stacks, similarity
 

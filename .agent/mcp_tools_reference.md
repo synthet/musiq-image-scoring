@@ -1,6 +1,6 @@
 # MCP Tools Quick Reference for AI Agents
 
-This document tracks the tools registered in [`modules/mcp_server.py`](../modules/mcp_server.py) (**44** tools).
+This document tracks the tools registered in [`modules/mcp_server.py`](../modules/mcp_server.py) (**46** tools).
 
 ## Connection modes
 
@@ -51,6 +51,7 @@ This document tracks the tools registered in [`modules/mcp_server.py`](../module
 | **`get_job_details`** | One job by `job_id` (= `jobs.id`, same as API workflow `run_id`); payload + log tail |
 | **`get_job_phases`** | Phase rows for a job |
 | **`get_job_stage_images`** | Per-image phase status for a job+`phase_code`; optional `include_steps` |
+| **`get_run_diagnostics`** | `post_run_audit` from queue_payload + per-phase `image_phase_status` counts for `run_id` |
 | **`get_performance_metrics`** | Recent job stats (`days` default 7) |
 | **`get_runner_status`** | Runner progress/logs |
 | **`get_pipeline_stats`** | Runners + dispatcher + queue sizes |
@@ -72,7 +73,8 @@ This document tracks the tools registered in [`modules/mcp_server.py`](../module
 | **`validate_config`** | Structural checks (`ok`, `issues`, `warnings`); adds `database_reachable` when DB init succeeded |
 | **`get_config`** | Full config dict |
 | **`set_config_value`** | Dot-key update |
-| **`read_debug_log`** | `lines` default 100 |
+| **`read_debug_log`** | `lines` default 100; JSON lines from `debug.log` |
+| **`get_server_log_tail`** | `sources` default `all` (`all` \| `webui` \| `debug`); `lines` default 100 — same tails as `GET /api/status/log-tails` |
 
 ### Folders, stacks, similarity, gallery
 

@@ -15,6 +15,7 @@ from modules.run_log import runner_emit
 from modules.phases import PhaseCode, PhaseStatus
 from modules.phases_policy import explain_phase_run_decision
 from modules.version import APP_VERSION
+from modules.job_description import augment_queue_payload_for_audit
 
 logger = logging.getLogger(__name__)
 
@@ -292,14 +293,20 @@ class SelectionRunner:
             next_code = next_phase.get("phase_code")
             log(f"Advancing to next phase: {next_code}")
             try:
+                fq_payload = augment_queue_payload_for_audit(
+                    {
+                        "input_path": input_path,
+                        "parent_job_id": job_id,
+                    },
+                    trigger="runner",
+                    tool_id="phase_followup",
+                )
                 follow_job_id, _ = db.enqueue_job(
                     input_path,
                     phase_code=next_code,
                     job_type=next_code,
-                    queue_payload={
-                        "input_path": input_path,
-                        "parent_job_id": job_id,
-                    },
+                    queue_payload=fq_payload,
+                    description=f"Follow-up stage {next_code!r} after parent job #{job_id} (orchestrator advance).",
                 )
                 if follow_job_id:
                     db.create_job_phases(follow_job_id, [next_code], first_phase_state="queued")

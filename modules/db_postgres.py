@@ -136,6 +136,8 @@ POSTGRES_APP_TABLES = (
     "file_paths",
     "job_phases",
     "job_steps",
+    "job_image_actions",
+    "image_incidents",
     "image_exif",
     "image_xmp",
     "cluster_progress",
@@ -205,6 +207,30 @@ def truncate_app_tables() -> None:
         with conn.cursor() as cur:
             cur.execute(f"TRUNCATE {table_list} RESTART IDENTITY CASCADE")
             cur.execute(_SEED_DEFAULT_EMBEDDING_SPACE_SQL)
+            try:
+                from modules.phases import SEED_PHASES
+
+                for phase in SEED_PHASES:
+                    code = phase["code"].value if hasattr(phase["code"], "value") else str(phase["code"])
+                    cur.execute(
+                        """
+                        INSERT INTO pipeline_phases (code, name, description, sort_order, enabled, optional, default_skip)
+                        VALUES (%s, %s, %s, %s, TRUE, %s, %s)
+                        ON CONFLICT (code) DO UPDATE
+                        SET optional = EXCLUDED.optional, default_skip = EXCLUDED.default_skip
+                        """,
+                        (
+                            code,
+                            phase["name"],
+                            phase.get("description", ""),
+                            int(phase["sort_order"]),
+                            True if phase.get("optional") else False,
+                            True if phase.get("default_skip") else False,
+                        ),
+                    )
+            except Exception:
+                # Best-effort: tests that do not depend on pipeline_phases should still run.
+                pass
 
 
 class PGConnectionManager:
@@ -351,7 +377,9 @@ def _init_db_transaction():
                 log                 TEXT,
                 current_phase       VARCHAR(50),
                 next_phase_index    INTEGER,
-                runner_state        VARCHAR(50)
+                runner_state        VARCHAR(50),
+                description         TEXT,
+                report_json         JSONB
             );
             """)
 
@@ -371,6 +399,15 @@ def _init_db_transaction():
             );
             """)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_job_phases_job_id ON job_phases(job_id);")
+            cur.execute("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS description TEXT;")
+            cur.execute("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS report_json JSONB;")
+
+            # job_phases counter columns
+            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_in_scope INTEGER DEFAULT 0;")
+            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_targeted INTEGER DEFAULT 0;")
+            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_processed INTEGER DEFAULT 0;")
+            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_skipped INTEGER DEFAULT 0;")
+            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_failed INTEGER DEFAULT 0;")
 
             # ------------------------------------------------------------------
             # JOB_STEPS — sub-phase telemetry
@@ -392,6 +429,27 @@ def _init_db_transaction():
             );
             """)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_job_steps_job_id ON job_steps(job_id);")
+
+            # ------------------------------------------------------------------
+            # JOB_IMAGE_ACTIONS — per-image execution trail with before/after snapshots
+            # ------------------------------------------------------------------
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS job_image_actions (
+                id              SERIAL PRIMARY KEY,
+                job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+                image_id        INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                phase_code      VARCHAR(50) NOT NULL,
+                action          VARCHAR(30) NOT NULL,
+                reason          TEXT,
+                before_snapshot JSONB,
+                after_snapshot  JSONB,
+                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_job_id ON job_image_actions(job_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_job_phase ON job_image_actions(job_id, phase_code);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_image_id ON job_image_actions(image_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_created_at ON job_image_actions(created_at);")
 
             # ------------------------------------------------------------------
             # IMAGES  (full column set)
@@ -694,6 +752,32 @@ def _init_db_transaction():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ips_image_id ON image_phase_status(image_id);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ips_phase_id ON image_phase_status(phase_id);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ips_status ON image_phase_status(status);")
+
+            # ------------------------------------------------------------------
+            # IMAGE_INCIDENTS — append-only image-scoped failures / validations
+            # ------------------------------------------------------------------
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS image_incidents (
+                id              SERIAL PRIMARY KEY,
+                image_id        INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                folder_id       INTEGER REFERENCES folders(id) ON DELETE SET NULL,
+                job_id          INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+                phase_id        INTEGER REFERENCES pipeline_phases(id) ON DELETE SET NULL,
+                kind            VARCHAR(32) NOT NULL,
+                source          VARCHAR(128),
+                message         TEXT NOT NULL,
+                detail          JSONB,
+                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_image_incidents_created_at "
+                "ON image_incidents (created_at DESC);"
+            )
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_image_incidents_image_id ON image_incidents(image_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_image_incidents_folder_id ON image_incidents(folder_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_image_incidents_job_id ON image_incidents(job_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_image_incidents_kind ON image_incidents(kind);")
 
             # ------------------------------------------------------------------
             # STACK_CACHE — pre-computed score aggregates per stack

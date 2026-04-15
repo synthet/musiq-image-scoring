@@ -28,6 +28,7 @@ class EventManager:
     """
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self.loop = None
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -74,23 +75,11 @@ class EventManager:
         Requires ``set_loop`` to have been called with the FastAPI/uvicorn event loop
         (see ``webui.py`` lifespan). Without it, broadcasts are skipped and a warning is logged.
         """
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-        
-        # If no loop in current thread (likely), we need the main loop.
-        # But grabbing the main loop globally is tricky without passing it.
-        # However, usually uvicorn creates a loop.
-        # A simple workaround for now: valid loop is needed.
-        # Actually, best way is to let the main app set the loop on the manager.
-        if hasattr(self, 'loop') and self.loop:
-             asyncio.run_coroutine_threadsafe(self.broadcast(event_type, data), self.loop)
+        loop = getattr(self, "loop", None)
+        if loop and not loop.is_closed():
+            asyncio.run_coroutine_threadsafe(self.broadcast(event_type, data), loop)
         else:
-             logger.warning("No event loop attached to EventManager, skipping broadcast.")
+            logger.warning("No event loop attached to EventManager, skipping broadcast.")
 
     def set_loop(self, loop):
         self.loop = loop

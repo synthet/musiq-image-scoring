@@ -30,22 +30,22 @@ class MetadataRunner:
     def get_status(self):
         return self.is_running, "\n".join(self.log_history), self.status_message, self.current_count, self.total_count
 
-    def start_batch(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None):
+    def start_batch(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None, report_collector=None):
         if self.is_running:
             return "Error: Already running."
-            
+
         self.is_running = True
         self.log_history = []
         self.status_message = "Starting..."
         self.current_count = 0
         self.total_count = 0
-        
+
         if job_id is None:
             job_id = db.create_job(input_path or "ALL_IMAGES_METADATA", job_type="metadata")
-            
+
         def target():
             try:
-                self._run_batch_internal(input_path, job_id, skip_existing, resolved_image_ids)
+                self._run_batch_internal(input_path, job_id, skip_existing, resolved_image_ids, report_collector=report_collector)
             except Exception:
                 logger.exception("MetadataRunner thread crashed (job_id=%s)", job_id)
                 self.status_message = "Failed"
@@ -60,7 +60,7 @@ class MetadataRunner:
         self._thread.start()
         return "Started"
 
-    def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None):
+    def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None, report_collector=None):
         PROGRESS_INTERVAL = 50
 
         def log(msg: str, level: str = "INFO") -> None:
@@ -155,7 +155,11 @@ class MetadataRunner:
         log(f"Found {len(all_images)} images to potentially process.")
         self.total_count = len(all_images)
         self.current_count = 0
-        
+
+        if report_collector is not None:
+            targeted = len(resolved_image_ids) if resolved_image_ids is not None else len(all_images)
+            report_collector.set_scope_counts(in_scope=len(all_images), targeted=targeted)
+
         processed_count = 0
         skipped_count = 0
         
@@ -184,8 +188,11 @@ class MetadataRunner:
                         executor_version=METADATA_VERSION,
                         job_id=job_id,
                         skip_reason="metadata_already_done",
+                        skipped_by="metadata_runner",
                     )
                     skipped_count += 1
+                    if report_collector:
+                        report_collector.record_skip(image_id, "metadata_already_done")
                     log(f"Skip (metadata done): {file_path}", "DEBUG")
                     if self.current_count % PROGRESS_INTERVAL == 0:
                         log(
@@ -250,11 +257,15 @@ class MetadataRunner:
                     job_id=job_id
                 )
                 processed_count += 1
+                if report_collector:
+                    report_collector.record_after(image_id, {}, action="processed")
                 log(f"Metadata done: {file_path}", "DEBUG")
 
             except Exception as e:
                 log(f"Error processing {file_path}: {e}", "ERROR")
                 skipped_count += 1
+                if report_collector:
+                    report_collector.record_failure(image_id, str(e))
                 try:
                     db.set_image_phase_status(
                         image_id,
@@ -320,10 +331,21 @@ class MetadataRunner:
                     except Exception:
                         pass
             else:
+                self._finalize_report(job_id, report_collector)
                 job = db.get_job(job_id)
                 st = (job.get("status") or "").strip().lower() if job else ""
                 if st not in db.JOB_TERMINAL_STATES:
                     db.update_job_status(job_id, "completed")
+
+    @staticmethod
+    def _finalize_report(job_id, report_collector):
+        if report_collector is None:
+            return
+        try:
+            from modules.report_collector import finalize_and_save_report
+            finalize_and_save_report(job_id, report_collector.run_mode, [report_collector])
+        except Exception:
+            logger.debug("Failed to finalize report for job %s", job_id, exc_info=True)
 
     def stop(self):
         self.stop_event.set()

@@ -329,6 +329,14 @@ def validate_config() -> dict:
     if sjv is not None and not isinstance(sjv, bool):
         issues.append(f"processing.strict_job_completion_verify must be a boolean when set (got {sjv!r})")
 
+    prd = proc.get("post_run_data_quality_audit")
+    if prd is not None and not isinstance(prd, bool):
+        issues.append(f"processing.post_run_data_quality_audit must be a boolean when set (got {prd!r})")
+
+    prf = proc.get("post_run_audit_fail_job_on_issues")
+    if prf is not None and not isinstance(prf, bool):
+        issues.append(f"processing.post_run_audit_fail_job_on_issues must be a boolean when set (got {prf!r})")
+
     db_sec = data.get("database") or {}
     engine = get_database_engine()
 

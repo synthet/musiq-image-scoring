@@ -113,6 +113,7 @@ export function RunsToolsTab() {
     pendingId,
     lastBanner,
     recalcSummary,
+    recalcAuditRunId,
     scheduleQualityStats,
   } = usePipelineToolAction({
     onFullPipelineQueued: (folderPath) => setPendingTreeRevealPaths([folderPath]),
@@ -182,6 +183,8 @@ export function RunsToolsTab() {
                       label: RECONCILE.name,
                       limit: RECONCILE.limit,
                       invalidateStalePhases: true,
+                      description: `Pipeline Tools: ${RECONCILE.name}. Reconciles per-image rows stuck in running when the parent job is already finished (whole-database batch, limit ${RECONCILE.limit}).`,
+                      ui_selected_scope_path: selectedScopePath?.trim() || undefined,
                     })
                   }
                   disabled={toolsLocked}
@@ -362,6 +365,14 @@ export function RunsToolsTab() {
                   Folder rebuild: recomputed={recalcSummary.folder_aggregate_changes.folders_recomputed}, keyword flags
                   updated={recalcSummary.folder_aggregate_changes.folders_marked_keywords_processed}
                 </p>
+                {recalcAuditRunId != null && (
+                  <p>
+                    Durable audit run (history):{' '}
+                    <Link to={`/runs/${recalcAuditRunId}`} className="text-[#4fc1ff] hover:underline">
+                      #{recalcAuditRunId}
+                    </Link>
+                  </p>
+                )}
                 <p>
                   Remaining drift: index/meta={recalcSummary.after.missing_indexing_or_metadata_with_scoring_done},
                   keywords={recalcSummary.after.missing_keywords_status_with_keywords_data}, culling=
@@ -459,7 +470,12 @@ export function RunsToolsTab() {
               onClick={() => {
                 const p = selectedScopePath?.trim()
                 if (!p) return
-                run({ kind: 'fullPipeline', trackingId: 'fullPipeline', path: p })
+                run({
+                  kind: 'fullPipeline',
+                  trackingId: 'fullPipeline',
+                  path: p,
+                  description: `Pipeline Tools: full Discovery→Tagging pipeline for ${p} (skip_done).`,
+                })
               }}
               disabled={toolsLocked || !selectedScopePath?.trim()}
               loading={isPending && pendingId === 'fullPipeline'}
@@ -484,6 +500,8 @@ export function RunsToolsTab() {
                 action: t.action,
                 label: t.name,
                 limit: t.limit,
+                description: `Pipeline Tools: ${t.name} (${t.action}). Scope navigator: ${selectedScopePath?.trim() || 'not selected (global/batch as defined by tool).'}`,
+                ui_selected_scope_path: selectedScopePath?.trim() || undefined,
               })
             }
             isPending={isPending && pendingId === t.id}
@@ -505,6 +523,8 @@ export function RunsToolsTab() {
               action: PRUNE_MISSING.action,
               label: PRUNE_MISSING.name,
               limit: PRUNE_MISSING.limit,
+              description: `Pipeline Tools: ${PRUNE_MISSING.name}. Removes DB rows for files missing on disk (limit ${PRUNE_MISSING.limit}).`,
+              ui_selected_scope_path: selectedScopePath?.trim() || undefined,
             })
           }
           isPending={isPending && pendingId === 'pruneMissing'}

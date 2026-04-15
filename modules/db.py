@@ -1587,7 +1587,8 @@ def _init_db_impl():
             log BLOB SUB_TYPE TEXT,
             current_phase VARCHAR(50),
             next_phase_index INTEGER,
-            runner_state VARCHAR(50)
+            runner_state VARCHAR(50),
+            description BLOB SUB_TYPE TEXT
         )''')
         try: conn.commit()
         except Exception: pass
@@ -2449,6 +2450,16 @@ def _init_db_impl():
                     c = conn.cursor()
                 except Exception as m:
                     logger.debug("Adding jobs.target_scope: %s", m)
+                    try: conn.rollback()
+                    except Exception: pass
+                    c = conn.cursor()
+            if "description" not in jobs_cols:
+                try:
+                    c.execute("ALTER TABLE jobs ADD description BLOB SUB_TYPE TEXT")
+                    conn.commit()
+                    c = conn.cursor()
+                except Exception as m:
+                    logger.debug("Adding jobs.description: %s", m)
                     try: conn.rollback()
                     except Exception: pass
                     c = conn.cursor()
@@ -4074,7 +4085,7 @@ def get_images_with_keyword(folder_path=None, keyword="birds", resolved_image_id
 
 
 def create_job(input_path, phase_code=None, job_type=None, status="pending", current_phase=None,
-               next_phase_index=None, runner_state=None, queue_payload=None):
+               next_phase_index=None, runner_state=None, queue_payload=None, description=None):
     """
     Create a new job record.
 
@@ -4087,6 +4098,7 @@ def create_job(input_path, phase_code=None, job_type=None, status="pending", cur
         next_phase_index: Next phase index in orchestrator order.
         runner_state: High-level runner/orchestrator state.
         queue_payload: Optional queue metadata payload persisted as JSON.
+        description: Optional human-readable reason/scope for troubleshooting (plain text).
     """
     phase_id = None
     if phase_code:
@@ -4097,9 +4109,9 @@ def create_job(input_path, phase_code=None, job_type=None, status="pending", cur
     now = datetime.datetime.now()
     payload_json = json.dumps(queue_payload) if queue_payload is not None else None
     rows = get_connector().execute_returning(
-        """INSERT INTO jobs (input_path, phase_id, job_type, status, created_at, current_phase, next_phase_index, runner_state, enqueued_at, queue_payload, cancel_requested)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0) RETURNING id""",
-        (input_path, phase_id, job_type, status, now, current_phase, next_phase_index, runner_state, now, payload_json)
+        """INSERT INTO jobs (input_path, phase_id, job_type, status, created_at, current_phase, next_phase_index, runner_state, enqueued_at, queue_payload, cancel_requested, description)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id""",
+        (input_path, phase_id, job_type, status, now, current_phase, next_phase_index, runner_state, now, payload_json, description)
     )
     job_id = rows[0]['id'] if rows else None
 
@@ -4110,7 +4122,13 @@ def create_job(input_path, phase_code=None, job_type=None, status="pending", cur
         stage_run=phase_code or job_type or "pipeline",
         step_run="job:create",
         category="job",
-        metadata={"status": status, "input_path": input_path, "job_type": job_type, "phase_code": phase_code},
+        metadata={
+            "status": status,
+            "input_path": input_path,
+            "job_type": job_type,
+            "phase_code": phase_code,
+            "description": description,
+        },
         source="db.create_job",
     )
     return job_id
@@ -4138,6 +4156,27 @@ def set_job_execution_cursor(job_id, current_phase=None, next_phase_index=None, 
         metadata={"current_phase": current_phase, "next_phase_index": next_phase_index, "runner_state": runner_state},
         source="db.set_job_execution_cursor",
     )
+
+
+def update_job_progress(job_id, percent):
+    """Broadcast percent-complete progress for long-running maintenance jobs (Runs UI WebSocket)."""
+    try:
+        p = max(0, min(100, int(percent)))
+    except (TypeError, ValueError):
+        p = 0
+    try:
+        event_manager.broadcast_threadsafe(
+            "job_progress",
+            {
+                "job_id": job_id,
+                "job_type": "maintenance",
+                "phase_code": "maintenance",
+                "current": p,
+                "total": 100,
+            },
+        )
+    except Exception:
+        logger.debug("update_job_progress: broadcast failed for job_id=%s", job_id, exc_info=True)
 
 
 def job_type_for_phase_dispatch(phase_code: str) -> str:
@@ -4409,8 +4448,17 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
         except Exception:
             logger.exception("update_job_status: image_phase_status reconcile failed for job %s", job_id)
 
+    if broadcast_status == "completed":
+        try:
+            run_post_completion_data_quality_audit(int(job_id))
+        except Exception:
+            logger.exception(
+                "update_job_status: post-run data quality audit failed for job %s",
+                job_id,
+            )
 
-def enqueue_job(input_path, phase_code=None, job_type=None, queue_payload=None):
+
+def enqueue_job(input_path, phase_code=None, job_type=None, queue_payload=None, description=None):
     """Create a queued job with a stable internal sort key and dense display position."""
     phase_id = get_phase_id(phase_code) if phase_code else None
     if job_type is None:
@@ -4449,10 +4497,10 @@ def enqueue_job(input_path, phase_code=None, job_type=None, queue_payload=None):
             INSERT INTO jobs (
                 input_path, phase_id, job_type, status, queue_position,
                 created_at, enqueued_at, queue_payload, cancel_requested,
-                priority, target_scope, retry_count
-            ) VALUES (?, ?, ?, 'queued', NULL, ?, ?, ?, 0, ?, ?, 0) RETURNING id
+                priority, target_scope, retry_count, description
+            ) VALUES (?, ?, ?, 'queued', NULL, ?, ?, ?, 0, ?, ?, 0, ?) RETURNING id
             """,
-            (input_path, phase_id, job_type, now, now, payload_json, priority, target_scope),
+            (input_path, phase_id, job_type, now, now, payload_json, priority, target_scope, description),
         )
         job_id = rows[0]['id'] if rows else None
         if not job_id:
@@ -4532,6 +4580,431 @@ def update_job_payload(job_id, queue_payload):
         "UPDATE jobs SET queue_payload = ? WHERE id = ?",
         (queue_payload, job_id),
     )
+
+
+# --- Job execution trail (report_json + job_image_actions) ------------------------------------
+
+
+def insert_job_image_actions(actions: list[dict]) -> None:
+    """Batch insert into ``job_image_actions``. Called by ReportCollector.flush().
+
+    Uses a multi-row INSERT for efficiency (one round-trip per batch).
+    Postgres-only (``?::jsonb`` cast).
+    """
+    if not actions:
+        return
+    conn = get_connector()
+    value_groups = []
+    params: list = []
+    for row in actions:
+        value_groups.append("(?, ?, ?, ?, ?, ?::jsonb, ?::jsonb)")
+        params.extend([
+            row["job_id"],
+            row["image_id"],
+            row["phase_code"],
+            row["action"],
+            row.get("reason"),
+            json.dumps(row["before_snapshot"]) if row.get("before_snapshot") is not None else None,
+            json.dumps(row["after_snapshot"]) if row.get("after_snapshot") is not None else None,
+        ])
+    sql = (
+        "INSERT INTO job_image_actions "
+        "(job_id, image_id, phase_code, action, reason, before_snapshot, after_snapshot) "
+        "VALUES " + ", ".join(value_groups)
+    )
+    conn.execute(sql, tuple(params))
+
+
+def save_job_report(job_id: int, report: dict) -> None:
+    """Write ``report_json`` JSONB to the jobs table."""
+    get_connector().execute(
+        "UPDATE jobs SET report_json = ?::jsonb WHERE id = ?",
+        (json.dumps(report), int(job_id)),
+    )
+
+
+def get_job_report(job_id: int) -> dict | None:
+    """Read ``report_json`` from the jobs table."""
+    row = get_connector().query_one(
+        "SELECT report_json FROM jobs WHERE id = ?",
+        (int(job_id),),
+    )
+    if not row:
+        return None
+    raw = row.get("report_json")
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    if isinstance(raw, dict):
+        return raw
+    return None
+
+
+def get_job_image_actions(
+    job_id: int,
+    phase_code: str | None = None,
+    action: str | None = None,
+    offset: int = 0,
+    limit: int = 50,
+) -> dict:
+    """Query ``job_image_actions`` with filtering and pagination.
+
+    Returns ``{"items": [...], "total": int}``.
+    """
+    jid = int(job_id)
+    where = ["jia.job_id = ?"]
+    params: list = [jid]
+
+    if phase_code:
+        where.append("LOWER(TRIM(jia.phase_code)) = ?")
+        params.append(phase_code.strip().lower())
+    if action:
+        where.append("LOWER(TRIM(jia.action)) = ?")
+        params.append(action.strip().lower())
+
+    where_sql = " AND ".join(where)
+    conn = get_connector()
+
+    # Total count.
+    count_row = conn.query_one(
+        f"SELECT COUNT(*) AS c FROM job_image_actions jia WHERE {where_sql}",
+        tuple(params),
+    )
+    total = int((count_row.get("c") or count_row.get("COUNT(*)") or 0) if count_row else 0)
+
+    # Paginated items with file_path join.
+    rows = conn.query(
+        f"""
+        SELECT jia.id, jia.image_id, i.file_path, jia.phase_code, jia.action,
+               jia.reason, jia.before_snapshot, jia.after_snapshot, jia.created_at
+        FROM job_image_actions jia
+        LEFT JOIN images i ON i.id = jia.image_id
+        WHERE {where_sql}
+        ORDER BY jia.id
+        OFFSET ? LIMIT ?
+        """,
+        tuple(params) + (offset, limit),
+    )
+
+    items = []
+    for r in rows or []:
+        before = r.get("before_snapshot")
+        after = r.get("after_snapshot")
+        if isinstance(before, str):
+            try:
+                before = json.loads(before)
+            except Exception:
+                pass
+        if isinstance(after, str):
+            try:
+                after = json.loads(after)
+            except Exception:
+                pass
+        items.append({
+            "id": r.get("id"),
+            "image_id": r.get("image_id"),
+            "file_path": r.get("file_path"),
+            "phase_code": (r.get("phase_code") or "").strip(),
+            "action": (r.get("action") or "").strip(),
+            "reason": r.get("reason"),
+            "before_snapshot": before,
+            "after_snapshot": after,
+            "created_at": str(r.get("created_at") or ""),
+        })
+
+    return {"items": items, "total": total}
+
+
+def update_job_phase_counters(
+    job_id: int,
+    phase_code: str,
+    *,
+    in_scope: int = 0,
+    targeted: int = 0,
+    processed: int = 0,
+    skipped: int = 0,
+    failed: int = 0,
+) -> None:
+    """Update counter columns on a ``job_phases`` row."""
+    get_connector().execute(
+        """
+        UPDATE job_phases
+        SET images_in_scope = ?,
+            images_targeted = ?,
+            images_processed = ?,
+            images_skipped = ?,
+            images_failed = ?
+        WHERE job_id = ? AND LOWER(TRIM(phase_code)) = ?
+        """,
+        (in_scope, targeted, processed, skipped, failed, int(job_id), phase_code.strip().lower()),
+    )
+
+
+# --- Post-run data quality audit (persisted under queue_payload.post_run_audit) -----------------
+
+POST_RUN_AUDIT_SAMPLE_CAP = 100
+
+
+def parse_queue_payload_dict(raw) -> dict:
+    """Best-effort parse of ``jobs.queue_payload`` into a dict."""
+    if not raw:
+        return {}
+    try:
+        p = json.loads(raw) if isinstance(raw, str) else raw
+        if isinstance(p, str):
+            p = json.loads(p)
+        return p if isinstance(p, dict) else {}
+    except Exception:
+        return {}
+
+
+def should_run_post_completion_audit(payload: dict) -> bool:
+    """Whether to run ``build_validation_repair_plan`` after a job completes."""
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("post_run_audit") is False:
+        return False
+    if bool(config.get_config_value("processing.post_run_data_quality_audit", False)):
+        return True
+    if payload.get("post_run_audit") is True:
+        return True
+    if (payload.get("run_mode") or "").strip() == "validate_and_repair":
+        return True
+    return False
+
+
+def _cap_id_list(ids, cap: int):
+    """Return (sorted unique int list capped to ``cap``, truncated bool)."""
+    out: list = []
+    seen = set()
+    for x in ids or []:
+        try:
+            i = int(x)
+        except (TypeError, ValueError):
+            continue
+        if i in seen:
+            continue
+        seen.add(i)
+        out.append(i)
+    out.sort()
+    if len(out) <= cap:
+        return out, False
+    return out[:cap], True
+
+
+def _append_job_log_line(job_id: int, message: str) -> None:
+    get_connector().execute(
+        "UPDATE jobs SET log = COALESCE(log, '') || ? WHERE id = ?",
+        ("\n" + message, job_id),
+    )
+
+
+def _maybe_fail_job_on_post_audit_issues(job_id: int, post_run_audit: dict) -> None:
+    """If ``processing.post_run_audit_fail_job_on_issues``, mark a completed job failed when issues remain."""
+    if not isinstance(post_run_audit, dict):
+        return
+    if post_run_audit.get("status") != "issues_remaining":
+        return
+    if not bool(config.get_config_value("processing.post_run_audit_fail_job_on_issues", False)):
+        return
+    msg = (
+        "\npost_run_audit_fail_job_on_issues: residual data-quality issues — "
+        "see queue_payload.post_run_audit"
+    )
+    conn = get_connector()
+    row = conn.query_one("SELECT status FROM jobs WHERE id = ?", (job_id,))
+    if not row or (row.get("status") or "").strip().lower() != "completed":
+        return
+    conn.execute(
+        "UPDATE jobs SET status = 'failed', runner_state = 'failed', log = COALESCE(log, '') || ? "
+        "WHERE id = ? AND status = 'completed'",
+        (msg, job_id),
+    )
+    try:
+        record_pipeline_event(
+            "error",
+            f"Job #{job_id} marked failed after post-run audit (post_run_audit_fail_job_on_issues)",
+            workflow_run=job_id,
+            stage_run="pipeline",
+            step_run="post_run_audit",
+            category="job",
+            severity="error",
+            metadata={"job_id": job_id},
+            critical=False,
+            source="db.post_run_audit",
+        )
+        event_manager.broadcast_threadsafe(
+            "job_failed",
+            {
+                "job_id": job_id,
+                "status": "failed",
+                "current_phase": None,
+                "next_phase_index": None,
+                "runner_state": "failed",
+            },
+        )
+    except Exception:
+        logger.debug("post_run_audit fail broadcast failed", exc_info=True)
+
+
+def run_post_completion_data_quality_audit(job_id: int):
+    """
+    After terminal completion: optional dry-run of ``build_validation_repair_plan`` for the run scope,
+    merge results into ``queue_payload.post_run_audit``, optionally fail the job per config.
+    Returns the audit dict, or None if skipped.
+    """
+    row = get_connector().query_one(
+        "SELECT id, queue_payload, status FROM jobs WHERE id = ?",
+        (job_id,),
+    )
+    if not row:
+        return None
+    if (row.get("status") or "").strip().lower() != "completed":
+        return None
+
+    payload = parse_queue_payload_dict(row.get("queue_payload"))
+    if not should_run_post_completion_audit(payload):
+        return None
+
+    scope_paths = payload.get("scope_paths") or []
+    if not scope_paths:
+        ip = payload.get("input_path")
+        if ip:
+            scope_paths = [ip]
+    if not scope_paths:
+        payload["post_run_audit"] = {
+            "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+            "status": "skipped",
+            "notes": "no scope_paths or input_path in queue_payload",
+        }
+        update_job_payload(job_id, json.dumps(payload))
+        return payload["post_run_audit"]
+
+    stages = payload.get("target_phases")
+    if stages is None:
+        stages = payload.get("phases")
+    if stages is not None and not isinstance(stages, list):
+        stages = None
+
+    plan = build_validation_repair_plan(scope_paths, stages, dry_run=True)
+    stage_queues_full = plan.get("stage_queues") or {}
+    ic = plan.get("issue_counts") or {}
+
+    has_issues = any(int(v or 0) > 0 for v in ic.values()) or any(
+        len(v or []) > 0 for v in stage_queues_full.values()
+    )
+
+    stage_queues_out = {}
+    for stage, ids in stage_queues_full.items():
+        sample, truncated = _cap_id_list(ids, POST_RUN_AUDIT_SAMPLE_CAP)
+        stage_queues_out[str(stage)] = {
+            "sample_image_ids": sample,
+            "total": len(ids or []),
+            "truncated": truncated,
+        }
+
+    enq = payload.get("validation_repair_summary")
+    delta_vs_enqueue = None
+    if isinstance(enq, dict) and enq.get("stage_queues") is not None:
+        prev_sq = enq.get("stage_queues") or {}
+        delta_vs_enqueue = {}
+        all_stages = set(prev_sq.keys()) | set(stage_queues_full.keys())
+        for stage in sorted(all_stages, key=str):
+            prev_set = set(prev_sq.get(stage) or [])
+            cur_set = set(stage_queues_full.get(stage) or [])
+            fixed_ids = prev_set - cur_set
+            new_ids = cur_set - prev_set
+            fs, ftr = _cap_id_list(fixed_ids, POST_RUN_AUDIT_SAMPLE_CAP)
+            ns, ntr = _cap_id_list(new_ids, POST_RUN_AUDIT_SAMPLE_CAP)
+            ss, strunc = _cap_id_list(cur_set, POST_RUN_AUDIT_SAMPLE_CAP)
+            delta_vs_enqueue[str(stage)] = {
+                "still_remaining_count": len(cur_set),
+                "still_remaining_sample": ss,
+                "still_remaining_truncated": strunc,
+                "fixed_count": len(fixed_ids),
+                "fixed_sample": fs,
+                "fixed_truncated": ftr,
+                "new_since_enqueue_count": len(new_ids),
+                "new_since_enqueue_sample": ns,
+                "new_truncated": ntr,
+            }
+
+    post_run_audit = {
+        "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "status": "issues_remaining" if has_issues else "clean",
+        "severity": "warning" if has_issues else "info",
+        "issue_counts": ic,
+        "stage_queues": stage_queues_out,
+        "delta_vs_enqueue": delta_vs_enqueue,
+        "notes": (
+            "Point-in-time snapshot after job completion; other jobs or edits may change rows afterward."
+        ),
+    }
+
+    payload["post_run_audit"] = post_run_audit
+    update_job_payload(job_id, json.dumps(payload))
+
+    _append_job_log_line(
+        job_id,
+        f"Post-run data quality audit: {post_run_audit['status']} "
+        f"(see queue_payload.post_run_audit).",
+    )
+    _maybe_fail_job_on_post_audit_issues(job_id, post_run_audit)
+    return post_run_audit
+
+
+def get_run_diagnostics(job_id: int) -> dict:
+    """
+    Aggregated troubleshooting view: persisted ``post_run_audit`` plus per-phase ``image_phase_status``
+    counts for rows tagged with this ``job_id``.
+    """
+    jid = int(job_id)
+    job = get_job(jid)
+    if not job:
+        return {"error": "job_not_found", "job_id": jid}
+
+    payload = parse_queue_payload_dict(job.get("queue_payload"))
+    post_audit = payload.get("post_run_audit") if isinstance(payload, dict) else None
+
+    by_phase: dict = {}
+    try:
+        rows = get_connector().query(
+            """
+            SELECT pp.code AS phase_code, ips.status AS st, COUNT(*) AS c
+            FROM image_phase_status ips
+            JOIN pipeline_phases pp ON pp.id = ips.phase_id
+            WHERE ips.job_id = ?
+            GROUP BY pp.code, ips.status
+            """,
+            (jid,),
+        )
+        for r in rows or []:
+            pc = (r.get("phase_code") or "").strip().lower()
+            st = (r.get("st") or "").strip().lower()
+            by_phase.setdefault(pc, {})[st] = int(r.get("c") or 0)
+    except Exception:
+        logger.exception("get_run_diagnostics: aggregate query failed (job_id=%s)", jid)
+
+    execution_report = get_job_report(jid)
+
+    base = "/api/runs"
+    return {
+        "job_id": jid,
+        "job_status": (job.get("status") or "").strip().lower(),
+        "execution_report": execution_report,
+        "post_run_audit": post_audit,
+        "image_phase_status_by_phase": by_phase,
+        "endpoints": {
+            "stages": f"{base}/{jid}/stages",
+            "stage_items_template": f"{base}/{jid}/stages/{{stage_code}}/items",
+            "stage_steps_template": f"{base}/{jid}/stages/{{stage_code}}/steps",
+            "report_images": f"{base}/{jid}/report/images",
+        },
+    }
 
 
 def get_job_by_id(job_id):
@@ -5116,7 +5589,8 @@ def get_job_stage_images(job_id, phase_code, offset=0, limit=50):
         total = (count_row["cnt"] if count_row else 0) or 0
 
         rows = get_connector().query(
-            "SELECT i.id, i.file_path, i.file_name, ips.status, ips.started_at, ips.finished_at, ips.last_error "
+            "SELECT i.id, i.file_path, i.file_name, ips.status, ips.started_at, ips.finished_at, "
+            "ips.last_error, ips.skip_reason, ips.skipped_by, ips.attempt_count "
             "FROM image_phase_status ips "
             "JOIN images i ON ips.image_id = i.id "
             "WHERE ips.job_id = ? AND ips.phase_id = ? "
@@ -5135,6 +5609,9 @@ def get_job_stage_images(job_id, phase_code, offset=0, limit=50):
                 "status": r.get("status") or "pending",
                 "duration_ms": duration_ms,
                 "error": r.get("last_error"),
+                "skip_reason": r.get("skip_reason"),
+                "skipped_by": r.get("skipped_by"),
+                "attempt_count": r.get("attempt_count"),
             })
         return {"items": items, "total": total}
     except Exception:
@@ -5606,14 +6083,48 @@ def get_interrupted_jobs(job_type=None, limit=100):
     return [dict(r) for r in rows]
 
 
-def get_jobs(limit=50):
+# Terminal job rows for Runs → History (matches frontend filter + DB cancel spellings)
+_JOB_HISTORY_STATUSES = ("completed", "failed", "canceled", "cancelled", "interrupted")
+
+
+def count_jobs(*, history_only: bool = False) -> int:
+    """Return total job rows (all, or terminal-only for history pagination)."""
+    if history_only:
+        ph = ",".join(["?"] * len(_JOB_HISTORY_STATUSES))
+        row = get_connector().query_one(
+            f"SELECT COUNT(*) AS cnt FROM jobs WHERE status IN ({ph})",
+            tuple(_JOB_HISTORY_STATUSES),
+        )
+    else:
+        row = get_connector().query_one("SELECT COUNT(*) AS cnt FROM jobs", ())
+    if not row:
+        return 0
+    try:
+        return int(row.get("cnt") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def get_jobs(limit=50, offset=0, *, history_only=False):
     try: limit = int(limit)
     except (ValueError, TypeError): limit = 50
+    try: offset = int(offset)
+    except (ValueError, TypeError): offset = 0
     if limit < 0: limit = 50
+    if offset < 0: offset = 0
     limit = min(limit, 1000)
-    return [dict(r) for r in get_connector().query(
-        "SELECT * FROM jobs ORDER BY created_at DESC FETCH FIRST ? ROWS ONLY", (limit,)
-    )]
+    offset = min(offset, 10_000_000)
+    if history_only:
+        ph = ",".join(["?"] * len(_JOB_HISTORY_STATUSES))
+        sql = (
+            f"SELECT * FROM jobs WHERE status IN ({ph}) "
+            "ORDER BY created_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
+        )
+        params = (*_JOB_HISTORY_STATUSES, offset, limit)
+    else:
+        sql = "SELECT * FROM jobs ORDER BY created_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
+        params = (offset, limit)
+    return [dict(r) for r in get_connector().query(sql, params)]
 
 
 def get_all_images(sort_by="score", order="desc", limit=100):
@@ -6913,7 +7424,7 @@ def export_db_to_json(output_path, folder_path=None, keyword_filter=None, rating
         
     try:
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
+            json.dump(data, f, indent=4, ensure_ascii=False, default=str)
         return True, f"Successfully exported {len(data)} records to {output_path}"
     except Exception as e:
         return False, f"Export failed: {e}"
@@ -8845,6 +9356,139 @@ def get_phase_id(phase_code):
     return None
 
 
+def record_image_incident(
+    image_id,
+    *,
+    kind,
+    message,
+    job_id=None,
+    phase_code=None,
+    source="db",
+    detail=None,
+):
+    """
+    Append one row to ``image_incidents`` (PostgreSQL only). Swallows errors so callers are never broken.
+    Returns inserted id or None.
+    """
+    if _get_db_engine() != "postgres":
+        return None
+    try:
+        phase_id = None
+        if phase_code is not None:
+            phase_id = get_phase_id(phase_code)
+        folder_row = get_connector().query_one(
+            "SELECT folder_id FROM images WHERE id = ?",
+            (int(image_id),),
+        )
+        folder_id = folder_row.get("folder_id") if folder_row else None
+        detail_json = json.dumps(detail, default=str) if detail is not None else None
+        msg = (message or "") if message is not None else ""
+        rows = get_connector().execute_returning(
+            """
+            INSERT INTO image_incidents (image_id, folder_id, job_id, phase_id, kind, source, message, detail)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb)
+            RETURNING id
+            """,
+            (
+                int(image_id),
+                folder_id,
+                job_id,
+                phase_id,
+                kind,
+                source,
+                msg,
+                detail_json,
+            ),
+        )
+        return int(rows[0]["id"]) if rows else None
+    except Exception as e:
+        logger.debug("record_image_incident failed: %s", e)
+        return None
+
+
+def get_image_incident(incident_id):
+    """Return one incident row with ``file_path`` and ``phase_code``, or None."""
+    if _get_db_engine() != "postgres":
+        return None
+    try:
+        return get_connector().query_one(
+            """
+            SELECT ii.id, ii.image_id, ii.folder_id, ii.job_id, ii.phase_id, ii.kind, ii.source,
+                   ii.message, ii.detail, ii.created_at, i.file_path, pp.code AS phase_code
+            FROM image_incidents ii
+            JOIN images i ON i.id = ii.image_id
+            LEFT JOIN pipeline_phases pp ON pp.id = ii.phase_id
+            WHERE ii.id = ?
+            """,
+            (int(incident_id),),
+        )
+    except Exception as e:
+        logger.debug("get_image_incident failed: %s", e)
+        return None
+
+
+def list_image_incidents(
+    limit=50,
+    offset=0,
+    folder_id=None,
+    job_id=None,
+    phase_code=None,
+    kind=None,
+    since=None,
+):
+    """
+    Paginated list of incidents with optional filters. PostgreSQL only; otherwise empty.
+    ``since`` is a datetime or ISO string compared with ``created_at >= since``.
+    """
+    if _get_db_engine() != "postgres":
+        return {"items": [], "total": 0}
+    try:
+        lim = max(1, min(int(limit or 50), 500))
+        off = max(0, int(offset or 0))
+        conditions = []
+        params = []
+        if folder_id is not None:
+            conditions.append("ii.folder_id = ?")
+            params.append(int(folder_id))
+        if job_id is not None:
+            conditions.append("ii.job_id = ?")
+            params.append(int(job_id))
+        if phase_code:
+            conditions.append("TRIM(pp.code) = ?")
+            params.append(str(phase_code).strip())
+        if kind:
+            conditions.append("ii.kind = ?")
+            params.append(kind)
+        if since is not None:
+            conditions.append("ii.created_at >= ?")
+            params.append(since)
+        where_sql = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+        base_from = (
+            "FROM image_incidents ii "
+            "LEFT JOIN pipeline_phases pp ON pp.id = ii.phase_id "
+        )
+        count_row = get_connector().query_one(
+            f"SELECT COUNT(*) AS cnt {base_from}{where_sql}",
+            tuple(params) if params else None,
+        )
+        total = int(count_row.get("cnt") or count_row.get("CNT") or 0) if count_row else 0
+        rows = get_connector().query(
+            f"SELECT ii.id, ii.image_id, ii.folder_id, ii.job_id, ii.phase_id, ii.kind, ii.source, "
+            f"ii.message, ii.detail, ii.created_at, i.file_path, pp.code AS phase_code "
+            f"FROM image_incidents ii "
+            f"JOIN images i ON i.id = ii.image_id "
+            f"LEFT JOIN pipeline_phases pp ON pp.id = ii.phase_id "
+            f"{where_sql} "
+            f"ORDER BY ii.created_at DESC "
+            f"LIMIT ? OFFSET ?",
+            tuple(params) + (lim, off),
+        )
+        return {"items": rows, "total": total}
+    except Exception as e:
+        logger.warning("list_image_incidents failed: %s", e)
+        return {"items": [], "total": 0}
+
+
 def set_image_phase_status(image_id, phase_code, status,
                             app_version=None, executor_version=None,
                             job_id=None, error=None, skip_reason=None, skipped_by=None):
@@ -8946,11 +9590,32 @@ def set_image_phase_status(image_id, phase_code, status,
         frow = tx.query_one("SELECT folder_id FROM images WHERE id = ?", (image_id,))
         return frow["folder_id"] if frow else None
 
+    tx_ok = False
     try:
         folder_id = get_connector().run_transaction(_tx)
+        tx_ok = True
     except Exception as e:
         logger.error("set_image_phase_status failed (img=%s, phase=%s): %s", image_id, phase_code, e)
         folder_id = None
+
+    if tx_ok and _get_db_engine() == "postgres" and status == PhaseStatus.FAILED:
+        attempt_row = get_connector().query_one(
+            "SELECT attempt_count FROM image_phase_status WHERE image_id = ? AND phase_id = ?",
+            (image_id, phase_id),
+        )
+        ac = (attempt_row or {}).get("attempt_count")
+        detail = {"phase_code": phase_code.value if hasattr(phase_code, "value") else str(phase_code)}
+        if ac is not None:
+            detail["attempt_count"] = ac
+        record_image_incident(
+            image_id,
+            kind="phase_failure",
+            message=error or "Phase failed",
+            job_id=job_id,
+            phase_code=phase_code,
+            source="db.set_image_phase_status",
+            detail=detail,
+        )
 
     phase_text = phase_code.value if hasattr(phase_code, "value") else str(phase_code)
     event_type = "progress" if status == PhaseStatus.RUNNING else "state-change"
