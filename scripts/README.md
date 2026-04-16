@@ -59,3 +59,16 @@ python scripts/path/to/script.py
 | `validate-api-types.mjs` | Regenerate and fail with diff + regeneration command if `electron/apiTypes.ts` is stale. |
 
 Use `npm run api:types:generate` (local + CI standard) and `npm run api:types:check` for validation.
+
+## Repository Safety Checks
+
+| Script | Purpose |
+|--------|---------|
+| `check_conflict_markers.sh` | Fails if unresolved merge markers (`<<<<<<<`, `=======`, `>>>>>>>`) are present in tracked source files under `modules/`, `tests/`, or `scripts/`. |
+
+Run locally:
+
+```bash
+scripts/check_conflict_markers.sh
+```
+
