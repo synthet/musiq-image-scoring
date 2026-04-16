@@ -134,13 +134,11 @@ def create_tab(app_config, scoring_runner, tagging_runner, selection_runner, orc
                         with gr.Row(elem_classes=["pipeline-actions"]):
                             components["run_all_btn"] = gr.Button("Queue All Pending", variant="primary", elem_classes=["primary-btn"])
                             components["stop_all_btn"] = gr.Button("Cancel Active Run", variant="stop", elem_classes=["danger-btn"])
-                            components["repair_index_meta_btn"] = gr.Button("Repair Discovery/Inspection", variant="secondary", elem_classes=["secondary-btn"])
                             components["run_metadata_btn"] = gr.Button("Run Inspection", variant="secondary", elem_classes=["secondary-btn"])
                         gr.HTML(
                             "<p class='section-microcopy'>"
                             "<strong>Queue All Pending</strong> \u2014 starts pending StageRuns in this WorkflowRun for the selected WorkspaceTarget. "
                             "<strong>Cancel Active Run</strong> \u2014 halts the active WorkflowRun; StageRun progress is preserved. "
-                            "<strong>Repair Discovery/Inspection</strong> \u2014 backfills Discovery and Inspection StageRun status for images with Quality Analysis done but missing StageRun state. "
                             "<strong>Run Inspection</strong> \u2014 runs the Inspection StageRun (EXIF/XMP + thumbnails) for WorkspaceTarget items missing metadata."
                             "</p>"
                         )
@@ -322,30 +320,6 @@ def create_tab(app_config, scoring_runner, tagging_runner, selection_runner, orc
         # Outputs: tree_view + 6 UI components (folder_outputs has 7th elem total_count for internal use)
         return (tree_html,) + folder_outputs[:6]
 
-    def _on_repair_index_meta(selected_path):
-        """Backfill Index/Meta for images with Scoring done but missing phase status."""
-        if not selected_path or not selected_path.strip():
-            return _on_refresh_click("")
-        updated = db.backfill_index_meta_for_folder(selected_path)
-        return _on_refresh_click(selected_path)
-
-    components["repair_index_meta_btn"].click(
-        fn=_on_repair_index_meta,
-        inputs=[components["selected_path"]],
-        outputs=[
-            components["tree_view"],
-            components["folder_summary_html"],
-            components["stepper_html"],
-            components["scoring_card_html"],
-            components["culling_card_html"],
-            components["keywords_card_html"],
-            components["quick_start_html"],
-        ],
-    ).then(
-        fn=_sync_composer_path,
-        inputs=[components["selected_path"]],
-        outputs=[components["composer_input_path"]],
-    )
 
     components["refresh_btn"].click(
         fn=_on_refresh_click,

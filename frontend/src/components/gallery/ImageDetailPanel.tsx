@@ -1,5 +1,6 @@
 import { clsx } from 'clsx'
 import { Star } from 'lucide-react'
+import { LabelBadge } from '@/components/images/InspectorPrimitives'
 import type { Image } from '@/types/api'
 
 export function ImageDetailContent({ image }: { image: Image }) {
@@ -46,19 +47,26 @@ export function ImageDetailContent({ image }: { image: Image }) {
         )}
       </div>
 
-      <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6d6d6d] mb-2">Rating</div>
-        <div className="flex gap-1">
-          {[1, 2, 3, 4, 5].map((r) => (
-            <Star
-              key={r}
-              size={16}
-              className={clsx(
-                'cursor-pointer transition-colors',
-                r <= (image.rating ?? 0) ? 'text-[#cca700] fill-[#cca700]' : 'text-[#474747]',
-              )}
-            />
-          ))}
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6d6d6d] mb-2">Rating</div>
+          <div className="flex gap-1">
+            {[1, 2, 3, 4, 5].map((r) => (
+              <Star
+                key={r}
+                size={16}
+                className={clsx(
+                  'cursor-pointer transition-colors',
+                  r <= (image.rating ?? 0) ? 'text-[#cca700] fill-[#cca700]' : 'text-[#474747]',
+                )}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6d6d6d] mb-2">Label</div>
+          <LabelBadge label={image.label} />
         </div>
       </div>
 

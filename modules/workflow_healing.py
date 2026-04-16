@@ -1,0 +1,217 @@
+"""
+Workflow Healing Service — Identify and repair incomplete processing phases.
+
+This module provides logic to:
+1. Find images where a phase status is marked 'done' but required data is missing.
+2. Reset those statuses (healing false-positives).
+3. Identify folders with any images needing the specified phase.
+4. Spawn targeted pipeline runs for those folders.
+"""
+
+from __future__ import annotations
+import logging
+from typing import Any, List, Dict, Optional
+
+from modules import db, utils
+from modules.phases import PhaseCode
+from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
+from modules.run_modes import resolve_run_mode_flags
+
+logger = logging.getLogger(__name__)
+
+def heal_phase_data(
+    phase_code: str,
+    *,
+    root_path: Optional[str] = None,
+    dry_run: bool = False,
+    budget: int = 10,
+    run_mode: str = "validate_and_repair",
+) -> Dict[str, Any]:
+    """
+    Perform a healing pass for a specific pipeline phase.
+    
+    Args:
+        phase_code: The phase to heal (e.g., 'scoring', 'keywords').
+        root_path: Optional root path to restrict the scope.
+        dry_run: If True, only report issues without making changes.
+        budget: Maximum number of folders to schedule runs for.
+        run_mode: The run mode for spawned jobs (default: validate_and_repair).
+        
+    Returns:
+        Summary of identified issues, resets, and scheduled runs.
+    """
+    phase_code = phase_code.lower().strip()
+    
+    # 1. Identify "False Positives" (Done but missing data)
+    # -----------------------------------------------------------------------
+    incomplete_sql = db.get_phase_incomplete_sql(phase_code, table_alias="i")
+    
+    reset_query = f"""
+        SELECT i.id
+        FROM images i
+        JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
+        JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
+        WHERE LOWER(TRIM(ips.status)) = 'done'
+          AND ({incomplete_sql})
+    """
+    
+    conn = db.get_db()
+    c = conn.cursor()
+    c.execute(reset_query, (phase_code,))
+    false_positive_ids = [row[0] for row in c.fetchall()]
+    conn.close()
+    
+    resets_performed = 0
+    if not dry_run and false_positive_ids:
+        resets_performed = db.reset_image_phase_status(false_positive_ids, phase_code)
+        logger.info("Heal [%s]: Reset status for %s images", phase_code, resets_performed)
+
+    # 2. Identify Folders needing work for this phase
+    # -----------------------------------------------------------------------
+    # Folders where at least one image is NOT 'done' (or was just reset)
+    # but has the missing data criteria.
+    # Note: after reset, images have status 'not_started'.
+    
+    folder_query = f"""
+        SELECT f.path, COUNT(*) as image_count
+        FROM images i
+        JOIN folders f ON f.id = i.folder_id
+        JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
+        JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
+        WHERE LOWER(TRIM(ips.status)) IN ('not_started', 'failed', 'partial')
+          AND ({incomplete_sql})
+    """
+    params: List[Any] = [phase_code]
+    
+    if root_path:
+        rp = root_path.rstrip("/\\")
+        folder_query += " AND (f.path = ? OR f.path LIKE ?)"
+        params.extend([rp, rp + "/%"])
+        
+    folder_query += " GROUP BY f.path ORDER BY image_count DESC"
+    
+    conn = db.get_db()
+    c = conn.cursor()
+    c.execute(folder_query, tuple(params))
+    folders_needing_work = [{"folder_path": row[0], "image_count": row[1]} for row in c.fetchall()]
+    conn.close()
+    
+    # Filter out folders already being processed (active/queued runs)
+    active_jobs = _get_active_jobs_snapshot()
+    active_paths = {str(j.get("input_path")).strip().lower() for j in active_jobs if j.get("input_path")}
+    
+    def is_under_active_run(folder_path: str) -> bool:
+        fp = folder_path.strip().lower()
+        for active in active_paths:
+            if fp == active or fp.startswith(active + "/") or fp.startswith(active + "\\"):
+                return True
+        return False
+        
+    eligible_folders = [f for f in folders_needing_work if not is_under_active_run(f["folder_path"])]
+    
+    # 3. Spawn Runs (Up to budget)
+    # -----------------------------------------------------------------------
+    capacity = max(0, budget - len(active_jobs))
+    to_schedule = eligible_folders[:capacity]
+    
+    scheduled_detail = []
+    if not dry_run:
+        for folder in to_schedule:
+            try:
+                job_id, pos = _enqueue_heal_run(folder["folder_path"], phase_code, run_mode=run_mode)
+                scheduled_detail.append({
+                    "folder_path": folder["folder_path"],
+                    "job_id": job_id,
+                    "queue_position": pos
+                })
+            except Exception as e:
+                logger.exception("Heal [%s]: Failed to schedule for %s", phase_code, folder["folder_path"])
+    
+    return {
+        "phase_code": phase_code,
+        "dry_run": dry_run,
+        "false_positives_found": len(false_positive_ids),
+        "resets_performed": resets_performed,
+        "folders_needing_work": len(folders_needing_work),
+        "eligible_folders": len(eligible_folders),
+        "capacity_slots": capacity,
+        "scheduled": scheduled_detail if not dry_run else to_schedule,
+        "budget": budget
+    }
+
+def _get_active_jobs_snapshot() -> List[Dict[str, Any]]:
+    """Retrieve currently active or queued jobs with input paths."""
+    conn = db.get_db()
+    c = conn.cursor()
+    c.execute(
+        "SELECT id, input_path, status FROM jobs "
+        "WHERE LOWER(TRIM(status)) IN ('running', 'queued') "
+        "AND input_path IS NOT NULL AND input_path <> ''"
+    )
+    rows = c.fetchall()
+    conn.close()
+    return [{"id": r[0], "input_path": r[1], "status": r[2]} for r in rows]
+
+def _enqueue_heal_run(folder_path: str, phase_code: str, run_mode: str = "validate_and_repair") -> tuple[int, int]:
+    """Enqueue a targeted pipeline run for a folder and phase."""
+    # Mapping phase codes to job types (same as schedule_folder_quality_runs)
+    job_type_map = {
+        "indexing": "indexing",
+        "metadata": "metadata",
+        "scoring": "scoring",
+        "keywords": "tagging",
+        "culling": "selection",
+        "bird_species": "bird_species"
+    }
+    
+    job_type = job_type_map.get(phase_code, "scoring")
+    
+    # Prepare phases list
+    if phase_code == "bird_species":
+        phase_values = ["bird_species"]
+    elif phase_code == "keywords":
+        phase_values = [PhaseCode.KEYWORDS.value]
+    elif phase_code == "culling":
+        # Usually metadata is needed for XMP writing if it hasn't run
+        phase_values = [PhaseCode.CULLING.value, PhaseCode.METADATA.value]
+    else:
+        # Default for index/meta/score
+        phase_values = [PhaseCode(phase_code).value]
+
+    mode_flags = resolve_run_mode_flags(run_mode)
+    
+    payload = {
+        "scope_type": "folder_recursive",
+        "scope_paths": [folder_path],
+        "input_path": folder_path,
+        "run_mode": run_mode,
+        "skip_done": mode_flags["skip_done"],
+        "skip_existing": mode_flags["skip_existing"],
+        "force_rerun": mode_flags["force_rerun"],
+        "fix_incomplete_stages": mode_flags["fix_incomplete_stages"],
+        "overwrite": mode_flags["overwrite"],
+        "phases": phase_values,
+        "target_phases": phase_values,
+    }
+    
+    payload = augment_queue_payload_for_audit(payload, trigger="api", tool_id=f"heal_workflow_{phase_code}")
+    
+    description = build_run_submit_description(
+        scope_type="folder_recursive",
+        scope_paths=[folder_path],
+        run_mode=run_mode,
+        validation_repair_mode=(run_mode == "validate_and_repair"),
+        phase_values=phase_values,
+        client_description=f"Automated workflow healing for phase: {phase_code}",
+    )
+    
+    job_id, pos = db.enqueue_job(
+        folder_path,
+        phase_code,
+        job_type,
+        payload,
+        description
+    )
+    
+    db.create_job_phases(job_id, phase_values, "queued")
+    return job_id, pos

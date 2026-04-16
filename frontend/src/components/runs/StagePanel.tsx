@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { clsx } from 'clsx'
 import {
   AlertCircle, SkipForward, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
@@ -308,7 +309,12 @@ function WorkItemsTable({
                 className="border-b border-[#3c3c3c] hover:bg-[#2d2d30] transition-colors"
               >
                 <td className="px-4 py-1.5 text-[#cccccc] truncate max-w-[300px]">
-                  {item.filename}
+                  <Link
+                    to={`/images/${item.image_id}`}
+                    className="hover:text-[#4fc1ff] hover:underline"
+                  >
+                    {item.filename}
+                  </Link>
                 </td>
                 <td className="px-4 py-1.5">
                   <WorkItemStatus status={item.status} />

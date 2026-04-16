@@ -66,13 +66,12 @@ class MetadataRunner:
         def log(msg: str, level: str = "INFO") -> None:
             runner_emit(self.log_history, job_id, msg, level, phase="metadata")
 
-        # Handle WSL path conversion if needed
-        if input_path and ":" in input_path and len(input_path) > 1 and input_path[1] == ":":
-            drive = input_path[0].lower()
-            path = input_path[2:].replace("\\", "/")
-            wsl_path = f"/mnt/{drive}{path}"
-            if os.path.exists("/mnt/") and os.path.exists(wsl_path):
-                input_path = wsl_path
+        # Handle WSL path conversion if needed (e.g. running on Windows but path is /mnt/d/...)
+        from modules import utils
+        converted = utils.convert_path_to_local(input_path)
+        if converted != input_path:
+            log(f"Normalized path: {input_path} -> {converted}", "DEBUG")
+            input_path = converted
 
         self.stop_event.clear()
         log(f"Starting Metadata process on {input_path or 'Selected Images'}...")

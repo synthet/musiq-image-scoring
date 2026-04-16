@@ -145,9 +145,13 @@ export function IssuesPage() {
                     <td className="p-2 font-mono text-[#cca700]">{row.kind}</td>
                     <td className="p-2">{row.phase_code ?? '—'}</td>
                     <td className="p-2 max-w-[200px]">
-                      <span className="break-all text-[#9d9d9d]" title={row.file_path ?? undefined}>
+                      <Link
+                        to={`/images/${row.image_id}`}
+                        className="text-[#4fc1ff] hover:underline"
+                        title={row.file_path ?? undefined}
+                      >
                         #{row.image_id}
-                      </span>
+                      </Link>
                       {row.file_path && (
                         <div className="text-[10px] text-[#6d6d6d] truncate mt-0.5" title={row.file_path}>
                           {row.file_path}

@@ -3,7 +3,8 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
-import { CollapsibleInspectorSection, KeyValueTable } from '@/components/images/InspectorPrimitives'
+import { useUiStore } from '@/stores/uiStore'
+import { CollapsibleInspectorSection, KeyValueTable, formatInspectorValue } from '@/components/images/InspectorPrimitives'
 import type { ImageDetail, ImagePhaseStatusRow } from '@/types/api'
 
 function detailPreviewSrc(image: ImageDetail): string | null {
@@ -186,30 +187,44 @@ export function ImageInspectorPage() {
   const id = rawId ? parseInt(rawId, 10) : NaN
   const navigate = useNavigate()
 
+  const sortBy = useUiStore((s) => s.sortBy)
+  const order = useUiStore((s) => s.sortOrder)
+  const selectedScopePath = useUiStore((s) => s.selectedScopePath)
+
+  const { data: neighbors } = useQuery({
+    queryKey: ['image', 'neighbors', id, sortBy, order, selectedScopePath],
+    queryFn: () =>
+      galleryApi.getNeighbors(id, {
+        sort_by: sortBy,
+        order: order,
+        folder_path: selectedScopePath ?? undefined,
+      }),
+    enabled: Number.isFinite(id) && id > 0,
+  })
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      // Don't navigate if user is typing in an input or textarea
       const target = e.target as HTMLElement
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      ) {
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return
       }
 
       if (e.key === 'ArrowLeft') {
-        if (id > 1) {
-          navigate(`/images/${id - 1}`)
+        if (neighbors?.prev_id) {
+          navigate(`/images/${neighbors.prev_id}`)
         }
       } else if (e.key === 'ArrowRight') {
-        navigate(`/images/${id + 1}`)
+        if (neighbors?.next_id) {
+          navigate(`/images/${neighbors.next_id}`)
+        }
+      } else if (e.key === 'Escape') {
+        navigate('/images')
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [id, navigate])
+  }, [neighbors, navigate])
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['image', 'inspector', id],
@@ -251,7 +266,17 @@ export function ImageInspectorPage() {
           <ArrowLeft size={12} /> Images
         </Link>
         <span className="text-sm font-medium text-[#cccccc] truncate">{data.file_name}</span>
-        <span className="text-[10px] text-[#6d6d6d] font-mono ml-auto shrink-0">id {data.id}</span>
+        <span className="text-[10px] text-[#6d6d6d] font-mono ml-auto shrink-0">
+          id{' '}
+          <a
+            href={`http://localhost:7860/ui/images/${data.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#4fc1ff] hover:underline cursor-pointer"
+          >
+            {data.id}
+          </a>
+        </span>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
@@ -272,7 +297,25 @@ export function ImageInspectorPage() {
 
           <div className="flex-1 min-w-0 space-y-3">
             <CollapsibleInspectorSection title="Identity & storage" defaultOpen>
-              <KeyValueTable entries={parts.identity} dense />
+              <KeyValueTable
+                entries={parts.identity}
+                dense
+                renderValue={(k, v) => {
+                  if (k === 'id' && typeof v === 'number') {
+                    return (
+                      <a
+                        href={`http://localhost:7860/ui/images/${v}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#4fc1ff] hover:underline cursor-pointer"
+                      >
+                        {v}
+                      </a>
+                    )
+                  }
+                  return formatInspectorValue(v)
+                }}
+              />
             </CollapsibleInspectorSection>
 
             <CollapsibleInspectorSection title="Paths" subtitle={resolved ? 'resolved_path' : undefined} defaultOpen>

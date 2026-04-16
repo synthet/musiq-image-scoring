@@ -2,7 +2,45 @@ import { useState, type ReactNode } from 'react'
 import { clsx } from 'clsx'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
-export function formatInspectorValue(value: unknown): string {
+export const LABEL_COLORS: Record<string, string> = {
+  red: '#f44747',
+  orange: '#d7ba7d',
+  yellow: '#dcdcaa',
+  green: '#6a9955',
+  blue: '#4fc1ff',
+  purple: '#c586c0',
+  gray: '#808080',
+}
+
+export function LabelBadge({ label, className }: { label: string | null | undefined; className?: string }) {
+  if (!label) return <span className="text-[#6d6d6d]">None</span>
+  const key = label.toLowerCase()
+  const color = LABEL_COLORS[key]
+
+  if (!color) {
+    return (
+      <span className={clsx('px-1.5 py-0.5 rounded text-[10px] bg-[#3c3c3c] text-[#cccccc]', className)}>
+        {label}
+      </span>
+    )
+  }
+
+  return (
+    <span
+      className={clsx('inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all hover:brightness-110', className)}
+      style={{
+        backgroundColor: `${color}15`,
+        color: color,
+        border: `1px solid ${color}33`,
+      }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+      {label}
+    </span>
+  )
+}
+
+export function formatInspectorValue(value: unknown): ReactNode {
   if (value === null || value === undefined) return '—'
   if (typeof value === 'number' && Number.isFinite(value)) {
     if (Math.abs(value) <= 1 && value !== 0 && !Number.isInteger(value)) {
@@ -24,9 +62,11 @@ export function formatInspectorValue(value: unknown): string {
 export function KeyValueTable({
   entries,
   dense,
+  renderValue,
 }: {
   entries: [string, unknown][]
   dense?: boolean
+  renderValue?: (key: string, value: unknown) => ReactNode
 }) {
   const sorted = [...entries].sort(([a], [b]) => a.localeCompare(b))
   return (
@@ -44,7 +84,7 @@ export function KeyValueTable({
                 {k}
               </td>
               <td className="align-top text-[#cccccc] px-2 py-1 font-mono whitespace-pre-wrap break-all">
-                {formatInspectorValue(v)}
+                {renderValue ? renderValue(k, v) : k === 'label' ? <LabelBadge label={v as string} /> : formatInspectorValue(v)}
               </td>
             </tr>
           ))}
@@ -86,3 +126,4 @@ export function CollapsibleInspectorSection({
     </div>
   )
 }
+

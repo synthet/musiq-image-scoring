@@ -45,6 +45,27 @@ export function RunDetailPage() {
     qc.invalidateQueries({ queryKey: runStagesQueryKey(id) })
   }, [runsVersion, id, qc])
 
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      // Don't navigate if user is typing in an input or textarea
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return
+      }
+
+      if (e.key === 'Escape') {
+        navigate('/runs')
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [navigate])
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: runDetailQueryKey(id) })
     qc.invalidateQueries({ queryKey: runStagesQueryKey(id) })

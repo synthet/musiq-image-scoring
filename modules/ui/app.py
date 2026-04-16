@@ -55,11 +55,6 @@ def _init_webui_engines(clustering_runner=None):
         enable_background_tick=True,
     )
     recovery_info = orchestrator.recover_interrupted_jobs()
-    try:
-        n_orphan = db.reconcile_stale_running_phases_for_terminal_jobs(limit=5000)
-        recovery_info["reconciled_terminal_job_phase_rows"] = n_orphan
-    except Exception:
-        logger.exception("reconcile_stale_running_phases_for_terminal_jobs on startup failed")
     app_config["job_recovery"] = recovery_info
 
     phase_executors.register_all(

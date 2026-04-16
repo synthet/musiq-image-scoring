@@ -16,6 +16,11 @@ interface UiStore {
   /** After queuing a run: expand tree to these paths and refresh status dots */
   pendingTreeRevealPaths: string[] | null
   setPendingTreeRevealPaths: (paths: string[] | null) => void
+
+  sortBy: string
+  setSortBy: (v: string) => void
+  sortOrder: 'asc' | 'desc'
+  setSortOrder: (v: 'asc' | 'desc') => void
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -38,4 +43,9 @@ export const useUiStore = create<UiStore>((set) => ({
 
   pendingTreeRevealPaths: null,
   setPendingTreeRevealPaths: (pendingTreeRevealPaths) => set({ pendingTreeRevealPaths }),
+
+  sortBy: 'score_general',
+  setSortBy: (sortBy) => set({ sortBy }),
+  sortOrder: 'desc',
+  setSortOrder: (sortOrder) => set({ sortOrder }),
 }))

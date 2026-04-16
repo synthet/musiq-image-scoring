@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { ChevronLeft, ChevronRight, Database } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
 import { useUiStore } from '@/stores/uiStore'
 import { Button } from '@/components/ui/button'
+import { LabelBadge } from '@/components/images/InspectorPrimitives'
 import type { Image } from '@/types/api'
 
 const PAGE_SIZES = [25, 50, 100] as const
@@ -29,10 +30,13 @@ function truncatePath(s: string, max = 64): string {
 export function ImagesPage() {
   const navigate = useNavigate()
   const selectedScopePath = useUiStore((s) => s.selectedScopePath)
+  const sortBy = useUiStore((s) => s.sortBy)
+  const setSortBy = useUiStore((s) => s.setSortBy)
+  const order = useUiStore((s) => s.sortOrder)
+  const setOrder = useUiStore((s) => s.setSortOrder)
+
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(50)
-  const [sortBy, setSortBy] = useState('score_general')
-  const [order, setOrder] = useState<'asc' | 'desc'>('desc')
 
   useEffect(() => {
     setPage(1)
@@ -60,7 +64,7 @@ export function ImagesPage() {
 
   function onHeaderClick(key: string) {
     if (sortBy === key) {
-      setOrder((o) => (o === 'asc' ? 'desc' : 'asc'))
+      setOrder(order === 'asc' ? 'desc' : 'asc')
     } else {
       setSortBy(key)
       setOrder(key === 'file_name' || key === 'file_path' ? 'asc' : 'desc')
@@ -146,9 +150,15 @@ export function ImagesPage() {
                   onClick={() => navigate(`/images/${row.id}`)}
                   className="border-b border-[#2d2d2d] hover:bg-[#2a2d2e] cursor-pointer"
                 >
-                  <td className="px-3 py-1.5 font-mono text-[#4fc1ff]">{row.id}</td>
+                  <td className="px-3 py-1.5 font-mono text-[#4fc1ff]">
+                    <Link to={`/images/${row.id}`} className="hover:underline">
+                      {row.id}
+                    </Link>
+                  </td>
                   <td className="px-3 py-1.5 text-[#cccccc] max-w-[14rem] truncate" title={row.file_name}>
-                    {row.file_name}
+                    <Link to={`/images/${row.id}`} className="hover:text-[#4fc1ff] hover:underline">
+                      {row.file_name}
+                    </Link>
                   </td>
                   <td
                     className="px-3 py-1.5 text-[#9d9d9d] max-w-[min(40vw,28rem)] truncate font-mono"
@@ -160,7 +170,7 @@ export function ImagesPage() {
                     {row.score_general != null ? (row.score_general * 100).toFixed(1) : '—'}
                   </td>
                   <td className="px-3 py-1.5">{row.rating ?? '—'}</td>
-                  <td className="px-3 py-1.5">{row.label ?? '—'}</td>
+                  <td className="px-3 py-1.5"><LabelBadge label={row.label} /></td>
                   <td className="px-3 py-1.5 text-[#6d6d6d] font-mono">
                     {row.created_at ? String(row.created_at).slice(0, 19) : '—'}
                   </td>

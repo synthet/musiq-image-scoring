@@ -386,6 +386,41 @@ def _images_list_payload(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _image_neighbors_payload(
+    image_id: int,
+    sort_by: str,
+    order: str,
+    rating: Optional[str],
+    label: Optional[str],
+    keyword: Optional[str],
+    min_score_general: float,
+    min_score_aesthetic: float,
+    min_score_technical: float,
+    folder_path: Optional[str],
+    stack_id: Optional[int],
+) -> dict:
+    """Find neighbor image IDs for navigation."""
+    rating_filter = [int(r) for r in rating.split(",")] if rating else None
+    label_filter = label.split(",") if label else None
+    try:
+        prev_id, next_id = db.get_image_neighbors(
+            image_id=image_id,
+            sort_by=sort_by,
+            order=order,
+            rating_filter=rating_filter,
+            label_filter=label_filter,
+            keyword_filter=keyword,
+            min_score_general=min_score_general,
+            min_score_aesthetic=min_score_aesthetic,
+            min_score_technical=min_score_technical,
+            folder_path=folder_path,
+            stack_id=stack_id,
+        )
+        return {"prev_id": prev_id, "next_id": next_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 def _image_detail_for_uuid_str(image_uuid: str) -> dict:
     import uuid as uuid_stdlib
 
@@ -502,6 +537,38 @@ def create_public_api_router() -> APIRouter:
     )
     async def public_get_image_by_id(image_id: int):
         return _image_detail_payload(image_id)
+
+    @router.get(
+        "/images/{image_id}/neighbors",
+        summary="Image neighbors (public)",
+        description="Find previous and next image IDs for navigation within a sorted/filtered sequence.",
+    )
+    async def public_get_image_neighbors(
+        image_id: int,
+        sort_by: str = Query("score", description="Same sort as /public/api/images"),
+        order: str = Query("desc", description="asc or desc"),
+        rating: Optional[str] = Query(None, description="Comma-separated ratings"),
+        label: Optional[str] = Query(None, description="Comma-separated labels"),
+        keyword: Optional[str] = Query(None),
+        min_score_general: float = Query(0, ge=0, le=1),
+        min_score_aesthetic: float = Query(0, ge=0, le=1),
+        min_score_technical: float = Query(0, ge=0, le=1),
+        folder_path: Optional[str] = Query(None),
+        stack_id: Optional[int] = Query(None),
+    ):
+        return _image_neighbors_payload(
+            image_id=image_id,
+            sort_by=sort_by,
+            order=order,
+            rating=rating,
+            label=label,
+            keyword=keyword,
+            min_score_general=min_score_general,
+            min_score_aesthetic=min_score_aesthetic,
+            min_score_technical=min_score_technical,
+            folder_path=folder_path,
+            stack_id=stack_id,
+        )
 
     return router
 
@@ -1097,9 +1164,6 @@ class PipelinePhaseControlRequest(BaseModel):
     actor: Optional[str] = Field(None, description="Actor identifier who initiated action.")
 
 
-class PipelineBackfillRequest(BaseModel):
-    """Request model for backfill Index/Meta phase status."""
-    input_path: str = Field(..., description="Folder path for backfill operation.")
 
 
 class LifecycleControlRequest(BaseModel):
@@ -1172,26 +1236,22 @@ class MaintenanceStartRequest(BaseModel):
     )
 
 
-class ScheduleFolderQualityRunsRequest(BaseModel):
-    """Batch-queue pipeline runs for leaf folders with data-quality issues (see folder_data_quality_report)."""
+
+
+class HealPhaseRequest(BaseModel):
+    """Request parameters for workflow healing per phase."""
 
     root_path: Optional[str] = Field(None, description="Only folders under this library path (prefix).")
-    stack_after_culling_only: bool = False
+    dry_run: bool = False
     budget: int = Field(
         10,
         ge=1,
         le=100,
         description="Schedules at most max(0, budget - active_running_or_queued_jobs) folder runs.",
     )
-    run_mode: Literal[
-        "process_all_overwrite",
-        "process_unprocessed_or_empty",
+    run_mode: str = Field(
         "validate_and_repair",
-    ] = "validate_and_repair"
-    dry_run: bool = False
-    heal_thumbnails_global: bool = Field(
-        False,
-        description="If any selected folder has thumb_missing>0, enqueue global heal_thumbnails once before per-folder runs.",
+        description="Run mode for spawned jobs (e.g. validate_and_repair, process_unprocessed_or_empty).",
     )
 
 
@@ -3836,6 +3896,38 @@ def create_api_router() -> APIRouter:
         return _image_detail_payload(image_id)
 
     @router.get(
+        "/images/{image_id}/neighbors",
+        summary="Get image neighbors",
+        description="Find previous and next image IDs for navigation within a sorted/filtered sequence.",
+    )
+    async def get_image_neighbors(
+        image_id: int,
+        sort_by: str = Query("score", description="Sort field"),
+        order: str = Query("desc", description="Sort order: asc or desc"),
+        rating: Optional[str] = Query(None, description="Comma-separated ratings"),
+        label: Optional[str] = Query(None, description="Comma-separated labels"),
+        keyword: Optional[str] = Query(None, description="Keyword filter"),
+        min_score_general: float = Query(0, ge=0, le=1),
+        min_score_aesthetic: float = Query(0, ge=0, le=1),
+        min_score_technical: float = Query(0, ge=0, le=1),
+        folder_path: Optional[str] = Query(None),
+        stack_id: Optional[int] = Query(None),
+    ):
+        return _image_neighbors_payload(
+            image_id=image_id,
+            sort_by=sort_by,
+            order=order,
+            rating=rating,
+            label=label,
+            keyword=keyword,
+            min_score_general=min_score_general,
+            min_score_aesthetic=min_score_aesthetic,
+            min_score_technical=min_score_technical,
+            folder_path=folder_path,
+            stack_id=stack_id,
+        )
+
+    @router.get(
         "/folders",
         summary="Get folder list",
         description="Returns all folders in the database with their paths. Use folder_path query param on /api/images to browse folder contents."
@@ -6035,150 +6127,34 @@ def create_api_router() -> APIRouter:
 
     # ─── End new Runs API ────────────────────────────────────────────────────
 
+
     @router.post(
-        "/pipeline/phase/backfill-index-meta",
+        "/maintenance/heal/{phase_code}",
         response_model=ApiResponse,
-        summary="Backfill Index/Meta phase status",
-        description="Sets INDEXING=DONE and METADATA=DONE for images that have SCORING=DONE but lack these statuses (repairs legacy or new-image backfill gap)."
-    )
-    async def backfill_index_meta(request: PipelineBackfillRequest):
-        from modules.ui.security import _check_rate_limit
-        from modules import db
-        _check_rate_limit("pipeline_backfill")
-
-        if not os.path.exists(request.input_path):
-            raise HTTPException(status_code=400, detail=f"Path not found: {request.input_path}")
-
-        updated = db.backfill_index_meta_for_folder(request.input_path)
-        return ApiResponse(
-            success=True,
-            message=f"Backfilled Index/Meta for {updated} image(s)",
-            data={"updated_images": updated}
-        )
-
-    @router.get(
-        "/maintenance/stale-running-phases",
-        summary="Diagnostic: image_phase_status rows stuck in running",
+        summary="Heal workflow phase: identify false completions, reset, and queue repair runs",
         description=(
-            "Returns a count and sample of per-image phase rows still `running` older than "
-            "`min_age_seconds`. Use before POST /api/maintenance/reconcile-terminal-job-phases."
+            "1. Identifies images marked 'done' for the phase but missing underlying data. "
+            "2. Resets those statuses to 'not_started' (healing false-positives). "
+            "3. Identifies folders with images needing the phase. "
+            "4. Spawns targeted pipeline runs for those folders (capacity-aware)."
         ),
         tags=["General API"],
     )
-    async def get_stale_running_phases(
-        min_age_seconds: int = Query(3600, ge=0, le=604800),
-        limit: int = Query(50, ge=1, le=200),
-    ):
-        from modules import db
-
-        result = db.list_stale_running_image_phase_rows(
-            min_age_seconds=min_age_seconds,
-            limit=limit,
-        )
-        result["reconcilable_count"] = db.count_reconcilable_terminal_job_phases()
-        return result
-
-    @router.post(
-        "/maintenance/reconcile-terminal-job-phases",
-        response_model=ApiResponse,
-        summary="Reconcile stuck phases for finished jobs",
-        description=(
-            "Marks `image_phase_status` rows as failed when the parent job is already terminal "
-            "(completed/failed/canceled) but a per-image row stayed `running`. "
-            "Safe self-help for UI/badge drift after crashes or restarts."
-        ),
-        tags=["General API"],
-    )
-    async def reconcile_terminal_job_phases(
-        limit: int = Query(5000, ge=1, le=50000),
-    ):
+    async def maintenance_heal_phase(phase_code: str, request: HealPhaseRequest):
         from modules.ui.security import _check_rate_limit
-        from modules import db
+        from modules import workflow_healing
 
-        _check_rate_limit("maintenance_reconcile_terminal_phases")
-        # Second arg must be phase_code; maintenance jobs have no pipeline phase (None).
-        queue_payload = {
-            "action": "reconcile",
-            "limit": limit,
-        }
-        queue_payload = augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id="reconcile_terminal_phases")
-        job_id, _ = db.enqueue_job(
-            maintenance_job_input_path("reconcile", queue_payload),
-            None,
-            job_type="maintenance",
-            queue_payload=queue_payload,
-            description=build_default_maintenance_description("reconcile", queue_payload),
-        )
-        if job_id is None:
-            raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
-        return ApiResponse(
-            success=True,
-            message=f"Reconcile job queued (Run ID: {job_id})",
-            data={"run_id": job_id},
-        )
-
-    @router.post(
-        "/maintenance/backfill-index-meta",
-        response_model=ApiResponse,
-        summary="Global backfill Index/Meta phase status (batched)",
-        description=(
-            "Sets INDEXING=DONE and METADATA=DONE for up to `limit` images that have SCORING=DONE "
-            "but lack those phase rows. Same semantics as backfill_index_meta_global; repeat to drain large DBs."
-        ),
-        tags=["General API"],
-    )
-    async def maintenance_backfill_index_meta(
-        limit: int = Query(1000, ge=1, le=10000),
-    ):
-        from modules.ui.security import _check_rate_limit
-        from modules import db
-
-        _check_rate_limit("maintenance_backfill_index_meta")
-        queue_payload = {
-            "action": "backfill_index_meta",
-            "limit": limit,
-        }
-        queue_payload = augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id="backfill_index_meta_global")
-        job_id, _ = db.enqueue_job(
-            maintenance_job_input_path("backfill_index_meta", queue_payload),
-            None,
-            job_type="maintenance",
-            queue_payload=queue_payload,
-            description=build_default_maintenance_description("backfill_index_meta", queue_payload),
-        )
-        if job_id is None:
-            raise HTTPException(status_code=500, detail="Failed to enqueue maintenance job")
-        return ApiResponse(
-            success=True,
-            message=f"Index/Meta backfill job queued (Run ID: {job_id})",
-            data={"run_id": job_id},
-        )
-
-    @router.post(
-        "/maintenance/schedule-folder-quality-runs",
-        response_model=ApiResponse,
-        summary="Queue validate-and-repair runs for top issue folders (capacity-aware)",
-        description=(
-            "Selects leaf folders with quality issues (same rollup as "
-            "`scripts/maintenance/folder_data_quality_report.py`), excludes folders already "
-            "covered by running/queued jobs, then enqueues up to "
-            "`max(0, budget - active_jobs)` runs — one pipeline job per folder. "
-            "Stages are derived from per-folder issue columns (scoring, thumbs, stacks, bird species)."
-        ),
-        tags=["General API"],
-    )
-    async def maintenance_schedule_folder_quality_runs(request: ScheduleFolderQualityRunsRequest):
-        from modules.ui.security import _check_rate_limit
-        from modules import folder_quality_schedule
-
-        _check_rate_limit("maintenance_schedule_folder_quality_runs")
+        _check_rate_limit(f"maintenance_heal_phase_{phase_code}")
         try:
             data = await asyncio.to_thread(
-                folder_quality_schedule.schedule_folder_quality_runs,
+                workflow_healing.heal_phase_data,
+                phase_code=phase_code,
                 root_path=request.root_path,
-                stack_after_culling_only=request.stack_after_culling_only,
+                dry_run=request.dry_run,
                 budget=request.budget,
                 run_mode=request.run_mode,
+<<<<<<< HEAD
+=======
                 dry_run=request.dry_run,
                 heal_thumbnails_global=request.heal_thumbnails_global,
             )
@@ -6490,7 +6466,10 @@ def create_api_router() -> APIRouter:
                 status="completed",
                 queue_payload={**audit_payload, "summary": summary},
                 description=audit_desc,
+>>>>>>> c6b6c5100acf4bc2d60ae3f82343055f1784c56a
             )
+            
+            n_resets = data.get("resets_performed", 0)
             if audit_run_id:
                 now = datetime.now()
                 log_text = json.dumps({"summary": summary}, default=str)

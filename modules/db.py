@@ -10,6 +10,7 @@ from collections import deque
 from pathlib import Path
 import traceback
 import queue
+from typing import List, Optional, Any, Union, Dict, Tuple
 
 from modules import config
 from modules.events import event_manager
@@ -1194,35 +1195,31 @@ def get_images_paginated(page=1, page_size=None, sort_by="score", order="desc", 
 
     return list(get_connector().query(query, tuple(params)))
 
-def get_images_paginated_with_count(page=1, page_size=None, sort_by="score", order="desc", rating_filter=None, label_filter=None, keyword_filter=None, min_score_general=0, min_score_aesthetic=0, min_score_technical=0, date_range=None, folder_path=None, stack_id=None, use_exif_date=False, make_filter=None, model_filter=None, lens_filter=None, iso_min=None, iso_max=None):
+def _build_image_query_components(
+    sort_by="score",
+    order="desc",
+    rating_filter=None,
+    label_filter=None,
+    keyword_filter=None,
+    min_score_general=0,
+    min_score_aesthetic=0,
+    min_score_technical=0,
+    date_range=None,
+    folder_path=None,
+    stack_id=None,
+    use_exif_date=False,
+    make_filter=None,
+    model_filter=None,
+    lens_filter=None,
+    iso_min=None,
+    iso_max=None,
+):
     """
-    Get paginated images AND total count using optimized approach.
-    Uses same connection for both queries to reduce overhead.
-    
-    When use_exif_date=True, date_range uses COALESCE(EXIF shot times, XMP sidecar create_date, created_at).
-    make_filter, model_filter, lens_filter: exact or LIKE match.
-    iso_min, iso_max: ISO range filter.
-    
-    Returns:
-        tuple: (rows, total_count) where rows is list of image records and total_count is int
+    Internal helper to build shared query components (joins, conditions, params, order_by).
     """
-    # Load page_size from config if not provided
-    if page_size is None:
-        ui_config = config.get_config_section('ui')
-        page_size = ui_config.get('gallery_page_size', 50)
-
-    # Ensure integers
-    try: page = int(page)
-    except (ValueError, TypeError): page = 1
-    try: page_size = int(page_size)
-    except (ValueError, TypeError): page_size = 50
     sort_by, order = _validate_sort(sort_by, order)
-
-    offset = (page - 1) * page_size
-    if offset < 0: offset = 0
-
-    # Need EXIF join for: EXIF filters, EXIF sort, or use_exif_date
     exif_sort_cols = {"date_time_original", "make", "model", "lens_model", "iso"}
+    
     need_exif_join = (
         use_exif_date and date_range
         or make_filter or model_filter or lens_filter or iso_min or iso_max
@@ -1337,14 +1334,54 @@ def get_images_paginated_with_count(page=1, page_size=None, sort_by="score", ord
     if need_exif_join and sort_by in exif_sort_cols:
         nulls = " NULLS LAST" if order == "DESC" else " NULLS FIRST"
         if sort_by == "date_time_original":
-            order_by = (
+            sort_expr = (
                 "COALESCE(image_exif.date_time_original, image_exif.create_date, "
-                f"image_xmp.create_date, images.created_at) {order}{nulls}"
+                "image_xmp.create_date, images.created_at)"
             )
         else:
-            order_by = f"image_exif.{sort_by} {order}{nulls}"
+            sort_expr = f"image_exif.{sort_by}"
+        order_by = f"{sort_expr} {order}{nulls}"
     else:
-        order_by = f"{tbl_prefix}{sort_by} {order}" if tbl_prefix else f"{sort_by} {order}"
+        sort_expr = f"{tbl_prefix}{sort_by}" if tbl_prefix else f"{sort_by}"
+        order_by = f"{sort_expr} {order}"
+
+    return {
+        "from_clause": from_clause,
+        "where_clause": where_clause,
+        "params": params,
+        "order_by": order_by,
+        "sort_expr": sort_expr,
+        "tbl_prefix": tbl_prefix,
+        "need_exif_join": need_exif_join,
+        "order": order,
+        "sort_by": sort_by,
+    }
+
+
+def get_images_paginated_with_count(page=1, page_size=None, **kwargs):
+    """
+    Get paginated images AND total count using optimized approach.
+    Uses same connection for both queries to reduce overhead.
+    """
+    # Load page_size from config if not provided
+    if page_size is None:
+        ui_config = config.get_config_section('ui')
+        page_size = ui_config.get('gallery_page_size', 50)
+
+    # Ensure integers
+    try: page = int(page)
+    except (ValueError, TypeError): page = 1
+    try: page_size = int(page_size)
+    except (ValueError, TypeError): page_size = 50
+
+    offset = (page - 1) * page_size
+    if offset < 0: offset = 0
+
+    q = _build_image_query_components(**kwargs)
+    from_clause = q["from_clause"]
+    where_clause = q["where_clause"]
+    params = q["params"]
+    order_by = q["order_by"]
 
     # OPTIMIZATION: Use Window Function to get count and data in single query
     query = f"SELECT images.*, COUNT(*) OVER() as total_count FROM{from_clause}{where_clause} ORDER BY {order_by} OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
@@ -1371,6 +1408,68 @@ def get_images_paginated_with_count(page=1, page_size=None, sort_by="score", ord
             return rows, total_count
         except Exception:
             raise e
+
+def get_image_neighbors(image_id, **kwargs):
+    """
+    Find the previous and next image IDs for a given image in a sorted/filtered sequence.
+    Useful for folder-aware keyboard navigation.
+    """
+    try:
+        image_id = int(image_id)
+    except (ValueError, TypeError):
+        return None, None
+
+    q = _build_image_query_components(**kwargs)
+    from_clause = q["from_clause"]
+    where_clause = q["where_clause"]
+    params = q["params"]
+    sort_expr = q["sort_expr"]
+    order = q["order"]
+    tbl_prefix = q["tbl_prefix"]
+
+    # 1. Get current image's sort value and secondary key (id)
+    # We need to join EXIF if sort_expr depends on it.
+    curr_query = f"SELECT {sort_expr} as val FROM{from_clause} WHERE images.id = ?"
+    curr_row = get_connector().query_one(curr_query, (image_id,))
+    if not curr_row:
+        return None, None
+    
+    curr_val = curr_row.get("val")
+
+    # 2. Build neighbor queries
+    # Next (relative to order)
+    # If order is DESC: lower values or same value with lower ID
+    # If order is ASC: higher values or same value with higher ID
+    if order == "DESC":
+        next_op = "<"
+        prev_op = ">"
+        next_order = "DESC"
+        prev_order = "ASC"
+    else:
+        next_op = ">"
+        prev_op = "<"
+        next_order = "ASC"
+        prev_order = "DESC"
+
+    def _find_neighbor(op, sort_order):
+        # We need to combine the existing filters (where_clause) with the neighbor logic.
+        # Handle NULLs by using COALESCE or IS NULL if needed, but for most sort cols (score, id, file_name) 
+        # NULLs are Rare or handled by COALESCE in sort_expr.
+        neighbor_where = where_clause
+        if neighbor_where:
+            neighbor_where += f" AND (({sort_expr} {op} ?) OR ({sort_expr} = ? AND images.id {op} ?))"
+        else:
+            neighbor_where = f" WHERE (({sort_expr} {op} ?) OR ({sort_expr} = ? AND images.id {op} ?))"
+            
+        n_params = params + [curr_val, curr_val, image_id]
+        n_query = f"SELECT images.id FROM{from_clause}{neighbor_where} ORDER BY {sort_expr} {sort_order}, images.id {sort_order} LIMIT 1"
+        row = get_connector().query_one(n_query, tuple(n_params))
+        return int(row["id"]) if row and row.get("id") is not None else None
+
+    next_id = _find_neighbor(next_op, next_order)
+    prev_id = _find_neighbor(prev_op, prev_order)
+
+    return prev_id, next_id
 
 def get_filtered_paths(rating_filter=None, label_filter=None, keyword_filter=None, min_score_general=0, min_score_aesthetic=0, min_score_technical=0, date_range=None, folder_path=None, stack_id=None):
     """
@@ -4313,7 +4412,11 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
                     tx.execute(
                         "UPDATE jobs SET status = 'running', finished_at = NULL, completed_at = NULL, "
                         "log = ?, current_phase = ?, next_phase_index = ?, runner_state = 'running', "
+<<<<<<< HEAD
+                        "phase_id = ? WHERE id = ?",
+=======
                         "phase_id = COALESCE(?, phase_id) WHERE id = ?",
+>>>>>>> c6b6c5100acf4bc2d60ae3f82343055f1784c56a
                         (eff_log, pc, po, pid, job_id),
                     )
                     return old_status, "running", pc, po, "running", root_job_type
@@ -5846,144 +5949,10 @@ def reconcile_duplicate_running_job_phases(job_id=None, limit_jobs=500):
     return {"jobs_fixed": jobs_fixed, "phases_reset": phases_reset}
 
 
-def reconcile_stale_running_phases_for_terminal_jobs(limit=5000):
-    """
-    Fix ``image_phase_status`` rows stuck in ``running`` while the linked ``jobs`` row
-    is already terminal (completed/failed/canceled/interrupted).
-
-    Returns:
-        int: approximate rows updated (connector-dependent).
-    """
-    terminal = ("completed", "failed", "canceled", "cancelled", "interrupted")
-    try:
-        limit = max(1, int(limit))
-    except (TypeError, ValueError):
-        limit = 5000
-
-    ph = ",".join("?" * len(terminal))
-    rows = get_connector().query(
-        f"""
-        SELECT ips.id AS row_id, i.folder_id AS folder_id
-        FROM image_phase_status ips
-        JOIN jobs j ON j.id = ips.job_id
-        LEFT JOIN images i ON i.id = ips.image_id
-        WHERE ips.status = 'running'
-          AND LOWER(TRIM(CAST(j.status AS VARCHAR(64)))) IN ({ph})
-        FETCH FIRST ? ROWS ONLY
-        """,
-        list(terminal) + [limit],
-    )
-    if not rows:
-        return 0
-
-    row_ids = [int(r["row_id"]) for r in rows if r and r.get("row_id") is not None]
-    folder_ids = list({r["folder_id"] for r in rows if r and r.get("folder_id") is not None})
-    if not row_ids:
-        return 0
-
-    placeholders = ",".join("?" * len(row_ids))
-    now = datetime.datetime.now()
-    msg = f"{STALE_RUNNING_RECONCILED_MSG}:terminal_job"
-    rc = get_connector().execute(
-        f"""
-        UPDATE image_phase_status
-        SET status = 'failed', last_error = ?, finished_at = ?, updated_at = ?
-        WHERE id IN ({placeholders})
-        """,
-        [msg, now, now] + row_ids,
-    )
-    try:
-        out = int(rc) if rc is not None else len(row_ids)
-    except (TypeError, ValueError):
-        out = len(row_ids)
-
-    for fid in folder_ids:
-        try:
-            invalidate_folder_phase_aggregates(folder_id=fid)
-        except Exception:
-            logger.debug("invalidate_folder_phase_aggregates after terminal-job reconcile failed folder_id=%s", fid)
-
-    return out
 
 
-def list_stale_running_image_phase_rows(min_age_seconds=3600, limit=100):
-    """
-    Diagnostic: ``image_phase_status`` rows still ``running`` older than ``min_age_seconds``.
-
-    Returns:
-        dict with ``count_estimate``, ``sample`` (list of row dicts), ``min_age_seconds``.
-    """
-    try:
-        min_age_seconds = max(0, int(min_age_seconds))
-    except (TypeError, ValueError):
-        min_age_seconds = 3600
-    try:
-        limit = max(1, min(500, int(limit)))
-    except (TypeError, ValueError):
-        limit = 100
-
-    cutoff = datetime.datetime.now() - datetime.timedelta(seconds=min_age_seconds)
-    rows = get_connector().query(
-        """
-        SELECT ips.image_id, ips.job_id, ips.phase_id, ips.started_at, ips.last_error,
-               pp.code AS phase_code, i.file_path
-        FROM image_phase_status ips
-        JOIN pipeline_phases pp ON pp.id = ips.phase_id
-        LEFT JOIN images i ON i.id = ips.image_id
-        WHERE ips.status = 'running'
-          AND (ips.started_at IS NULL OR ips.started_at < ?)
-        ORDER BY ips.started_at NULLS FIRST
-        FETCH FIRST ? ROWS ONLY
-        """,
-        (cutoff, limit),
-    )
-    cnt_row = get_connector().query_one(
-        """
-        SELECT COUNT(*) AS c
-        FROM image_phase_status ips
-        WHERE ips.status = 'running'
-          AND (ips.started_at IS NULL OR ips.started_at < ?)
-        """,
-        (cutoff,),
-    )
-    total = int((cnt_row or {}).get("c") or 0)
-    sample = []
-    for r in rows or []:
-        sample.append({
-            "image_id": r.get("image_id"),
-            "job_id": r.get("job_id"),
-            "phase_id": r.get("phase_id"),
-            "phase_code": (r.get("phase_code") or "").strip(),
-            "started_at": str(r.get("started_at")) if r.get("started_at") else None,
-            "last_error": r.get("last_error"),
-            "file_path": r.get("file_path"),
-        })
-    return {
-        "min_age_seconds": min_age_seconds,
-        "count_estimate": total,
-        "sample": sample,
-    }
 
 
-def count_reconcilable_terminal_job_phases():
-    """
-    Count ``image_phase_status`` rows still ``running`` whose parent ``jobs`` row
-    is already terminal — same predicate as ``reconcile_stale_running_phases_for_terminal_jobs``
-    (no ``started_at`` / age filter).
-    """
-    terminal = ("completed", "failed", "canceled", "cancelled", "interrupted")
-    ph = ",".join("?" * len(terminal))
-    cnt_row = get_connector().query_one(
-        f"""
-        SELECT COUNT(*) AS c
-        FROM image_phase_status ips
-        JOIN jobs j ON j.id = ips.job_id
-        WHERE ips.status = 'running'
-          AND LOWER(TRIM(CAST(j.status AS VARCHAR(64)))) IN ({ph})
-        """,
-        list(terminal),
-    )
-    return int((cnt_row or {}).get("c") or 0)
 
 
 def _strict_verify_resolved_ids_terminal_for_phase(job_id):
@@ -7127,6 +7096,91 @@ def _incomplete_images_where_sql(table_alias: str = "") -> str:
             ({prefix}label IS NULL OR TRIM({prefix}label) = '') OR
             ({score_cond})
         )"""
+
+
+def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
+    """Return an image-level WHERE clause identifying images with missing data for a phase."""
+    prefix = f"{table_alias}." if table_alias else ""
+    code = (phase_code or "").strip().lower()
+
+    if code == "indexing":
+        return f"({prefix}image_hash IS NULL OR TRIM(CAST({prefix}image_hash AS VARCHAR(128))) = '')"
+
+    if code == "metadata":
+        return f"""(
+            COALESCE(TRIM({prefix}thumbnail_path), '') = ''
+            AND COALESCE(TRIM({prefix}thumbnail_path_win), '') = ''
+            AND NOT EXISTS (
+                SELECT 1 FROM image_exif ie WHERE ie.image_id = {prefix}id
+            )
+        )"""
+
+    if code == "scoring":
+        return _incomplete_images_where_sql(table_alias)
+
+    if code == "culling":
+        return f"({prefix}stack_id IS NULL)"
+
+    if code == "keywords":
+        return f"""(
+            NOT EXISTS (
+                SELECT 1 FROM image_keywords ik WHERE ik.image_id = {prefix}id
+            )
+        )"""
+
+    if code == "bird_species":
+        return f"""(
+            EXISTS (
+                SELECT 1 FROM image_keywords ik_b
+                JOIN keywords_dim kd_b ON kd_b.keyword_id = ik_b.keyword_id
+                WHERE ik_b.image_id = {prefix}id
+                  AND LOWER(kd_b.keyword_norm) LIKE '%birds%'
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM image_keywords ik_s
+                JOIN keywords_dim kd_s ON kd_s.keyword_id = ik_s.keyword_id
+                WHERE ik_s.image_id = {prefix}id
+                  AND kd_s.keyword_norm LIKE 'species:%'
+            )
+        )"""
+
+    return "1=0"  # Default to no matches for unknown phase
+
+
+def reset_image_phase_status(image_ids: List[int], phase_code: str) -> int:
+    """
+    Bulk reset image phase status to 'not_started' for the specified images and phase.
+    Returns the number of rows updated.
+    """
+    if not image_ids:
+        return 0
+
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        # Find phase_id
+        c.execute("SELECT id FROM pipeline_phases WHERE LOWER(TRIM(code)) = ?", (phase_code.lower(),))
+        row = c.fetchone()
+        if not row:
+            logger.warning("reset_image_phase_status: unknown phase code '%s'", phase_code)
+            return 0
+        phase_id = row[0]
+
+        updated_total = 0
+        chunk_size = 900
+        for i in range(0, len(image_ids), chunk_size):
+            chunk = image_ids[i:i + chunk_size]
+            placeholders = ",".join(["?"] * len(chunk))
+            sql = f"UPDATE image_phase_status SET status = 'not_started', updated_at = CURRENT_TIMESTAMP " \
+                  f"WHERE phase_id = ? AND image_id IN ({placeholders})"
+            params = [phase_id] + list(chunk)
+            c.execute(sql, tuple(params))
+            updated_total += c.rowcount
+
+        conn.commit()
+        return updated_total
+    finally:
+        conn.close()
 
 
 def is_image_scoring_complete(image_id: int) -> bool:
@@ -10321,296 +10375,14 @@ def set_folder_phase_status(folder_path, phase_code, status, reason=None, actor=
     return len(image_ids)
 
 
-def backfill_index_meta_for_folder(folder_path):
-    """
-    Set INDEXING=DONE and METADATA=DONE for images that have SCORING=DONE
-    but lack INDEXING or METADATA status (backfill gap from legacy runs or new-image flow).
-
-    Args:
-        folder_path: Target folder path (includes subfolders).
-
-    Returns:
-        int: number of images updated.
-    """
-    from modules import utils
-
-    if not folder_path:
-        return 0
-
-    wsl_path = utils.convert_path_to_wsl(folder_path) if hasattr(utils, 'convert_path_to_wsl') else folder_path
-    target_path = wsl_path if wsl_path else folder_path
-    path_like_unix = target_path + "/%"
-    path_like_win = target_path + "\\%"
-
-    rows = get_connector().query(
-        """
-        SELECT i.id
-        FROM images i
-        JOIN folders f ON f.id = i.folder_id
-        WHERE f.path = ? OR f.path LIKE ? OR f.path LIKE ?
-        AND EXISTS (
-            SELECT 1 FROM image_phase_status ips
-            JOIN pipeline_phases pp ON pp.id = ips.phase_id
-            WHERE ips.image_id = i.id AND pp.code = 'scoring' AND ips.status = 'done'
-        )
-        AND (
-            NOT EXISTS (
-                SELECT 1 FROM image_phase_status ips2
-                JOIN pipeline_phases pp2 ON pp2.id = ips2.phase_id
-                WHERE ips2.image_id = i.id AND pp2.code = 'indexing' AND ips2.status = 'done'
-            )
-            OR NOT EXISTS (
-                SELECT 1 FROM image_phase_status ips3
-                JOIN pipeline_phases pp3 ON pp3.id = ips3.phase_id
-                WHERE ips3.image_id = i.id AND pp3.code = 'metadata' AND ips3.status = 'done'
-            )
-        )
-        """,
-        (target_path, path_like_unix, path_like_win))
-    image_ids = [row["id"] for row in rows]
-
-    for image_id in image_ids:
-        set_image_phase_status(image_id, "indexing", "done")
-        set_image_phase_status(image_id, "metadata", "done")
-
-    if image_ids:
-        invalidate_folder_phase_aggregates(folder_path=target_path)
-
-    return len(image_ids)
 
 
-def backfill_index_meta_global(limit=None, dry_run=False):
-    """
-    Same semantics as backfill_index_meta_for_folder, but for all images in the DB.
-
-    Sets INDEXING=DONE and METADATA=DONE when SCORING is DONE but either earlier
-    phase is missing or not done (repairs GAP-D / WORKFLOW_STAGES_ANALYSIS gaps).
-
-    Args:
-        limit: Optional max number of images to update (for staged rollouts).
-        dry_run: If True, only return the count of images that would be updated.
-
-    Returns:
-        int: number of images that would be or were updated.
-    """
-    rows = get_connector().query(
-        """
-        SELECT i.id
-        FROM images i
-        WHERE EXISTS (
-            SELECT 1 FROM image_phase_status ips
-            JOIN pipeline_phases pp ON pp.id = ips.phase_id
-            WHERE ips.image_id = i.id
-              AND LOWER(TRIM(pp.code)) = 'scoring'
-              AND LOWER(TRIM(ips.status)) = 'done'
-        )
-        AND (
-            NOT EXISTS (
-                SELECT 1 FROM image_phase_status ips2
-                JOIN pipeline_phases pp2 ON pp2.id = ips2.phase_id
-                WHERE ips2.image_id = i.id
-                  AND LOWER(TRIM(pp2.code)) = 'indexing'
-                  AND LOWER(TRIM(ips2.status)) = 'done'
-            )
-            OR NOT EXISTS (
-                SELECT 1 FROM image_phase_status ips3
-                JOIN pipeline_phases pp3 ON pp3.id = ips3.phase_id
-                WHERE ips3.image_id = i.id
-                  AND LOWER(TRIM(pp3.code)) = 'metadata'
-                  AND LOWER(TRIM(ips3.status)) = 'done'
-            )
-        )
-        """)
-    image_ids = [row["id"] for row in rows]
-
-    if isinstance(limit, int) and limit > 0:
-        image_ids = image_ids[:limit]
-
-    if dry_run:
-        return len(image_ids)
-
-    for image_id in image_ids:
-        set_image_phase_status(image_id, "indexing", "done")
-        set_image_phase_status(image_id, "metadata", "done")
-
-    if image_ids:
-        get_connector().execute("UPDATE folders SET phase_agg_dirty = 1")
-
-    return len(image_ids)
 
 
-def repair_stuck_running_ips(hours=2, phase_code=None, dry_run=False):
-    """
-    Mark IMAGE_PHASE_STATUS rows stuck in running/queued (older than ``hours``)
-    as failed so the UI and policy layer can retry.
-
-    Uses a direct UPDATE to avoid invalid FSM transitions (e.g. queued→failed).
-
-    Args:
-        hours: Minimum age of updated_at or started_at before repair.
-        phase_code: If set, only rows for this pipeline_phases.code (e.g. 'culling').
-        dry_run: If True, only count matching rows.
-
-    Returns:
-        dict with keys matched, updated.
-    """
-    import datetime as _dt
-
-    threshold = _dt.datetime.now() - _dt.timedelta(hours=hours)
-    msg = (
-        "repair_stuck_running_ips: stuck running/queued beyond threshold; "
-        "likely lost job_id in worker queue. Re-run this phase if needed."
-    )
-
-    sql = """
-        SELECT ips.id
-        FROM image_phase_status ips
-        JOIN pipeline_phases pp ON pp.id = ips.phase_id
-        WHERE LOWER(TRIM(ips.status)) IN ('running', 'queued')
-          AND (
-              (ips.updated_at IS NOT NULL AND ips.updated_at < ?)
-              OR (ips.updated_at IS NULL AND ips.started_at IS NOT NULL AND ips.started_at < ?)
-          )
-    """
-    params = [threshold, threshold]
-    if phase_code:
-        sql += " AND LOWER(TRIM(pp.code)) = ?"
-        params.append(str(phase_code).strip().lower())
-
-    rows = get_connector().query(sql, tuple(params))
-    ids = [row["id"] for row in rows]
-
-    if dry_run:
-        return {"matched": len(ids), "updated": 0}
-
-    def _tx(tx):
-        now = _dt.datetime.now()
-        for ips_id in ids:
-            tx.execute(
-                """
-                UPDATE image_phase_status
-                SET status = 'failed',
-                    last_error = ?,
-                    finished_at = ?,
-                    updated_at = ?,
-                    job_id = NULL
-                WHERE id = ?
-                """,
-                (msg, now, now, ips_id))
-        if ids:
-            tx.execute("UPDATE folders SET phase_agg_dirty = 1")
-
-    get_connector().run_transaction(_tx)
-    return {"matched": len(ids), "updated": len(ids)}
 
 
-def repair_legacy_keywords_junction(limit=None, dry_run=False):
-    """
-    Dual-write repair: images.keywords is non-empty but image_keywords has no rows.
-
-    Calls _sync_image_keywords for each matching image (GAP-E / bird keyword queries).
-
-    Args:
-        limit: Optional max images to process.
-        dry_run: If True, return counts only.
-
-    Returns:
-        dict: matched, synced
-    """
-    rows = get_connector().query(
-        """
-        SELECT i.id, i.keywords
-        FROM images i
-        WHERE i.keywords IS NOT NULL
-        AND NOT EXISTS (
-            SELECT 1 FROM image_keywords ik WHERE ik.image_id = i.id
-        )
-        """)
-    pairs = [(row["id"], str(row["keywords"]) if row.get("keywords") is not None else None) for row in rows]
-
-    if isinstance(limit, int) and limit > 0:
-        pairs = pairs[:limit]
-
-    if dry_run:
-        return {"matched": len(pairs), "synced": 0}
-
-    synced = 0
-    nulled = 0
-    for image_id, keywords_str in pairs:
-        if not keywords_str or not keywords_str.strip():
-            try:
-                get_connector().execute("UPDATE images SET keywords = NULL WHERE id = ?", (image_id,))
-                nulled += 1
-            except Exception as e:
-                logger.warning("repair_legacy_keywords_junction: null-cleanup image %s: %s", image_id, e)
-        else:
-            try:
-                _sync_image_keywords(image_id, keywords_str, source="repair_legacy_keywords_junction")
-                synced += 1
-            except Exception as e:
-                logger.warning("repair_legacy_keywords_junction: image %s: %s", image_id, e)
-
-    return {"matched": len(pairs), "synced": synced, "nulled": nulled}
 
 
-def repair_culling_ips_failed_has_data(dry_run=False):
-    """
-    Repair GAP-C: culling IPS is 'failed' but the image has a stack_id / embedding.
-    This happens when a job was force-failed by the repair script but the work
-    actually completed. Since data is present, the accurate state is 'done'.
-
-    Returns:
-        dict: matched, repaired
-    """
-    conn = get_connector()
-    if conn.type == 'postgres':
-        sub = _pg_default_embedding_space_subquery_sql()
-        has_e = _postgres_has_default_embedding_sql("i")
-        sql = f"""
-            SELECT ips.id
-            FROM image_phase_status ips
-            JOIN pipeline_phases pp ON pp.id = ips.phase_id
-            JOIN images i ON i.id = ips.image_id
-            LEFT JOIN image_embeddings ie ON ie.image_id = i.id AND ie.embedding_space_id = {sub}
-            WHERE LOWER(TRIM(pp.code)) = 'culling'
-              AND LOWER(TRIM(ips.status)) = 'failed'
-              AND (i.stack_id IS NOT NULL OR {has_e})
-            """
-        rows = conn.query(sql)
-    else:
-        rows = conn.query(
-            """
-            SELECT ips.id
-            FROM image_phase_status ips
-            JOIN pipeline_phases pp ON pp.id = ips.phase_id
-            JOIN images i ON i.id = ips.image_id
-            WHERE LOWER(TRIM(pp.code)) = 'culling'
-              AND LOWER(TRIM(ips.status)) = 'failed'
-              AND (i.stack_id IS NOT NULL OR i.image_embedding IS NOT NULL)
-            """)
-    ids = [row["id"] for row in rows]
-
-    if dry_run:
-        return {"matched": len(ids), "repaired": 0}
-
-    def _tx(tx):
-        now = datetime.datetime.now()
-        for ips_id in ids:
-            tx.execute(
-                """
-                UPDATE image_phase_status
-                SET status = 'done',
-                    last_error = NULL,
-                    finished_at = COALESCE(finished_at, ?),
-                    updated_at = ?
-                WHERE id = ?
-                """,
-                (now, now, ips_id))
-        if ids:
-            tx.execute("UPDATE folders SET phase_agg_dirty = 1")
-
-    get_connector().run_transaction(_tx)
-    return {"matched": len(ids), "repaired": len(ids)}
 
 
 def backfill_keywords_ips_done(dry_run=False):

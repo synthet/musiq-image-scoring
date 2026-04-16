@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
@@ -175,7 +176,12 @@ function ImageActionsTable({ runId, report }: { runId: number; report: JobExecut
                   return (
                     <tr key={item.id} className="border-b border-border/50 hover:bg-muted/30">
                       <td className="py-1.5 px-2 max-w-[200px] truncate" title={item.file_path ?? ''}>
-                        {item.file_path ? item.file_path.split(/[/\\]/).pop() : `#${item.image_id}`}
+                        <Link
+                          to={`/images/${item.image_id}`}
+                          className="hover:text-primary hover:underline"
+                        >
+                          {item.file_path ? item.file_path.split(/[/\\]/).pop() : `#${item.image_id}`}
+                        </Link>
                       </td>
                       <td className="py-1.5 px-2">
                         {STAGE_DISPLAY[item.phase_code as keyof typeof STAGE_DISPLAY]?.name ?? item.phase_code}

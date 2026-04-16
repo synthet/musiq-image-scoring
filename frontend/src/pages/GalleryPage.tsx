@@ -6,9 +6,10 @@ import { Star, Filter, X } from 'lucide-react'
 import { VirtuosoGrid } from 'react-virtuoso'
 import { galleryApi, type ImageFilters } from '@/api/gallery'
 import { Button } from '@/components/ui/button'
+import { LABEL_COLORS } from '@/components/images/InspectorPrimitives'
 import type { Image } from '@/types/api'
 
-const LABELS = ['Pick', 'Reject', 'Normal']
+const LABELS = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Gray', 'Pick', 'Reject']
 const PER_PAGE = 100
 
 type BaseFilters = Omit<ImageFilters, 'page' | 'page_size'>
@@ -234,6 +235,13 @@ function ImageTile({
         <div className="w-full h-full bg-[#3c3c3c] flex items-center justify-center text-[#6d6d6d] text-xs">
           No preview
         </div>
+      )}
+      {image.label && (
+        <div 
+          className="absolute top-1 left-1 w-2.5 h-2.5 rounded-full border border-black/50 shadow-sm"
+          style={{ backgroundColor: LABEL_COLORS[image.label.toLowerCase()] || '#808080' }}
+          title={image.label}
+        />
       )}
       {image.rating != null && image.rating > 0 && (
         <div className="absolute bottom-1 left-1 flex">

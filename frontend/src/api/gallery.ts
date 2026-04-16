@@ -38,6 +38,11 @@ export interface ImageUpdateRequest {
   write_sidecar?: boolean
 }
 
+export interface NeighborResponse {
+  prev_id: number | null
+  next_id: number | null
+}
+
 export const galleryApi = {
   list: (filters: ImageFilters = {}) => {
     const q = new URLSearchParams()
@@ -45,6 +50,13 @@ export const galleryApi = {
       if (v != null) q.set(k, String(v))
     })
     return api.get<ImageListResponse>(`/images?${q.toString()}`)
+  },
+  getNeighbors: (id: number, filters: ImageFilters = {}) => {
+    const q = new URLSearchParams()
+    Object.entries(filters).forEach(([k, v]) => {
+      if (v != null) q.set(k, String(v))
+    })
+    return api.get<NeighborResponse>(`/images/${id}/neighbors?${q.toString()}`)
   },
   get: (id: number) => api.get<ImageDetail>(`/images/${id}`),
   getByUuid: (uuid: string) =>
