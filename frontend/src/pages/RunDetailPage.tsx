@@ -76,6 +76,7 @@ export function RunDetailPage() {
   const scopePaths = run && Array.isArray(run.scope_paths) && run.scope_paths.length > 0
     ? run.scope_paths
     : run ? [run.input_path ?? ''] : []
+  const reportSupported = run ? supportsExecutionReport(run) : false
 
   if (runLoading) {
     return (
@@ -204,7 +205,7 @@ export function RunDetailPage() {
 
       {/* Execution report (for terminal jobs) */}
       {(run.status === 'completed' || run.status === 'failed' || run.status === 'canceled' || run.status === 'interrupted') && (
-        <ReportPanel runId={id} />
+        <ReportPanel runId={id} reportSupported={reportSupported} />
       )}
 
       {/* Log panel */}
@@ -227,6 +228,15 @@ function formatDuration(start: string, end: string): string {
   const ms = new Date(end).getTime() - new Date(start).getTime()
   if (ms < 60000) return `${(ms / 1000).toFixed(0)}s`
   return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`
+}
+
+function supportsExecutionReport(run: { job_type?: string; capabilities?: { execution_report?: boolean } | null }): boolean {
+  if (typeof run.capabilities?.execution_report === 'boolean') {
+    return run.capabilities.execution_report
+  }
+  const jt = String(run.job_type ?? '').trim().toLowerCase()
+  if (['indexing', 'metadata', 'scoring', 'pipeline'].includes(jt)) return true
+  return false
 }
 
 function PostRunAuditSummary({ audit, runId }: { audit: Record<string, unknown>; runId: number }) {

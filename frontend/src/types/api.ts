@@ -51,6 +51,10 @@ export interface Run {
   runner_state: string | null
   /** Parsed jobs.queue_payload — run_mode, force_rescan, scope, clustering params, etc. */
   queue_payload?: Record<string, unknown> | null
+  /** Backend-derived feature flags for this run type / phase plan. */
+  capabilities?: {
+    execution_report?: boolean
+  } | null
   /** Human-readable reason / scope for troubleshooting (jobs.description). */
   description?: string | null
 }
@@ -187,6 +191,14 @@ export interface JobExecutionReport {
   phases: Record<string, PhaseExecutionReport>
   aggregate_before?: ScoreAggregate
   aggregate_after?: ScoreAggregate
+}
+
+export interface RunReportResponse {
+  available: boolean
+  report?: JobExecutionReport
+  reason?: string
+  message?: string
+  run_type?: string
 }
 
 export interface ImageAction {
