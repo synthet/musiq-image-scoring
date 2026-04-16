@@ -6456,6 +6456,13 @@ def create_api_router() -> APIRouter:
                 db.set_job_phase_state(audit_run_id, "maintenance", "completed")
         except Exception as audit_err:
             logger.warning("recalculate_status_from_data: audit job row skipped: %s", audit_err)
+            summary.setdefault("warnings", []).append(
+                {
+                    "type": "audit_row_skipped",
+                    "message": "Audit job row creation failed; main recalculation completed successfully.",
+                    "details": str(audit_err),
+                }
+            )
 
         return ApiResponse(
             success=True,
