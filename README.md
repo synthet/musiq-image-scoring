@@ -405,6 +405,29 @@ The tool uses a **triple fallback mechanism** for maximum reliability:
 - **Database locked**: Ensure only one instance is running
 - **Missing scores**: Check logs in WebUI or `logs/` directory
 
+### Git / Merge Issues
+
+1. **`git pull` reports conflicts (e.g., `modules/api.py`, `modules/db.py`)**:
+   ```bash
+   # 1) Confirm conflicted files
+   git status
+
+   # 2) Open each conflicted file and resolve blocks between:
+   # <<<<<<< HEAD
+   # =======
+   # >>>>>>> <incoming-branch>
+
+   # 3) Mark each file as resolved
+   git add modules/api.py modules/db.py modules/metadata_runner.py
+
+   # 4) Complete the merge
+   git commit
+   ```
+   - In VS Code, you can use **Accept Current / Accept Incoming / Accept Both** for each hunk.
+   - Re-run `git status` after editing; it should no longer show **unmerged paths**.
+   - If you want to discard the merge attempt and start over: `git merge --abort`.
+   - Before pushing, validate with `git pull --rebase` (or your team’s preferred pull strategy) to reduce future conflicts.
+
 📖 **See also:** [Project Review](docs/reports/project-reviews/PROJECT_REVIEW_DETAILED_2026-01-31.md) | [Test Status](docs/testing/TEST_STATUS.md)
 
 ---
