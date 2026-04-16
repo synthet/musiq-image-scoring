@@ -6170,6 +6170,7 @@ def create_api_router() -> APIRouter:
         from modules import db, utils
 
         _check_rate_limit("maintenance_recalculate_status_from_data")
+        summary: Dict[str, Any] = {}
 
         selected_scope = (scope or "selected_folder").strip().lower()
         if selected_scope == "selected_folder" and not (scope_path and scope_path.strip()):
@@ -6457,14 +6458,20 @@ def create_api_router() -> APIRouter:
         except Exception as audit_err:
             logger.warning("recalculate_status_from_data: audit job row skipped: %s", audit_err)
 
+        summary_payload = summary if isinstance(summary, dict) else {}
+        per_image_changes = summary_payload.get("per_image_changes") or {}
+        folder_changes = summary_payload.get("folder_aggregate_changes") or {}
+        total_rows_changed = int(per_image_changes.get("total_rows_changed_estimate") or 0)
+        folders_rebuilt = int(folder_changes.get("folders_recomputed") or folders_recomputed or 0)
+
         return ApiResponse(
             success=True,
             message=(
                 "Status recalculation finished: "
-                f"{summary['per_image_changes']['total_rows_changed_estimate']} per-image row changes "
-                f"(heuristic estimate), {folders_recomputed} folder aggregate(s) rebuilt."
+                f"{total_rows_changed} per-image row changes "
+                f"(heuristic estimate), {folders_rebuilt} folder aggregate(s) rebuilt."
             ),
-            data={"summary": summary, "audit_run_id": audit_run_id},
+            data={"summary": summary_payload, "audit_run_id": audit_run_id},
         )
 
     @router.post(
