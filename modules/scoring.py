@@ -13,6 +13,7 @@ from modules.indexing_policy import passes_nikon_nef_policy
 
 logger = logging.getLogger(__name__)
 
+_musiq_import_error = None
 try:
     from scripts.python.run_all_musiq_models import MultiModelMUSIQ
     try:
@@ -21,11 +22,9 @@ try:
         IScoringEngine.register(MultiModelMUSIQ)
     except Exception:
         pass
-except ImportError:
-    print("Warning: Could not import MultiModelMUSIQ for version info")
-
-    class MultiModelMUSIQ:
-        VERSION = "0.0.0"
+except ImportError as exc:
+    _musiq_import_error = exc
+    MultiModelMUSIQ = None
 
 class ScoringRunner:
     """
@@ -125,6 +124,17 @@ class ScoringRunner:
         if not target_phases:
              target_phases = [PhaseCode.SCORING]
         normalized_target_phases = normalize_phase_codes(target_phases)
+
+        if _musiq_import_error is not None:
+            msg = f"Failed to import MultiModelMUSIQ: {_musiq_import_error}"
+            log(msg, "ERROR")
+            self.status_message = "Error loading models"
+            db.update_job_status(job_id, "failed", msg)
+            event_manager.broadcast_threadsafe(
+                "job_completed",
+                {"job_id": job_id, "status": "failed", "error": msg},
+            )
+            return
         
         # Checking/Loading Models (skip when a scorer was injected via constructor)
         if self.shared_scorer is None:
@@ -414,6 +424,17 @@ class ScoringRunner:
         
         def log(msg):
             self.log_history.append(msg)
+
+        if _musiq_import_error is not None:
+            msg = f"Failed to import MultiModelMUSIQ: {_musiq_import_error}"
+            log(msg)
+            self.status_message = "Error loading models"
+            db.update_job_status(job_id, "failed", msg)
+            event_manager.broadcast_threadsafe(
+                "job_completed",
+                {"job_id": job_id, "status": "failed", "error": msg},
+            )
+            return
             
         records = db.get_incomplete_records()
         if not records:
