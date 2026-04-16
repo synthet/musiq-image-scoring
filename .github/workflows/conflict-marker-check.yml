@@ -1,0 +1,25 @@
+name: Conflict marker check
+
+on:
+  pull_request:
+    paths:
+      - 'modules/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/conflict-marker-check.yml'
+  merge_group:
+    paths:
+      - 'modules/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/conflict-marker-check.yml'
+
+jobs:
+  conflict-markers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for unresolved merge conflict markers
+        run: scripts/check_conflict_markers.sh
