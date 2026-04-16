@@ -179,7 +179,33 @@ def _normalize_jobs_table_row(d: dict) -> dict:
             out["queue_payload"] = json.loads(qp)
         except (json.JSONDecodeError, TypeError):
             pass
+    out["capabilities"] = {
+        "execution_report": _job_supports_execution_report(out),
+    }
     return out
+
+
+def _job_supports_execution_report(job: Optional[Dict[str, Any]], phase_codes: Optional[List[str]] = None) -> bool:
+    """Whether a job type/phase plan is expected to produce ``report_json``."""
+    if not isinstance(job, dict):
+        return False
+    jt = str(job.get("job_type") or "").strip().lower()
+    if jt in ("indexing", "metadata", "scoring"):
+        return True
+    if jt in ("tagging", "keywords", "selection", "culling", "clustering", "bird_species", "maintenance"):
+        return False
+
+    codes = {
+        str(c).strip().lower()
+        for c in (phase_codes or [])
+        if isinstance(c, str) and str(c).strip()
+    }
+    if codes:
+        return bool(codes.intersection({"indexing", "metadata", "scoring"}))
+
+    if jt == "pipeline":
+        return True
+    return False
 
 
 def _normalize_incident_row(d: dict) -> dict:
@@ -3108,6 +3134,10 @@ def create_api_router() -> APIRouter:
             payload["phases"] = [
                 _decode_db_row_blobs(dict(p)) for p in db.get_job_phases(job_id)
             ]
+            phase_codes = [str(p.get("phase_code") or "") for p in payload["phases"]]
+            payload["capabilities"] = {
+                "execution_report": _job_supports_execution_report(payload, phase_codes),
+            }
             return _json_response_db(payload, f"GET /api/jobs/{job_id}")
         except HTTPException:
             raise
@@ -5682,10 +5712,25 @@ def create_api_router() -> APIRouter:
     async def get_run_report(run_id: int):
         from modules import db
         try:
+            job = await asyncio.to_thread(db.get_job_by_id, run_id)
+            if not job:
+                raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+            phases = await asyncio.to_thread(db.get_job_phases, run_id)
+            phase_codes = [str((p or {}).get("phase_code") or "") for p in (phases or [])]
+            if not _job_supports_execution_report(dict(job), phase_codes):
+                return {
+                    "available": False,
+                    "reason": "unsupported_run_type",
+                    "message": "Execution report is not available for this run type.",
+                    "run_type": str(job.get("job_type") or ""),
+                }
             report = await asyncio.to_thread(db.get_job_report, run_id)
             if report is None:
                 raise HTTPException(status_code=404, detail=f"No execution report for run {run_id}")
-            return report
+            return {
+                "available": True,
+                "report": report,
+            }
         except HTTPException:
             raise
         except Exception as e:
@@ -6170,6 +6215,7 @@ def create_api_router() -> APIRouter:
         from modules import db, utils
 
         _check_rate_limit("maintenance_recalculate_status_from_data")
+        summary: Dict[str, Any] = {}
 
         selected_scope = (scope or "selected_folder").strip().lower()
         if selected_scope == "selected_folder" and not (scope_path and scope_path.strip()):
@@ -6456,15 +6502,28 @@ def create_api_router() -> APIRouter:
                 db.set_job_phase_state(audit_run_id, "maintenance", "completed")
         except Exception as audit_err:
             logger.warning("recalculate_status_from_data: audit job row skipped: %s", audit_err)
+            summary.setdefault("warnings", []).append(
+                {
+                    "type": "audit_row_skipped",
+                    "message": "Audit job row creation failed; main recalculation completed successfully.",
+                    "details": str(audit_err),
+                }
+            )
+
+        summary_payload = summary if isinstance(summary, dict) else {}
+        per_image_changes = summary_payload.get("per_image_changes") or {}
+        folder_changes = summary_payload.get("folder_aggregate_changes") or {}
+        total_rows_changed = int(per_image_changes.get("total_rows_changed_estimate") or 0)
+        folders_rebuilt = int(folder_changes.get("folders_recomputed") or folders_recomputed or 0)
 
         return ApiResponse(
             success=True,
             message=(
                 "Status recalculation finished: "
-                f"{summary['per_image_changes']['total_rows_changed_estimate']} per-image row changes "
-                f"(heuristic estimate), {folders_recomputed} folder aggregate(s) rebuilt."
+                f"{total_rows_changed} per-image row changes "
+                f"(heuristic estimate), {folders_rebuilt} folder aggregate(s) rebuilt."
             ),
-            data={"summary": summary, "audit_run_id": audit_run_id},
+            data={"summary": summary_payload, "audit_run_id": audit_run_id},
         )
 
     @router.post(

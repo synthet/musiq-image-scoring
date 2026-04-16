@@ -191,13 +191,17 @@ class IndexingRunner:
             return
         try:
             text = "\n".join(self.log_history)
-            if len(text) > _MAX_PERSISTED_JOB_LOG_CHARS:
-                text = text[-_MAX_PERSISTED_JOB_LOG_CHARS:]
+            if len(text) > MAX_PERSISTED_JOB_LOG_CHARS:
+                text = text[-MAX_PERSISTED_JOB_LOG_CHARS:]
+
             if hasattr(db, "update_job_log"):
                 db.update_job_log(job_id, text)
                 return
 
-            row = db.get_connector().query_one("SELECT status FROM jobs WHERE id = ?", (job_id,))
+            row = db.get_connector().query_one(
+                "SELECT status FROM jobs WHERE id = ?",
+                (job_id,),
+            )
             current_status = (row.get("status") or "").strip().lower() if row else ""
 
             # Keep writing logs for terminal/paused/etc jobs (post-failure cleanup/progress messages)
@@ -205,9 +209,15 @@ class IndexingRunner:
             if current_status == "running":
                 db.update_job_status(job_id, "running", log=text)
             else:
-                db.get_connector().execute("UPDATE jobs SET log = ? WHERE id = ?", (text, job_id))
+                db.get_connector().execute(
+                    "UPDATE jobs SET log = ? WHERE id = ?",
+                    (text, job_id),
+                )
         except Exception:
-            logger.exception("IndexingRunner: failed to persist log to jobs row (job_id=%s)", job_id)
+            logger.exception(
+                "IndexingRunner: failed to persist log to jobs row (job_id=%s)",
+                job_id,
+            )
 
     def get_status(self):
         return self.is_running, "\n".join(self.log_history), self.status_message, self.current_count, self.total_count

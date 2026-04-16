@@ -9,6 +9,105 @@ This document tracks the tools registered in [`modules/mcp_server.py`](../module
 - **`imgscore-py-sse`** / **`imgscore-el-sse`**: SSE to WebUI (same URL; pick the key for your workspace). Default `http://127.0.0.1:7860/mcp/sse` (confirm with `GET /mcp-status` → `expected_sse_url`).
 - **`execute_code`**: requires SSE **and** `ENABLE_MCP_EXECUTE_CODE=1` on the WebUI process.
 
+## Postgres query patterns (operators)
+
+Canonical mappings (avoid legacy names):
+
+- `jobs.input_path` (not `jobs.folder_path`)
+- `image_phase_status.phase_id` + join `pipeline_phases.code` (not `image_phase_status.phase_code`)
+- `job_image_actions.action` (not `image_phase_status.action`)
+- `pipeline_phases` (not `phases`)
+
+Copy/paste-ready queries:
+
+```sql
+-- 1) Recent jobs (latest first)
+SELECT
+  j.id,
+  j.job_type,
+  j.status,
+  j.input_path,
+  j.created_at,
+  j.started_at,
+  j.completed_at
+FROM jobs j
+ORDER BY j.created_at DESC
+LIMIT 20;
+```
+
+```sql
+-- 2) Recent jobs with duration (seconds)
+SELECT
+  j.id,
+  j.job_type,
+  j.status,
+  j.input_path,
+  j.created_at,
+  j.completed_at,
+  ROUND(EXTRACT(EPOCH FROM (j.completed_at - j.created_at))::numeric, 2) AS duration_s
+FROM jobs j
+WHERE j.created_at >= NOW() - INTERVAL '7 days'
+ORDER BY j.created_at DESC
+LIMIT 50;
+```
+
+```sql
+-- 3) Phase counts for one job (by canonical phase code)
+SELECT
+  p.code AS phase_code,
+  ips.status,
+  COUNT(*) AS row_count
+FROM image_phase_status ips
+JOIN pipeline_phases p ON p.id = ips.phase_id
+WHERE ips.job_id = $1
+GROUP BY p.code, ips.status
+ORDER BY p.code, ips.status;
+```
+
+```sql
+-- 4) Per-image stage rows for one job + phase
+SELECT
+  ips.job_id,
+  ips.image_id,
+  p.code AS phase_code,
+  ips.status,
+  ips.started_at,
+  ips.updated_at,
+  ips.error_message
+FROM image_phase_status ips
+JOIN pipeline_phases p ON p.id = ips.phase_id
+WHERE ips.job_id = $1
+  AND p.code = $2
+ORDER BY ips.image_id, ips.updated_at DESC;
+```
+
+```sql
+-- 5) Action aggregation for one job
+SELECT
+  jia.action,
+  COUNT(*) AS action_count
+FROM job_image_actions jia
+WHERE jia.job_id = $1
+GROUP BY jia.action
+ORDER BY action_count DESC, jia.action;
+```
+
+```sql
+-- 6) Action aggregation by phase (join via image_phase_status + pipeline_phases)
+SELECT
+  p.code AS phase_code,
+  jia.action,
+  COUNT(*) AS action_count
+FROM job_image_actions jia
+JOIN image_phase_status ips
+  ON ips.job_id = jia.job_id
+ AND ips.image_id = jia.image_id
+JOIN pipeline_phases p ON p.id = ips.phase_id
+WHERE jia.job_id = $1
+GROUP BY p.code, jia.action
+ORDER BY p.code, action_count DESC, jia.action;
+```
+
 ## Tool index (by category)
 
 ### Diagnostic & environment

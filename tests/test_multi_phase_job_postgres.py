@@ -28,7 +28,7 @@ def test_update_job_status_completed_advances_phases_without_terminal_job():
     jid = db.create_job(
         "/mp/pg-scope",
         phase_code="indexing",
-        job_type="indexing",
+        job_type="pipeline",
         status="running",
         runner_state="running",
     )
@@ -37,7 +37,7 @@ def test_update_job_status_completed_advances_phases_without_terminal_job():
 
     row = db.get_job(jid)
     assert (row["status"] or "").lower() == "running"
-    assert (row["job_type"] or "").lower() == "metadata"
+    assert (row["job_type"] or "").lower() == "pipeline"
     assert row.get("finished_at") is None
     assert row.get("completed_at") is None
     assert (row.get("current_phase") or "").lower() == "metadata"
@@ -84,7 +84,7 @@ def test_dispatcher_starts_second_phase_after_first_completes():
     jid, _ = db.enqueue_job(
         "D:/mp-pg-chain/1",
         phase_code="indexing",
-        job_type="indexing",
+        job_type="pipeline",
         queue_payload={"input_path": "D:/mp-pg-chain/1"},
     )
     db.create_job_phases(jid, ["indexing", "metadata"], first_phase_state="queued")
@@ -93,11 +93,13 @@ def test_dispatcher_starts_second_phase_after_first_completes():
     while time.time() < deadline:
         d.tick_for_tests()
         j = db.get_job(jid)
-        if (j.get("job_type") or "").lower() == "metadata" and fake_meta.is_running:
+        if (j.get("current_phase") or "").lower() == "metadata" and fake_meta.is_running:
             break
         time.sleep(0.02)
 
-    assert (db.get_job(jid).get("job_type") or "").lower() == "metadata"
+    row = db.get_job(jid)
+    assert (row.get("job_type") or "").lower() == "pipeline"
+    assert (row.get("current_phase") or "").lower() == "metadata"
     assert fake_meta.is_running
 
     while time.time() < deadline:

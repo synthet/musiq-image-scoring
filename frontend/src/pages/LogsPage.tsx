@@ -2,7 +2,7 @@ import { useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Pause, Play, RefreshCcw, ScrollText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { StatusLogFilePanel } from '@/components/logs/StatusLogFilePanel'
+import { StatusLogFilePanel } from '@/components/ui/StatusLogFilePanel'
 import type { LogTailsResponse } from '@/types/statusLogs'
 
 const REFETCH_INTERVAL_MS = 2000
