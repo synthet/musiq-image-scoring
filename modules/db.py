@@ -4180,6 +4180,17 @@ def update_job_progress(job_id, percent):
         logger.debug("update_job_progress: broadcast failed for job_id=%s", job_id, exc_info=True)
 
 
+def update_job_log(job_id, log):
+    """Update ``jobs.log`` only, preserving the current job status/state-machine invariants."""
+    def _tx(tx):
+        row = tx.query_one("SELECT id FROM jobs WHERE id = ?", (job_id,))
+        if not row:
+            raise ValueError(f"Job not found: {job_id}")
+        tx.execute("UPDATE jobs SET log = ? WHERE id = ?", (log, job_id))
+
+    get_connector().run_transaction(_tx)
+
+
 def job_type_for_phase_dispatch(phase_code: str) -> str:
     """Map ``job_phases.phase_code`` to ``jobs.job_type`` for JobDispatcher routing."""
     pc = (phase_code or "").strip().lower()

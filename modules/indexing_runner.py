@@ -186,14 +186,14 @@ class IndexingRunner:
         self.total_count = 0
 
     def _persist_log_to_job_row(self, job_id: Optional[int]) -> None:
-        """Append in-memory log to ``jobs.log`` while status stays ``running`` (Web UI polling + LogPanel)."""
+        """Persist in-memory log to ``jobs.log`` without mutating ``jobs.status``."""
         if not job_id:
             return
         try:
             text = "\n".join(self.log_history)
             if len(text) > _MAX_PERSISTED_JOB_LOG_CHARS:
                 text = text[-_MAX_PERSISTED_JOB_LOG_CHARS:]
-            db.update_job_status(job_id, "running", log=text)
+            db.update_job_log(job_id, text)
         except Exception:
             logger.exception("IndexingRunner: failed to persist log to jobs row (job_id=%s)", job_id)
 
