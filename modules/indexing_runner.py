@@ -193,7 +193,21 @@ class IndexingRunner:
             text = "\n".join(self.log_history)
             if len(text) > _MAX_PERSISTED_JOB_LOG_CHARS:
                 text = text[-_MAX_PERSISTED_JOB_LOG_CHARS:]
-            db.update_job_log(job_id, text)
+            if hasattr(db, "update_job_log"):
+                db.update_job_log(job_id, text)
+                return
+
+            # Back-compat fallback: avoid forcing ``running`` on terminal jobs.
+            job_row = db.get_job(job_id)
+            status = (job_row.get("status") or "").strip().lower() if job_row else ""
+            if status in db.JOB_TERMINAL_STATES:
+                db.get_connector().execute(
+                    "UPDATE jobs SET log = ? WHERE id = ?",
+                    (text, job_id),
+                )
+                return
+
+            db.update_job_status(job_id, "running", log=text)
         except Exception:
             logger.exception("IndexingRunner: failed to persist log to jobs row (job_id=%s)", job_id)
 
