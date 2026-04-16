@@ -12,6 +12,7 @@ const PAGE_SIZE = 20
 
 interface ReportPanelProps {
   runId: number
+  reportSupported?: boolean
 }
 
 function PhaseCard({ code, phase }: { code: string; phase: PhaseExecutionReport }) {
@@ -224,15 +225,37 @@ function ImageActionsTable({ runId, report }: { runId: number; report: JobExecut
   )
 }
 
-export function ReportPanel({ runId }: ReportPanelProps) {
-  const { data: report, isLoading } = useQuery({
+export function ReportPanel({ runId, reportSupported = true }: ReportPanelProps) {
+  const { data, isLoading } = useQuery({
     queryKey: ['run-report', runId],
     queryFn: () => runsApi.getReport(runId),
+    enabled: reportSupported,
     retry: false,
   })
 
+  if (!reportSupported) {
+    return (
+      <div className="rounded-md border border-border bg-card/40 p-3 text-xs text-muted-foreground">
+        <span className="inline-flex items-center rounded px-1.5 py-0.5 bg-muted mr-2">
+          Report unavailable
+        </span>
+        This run type does not produce an execution report.
+      </div>
+    )
+  }
   if (isLoading) return null
-  if (!report) return null
+  if (!data?.available || !data.report) {
+    return (
+      <div className="rounded-md border border-border bg-card/40 p-3 text-xs text-muted-foreground">
+        <span className="inline-flex items-center rounded px-1.5 py-0.5 bg-muted mr-2">
+          Report unavailable
+        </span>
+        {data?.message ?? 'Execution report is not available for this run.'}
+      </div>
+    )
+  }
+
+  const report = data.report
 
   const phases = Object.entries(report.phases ?? {})
 

@@ -1,5 +1,8 @@
 import { api } from './client'
-import type { Run, Stage, Step, WorkItem, QueueEntry, JobExecutionReport, ImageActionsResponse } from '@/types/api'
+import { ApiError, parseApiErrorDetail } from './client'
+import type {
+  Run, Stage, Step, WorkItem, QueueEntry, JobExecutionReport, ImageActionsResponse, RunReportResponse,
+} from '@/types/api'
 
 export interface RunSubmitRequest {
   scope_type: 'file' | 'folder' | 'folder_recursive' | 'path_list'
@@ -84,7 +87,32 @@ export const runsApi = {
   getDiagnostics: (id: number) =>
     api.get<RunDiagnosticsResponse>(`/runs/${id}/diagnostics`),
 
-  getReport: (id: number) => api.get<JobExecutionReport>(`/runs/${id}/report`),
+  getReport: async (id: number): Promise<RunReportResponse> => {
+    try {
+      const res = await api.get<RunReportResponse | JobExecutionReport>(`/runs/${id}/report`)
+      if (
+        res
+        && typeof res === 'object'
+        && 'available' in res
+        && typeof res.available === 'boolean'
+      ) {
+        return res as RunReportResponse
+      }
+      return {
+        available: true,
+        report: res as JobExecutionReport,
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        return {
+          available: false,
+          reason: 'not_available',
+          message: parseApiErrorDetail(err.message) || 'Execution report not available.',
+        }
+      }
+      throw err
+    }
+  },
   getReportImages: (id: number, params?: { phase_code?: string; action?: string; offset?: number; limit?: number }) => {
     const q = new URLSearchParams()
     if (params?.phase_code) q.set('phase_code', params.phase_code)
