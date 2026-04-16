@@ -4,8 +4,6 @@ import json
 import logging
 from modules import db, thumbnails
 from modules.engine import BatchImageProcessor
-import sys
-from pathlib import Path
 from modules import pipeline
 from modules.events import event_manager
 from modules.run_log import runner_emit
@@ -13,15 +11,10 @@ from modules import score_normalization as snorm
 from modules.phases import PhaseCode, normalize_phase_codes
 from modules.indexing_policy import passes_nikon_nef_policy
 
-# Ensure paths are set up to import scripts
-project_root = Path(__file__).resolve().parent.parent
-if str(project_root / "scripts" / "python") not in sys.path:
-    sys.path.insert(0, str(project_root / "scripts" / "python"))
-
 logger = logging.getLogger(__name__)
 
 try:
-    from run_all_musiq_models import MultiModelMUSIQ
+    from scripts.python.run_all_musiq_models import MultiModelMUSIQ
     try:
         from modules.engines.base import IScoringEngine
 
@@ -680,8 +673,7 @@ class ScoringRunner:
         # Initialize models if needed
         if self.shared_scorer is None:
             try:
-                # Use local import if needed or assume globally imported
-                # from run_all_musiq_models import MultiModelMUSIQ
+                # MultiModelMUSIQ is imported via canonical package path at module import time.
                 new_scorer = MultiModelMUSIQ()
                 for m in ['spaq', 'ava']:
                     new_scorer.load_model(m)
