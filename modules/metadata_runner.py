@@ -2,7 +2,7 @@ import os
 import threading
 import logging
 from typing import List, Dict, Optional
-from modules import db, thumbnails, xmp, exif_extractor
+from modules import db, thumbnails, xmp, exif_extractor, utils
 from modules.version import APP_VERSION
 from modules.phases import PhaseCode, PhaseStatus
 from modules.events import event_manager
@@ -126,7 +126,6 @@ class MetadataRunner:
              if not all_images:
                  # Fallback: recursive lookup across subfolders, matching how
                  # get_folder_phase_summary counts images for status reporting.
-                 from modules import utils
                  scope_path = input_path
                  local = utils.convert_path_to_local(scope_path)
                  if local and os.path.isdir(local):
@@ -174,7 +173,8 @@ class MetadataRunner:
 
             self.current_count += 1
             image_id = row['id']
-            file_path = row['file_path']
+            original_path = row['file_path']
+            local_path = utils.convert_path_to_local(original_path)
 
             if skip_existing:
                 # Check if 'metadata' phase is already DONE
@@ -193,7 +193,7 @@ class MetadataRunner:
                     skipped_count += 1
                     if report_collector:
                         report_collector.record_skip(image_id, "metadata_already_done")
-                    log(f"Skip (metadata done): {file_path}", "DEBUG")
+                    log(f"Skip (metadata done): {original_path}", "DEBUG")
                     if self.current_count % PROGRESS_INTERVAL == 0:
                         log(
                             f"Progress {self.current_count}/{self.total_count} "
@@ -221,27 +221,54 @@ class MetadataRunner:
                 job_id=job_id
             )
 
+            if not local_path or not os.path.isfile(local_path):
+                path_error = (
+                    f"Local path unavailable for metadata processing. "
+                    f"original_path='{original_path}', local_path='{local_path}'"
+                )
+                log(path_error, "ERROR")
+                skipped_count += 1
+                if report_collector:
+                    report_collector.record_failure(image_id, path_error)
+                try:
+                    db.set_image_phase_status(
+                        image_id,
+                        PhaseCode.METADATA,
+                        PhaseStatus.FAILED,
+                        app_version=APP_VERSION,
+                        executor_version=METADATA_VERSION,
+                        job_id=job_id,
+                        error=path_error,
+                    )
+                except Exception:
+                    pass
+                continue
+
             try:
-                log(f"Metadata: EXIF/XMP/thumbnail for image_id={image_id}", "DEBUG")
+                log(
+                    f"Metadata: EXIF/XMP/thumbnail for image_id={image_id}, "
+                    f"original_path={original_path}, local_path={local_path}",
+                    "DEBUG",
+                )
                 # 1. Image Identity (UUID)
                 image_uuid = row.get("uuid")
                 if not image_uuid:
-                    temp_exif = exif_extractor.extract_exif(file_path)
+                    temp_exif = exif_extractor.extract_exif(local_path)
                     image_uuid = db.generate_image_uuid(temp_exif)
 
                 # 2. Physical Metadata Sync (EXIF + XMP)
-                exif_extractor.ensure_image_unique_id(file_path, image_uuid)
-                xmp.write_image_unique_id(file_path, image_uuid)
+                exif_extractor.ensure_image_unique_id(local_path, image_uuid)
+                xmp.write_image_unique_id(local_path, image_uuid)
 
                 # 3. Database Sync (IMAGE_XMP first so sidecar shot dates exist alongside EXIF cache)
-                xmp.extract_and_upsert_xmp(file_path, image_id)
-                exif_extractor.extract_and_upsert_exif(file_path, image_id)
+                xmp.extract_and_upsert_xmp(local_path, image_id)
+                exif_extractor.extract_and_upsert_exif(local_path, image_id)
                 db.update_image_uuid(image_id, image_uuid)
 
                 # 4. Thumbnails creation
-                thumb = thumbnails.get_thumb_path(file_path)
+                thumb = thumbnails.get_thumb_path(local_path)
                 if not os.path.exists(thumb):
-                    generated = thumbnails.generate_thumbnail(file_path)
+                    generated = thumbnails.generate_thumbnail(local_path)
                     if generated:
                         thumb = generated
                 if thumb and os.path.isfile(thumb):
@@ -259,10 +286,14 @@ class MetadataRunner:
                 processed_count += 1
                 if report_collector:
                     report_collector.record_after(image_id, {}, action="processed")
-                log(f"Metadata done: {file_path}", "DEBUG")
+                log(f"Metadata done: {original_path}", "DEBUG")
 
             except Exception as e:
-                log(f"Error processing {file_path}: {e}", "ERROR")
+                log(
+                    f"Error processing original_path={original_path}, "
+                    f"local_path={local_path}: {e}",
+                    "ERROR",
+                )
                 skipped_count += 1
                 if report_collector:
                     report_collector.record_failure(image_id, str(e))
