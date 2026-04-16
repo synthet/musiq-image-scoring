@@ -4229,6 +4229,7 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
 
         old_status = (row["status"] or "pending").strip().lower()
         new_status = effect_status
+        root_job_type = row.get("job_type")
 
         allowed_next = JOB_ALLOWED_TRANSITIONS.get(old_status)
         if allowed_next is not None and old_status != new_status and new_status not in allowed_next:
@@ -4297,22 +4298,21 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
                 if active:
                     pc = active.get("phase_code")
                     po = int(active.get("phase_order") or 0)
-                    jt = job_type_for_phase_dispatch(pc)
                     pid = get_phase_id(pc)
                     tx.execute(
                         "UPDATE jobs SET status = 'running', finished_at = NULL, completed_at = NULL, "
                         "log = ?, current_phase = ?, next_phase_index = ?, runner_state = 'running', "
-                        "job_type = ?, phase_id = ? WHERE id = ?",
-                        (eff_log, pc, po, jt, pid, job_id),
+                        "phase_id = COALESCE(?, phase_id) WHERE id = ?",
+                        (eff_log, pc, po, pid, job_id),
                     )
-                    return old_status, "running", pc, po, "running", jt
+                    return old_status, "running", pc, po, "running", root_job_type
 
             final_rs = runner_state if runner_state is not None else "completed"
             tx.execute(
                 "UPDATE jobs SET status = ?, finished_at = ?, completed_at = ?, log = ?, current_phase = ?, next_phase_index = ?, runner_state = ? WHERE id = ?",
                 ("completed", now, now, eff_log, final_phase, final_next_idx, final_rs, job_id),
             )
-            return old_status, "completed", final_phase, final_next_idx, final_rs, row.get("job_type")
+            return old_status, "completed", final_phase, final_next_idx, final_rs, root_job_type
 
         if new_status == "running":
             tx.execute(
@@ -4368,9 +4368,7 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
         except Exception as e:
             logger.debug("update_job_status: failed to sync job_phases for job %s: %s", job_id, e)
 
-        job_row_after = tx.query_one("SELECT job_type FROM jobs WHERE id = ?", (job_id,))
-        jt_after = job_row_after.get("job_type") if job_row_after else None
-        return old_status, new_status, final_phase, final_next_idx, final_runner_state, jt_after
+        return old_status, new_status, final_phase, final_next_idx, final_runner_state, root_job_type
 
     old_status, broadcast_status, final_phase, final_next_idx, final_runner_state, job_type_after = get_connector().run_transaction(_tx)
 
