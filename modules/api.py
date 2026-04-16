@@ -6153,10 +6153,6 @@ def create_api_router() -> APIRouter:
                 dry_run=request.dry_run,
                 budget=request.budget,
                 run_mode=request.run_mode,
-<<<<<<< HEAD
-=======
-                dry_run=request.dry_run,
-                heal_thumbnails_global=request.heal_thumbnails_global,
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
@@ -6466,10 +6462,7 @@ def create_api_router() -> APIRouter:
                 status="completed",
                 queue_payload={**audit_payload, "summary": summary},
                 description=audit_desc,
->>>>>>> c6b6c5100acf4bc2d60ae3f82343055f1784c56a
             )
-            
-            n_resets = data.get("resets_performed", 0)
             if audit_run_id:
                 now = datetime.now()
                 log_text = json.dumps({"summary": summary}, default=str)
