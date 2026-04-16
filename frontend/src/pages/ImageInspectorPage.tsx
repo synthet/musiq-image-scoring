@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
@@ -184,6 +184,32 @@ function ButtonLoad({ onClick, label }: { onClick: () => void; label: string }) 
 export function ImageInspectorPage() {
   const { imageId: rawId } = useParams<{ imageId: string }>()
   const id = rawId ? parseInt(rawId, 10) : NaN
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      // Don't navigate if user is typing in an input or textarea
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return
+      }
+
+      if (e.key === 'ArrowLeft') {
+        if (id > 1) {
+          navigate(`/images/${id - 1}`)
+        }
+      } else if (e.key === 'ArrowRight') {
+        navigate(`/images/${id + 1}`)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [id, navigate])
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['image', 'inspector', id],

@@ -578,6 +578,7 @@ def record_pipeline_event(event_type, message, *, workflow_run=None, stage_run=N
     return event["seq"]
 
 
+
 def get_pipeline_events(since_seq=0, limit=250):
     """Return pipeline telemetry events with sequence greater than `since_seq`."""
     try:
@@ -7119,6 +7120,84 @@ def _incomplete_images_where_sql(table_alias: str = "") -> str:
         )"""
 
 
+def is_image_scoring_complete(image_id: int) -> bool:
+    """
+    Check if an image has all required scores in the database.
+    Used by phases_policy to verify 'DONE' status.
+    """
+    row = get_connector().query_one(
+        "SELECT score_general, score_technical, score_spaq, score_ava, score_paq2piq, score_liqe "
+        "FROM images WHERE id = ?",
+        (image_id,)
+    )
+    if not row:
+        return False
+
+    # Check general scores
+    if not row.get("score_general") or row.get("score_general") <= 0:
+        return False
+
+    # Check basic model scores (at least some should be present)
+    model_scores = ["score_spaq", "score_ava", "score_paq2piq", "score_liqe"]
+    present_count = 0
+    for m in model_scores:
+        val = row.get(m)
+        if val is not None and val > 0:
+            present_count += 1
+
+    # At least general + 2 models (or just general if that's all that's configured)
+    return present_count >= 1
+
+
+def is_image_metadata_complete(image_id: int) -> bool:
+    """True if image has valid rating (0-5) and non-null label.
+    
+    Relaxed check: rating 0 and empty label are considered valid (fresh from camera).
+    We only return False if the data is NULL or clearly corrupt (out of range).
+    """
+    row = get_connector().query_one(
+        "SELECT rating, label FROM images WHERE id = ?",
+        (image_id,)
+    )
+    if not row:
+        return False
+    rating = row.get("rating")
+    # Metadata phase is 'done' even if empty; only 'incomplete' if NULL or corrupt.
+    if rating is None or rating < 0 or rating > 5:
+        return False
+    # If the row exists, even empty label is technically 'metadata read'.
+    return True
+
+
+def is_image_indexing_complete(image_id: int) -> bool:
+    """True if image has an embedding in the database."""
+    row = get_connector().query_one(
+        "SELECT image_embedding FROM images WHERE id = ?",
+        (image_id,)
+    )
+    return row is not None and row.get("image_embedding") is not None
+
+
+def is_image_keywords_complete(image_id: int) -> bool:
+    """True if image has non-empty keywords string or image_keywords entries."""
+    row = get_connector().query_one(
+        "SELECT keywords FROM images WHERE id = ?",
+        (image_id,)
+    )
+    if not row:
+        return False
+    kw = str(row.get("keywords") or "").strip()
+    if kw:
+        return True
+    
+    # Fallback: check image_keywords table
+    cnt = get_connector().query_one(
+        "SELECT COUNT(*) as c FROM image_keywords WHERE image_id = ?",
+        (image_id,)
+    )
+    return int((cnt or {}).get("c") or 0) > 0
+
+
 def get_incomplete_records(limit: int | None = None):
     """
     Retrieves records that have missing scores or metadata.
@@ -9777,6 +9856,132 @@ def list_folder_paths_under_scope(local_fs_path: str) -> list:
     return [r["path"] for r in rows]
 
 
+def _heal_stale_phase_flags(folder_path):
+    """Reset image_phase_status to 'not_started' where status is 'done' but
+    actual data is missing.  Called during force-refresh so the UI accurately
+    reflects reality and subsequent runs re-process the affected images.
+
+    Phases checked:
+      - scoring: score_general IS NULL or <= 0
+      - keywords: no rows in image_keywords for the image
+    """
+    from modules import utils
+
+    if not folder_path:
+        return 0
+
+    wsl_path = utils.convert_path_to_wsl(folder_path) if hasattr(utils, 'convert_path_to_wsl') else folder_path
+    target_path = wsl_path if wsl_path else folder_path
+    path_like_unix = target_path + "/%"
+    path_like_win = target_path + "\\%"
+
+    healed = 0
+
+    # --- Scoring: done flag but no actual scores ---
+    scoring_rows = get_connector().query(
+        """
+        SELECT i.id
+        FROM images i
+        JOIN folders f ON f.id = i.folder_id
+        JOIN image_phase_status ips ON ips.image_id = i.id
+        JOIN pipeline_phases pp ON pp.id = ips.phase_id
+        WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+          AND LOWER(TRIM(pp.code)) = 'scoring'
+          AND LOWER(TRIM(ips.status)) = 'done'
+          AND (i.score_general IS NULL OR i.score_general <= 0)
+        """,
+        (target_path, path_like_unix, path_like_win))
+
+    for row in scoring_rows or []:
+        set_image_phase_status(row["id"], "scoring", "not_started")
+        healed += 1
+
+    if scoring_rows:
+        logger.warning(
+            "heal_stale_phase_flags: reset %d scoring flags (done but no scores) under '%s'",
+            len(scoring_rows), folder_path)
+
+    # --- Metadata: done flag but no rating/label or out of range ---
+    meta_rows = get_connector().query(
+        """
+        SELECT i.id
+        FROM images i
+        JOIN folders f ON f.id = i.folder_id
+        JOIN image_phase_status ips ON ips.image_id = i.id
+        JOIN pipeline_phases pp ON pp.id = ips.phase_id
+        WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+          AND LOWER(TRIM(pp.code)) = 'metadata'
+          AND LOWER(TRIM(ips.status)) = 'done'
+          AND (
+              i.rating IS NULL OR i.rating < 0 OR i.rating > 5
+              OR i.label IS NULL
+          )
+        """,
+        (target_path, path_like_unix, path_like_win))
+
+    for row in meta_rows or []:
+        set_image_phase_status(row["id"], "metadata", "not_started")
+        healed += 1
+
+    if meta_rows:
+        logger.warning(
+            "heal_stale_phase_flags: reset %d metadata flags (done but missing/corrupt) under '%s'",
+            len(meta_rows), folder_path)
+
+    # --- Indexing: done flag but no embedding ---
+    indexing_rows = get_connector().query(
+        """
+        SELECT i.id
+        FROM images i
+        JOIN folders f ON f.id = i.folder_id
+        JOIN image_phase_status ips ON ips.image_id = i.id
+        JOIN pipeline_phases pp ON pp.id = ips.phase_id
+        WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+          AND LOWER(TRIM(pp.code)) = 'indexing'
+          AND LOWER(TRIM(ips.status)) = 'done'
+          AND i.image_embedding IS NULL
+        """,
+        (target_path, path_like_unix, path_like_win))
+
+    for row in indexing_rows or []:
+        set_image_phase_status(row["id"], "indexing", "not_started")
+        healed += 1
+
+    if indexing_rows:
+        logger.warning(
+            "heal_stale_phase_flags: reset %d indexing flags (done but no embedding) under '%s'",
+            len(indexing_rows), folder_path)
+
+    # --- Keywords: done flag but no keyword rows ---
+    kw_rows = get_connector().query(
+        """
+        SELECT i.id
+        FROM images i
+        JOIN folders f ON f.id = i.folder_id
+        JOIN image_phase_status ips ON ips.image_id = i.id
+        JOIN pipeline_phases pp ON pp.id = ips.phase_id
+        WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+          AND LOWER(TRIM(pp.code)) = 'keywords'
+          AND LOWER(TRIM(ips.status)) = 'done'
+          AND NOT EXISTS (
+              SELECT 1 FROM image_keywords ik WHERE ik.image_id = i.id
+          )
+          AND (i.keywords IS NULL OR TRIM(i.keywords) = '')
+        """,
+        (target_path, path_like_unix, path_like_win))
+
+    for row in kw_rows or []:
+        set_image_phase_status(row["id"], "keywords", "not_started")
+        healed += 1
+
+    if kw_rows:
+        logger.warning(
+            "heal_stale_phase_flags: reset %d keywords flags (done but no keywords) under '%s'",
+            len(kw_rows), folder_path)
+
+    return healed
+
+
 def get_folder_phase_summary(folder_path, force_refresh=False):
     """
     Return phase status summary for a folder and descendants.
@@ -9784,6 +9989,9 @@ def get_folder_phase_summary(folder_path, force_refresh=False):
     Uses folder-level cache (`folders.phase_agg_json`) and recomputes live data
     when `phase_agg_dirty = 1`. Pass force_refresh=True to bypass cache and
     always recompute (e.g. when user selects a folder or clicks Refresh).
+
+    When force_refresh=True, also runs _heal_stale_phase_flags to auto-reset
+    any 'done' status flags where actual data (scores, keywords) is missing.
     """
     from modules import utils
 
@@ -9794,6 +10002,12 @@ def get_folder_phase_summary(folder_path, force_refresh=False):
         return []
 
     try:
+        if force_refresh:
+            try:
+                _heal_stale_phase_flags(folder_path)
+            except Exception as heal_err:
+                logger.debug("_heal_stale_phase_flags non-fatal error for '%s': %s", folder_path, heal_err)
+
         if not force_refresh:
             cache_row = get_connector().query_one(
                 "SELECT phase_agg_dirty, phase_agg_json FROM folders WHERE id = ?",

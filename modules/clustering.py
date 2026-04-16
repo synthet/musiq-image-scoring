@@ -590,6 +590,16 @@ class ClusteringEngine(IClusteringEngine):
                     force_run=force_rescan,
                 )
                 if decision['should_run']:
+                    # Pre-requisite validation: ensure image has a hash and a score
+                    # (Score is used for representative selection; Hash for embedding cache)
+                    if not r.get("image_hash"):
+                        logger.warning("[Clustering] Skipping image_id=%s: missing image_hash. Run Indexing phase first.", r["id"])
+                        continue
+                    if r.get("score_general") is None:
+                        logger.warning("[Clustering] Skipping image_id=%s: missing score_general. Run Scoring phase first for better representative selection.", r["id"])
+                        # We don't necessarily abort here because clustering can still happen, 
+                        # but we want the user to know it's suboptimal.
+                    
                     runnable_rows.append(r)
                 else:
                     logger.debug(

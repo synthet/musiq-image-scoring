@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { ChevronRight, ChevronDown, Folder, FolderOpen, Plus } from 'lucide-react'
 import { scopeApi } from '@/api/scope'
@@ -18,9 +19,13 @@ const STATUS_DOT: Record<string, string> = {
 
 export function Sidebar() {
   const qc = useQueryClient()
+  const location = useLocation()
+  const navigate = useNavigate()
   const { openNewRun, setSelectedScopePath, selectedScopePath, pendingTreeRevealPaths, setPendingTreeRevealPaths } =
     useUiStore()
   const runsVersion = useWsStore((s) => s.runsVersion)
+
+  const isRunsMode = location.pathname.startsWith('/runs')
 
   const { data: tree, isLoading } = useQuery({
     queryKey: ['folders-tree'],
@@ -53,17 +58,19 @@ export function Sidebar() {
 
   return (
     <aside className="w-56 shrink-0 border-r border-[#3c3c3c] bg-[#252526] flex flex-col overflow-hidden">
-      <div className="p-3 border-b border-[#3c3c3c] shrink-0">
-        <Button
-          variant="primary"
-          size="sm"
-          className="w-full"
-          onClick={() => openNewRun(selectedScopePath ?? undefined)}
-        >
-          <Plus size={12} />
-          New Run
-        </Button>
-      </div>
+      {isRunsMode && (
+        <div className="p-3 border-b border-[#3c3c3c] shrink-0">
+          <Button
+            variant="primary"
+            size="sm"
+            className="w-full"
+            onClick={() => openNewRun(selectedScopePath ?? undefined)}
+          >
+            <Plus size={12} />
+            New Run
+          </Button>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-2">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6d6d6d] px-1 mb-2">
@@ -81,6 +88,8 @@ export function Sidebar() {
             onSelect={setSelectedScopePath}
             onNewRun={openNewRun}
             revealPaths={pendingTreeRevealPaths}
+            isRunsMode={isRunsMode}
+            navigate={navigate}
           />
         ))}
         {!isLoading && (!Array.isArray(tree) || tree.length === 0) && (
@@ -98,9 +107,20 @@ interface FolderTreeNodeProps {
   onSelect: (path: string) => void
   onNewRun: (path: string) => void
   revealPaths: string[] | null
+  isRunsMode: boolean
+  navigate: (path: string) => void
 }
 
-function FolderTreeNode({ node, depth, selected, onSelect, onNewRun, revealPaths }: FolderTreeNodeProps) {
+function FolderTreeNode({
+  node,
+  depth,
+  selected,
+  onSelect,
+  onNewRun,
+  revealPaths,
+  isRunsMode,
+  navigate,
+}: FolderTreeNodeProps) {
   const hasChildren = node.children && node.children.length > 0
   const isSelected = selected === node.path
   const folderKey = encodeURIComponent(normalizeTreePath(node.path))
@@ -118,6 +138,19 @@ function FolderTreeNode({ node, depth, selected, onSelect, onNewRun, revealPaths
 
   const dominantStatus = getDominantStatus(node.phase_statuses)
 
+  const handleDoubleClick = () => {
+    if (isRunsMode) {
+      onNewRun(node.path)
+    } else {
+      onSelect(node.path)
+      navigate('/images')
+    }
+  }
+
+  const title = isRunsMode
+    ? `${node.path}\nDouble-click to start new run`
+    : `${node.path}\nDouble-click to view images`
+
   return (
     <div>
       <div
@@ -133,8 +166,8 @@ function FolderTreeNode({ node, depth, selected, onSelect, onNewRun, revealPaths
           onSelect(node.path)
           if (hasChildren) setExpanded((e) => !e)
         }}
-        onDoubleClick={() => onNewRun(node.path)}
-        title={`${node.path}\nDouble-click to start new run`}
+        onDoubleClick={handleDoubleClick}
+        title={title}
       >
         {hasChildren ? (
           <span className="text-[#6d6d6d]">
@@ -169,6 +202,8 @@ function FolderTreeNode({ node, depth, selected, onSelect, onNewRun, revealPaths
               onSelect={onSelect}
               onNewRun={onNewRun}
               revealPaths={revealPaths}
+              isRunsMode={isRunsMode}
+              navigate={navigate}
             />
           ))}
         </div>

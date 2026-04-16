@@ -263,21 +263,8 @@ class JobDispatcher:
             resolved = scoped_resolved
             run_mode = (payload.get("run_mode") or "").strip()
             report_collector = None
-            # Short-term behavior: fix_incomplete_stages resolves scoped IDs only for scoring.
-            # Metadata/tagging/culling continue to use their normal skip/re-run semantics.
-            if bool(mode_flags["fix_incomplete_stages"]) and not resolved:
-                paths = payload.get("scope_paths")
-                if not isinstance(paths, list) or not paths:
-                    paths = [payload.get("input_path", input_path)]
-                id_set: set[int] = set()
-                for p in paths:
-                    if not p:
-                        continue
-                    for i in db.get_incomplete_image_ids_under_folder(str(p)):
-                        id_set.add(int(i))
-                resolved = sorted(id_set) if id_set else []
-                if resolved:
-                    skip_existing_val = False
+            if resolved and bool(mode_flags.get("fix_incomplete_stages")):
+                skip_existing_val = False
 
             # Build ReportCollector with before-snapshots for resolved IDs.
             try:

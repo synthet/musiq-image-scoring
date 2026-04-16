@@ -37,11 +37,11 @@ const RUN_OPTION_COPY_BY_MODE = {
       'Does not preserve previous stage outputs for selected stages; existing results are replaced.',
   },
   fix_incomplete: {
-    title: 'Fix incomplete scoring data',
+    title: 'Fix missing/incomplete data',
     whatThisDoes:
-      'For quality scoring, targets images missing scores, rating, or label so incomplete records can be fixed.',
+      'Targets images missing required data for the selected pipeline stages so incomplete records can be fixed.',
     whatThisDoesNotDo:
-      'Does not force a full re-run of complete images; metadata, tagging, and culling still follow normal skip/re-run rules.',
+      'Does not force a full re-run of complete images, avoiding unnecessary processing.',
   },
   validation_repair: {
     title: 'Validation-repair pipeline',
@@ -366,11 +366,6 @@ export function ScopeSelector() {
                         >
                           {option.title}
                         </span>
-                        {isFixIncomplete && (
-                          <span className="rounded border border-[#007acc]/40 bg-[#003f6e]/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#4fc1ff]">
-                            Scoring only
-                          </span>
-                        )}
                       </span>
                       <span
                         className={
@@ -390,12 +385,6 @@ export function ScopeSelector() {
                       >
                         What this does not do: {option.whatThisDoesNotDo}
                       </span>
-                      {isFixIncomplete && (
-                        <span id="fix-incomplete-help" className="block text-xs text-[#6d6d6d] mt-0.5">
-                          Targets only images missing scores, rating, or label under selected paths (other
-                          stages use normal skip rules).
-                        </span>
-                      )}
                     </span>
                   </label>
                 )

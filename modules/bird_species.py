@@ -325,7 +325,12 @@ class BirdSpeciesRunner:
         log(f"Found {len(all_images)} bird-tagged images.")
 
         if not all_images:
-            log("No images with 'birds' keyword found. Ensure images are tagged first.")
+            # Check if reason for empty set is because Tagging hasn't run at all
+            if resolved_image_ids:
+                log("No images with 'birds' keyword found in selection. Ensure the Tagging phase has completed first.", "WARNING")
+            else:
+                log("No images with 'birds' keyword found in folder. Ensure images are tagged first.", "WARNING")
+            
             self.status_message = "Done (no bird images)"
             if job_id:
                 db.update_job_status(job_id, "completed")

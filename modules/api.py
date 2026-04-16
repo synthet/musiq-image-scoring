@@ -5183,7 +5183,7 @@ def create_api_router() -> APIRouter:
         )
         if request.post_run_audit is not None:
             payload["post_run_audit"] = bool(request.post_run_audit)
-        if request.validation_repair_mode:
+        if request.validation_repair_mode or mode_flags.get("fix_incomplete_stages"):
             try:
                 repair_plan = await asyncio.to_thread(
                     db.build_validation_repair_plan,

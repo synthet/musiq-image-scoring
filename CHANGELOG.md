@@ -13,6 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.4.0] - 2026-04-15
+
+### Added
+
+- **Keyboard navigation**: ArrowLeft and ArrowRight support in `ImageInspectorPage` to shift between images by ID.
+- **Sidebar UX improvements**: Double-clicking a folder in the sidebar tree now navigates to the Images tab (view mode) except in the Runs tab where it triggers the New Run dialog.
+- **Improved Sidebar dialogs**: "New Run" action restricted to the Runs tab to prevent accidental triggers from other pages.
+
+### Fixed
+
+- **Data integrity auto-healing**: Folder refreshes now proactively detect and fix missing scoring, keywords, metadata, or indexing records (GAP-D / GAP-I).
+- **Execution policy**: Runners no longer skip incomplete images even when the overall folder is marked done.
+- **Runner prerequisites**: Clustering and Bird Species runners validate prior phase completion before starting.
+- **Audit safeguards**: manual data overwrites in the scoring modules now include before/after audit tracking.
+- **Build**: removed unused `useQueryClient` import in `Sidebar.test.tsx` that was blocking production builds.
+
+
 - **Deprecation logging**: `_log_legacy_keyword_access()` helper; warnings when legacy `IMAGES.KEYWORDS` column is accessed
 - **Instrumented functions**: `get_image_details()` and `get_images_by_folder()` detect and log legacy fallback usage
 - **Deprecation notice**: Users warned that legacy column will be removed in v7.0 (July 2026); guidance on migration path

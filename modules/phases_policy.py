@@ -75,6 +75,30 @@ def explain_phase_run_decision(
         decision["reason"] = "executor_version_changed"
         return decision
 
+    # DATA VALIDATION: Even if status is 'done', check if the actual data is present.
+    # This addresses the 'falsely done' state where status is 'done' but data is missing.
+    from modules.phases import PhaseCode
+    if code == PhaseCode.SCORING.value:
+        if not db.is_image_scoring_complete(image_id):
+            decision["should_run"] = True
+            decision["reason"] = "missing_scoring_data"
+            return decision
+    elif code == PhaseCode.KEYWORDS.value:
+        if not db.is_image_keywords_complete(image_id):
+            decision["should_run"] = True
+            decision["reason"] = "missing_keyword_data"
+            return decision
+    elif code == PhaseCode.METADATA.value:
+        if not db.is_image_metadata_complete(image_id):
+            decision["should_run"] = True
+            decision["reason"] = "missing_metadata"
+            return decision
+    elif code == PhaseCode.INDEXING.value:
+        if not db.is_image_indexing_complete(image_id):
+            decision["should_run"] = True
+            decision["reason"] = "missing_indexing_data"
+            return decision
+
     decision["should_run"] = False
     decision["reason"] = "already_done_current_executor"
     return decision

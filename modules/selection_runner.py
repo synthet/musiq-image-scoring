@@ -146,6 +146,20 @@ class SelectionRunner:
             if not images:
                 images = db.get_images_by_folder(input_path) or []
             if images:
+                # Pre-requisite validation: Selection/Culling absolutely requires general scores
+                # to perform ranking and filtering.
+                valid_images = [img for img in images if img.get("score_general") is not None and img.get("score_general") > 0]
+                missing_scores = len(images) - len(valid_images)
+                if missing_scores > 0:
+                    log(f"Warning: {missing_scores} images are missing valid score_general. They will be skipped. Ensure the Scoring phase has completed.", "WARNING")
+                images = valid_images
+                
+                if not images:
+                    log("Error: No images in the current scope have required scoring data. Aborting Selection/Culling phase. Run 'Scoring' first.", "ERROR")
+                    with self._lock:
+                        self._status_message = "Failed: missing prerequisites"
+                    return
+
                 if force_rescan:
                     # Skip per-image phase updates: clustering will set RUNNING when it processes.
                     # Avoids ~10k DB calls for large folders (3256 images × 3 calls each).

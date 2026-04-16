@@ -135,6 +135,24 @@ class PrepWorker(PipelineWorker):
                         job.external_scores["image_hash"] = path_record.get('image_hash')
                     if path_record.get("hash_version") is not None and not job.external_scores.get("hash_version"):
                         job.external_scores["hash_version"] = int(path_record["hash_version"])
+                    
+                    # Audit safeguard: log if overwriting non-default rating/label
+                    if not job.skip_existing and _is_phase_targeted(job.target_phases, PhaseCode.SCORING):
+                        rating = path_record.get("rating")
+                        label = path_record.get("label")
+                        try:
+                            has_rating = rating is not None and int(rating) > 0
+                        except (TypeError, ValueError):
+                            has_rating = False
+                        has_label = bool(label and str(label).strip().lower() not in ("none", "null", ""))
+                        if has_rating or has_label:
+                            emit_run_log(
+                                job.job_id,
+                                f"Audit: Overwriting existing metadata for {Path(job.image_path).name} (Rating={rating}, Label={label})",
+                                "WARNING",
+                                phase="scoring",
+                                step="prep"
+                            )
 
             # --- PHASE C: SCORING (Preparation) ---
             if _is_phase_targeted(job.target_phases, PhaseCode.SCORING):
@@ -155,7 +173,7 @@ class PrepWorker(PipelineWorker):
                         job.image_id,
                         PhaseCode.SCORING,
                         current_executor_version=self.scorer.VERSION if self.scorer else None,
-                        force_run=False,
+                        force_run=not job.skip_existing,
                     )
                     if not decision['should_run']:
                         skip_reason = decision.get("reason", "scoring_policy_skip")
