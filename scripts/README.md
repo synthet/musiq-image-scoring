@@ -51,6 +51,16 @@ python scripts/path/to/script.py
 | `research_models.py` | Research NEF→model input parameters |
 
 
+## Repository Safety Check
+
+Run the unresolved conflict marker check locally before pushing:
+
+```bash
+scripts/check_conflict_markers.sh
+```
+
+The script scans tracked source files under `modules/`, `tests/`, and `scripts/`, and fails if it finds unresolved merge markers (`<<<<<<<`, `=======`, `>>>>>>>`).
+
 ## API Contract Scripts
 
 | Script | Purpose |
