@@ -4412,11 +4412,7 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
                     tx.execute(
                         "UPDATE jobs SET status = 'running', finished_at = NULL, completed_at = NULL, "
                         "log = ?, current_phase = ?, next_phase_index = ?, runner_state = 'running', "
-<<<<<<< HEAD
-                        "phase_id = ? WHERE id = ?",
-=======
                         "phase_id = COALESCE(?, phase_id) WHERE id = ?",
->>>>>>> c6b6c5100acf4bc2d60ae3f82343055f1784c56a
                         (eff_log, pc, po, pid, job_id),
                     )
                     return old_status, "running", pc, po, "running", root_job_type
