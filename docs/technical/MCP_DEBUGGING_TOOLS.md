@@ -66,6 +66,105 @@ ENABLE_MCP_SERVER=1 python webui.py
 
 ## Available Tools
 
+## Postgres query patterns (operators)
+
+Use these canonical column/table mappings when writing ad-hoc SQL against Postgres:
+
+- `jobs.input_path` (not `jobs.folder_path`)
+- `image_phase_status.phase_id` joined to `pipeline_phases.code` (not `image_phase_status.phase_code`)
+- `job_image_actions.action` (not `image_phase_status.action`)
+- `pipeline_phases` (not `phases`)
+
+Copy/paste-ready queries:
+
+```sql
+-- 1) Recent jobs (latest first)
+SELECT
+  j.id,
+  j.job_type,
+  j.status,
+  j.input_path,
+  j.created_at,
+  j.started_at,
+  j.completed_at
+FROM jobs j
+ORDER BY j.created_at DESC
+LIMIT 20;
+```
+
+```sql
+-- 2) Recent jobs with duration (seconds)
+SELECT
+  j.id,
+  j.job_type,
+  j.status,
+  j.input_path,
+  j.created_at,
+  j.completed_at,
+  ROUND(EXTRACT(EPOCH FROM (j.completed_at - j.created_at))::numeric, 2) AS duration_s
+FROM jobs j
+WHERE j.created_at >= NOW() - INTERVAL '7 days'
+ORDER BY j.created_at DESC
+LIMIT 50;
+```
+
+```sql
+-- 3) Phase counts for one job (by canonical phase code)
+SELECT
+  p.code AS phase_code,
+  ips.status,
+  COUNT(*) AS row_count
+FROM image_phase_status ips
+JOIN pipeline_phases p ON p.id = ips.phase_id
+WHERE ips.job_id = $1
+GROUP BY p.code, ips.status
+ORDER BY p.code, ips.status;
+```
+
+```sql
+-- 4) Per-image stage rows for one job + phase
+SELECT
+  ips.job_id,
+  ips.image_id,
+  p.code AS phase_code,
+  ips.status,
+  ips.started_at,
+  ips.updated_at,
+  ips.error_message
+FROM image_phase_status ips
+JOIN pipeline_phases p ON p.id = ips.phase_id
+WHERE ips.job_id = $1
+  AND p.code = $2
+ORDER BY ips.image_id, ips.updated_at DESC;
+```
+
+```sql
+-- 5) Action aggregation for one job
+SELECT
+  jia.action,
+  COUNT(*) AS action_count
+FROM job_image_actions jia
+WHERE jia.job_id = $1
+GROUP BY jia.action
+ORDER BY action_count DESC, jia.action;
+```
+
+```sql
+-- 6) Action aggregation by phase (join via image_phase_status + pipeline_phases)
+SELECT
+  p.code AS phase_code,
+  jia.action,
+  COUNT(*) AS action_count
+FROM job_image_actions jia
+JOIN image_phase_status ips
+  ON ips.job_id = jia.job_id
+ AND ips.image_id = jia.image_id
+JOIN pipeline_phases p ON p.id = ips.phase_id
+WHERE jia.job_id = $1
+GROUP BY p.code, jia.action
+ORDER BY p.code, action_count DESC, jia.action;
+```
+
 ### Firebird Admin Tools (New)
 *Requires `firebird-admin` MCP server.*
 
@@ -438,4 +537,3 @@ Once configured, you can ask Cursor to use these tools:
 ## Development
 
 Tools are registered with **FastMCP** (`@mcp.tool`) in [`modules/mcp_server.py`](../../modules/mcp_server.py). After adding or changing a tool, update this document and [`.agent/mcp_tools_reference.md`](../../.agent/mcp_tools_reference.md).
-
