@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.4.1] - 2026-04-18
+
+### Fixed
+
+- **Cross-platform path handling**: Scoring runner now correctly resolves WSL and Windows paths using centralized `convert_path_to_local()` utility.
+- **PostgreSQL LIKE parameter escaping**: Fixed query parameter binding for LIKE patterns containing `%` wildcards; psycopg2 now properly escapes literal `%` in string literals.
+- **API scope path resolution**: Job dispatch endpoints now resolve cross-platform paths before passing to runners, preventing "path not found" errors in WSL/Windows hybrid environments.
+
+### Changed
+
+- **CI**: Added conflict marker guard check to `conflict-marker-check.yml` workflow.
+
 ## [7.4.0] - 2026-04-15
 
 ### Added
