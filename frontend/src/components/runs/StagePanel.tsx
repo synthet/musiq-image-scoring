@@ -82,7 +82,7 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
 
   const done = activeLive?.items_done ?? stage.items_done ?? 0
   const total = activeLive?.items_total ?? stage.items_total ?? 0
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0
+  const pct = total > 0 ? Math.max(0, Math.min(100, Math.round((done / total) * 100))) : 0
   const throughput = activeLive?.throughput
   const eta = activeLive?.eta_seconds
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { runsApi } from '@/api/runs'
 import { RunCard } from '@/components/runs/RunCard'
@@ -18,13 +18,20 @@ export function RunsPage() {
   const runsVersion = useWsStore((s) => s.runsVersion)
   const [tab, setTab] = useState<TabFilter>('active')
   const [historyPage, setHistoryPage] = useState(0)
+  const stableTotal = useRef(0)
 
-  const { data: overview, isLoading: overviewLoading } = useQuery({
+  const { data: activeRuns, isLoading: activeLoading } = useQuery({
+    queryKey: ['runs', 'active', runsVersion],
+    queryFn: () => runsApi.list({ limit: 200, status: 'running,paused,queued,pending' }),
+    refetchInterval: 30000, // watchdog only; WS invalidation is primary
+  })
+
+  const { data: overviewPayload, isLoading: overviewLoading } = useQuery({
     queryKey: ['runs', 'list', runsVersion],
     queryFn: () => runsApi.list({ limit: 120 }),
-    refetchInterval: 5000,
+    refetchInterval: 30000, // watchdog only; WS invalidation is primary
   })
-  const runs: Run[] = Array.isArray(overview) ? overview : []
+  const overview: Run[] = Array.isArray(overviewPayload) ? overviewPayload : []
 
   const { data: historyPayload, isLoading: historyLoading } = useQuery({
     queryKey: ['runs', 'history', historyPage, runsVersion],
@@ -39,8 +46,9 @@ export function RunsPage() {
     placeholderData: keepPreviousData,
   })
 
-  const active = runs.filter((r) => r.status === 'running' || r.status === 'paused')
-  const queued = runs.filter((r) => r.status === 'queued' || r.status === 'pending')
+  const active = (Array.isArray(activeRuns) ? activeRuns : []).filter((r) => r.status === 'running' || r.status === 'paused')
+  const queued = (Array.isArray(activeRuns) ? activeRuns : []).filter((r) => r.status === 'queued' || r.status === 'pending')
+  const runs: Run[] = overview
   const overviewHistory = runs.filter(
     (r) =>
       r.status === 'completed' ||
@@ -60,6 +68,8 @@ export function RunsPage() {
   useEffect(() => {
     if (tab !== 'history' || !historyPayload || !('total' in historyPayload)) return
     const t = historyPayload.total
+    if (t === stableTotal.current) return  // no change, skip
+    stableTotal.current = t
     const maxPage = Math.max(0, Math.ceil(t / HISTORY_PAGE_SIZE) - 1)
     if (historyPage > maxPage) setHistoryPage(maxPage)
   }, [tab, historyPayload, historyPage])
@@ -73,7 +83,7 @@ export function RunsPage() {
           ? historyRuns
           : []
 
-  const listLoading = tab === 'history' ? historyLoading : overviewLoading
+  const listLoading = tab === 'history' ? historyLoading : (tab === 'active' || tab === 'queue' ? activeLoading : overviewLoading)
   const historyHasPrev = tab === 'history' && historyPage > 0
   const historyHasNext =
     tab === 'history' && historyPayload && 'total' in historyPayload
@@ -119,9 +129,10 @@ export function RunsPage() {
         <div className="text-sm text-[#6d6d6d]">Loading…</div>
       )}
 
-      {tab !== 'tools' && !listLoading && displayed.length === 0 && (
-        <EmptyState tab={tab} onNewRun={() => openNewRun()} />
-      )}
+      {tab !== 'tools' && !listLoading && displayed.length === 0
+        && (tab !== 'history' || historyPayload !== undefined)
+        && (<EmptyState tab={tab} onNewRun={() => openNewRun()} />)
+      }
 
       {tab !== 'tools' && (
         <div className="space-y-3">

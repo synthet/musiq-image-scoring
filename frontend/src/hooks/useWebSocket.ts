@@ -9,7 +9,6 @@ const RECONNECT_DELAY_MS = 2000
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const store = useWsStore()
 
   useEffect(() => {
     let cancelled = false
@@ -20,7 +19,7 @@ export function useWebSocket() {
       wsRef.current = ws
 
       ws.onopen = () => {
-        if (!cancelled) store.setConnected(true)
+        if (!cancelled) useWsStore.getState().setConnected(true)
       }
 
       ws.onmessage = (ev) => {
@@ -28,6 +27,7 @@ export function useWebSocket() {
         try {
           const raw = JSON.parse(ev.data as string) as Record<string, unknown>
           const { events, bumpRuns } = adaptBackendMessage(raw)
+          const store = useWsStore.getState()
           if (bumpRuns) store.bumpRunsVersion()
           for (const event of events) dispatch(event)
         } catch {
@@ -37,7 +37,7 @@ export function useWebSocket() {
 
       ws.onclose = () => {
         if (cancelled) return
-        store.setConnected(false)
+        useWsStore.getState().setConnected(false)
         reconnectTimer.current = setTimeout(connect, RECONNECT_DELAY_MS)
       }
 
@@ -47,6 +47,7 @@ export function useWebSocket() {
     }
 
     function dispatch(event: WsEvent) {
+      const store = useWsStore.getState()
       switch (event.type) {
         case 'run_progress':
           store.setRunProgress(event)

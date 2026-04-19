@@ -29,13 +29,13 @@ export function RunDetailPage() {
   const { data: run, isLoading: runLoading } = useQuery({
     queryKey: runDetailQueryKey(id),
     queryFn: () => runsApi.get(id),
-    refetchInterval: 5000,
+    refetchInterval: 30000, // watchdog only; WS invalidation is primary
   })
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
     queryKey: runStagesQueryKey(id),
     queryFn: () => runsApi.getStages(id),
-    refetchInterval: run?.status === 'running' ? 5000 : false,
+    refetchInterval: 30000, // watchdog only; WS invalidation is primary
   })
   const stages = Array.isArray(stagesData) ? stagesData : []
 
@@ -89,6 +89,7 @@ export function RunDetailPage() {
     selectedStage ??
     stages.find((s) => s.state === 'running')?.phase_code ??
     stages.find((s) => s.state === 'failed')?.phase_code ??
+    stages.find((s) => s.state === 'queued' || s.state === 'pending')?.phase_code ??
     stages[stages.length - 1]?.phase_code ??
     null
 

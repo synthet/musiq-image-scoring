@@ -127,7 +127,8 @@ export function LogPanel({ runId, persistedLog, runStatus, startedAt }: LogPanel
 }
 
 function LogLine({ line }: { line: WsLogLine }) {
-  const ts = new Date(line.ts).toLocaleTimeString()
+  let ts = '??:??:??'
+  try { ts = new Date(line.ts).toLocaleTimeString() } catch { /* ignore malformed ts */ }
   return (
     <div className="flex gap-2 leading-5 hover:bg-[#2d2d30] px-1 rounded">
       <span className="text-[#6d6d6d] shrink-0">{ts}</span>

@@ -62,7 +62,7 @@ export const useWsStore = create<WsStore>((set) => ({
   addLogLine: (e) =>
     set((s) => {
       const existing = s.logLines[e.run_id] ?? []
-      const next = [...existing, e].slice(-500)
+      const next = existing.length >= 500 ? [...existing.slice(1), e] : [...existing, e]
       return { logLines: { ...s.logLines, [e.run_id]: next } }
     }),
 

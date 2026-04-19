@@ -8,11 +8,13 @@ export interface RunSubmitRequest {
   scope_type: 'file' | 'folder' | 'folder_recursive' | 'path_list'
   scope_paths: string[]
   stages?: string[]
+  /** @deprecated use run_mode */
   skip_done?: boolean
+  /** @deprecated use run_mode */
   force_rerun?: boolean
   /** When true, backend limits scoring to incomplete images under scope (see API docs). */
   fix_incomplete_stages?: boolean
-  /** Validation-repair pipeline mode: stage-specific issue scan + minimal repair actions. */
+  /** @deprecated use run_mode */
   validation_repair_mode?: boolean
   /** If true, run submits with dry-run repair actions (scan only). */
   validation_repair_dry_run?: boolean
@@ -20,6 +22,10 @@ export interface RunSubmitRequest {
   post_run_audit?: boolean
   /** Stored as jobs.description for troubleshooting. */
   description?: string
+  /** Run mode: process_all_overwrite | process_unprocessed_or_empty | validate_and_repair */
+  run_mode?: 'process_all_overwrite' | 'process_unprocessed_or_empty' | 'validate_and_repair'
+  /** Generate captions via BLIP during scoring run. */
+  generate_captions?: boolean
 }
 
 export interface RunsListPayload {
@@ -32,7 +38,7 @@ export interface RunDiagnosticsResponse {
   job_id: number
   job_status: string
   post_run_audit: Record<string, unknown> | null
-  image_phase_status_by_phase: Record<string, Record<string, number>>
+  image_phase_status_by_phase: Record<string, Record<string, number> | { _error: string }>
   execution_report: JobExecutionReport | null
   endpoints: {
     stages: string
@@ -103,11 +109,18 @@ export const runsApi = {
         report: res as JobExecutionReport,
       }
     } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
+      if (err instanceof ApiError) {
+        if (err.status === 404) {
+          return {
+            available: false,
+            reason: 'not_available',
+            message: parseApiErrorDetail(err.message) || 'Execution report not available.',
+          }
+        }
         return {
           available: false,
-          reason: 'not_available',
-          message: parseApiErrorDetail(err.message) || 'Execution report not available.',
+          reason: 'error',
+          message: `Server error (${err.status})`,
         }
       }
       throw err

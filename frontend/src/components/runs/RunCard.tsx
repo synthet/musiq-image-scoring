@@ -37,7 +37,15 @@ export function RunCard({ run, compact = false }: RunCardProps) {
       }
     },
   })
-  const forceMut = useMutation({ mutationFn: () => runsApi.force(run.id), onSuccess: invalidate })
+  const forceMut = useMutation({
+    mutationFn: () => runsApi.force(run.id),
+    onSuccess: (data) => {
+      invalidate()
+      if (data?.actions?.some(a => a.includes('no ghost runners'))) {
+        console.info('Force: dispatcher should recover normally')
+      }
+    },
+  })
 
   const scopePaths = Array.isArray(run.scope_paths) && run.scope_paths.length > 0
     ? run.scope_paths
@@ -46,7 +54,7 @@ export function RunCard({ run, compact = false }: RunCardProps) {
   const extraPaths = scopePaths.length - 1
 
   const pct = progress
-    ? (progress.items_total > 0 ? Math.round((progress.items_done / progress.items_total) * 100) : 0)
+    ? (progress.items_total > 0 ? Math.max(0, Math.min(100, Math.round((progress.items_done / progress.items_total) * 100))) : 0)
     : null
 
   const currentStageDisplay =

@@ -146,6 +146,33 @@ Helpers: `_table_exists()`, `_column_exists()`, `_index_exists()`, `_constraint_
 - **Secrets** (API keys) go in `secrets.json` (git-ignored), never in `config.json`
 - **Never modify `.git/config`** — do not set `extensions.worktreeConfig`, change `core.repositoryformatversion`, or add any git extensions. Third-party tools (Gemini Code Assist / Antigravity) use embedded git libraries that choke on non-standard extensions, breaking workspace resolution. If a worktree is needed, use a temporary one and clean it up immediately — do not leave worktree config persisted in the repo.
 
+### DB.py Refactoring (Future: Post-MVP)
+
+**Status:** Planning phase (not yet implemented)
+
+The `modules/db.py` file has grown to 414 KB / 10,565 lines (a "god object" with 60+ public methods). This creates high defect risk, merge conflicts, and testing difficulty. A phased decomposition is planned into domain-specific modules:
+
+**Proposed structure:**
+```
+modules/db/
+├── connection.py  (engine routing, connection management)
+├── images.py      (image CRUD, queries, filtering)
+├── folders.py     (folder operations, hierarchy)
+├── stacks.py      (stack membership, clustering)
+├── jobs.py        (job lifecycle, phases, recovery)
+├── keywords.py    (keyword sync, filtering, discovery)
+├── embeddings.py  (embedding storage, similarity search)
+├── telemetry.py   (pipeline events, metrics, logging)
+└── backup.py      (backup/restore, disaster recovery)
+```
+
+Backward compatibility is maintained via a facade layer in `modules/db.py`. See `docs/plans/DB_REFACTOR_DECOMPOSITION.md` for the full 11-week plan.
+
+**For now:** Use `modules/db.py` as before. New code should follow these patterns for future-proofing:
+- Import from domain-specific modules when available (post-refactor)
+- Avoid mixing concerns (e.g., don't add image queries to job functions)
+- Keep functions focused and testable in isolation
+
 ### Keyword Storage (Phase 4 / Transition Period)
 
 **Current state:** Keywords are stored in two places:

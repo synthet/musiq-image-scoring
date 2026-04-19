@@ -49,6 +49,45 @@ def _validate_file_path(file_path: str) -> str:
 
     return resolved
 
+# --- API authentication ---
+_API_KEY_ENABLED = False
+_API_KEY_VALUE = None
+
+def _init_api_auth():
+    """Initialize API key authentication from environment or config."""
+    global _API_KEY_ENABLED, _API_KEY_VALUE
+    # Check environment first, then config.json
+    api_key_env = os.environ.get("API_KEY", "").strip()
+    if api_key_env:
+        _API_KEY_ENABLED = True
+        _API_KEY_VALUE = api_key_env
+    else:
+        from modules import config
+        try:
+            api_key_config = config.get_config_value("api.key", "").strip()
+            if api_key_config:
+                _API_KEY_ENABLED = True
+                _API_KEY_VALUE = api_key_config
+        except Exception:
+            pass
+
+
+def _check_api_key(request) -> None:
+    """Validate API key from X-API-Key header (for mutating endpoints).
+
+    Required only if API_KEY environment variable or config.api.key is set.
+    Raises HTTPException 401 if key is missing or invalid.
+    """
+    from fastapi import HTTPException
+    if not _API_KEY_ENABLED:
+        return  # No authentication required
+
+    # Get key from header
+    api_key = request.headers.get("X-API-Key", "").strip()
+    if not api_key or api_key != _API_KEY_VALUE:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key (X-API-Key header)")
+
+
 # --- SQL query validation ---
 _SQL_FORBIDDEN_PATTERNS = re.compile(
     r'\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXECUTE|INTO|GRANT|REVOKE)\b',

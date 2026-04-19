@@ -105,6 +105,8 @@ from modules.ui.security import (          # noqa: F401
     _check_rate_limit,
     _validate_file_path,
     _SQL_FORBIDDEN_PATTERNS,
+    _check_api_key,
+    _init_api_auth,
 )
 
 

@@ -7,6 +7,7 @@ import json
 import faulthandler
 import signal
 import sys
+import urllib.parse
 from contextlib import asynccontextmanager
 import gradio as gr
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -366,7 +367,11 @@ def main():
         allowed_paths = config.get_default_allowed_paths()
         
     print(f"Starting WebUI on {platform.system()}...")
-    
+
+    # Initialize API key authentication if configured
+    from modules.ui.security import _init_api_auth
+    _init_api_auth()
+
     # Configure server endpoints using the FastAPI app directly
     app_module.setup_server_endpoints(
         app, runner, tagging_runner, clustering_runner, selection_runner, 
@@ -393,6 +398,13 @@ def main():
     # WebSocket Endpoint for Real-time Events
     @app.websocket("/ws/updates")
     async def websocket_endpoint(websocket: WebSocket):
+        origin = websocket.headers.get("origin", "")
+        allowed_hosts = {websocket.url.hostname, "localhost", "127.0.0.1"}
+        if origin:
+            origin_hostname = urllib.parse.urlparse(origin).hostname
+            if origin_hostname not in allowed_hosts:
+                await websocket.close(code=1008)
+                return
         await event_manager.connect(websocket)
         try:
             while True:

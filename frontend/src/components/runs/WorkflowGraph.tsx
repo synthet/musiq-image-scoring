@@ -125,19 +125,29 @@ function StateIcon({ state }: { state: StageState }) {
 function StageBadgeText({ state }: { state: StageState }) {
   const colors: Record<StageState, string> = {
     pending: 'text-[#6d6d6d]',
+    queued: 'text-[#9d9d9d]',
     running: 'text-[#4fc1ff]',
+    paused: 'text-[#cca700]',
     completed: 'text-[#89d185]',
     failed: 'text-[#f44747]',
     skipped: 'text-[#6d6d6d]',
     interrupted: 'text-[#cca700]',
+    cancel_requested: 'text-[#cca700]',
+    restarting: 'text-[#9d9d9d]',
+    canceled: 'text-[#f44747]',
   }
   const labels: Record<StageState, string> = {
     pending: 'Pending',
+    queued: 'Queued',
     running: 'Running',
+    paused: 'Paused',
     completed: 'Done',
     failed: 'Failed',
     skipped: 'Skipped',
     interrupted: 'Interrupted',
+    cancel_requested: 'Cancel Requested',
+    restarting: 'Restarting',
+    canceled: 'Canceled',
   }
   return <span className={clsx('text-[10px]', colors[state])}>{labels[state]}</span>
 }

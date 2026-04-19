@@ -55,6 +55,7 @@ export function statusVariant(status: RunStatus | StageState | string): BadgePro
       return 'danger'
     case 'paused':
     case 'interrupted':
+    case 'cancel_requested':
       return 'warning'
     case 'skipped':
       return 'muted'
@@ -62,6 +63,7 @@ export function statusVariant(status: RunStatus | StageState | string): BadgePro
     case 'queued':
       return 'info'
     case 'canceled':
+    case 'restarting':
       return 'muted'
     default:
       return 'default'
@@ -81,6 +83,8 @@ export function statusLabel(status: RunStatus | StageState | string): string {
     canceled: 'Canceled',
     interrupted: 'Interrupted',
     skipped: 'Skipped',
+    cancel_requested: 'Cancel Requested',
+    restarting: 'Restarting',
   }
   return labels[status] ?? status
 }

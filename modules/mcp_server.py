@@ -57,6 +57,7 @@ _gradio_context: dict | None = None
 
 # Set False if db.init_db() fails; DB-using tools then return a clear error
 _db_available = True
+_last_db_error = None
 
 # Annotation presets
 _RO = ToolAnnotations(readOnlyHint=True, destructiveHint=False)
@@ -89,12 +90,21 @@ def _sanitize_for_mcp(obj: Any) -> Any:
 
 
 def _require_db(fn):
-    """Decorator that returns an error dict if the database is not available."""
+    """Decorator that returns an error dict if the database is not available. 
+    Attempts to re-initialize if currently marked as unavailable."""
     import functools
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
+        global _db_available, _last_db_error
         if not _db_available:
-            return {"error": "Database not available. Ensure PostgreSQL is running and migrations are applied."}
+            # Try to re-initialize if we previously failed
+            prepare_mcp_embedded()
+            
+        if not _db_available:
+            msg = "Database not available. Ensure PostgreSQL is running and migrations are applied."
+            if _last_db_error:
+                msg += f" Last error: {_last_db_error}"
+            return {"error": msg}
         return fn(*args, **kwargs)
     return wrapper
 
@@ -1463,6 +1473,11 @@ def verify_environment() -> dict:
     import psutil
     import platform
 
+    # Try to refresh DB status if it's currently marked as unavailable
+    global _db_available
+    if not _db_available:
+        prepare_mcp_embedded()
+
     status = {
         "os": platform.system(),
         "python_version": sys.version,
@@ -1883,7 +1898,14 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
 @mcp.tool(annotations=_RO)
 def get_config() -> dict:
     """Get current application configuration (config.json merged with environment.json)."""
-    return config.load_config()
+    cfg = config.load_config()
+    # Add internal MCP status for debugging
+    cfg["_mcp_status"] = {
+        "db_available": _db_available,
+        "last_db_error": _last_db_error,
+        "version": "1.0.1-resilient"
+    }
+    return cfg
 
 
 @mcp.tool(annotations=_RO)
@@ -2134,15 +2156,35 @@ if MCP_AVAILABLE:
 # Server Setup & Transport
 # ============================================================
 
-def prepare_mcp_embedded():
-    """Initialize DB and set _db_available for embedded (SSE) or stdio runs. Idempotent."""
-    global _db_available
+def prepare_mcp_embedded(force=False) -> bool:
+    """Initialize DB and set _db_available for embedded (SSE) or stdio runs.
+    
+    If force=True, calls db.init_db() even if _db_available is already True.
+    If _db_available is False, always attempts to initialize.
+    
+    Returns:
+        bool: Current database availability status.
+    """
+    global _db_available, _last_db_error
+    
+    # If already available and not forced, just return success
+    if _db_available and not force:
+        return True
+        
     try:
+        # Note: db.init_db() in modules/db/engine.py has its own _db_initialized flag.
+        # We may need to clear it if we want a hard reset, but usually for transient
+        # connection issues, just calling it again is sufficient as the internal
+        # connector factory will retry the connection.
         db.init_db()
         _db_available = True
+        _last_db_error = None
+        return True
     except Exception as e:
+        _last_db_error = str(e)
         logger.warning("DB init failed (%s). DB tools will return 'Database not available'.", e)
         _db_available = False
+        return False
 
 
 def create_mcp_sse_app(mount_path: str = "/mcp"):

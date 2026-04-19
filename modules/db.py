@@ -6093,9 +6093,16 @@ def get_interrupted_jobs(job_type=None, limit=100):
 _JOB_HISTORY_STATUSES = ("completed", "failed", "canceled", "cancelled", "interrupted")
 
 
-def count_jobs(*, history_only: bool = False) -> int:
-    """Return total job rows (all, or terminal-only for history pagination)."""
-    if history_only:
+def count_jobs(*, history_only: bool = False, status_filter=None) -> int:
+    """Return total job rows (all, terminal-only for history, or filtered by status)."""
+    if status_filter:
+        # Filter by specific statuses provided
+        ph = ",".join(["?"] * len(status_filter))
+        row = get_connector().query_one(
+            f"SELECT COUNT(*) AS cnt FROM jobs WHERE status IN ({ph})",
+            tuple(status_filter),
+        )
+    elif history_only:
         ph = ",".join(["?"] * len(_JOB_HISTORY_STATUSES))
         row = get_connector().query_one(
             f"SELECT COUNT(*) AS cnt FROM jobs WHERE status IN ({ph})",
@@ -6103,15 +6110,16 @@ def count_jobs(*, history_only: bool = False) -> int:
         )
     else:
         row = get_connector().query_one("SELECT COUNT(*) AS cnt FROM jobs", ())
+    
     if not row:
         return 0
     try:
-        return int(row.get("cnt") or 0)
+        return int(row.get("cnt") or row.get("count") or 0)
     except (TypeError, ValueError):
         return 0
 
 
-def get_jobs(limit=50, offset=0, *, history_only=False):
+def get_jobs(limit=50, offset=0, *, history_only=False, status_filter=None):
     try: limit = int(limit)
     except (ValueError, TypeError): limit = 50
     try: offset = int(offset)
@@ -6120,13 +6128,23 @@ def get_jobs(limit=50, offset=0, *, history_only=False):
     if offset < 0: offset = 0
     limit = min(limit, 1000)
     offset = min(offset, 10_000_000)
-    if history_only:
-        ph = ",".join(["?"] * len(_JOB_HISTORY_STATUSES))
+
+    # Determine which statuses to filter by
+    if status_filter:
+        # Normalize status_filter to lowercase
+        statuses = [str(s).strip().lower() for s in status_filter if s]
+    elif history_only:
+        statuses = [s.lower() for s in _JOB_HISTORY_STATUSES]
+    else:
+        statuses = None
+
+    if statuses:
+        ph = ",".join(["?"] * len(statuses))
         sql = (
             f"SELECT * FROM jobs WHERE status IN ({ph}) "
             "ORDER BY created_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
         )
-        params = (*_JOB_HISTORY_STATUSES, offset, limit)
+        params = (*statuses, offset, limit)
     else:
         sql = "SELECT * FROM jobs ORDER BY created_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
         params = (offset, limit)

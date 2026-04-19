@@ -37,9 +37,15 @@ class EventManager:
             self.active_connections.append(websocket)
         logger.info(f"Client connected. Total connections: {len(self.active_connections)}")
 
-    def disconnect(self, websocket: WebSocket):
-        # Called from both async and sync contexts; list.remove is atomic under GIL
-        # but the lock ensures consistency with concurrent connect/broadcast
+    async def disconnect(self, websocket: WebSocket):
+        """Remove a WebSocket from active connections (async-safe with lock)."""
+        async with self._lock:
+            if websocket in self.active_connections:
+                self.active_connections.remove(websocket)
+                logger.info(f"Client disconnected. Total connections: {len(self.active_connections)}")
+
+    def disconnect_sync(self, websocket: WebSocket):
+        """Synchronous version for cleanup from non-async contexts."""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
             logger.info(f"Client disconnected. Total connections: {len(self.active_connections)}")
@@ -65,7 +71,7 @@ class EventManager:
                 await connection.send_text(json_message)
             except Exception as e:
                 logger.error(f"Failed to send message to client: {e}")
-                self.disconnect(connection)
+                await self.disconnect(connection)
 
     async def send_to(self, websocket: WebSocket, message: Dict[str, Any]):
         """Send a JSON-serializable message to a specific WebSocket client."""
@@ -73,7 +79,7 @@ class EventManager:
             await websocket.send_text(json.dumps(message))
         except Exception as e:
             logger.error(f"Failed to send unicast message to client: {e}")
-            self.disconnect(websocket)
+            await self.disconnect(websocket)
 
     def broadcast_threadsafe(self, event_type: str, data: Any = None):
         """

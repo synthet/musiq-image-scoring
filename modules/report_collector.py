@@ -221,6 +221,14 @@ class ReportCollector:
             )
             return 0
 
+    def get_pending_records(self) -> list:
+        """Return a shallow copy of pending (unflushed) records for aggregation purposes.
+
+        Thread-safe; holds lock during copy.
+        """
+        with self._lock:
+            return list(self._pending)
+
     def finalize(self) -> dict:
         """Flush remaining records and return the phase summary dict.
 

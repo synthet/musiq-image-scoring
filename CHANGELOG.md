@@ -13,6 +13,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.4.3] - 2026-04-19
+
+### Added
+
+- **Job status filtering**: `status_filter` parameter in `count_jobs()` and `get_jobs()` for flexible job history queries.
+- **Stale phase detection**: `list_stale_running_image_phase_rows()` method to identify folder phase status rows stuck in "running" state (database diagnostics).
+- **Optional API authentication**: `X-API-Key` header support (opt-in, disabled by default) for network-exposed deployments via `modules/ui/security.py`.
+
+### Fixed
+
+- **WebSocket async safety**: `EventManager.disconnect()` now properly async with locking; added sync variant `disconnect_sync()` for cleanup contexts (prevents race conditions).
+- **MCP tool security**: Restricted `execute_code` MCP tool with safe builtins blocklist (prevents RCE); added full code logging for audit trails.
+- **Connection leak prevention**: Wrapped DB operations in context managers in scoring/tagging/app modules (prevents connection pool exhaustion).
+- **Circuit breaker for model loading**: Added circuit breaker to `fix_db_metadata()` and `run_single_image()` (stops retrying after 3 consecutive failures, resets on success).
+- **Thread safety**: Protected `ScoringRunner.is_running` modifications with lock (prevents TOCTOU race conditions).
+- **Status value normalization**: Ensured canonical `"cancelled"` spelling across all status-checking code (fixes data consistency).
+- **Frontend UI improvements**: Enhanced Run cards, log panels, stage panels, and workflow graphs; improved WebSocket state management.
+- **Documentation**: Added DB refactoring planning guidance to `CLAUDE.md`.
+
+### Changed
+
+- **Deprecation notice**: Logs now warn when legacy `IMAGES.KEYWORDS` column is accessed (Phase 4 transition period).
+
 ## [7.4.2] - 2026-04-19
 
 ### Added

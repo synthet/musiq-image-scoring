@@ -63,11 +63,16 @@ export interface Run {
 
 export type StageState =
   | 'pending'
+  | 'queued'
   | 'running'
+  | 'paused'
   | 'completed'
   | 'failed'
   | 'skipped'
   | 'interrupted'
+  | 'cancel_requested'
+  | 'restarting'
+  | 'canceled'
 
 // UI-facing stage codes
 export type StageCode =
