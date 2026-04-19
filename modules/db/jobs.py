@@ -1025,22 +1025,32 @@ def get_recent_jobs(limit=50, offset=0):
     """Retrieve a list of recent jobs, ordered by creation time."""
     return get_jobs(limit=limit, offset=offset)
 
-def get_jobs(limit=50, offset=0, *, history_only=False):
+def get_jobs(limit=50, offset=0, *, history_only=False, status_filter=None):
     try: limit = int(limit)
     except (ValueError, TypeError): limit = 50
     try: offset = int(offset)
     except (ValueError, TypeError): offset = 0
     limit = min(max(0, limit), 1000)
     offset = max(0, offset)
-    
+
     conn = get_connector()
-    if history_only:
-        ph = ",".join(["?"] * len(_JOB_HISTORY_STATUSES))
+
+    # Determine which statuses to filter by
+    if status_filter:
+        # Normalize status_filter to lowercase
+        statuses = [str(s).strip().lower() for s in status_filter if s]
+    elif history_only:
+        statuses = [s.lower() for s in _JOB_HISTORY_STATUSES]
+    else:
+        statuses = None
+
+    if statuses:
+        ph = ",".join(["?"] * len(statuses))
         sql = (
             f"SELECT * FROM jobs WHERE status IN ({ph}) "
             "ORDER BY created_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
         )
-        params = (*_JOB_HISTORY_STATUSES, offset, limit)
+        params = (*statuses, offset, limit)
     else:
         sql = "SELECT * FROM jobs ORDER BY created_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
         params = (offset, limit)
