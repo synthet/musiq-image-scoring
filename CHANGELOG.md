@@ -13,6 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.4.2] - 2026-04-19
+
+### Added
+
+- **Caption generation toggle**: `generate_captions` parameter in `/api/runs/run_submit` to optionally disable BLIP caption generation during the keywords phase.
+
+### Fixed
+
+- **Cross-platform scope path resolution**: Job dispatch now resolves each scope path to a local OS path (e.g., WSL `/mnt/d/...` → `D:/` on Windows) before passing to runners, preventing "path not found" errors.
+- **PostgreSQL LIKE parameter escaping**: Fixed query parameter binding for LIKE patterns; `%` wildcards in string literals are now properly escaped so psycopg2 doesn't consume them as format specifiers.
+- **Job status terminal states**: Added `cancelled` (British spelling) to recognized terminal job states in status page.
+
+### Changed
+
+- **CI**: Improved conflict marker guard check in `conflict-marker-check.yml` workflow.
+
 ## [7.4.1] - 2026-04-18
 
 ### Fixed
