@@ -6,10 +6,13 @@ Tests if GPU is available and working with TensorFlow
 
 import os
 import sys
+import pytest
 
 # Set environment variables
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reduce TensorFlow logging
+
+pytestmark = [pytest.mark.wsl, pytest.mark.gpu]
 
 def check_gpu():
     """Test GPU functionality."""

@@ -1,6 +1,6 @@
 # Unit Test Status
 
-**Last updated**: 2026-04-13
+**Last updated**: 2026-04-19
 
 ## Overview
 
@@ -23,12 +23,20 @@ The test suite is split into:
 
 - **WSL test venv**: `~/.venvs/image-scoring-tests`
 - **Setup**: `bash ./scripts/wsl/setup_wsl_test_env.sh`
-- **Run**: `bash ./scripts/wsl/run_wsl_tests.sh`
+- **Run**: `bash ./scripts/wsl/run_wsl_tests.sh` (default: `-m "wsl and not network"`)
+
+#### WSL marker inventory (current)
+
+- Total files marked with `@pytest.mark.wsl`: **17**
+- Coverage includes:
+  - TensorFlow/GPU and model stack tests (`test_tf_gpu`, `test_vila`, `test_model_sources`, `test_gpu`, `test_cuda_manual`, `test_launch`, `test_selector_runner_behavior`, `test_verify_thumbnail`, `test_verify_patching`, `test_culling`)
+  - Linux RAW/tooling tests (`test_raw_extraction`, `test_resolution`, `test_dcraw_thumb`, `test_rawpy`, `test_thumb_gen`)
+  - Archived Firebird WSL smoke tests (`tests/archive_firebird/test_fb_wsl.py`, `tests/archive_firebird/test_fb_wsl_integration.py`)
 
 #### Recent fixes (2026-03-14)
 
 1. **`tests/test_events.py`** — Refactored to use minimal FastAPI app (no `webui` import); avoids Gradio/TensorFlow.
-2. **`tests/test_selector_runner_behavior.py`** — Added `@pytest.mark.wsl` and import guard; skips when ML deps unavailable.
+2. **`tests/test_selector_runner_behavior.py`** — Marked with `@pytest.mark.wsl`; skips when ML deps unavailable.
 3. **`tests/test_culling.py`** — Now uses `scoring_history_test.fdb` (per test DB rule); added XMP format verification (`xmpDM:pick`, `xmpDM:good`); added optional `test_full_workflow_real_data` (env: `IMAGE_SCORING_TEST_CULLING_FOLDER`).
 4. **`scripts/setup_test_db.py`** — Clears `culling_picks` and `culling_sessions` tables.
 
@@ -56,5 +64,10 @@ The test suite is split into:
 
 - [WSL_TESTS.md](WSL_TESTS.md) — WSL test setup and markers
 - [ENVIRONMENTS.md](../setup/ENVIRONMENTS.md) — Virtual environment overview
+
+## CI Guard
+
+- `scripts/ci/check_wsl_marker_collection.py` runs `pytest -m wsl --collect-only` against WSL-marked files and fails if zero tests are collected.
+- GitHub Actions workflow: `.github/workflows/wsl-marker-guard.yml`.
 
 **Note:** Periodically re-run `pytest -m wsl -ra` (WSL test venv) and update the “Current State” sections above. Former meta-tracker: [archive/testing/DOCUMENTATION_ISSUES.md](../archive/testing/DOCUMENTATION_ISSUES.md).

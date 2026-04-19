@@ -5,6 +5,9 @@ Manual CUDA detection test
 
 import os
 import sys
+import pytest
+
+pytestmark = [pytest.mark.wsl, pytest.mark.gpu]
 
 def test_cuda_libraries():
     """Test if CUDA libraries can be loaded manually"""

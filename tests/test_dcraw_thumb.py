@@ -1,6 +1,8 @@
-
 import subprocess
 import os
+import pytest
+
+pytestmark = pytest.mark.wsl
 
 target_file = "/mnt/d/Photos/Z8/180-600mm/2025/2025-11-16/DSC_6008.NEF"
 
