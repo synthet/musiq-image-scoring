@@ -21,10 +21,11 @@ sys.path.insert(0, str(ROOT))
 
 from fastapi import FastAPI
 from modules.api import create_api_router, create_public_api_router
+from modules.ui.source_image_api import router as source_image_router
 
 
 def build_app() -> FastAPI:
-    """Build a minimal FastAPI app with the API router for schema extraction."""
+    """Build a minimal FastAPI app with API and source-image routes for schema extraction."""
     app = FastAPI(
         title="Image Scoring WebUI API",
         description="REST API for the Image Scoring WebUI application.",
@@ -38,6 +39,7 @@ def build_app() -> FastAPI:
     )
     app.include_router(create_api_router())
     app.include_router(create_public_api_router())
+    app.include_router(source_image_router)
     return app
 
 
