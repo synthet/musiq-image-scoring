@@ -1,11 +1,14 @@
 import sys
 import os
+import pytest
 try:
     from modules import thumbnails
 except ImportError:
     # Fix import path for script execution
     sys.path.append(os.getcwd())
     from modules import thumbnails
+
+pytestmark = pytest.mark.wsl
 
 
 def test_thumbnail_generation():

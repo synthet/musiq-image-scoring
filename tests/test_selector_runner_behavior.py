@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.wsl
+
 try:
     from modules.clustering import ClusteringEngine
     from modules.scoring import ScoringRunner

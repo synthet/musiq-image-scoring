@@ -3,29 +3,36 @@
 This repo uses pytest markers to indicate tests that should be run in **WSL/Linux** (instead of native Windows).
 
 - **Marker**: `wsl`
-- **Run command in WSL**: `python -m pytest -m wsl -ra`
+- **Run command in WSL**: `python -m pytest -m "wsl and not network" -ra`
 
 ### Why WSL?
 
 Some tests depend on Linux tooling (e.g. `dcraw`, `exiftool`), Linux-only libraries, or a working TensorFlow/CUDA stack that is expected to be installed in WSL.
 
-### Tests currently marked `wsl`
+### Tests currently marked `wsl` (17 files)
 
-- **TensorFlow / GPU**
+- **TensorFlow / GPU / model stack**
   - `tests/test_tf_gpu.py`
   - `tests/test_vila.py`
   - `tests/test_model_sources.py`
   - `tests/test_launch.py` (imports `webui`, which pulls TensorFlow in this repo)
+  - `tests/test_gpu.py`
+  - `tests/test_cuda_manual.py`
+  - `tests/test_selector_runner_behavior.py`
   - `tests/test_verify_thumbnail.py`
   - `tests/test_verify_patching.py`
+  - `tests/test_culling.py`
 
-- **RAW extraction tooling + sample data**
+- **RAW extraction and Linux tooling**
   - `tests/test_raw_extraction.py` (requires `IMAGE_SCORING_TEST_RAW_FILE`)
   - `tests/test_resolution.py` (pyiqa/torch; optional sample thumbnail path)
+  - `tests/test_dcraw_thumb.py`
+  - `tests/test_rawpy.py`
+  - `tests/test_thumb_gen.py`
 
-- **Firebird WSL smoke/integration**
-  - `tests/test_fb_wsl.py`
-  - `tests/test_fb_wsl_integration.py`
+- **Firebird WSL smoke/integration (archived)**
+  - `tests/archive_firebird/test_fb_wsl.py`
+  - `tests/archive_firebird/test_fb_wsl_integration.py`
 
 ### Environment variables used by WSL tests
 
@@ -37,7 +44,7 @@ Some tests depend on Linux tooling (e.g. `dcraw`, `exiftool`), Linux-only librar
 ### Scripts
 
 - **Setup venv inside WSL**: `bash ./scripts/wsl/setup_wsl_test_env.sh`
-- **Run WSL tests inside WSL**: `bash ./scripts/wsl/run_wsl_tests.sh`
+- **Run WSL tests inside WSL**: `bash ./scripts/wsl/run_wsl_tests.sh` (default marker expression: `wsl and not network`)
 - **Run from Windows (PowerShell)**:
 
 ```powershell
@@ -70,5 +77,4 @@ The `wsl` marker runs WSL tests. Other markers in `pytest.ini` include: `network
 - [GPU setup guide](../setup/GPU_SETUP.md)
 - [Technical summary](../technical/TECHNICAL_SUMMARY.md)
 - [Docker setup](../setup/DOCKER_SETUP.md)
-
 

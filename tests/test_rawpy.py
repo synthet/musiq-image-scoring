@@ -2,6 +2,10 @@ import sys
 import os
 import datetime
 import importlib
+import pytest
+
+pytestmark = pytest.mark.wsl
+
 try:
     import rawpy
     print(f"rawpy version: {rawpy.__version__}")
@@ -40,4 +44,3 @@ if __name__ == "__main__":
         print(f"Utils result: {utils.get_image_creation_time(TARGET_FILE)}")
     except ImportError:
         print("Could not import modules.utils")
-
