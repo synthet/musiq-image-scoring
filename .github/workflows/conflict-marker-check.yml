@@ -1,6 +1,13 @@
 name: Conflict marker check
 
 on:
+  push:
+    branches: [master]
+    paths:
+      - 'modules/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/conflict-marker-check.yml'
   pull_request:
     paths:
       - 'modules/**'

@@ -19,6 +19,9 @@ Historical reports, research, reviews, and debugging sessions.
 |----------|-------------|
 | [GRADIO_SERVING_DECISION.md](GRADIO_SERVING_DECISION.md) | Why Gradio + FastAPI fits this product; when Triton/BentoML would matter |
 | [CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md](CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md) | Culling phase done but no stacks — SelectionRunner phase-order bug (fixed) |
+| [RUN_ORCHESTRATION_AUDIT_2026-04-17.md](RUN_ORCHESTRATION_AUDIT_2026-04-17.md) | Run orchestration audit — MUSIQ import regression, dispatcher busy-as-fail, stale `running` rows, path-validation gap, MCP SSE event-loop stalls |
+| [CODE_REVIEW_2026-04-15.md](CODE_REVIEW_2026-04-15.md) | Code review of 2026-04-15 commits — job_type stability, MUSIQ imports, indexing log persistence, conflict-marker guard, `a6fdb34` scratch/junk blocker |
+| [UI_RUNS_CODE_REVIEW_2026-04-18.md](UI_RUNS_CODE_REVIEW_2026-04-18.md) | Deep review of `/ui/runs` — 30 findings across cancel/pause races, enqueue-vs-phases race, limit=120 active drop, status enum drift, WS perf |
 
 ## Project Reviews
 
@@ -26,6 +29,7 @@ Historical reports, research, reviews, and debugging sessions.
 |----------|-------------|
 | [project-reviews/INDEX.md](project-reviews/INDEX.md) | Project review summaries and detailed reviews |
 | [project-reviews/UX_UI_REVIEW_2026-03-12.md](project-reviews/UX_UI_REVIEW_2026-03-12.md) | UX/UI heuristic review of current WebUI |
+| [CODE_DESIGN_REVIEW_2026-04-18.md](CODE_DESIGN_REVIEW_2026-04-18.md) | Comprehensive code & design review — 3 critical, 5 high, 7 medium findings (execute_code RCE, cancelled/canceled duality, connection leaks, stuck jobs, god object) |
 | [CODE_DESIGN_REVIEW.md](CODE_DESIGN_REVIEW.md) | Code and design review |
 | [2026_02_09_CODE_AND_DESIGN_REVIEW.md](2026_02_09_CODE_AND_DESIGN_REVIEW.md) | Code & design review |
 

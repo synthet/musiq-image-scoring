@@ -236,6 +236,8 @@ Protocol: [AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md).
 | [DEBUGGING_SESSIONS_HUB.md](reports/DEBUGGING_SESSIONS_HUB.md) | Historical Gradio/fullscreen debugging (links to archive) |
 | [RELEASE_HANDOFF_2026-04-10_2026-04-11.md](reports/RELEASE_HANDOFF_2026-04-10_2026-04-11.md) | Dated cross-repo release handoff snapshot |
 | [CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md](reports/CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md) | Culling done / no stacks investigation |
+| [RUN_ORCHESTRATION_AUDIT_2026-04-17.md](reports/RUN_ORCHESTRATION_AUDIT_2026-04-17.md) | Run orchestration audit (jobs, phases, dispatcher, MCP SSE) |
+| [CODE_REVIEW_2026-04-15.md](reports/CODE_REVIEW_2026-04-15.md) | Code review of 2026-04-15 commits (job_type stability, MUSIQ imports, indexing logs, conflict-marker CI guard, `a6fdb34` junk/binary blockers) |
 | [PROJECT_REVIEW_2026-01-31.md](reports/project-reviews/PROJECT_REVIEW_2026-01-31.md) | Project review summary |
 | [PROJECT_REVIEW_DETAILED_2026-01-31.md](reports/project-reviews/PROJECT_REVIEW_DETAILED_2026-01-31.md) | Detailed project review |
 | [CODE_DESIGN_REVIEW.md](reports/CODE_DESIGN_REVIEW.md) | Code and design review |

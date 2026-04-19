@@ -372,7 +372,7 @@ def _render_recent_jobs() -> str:
     if not jobs:
         return _section("Recent jobs (last 10)", f"<em style='color:{_TEXT_FAINT}'>No jobs found</em>")
 
-    terminal = {"completed", "failed", "canceled", "interrupted"}
+    terminal = {"completed", "failed", "canceled", "cancelled", "interrupted"}
     rows = []
     for j in jobs:
         jid = j.get("id", "")

@@ -178,11 +178,12 @@ class PostgresCursorProxy:
     def execute(self, query, params=None):
         query = self._translate_query(query)
         if params:
+            query = _escape_pct_in_string_literals(query)
             return self._cur.execute(query, params)
         return self._cur.execute(query)
 
     def executemany(self, query, params):
-        query = self._translate_query(query)
+        query = _escape_pct_in_string_literals(self._translate_query(query))
         return self._cur.executemany(query, params)
 
     def fetchone(self):
@@ -332,10 +333,10 @@ def _translate_fb_to_pg(query: str) -> str:
     query = query.replace('length(', 'char_length(')
 
     # 3g – Firebird "expr STARTING WITH ?" → PostgreSQL prefix LIKE
-    # Use %% so psycopg2 leaves a single % in the SQL literal after Python formatting.
+    # Emit single '%'; _escape_pct_in_string_literals() escapes it for psycopg2 at execute time.
     query = re.sub(
         r"([\w.]+)\s+STARTING\s+WITH\s+\?",
-        r"\1 LIKE (? || '%%')",
+        r"\1 LIKE (? || '%')",
         query,
         flags=re.IGNORECASE,
     )
@@ -347,6 +348,21 @@ def _translate_fb_to_pg(query: str) -> str:
     return "'".join(parts)
 
 
+def _escape_pct_in_string_literals(query: str) -> str:
+    """Escape literal ``%`` inside single-quoted SQL string literals to ``%%``.
+
+    psycopg2 interprets every ``%`` in the SQL as a format specifier when params
+    are bound, so literal ``%`` characters in LIKE patterns (e.g. ``LIKE '%foo%'``)
+    must be doubled. Apply this only immediately before executing with params;
+    do not fold into ``_translate_fb_to_pg`` because callers without params pass
+    the translated SQL verbatim, where ``%%`` would be wrong.
+    """
+    parts = query.split("'")
+    for i in range(1, len(parts), 2):  # odd indices are inside single quotes
+        parts[i] = parts[i].replace('%', '%%')
+    return "'".join(parts)
+
+
 def _count_placeholders_firebird_style(sql: str) -> int:
     """Count ``?`` placeholders outside single-quoted string literals."""
     parts = sql.split("'")
@@ -354,13 +370,17 @@ def _count_placeholders_firebird_style(sql: str) -> int:
 
 
 def validate_readonly_sql_for_api(query: str) -> str | None:
-    """Return an error message if ``query`` is not allowed for /api/db/query; else None."""
+    """Return an error message if ``query`` is not allowed for /api/db/query; else None.
+
+    Blocks multi-statement queries, DDL, DML, and dangerous comments/syntax that could bypass read-only enforcement.
+    """
     text = (query or "").strip()
     if not text:
         return "Empty query"
     upper = text.upper()
     if not (upper.startswith("SELECT") or upper.startswith("WITH")):
         return "Only read-only SELECT or WITH...SELECT queries are allowed"
+    # Block dangerous SQL patterns: DDL, DML, multi-statement, comments, system functions
     dangerous_patterns = [
         r"\bDROP\b",
         r"\bDELETE\b",
@@ -371,12 +391,19 @@ def validate_readonly_sql_for_api(query: str) -> str | None:
         r"\bTRUNCATE\b",
         r"\bGRANT\b",
         r"\bREVOKE\b",
-        r"--",
-        r";--",
+        r";",           # Multi-statement separator (prevents batching)
+        r"--",          # SQL comment
+        r"/\*",         # Block-comment start (also check for end)
+        r"\bCOPY\b",    # PostgreSQL COPY (can write to file)
+        r"\bLOAD\b",    # MySQL LOAD (can read files)
+        r"\bINTO\s+OUTFILE\b",  # MySQL INTO OUTFILE
     ]
     for pattern in dangerous_patterns:
         if re.search(pattern, upper):
             return f"Query contains forbidden pattern: {pattern}"
+    # Ensure block-comments are closed if present (prevent comment-based injection)
+    if "/*" in upper and "*/" not in upper:
+        return "Unclosed block comment detected"
     return None
 
 
@@ -4321,7 +4348,11 @@ def get_running_job_for_phase_continuation():
 
 
 def update_job_status(job_id, status, log=None, current_phase=None, next_phase_index=None, runner_state=None):
+    # Normalize spelling for writes
     effect_status = (status or "").strip().lower()
+    if effect_status == "canceled":
+        effect_status = "cancelled"
+        
     effect_log = log
     if effect_status == "completed":
         strict_fail = _strict_verify_resolved_ids_terminal_for_phase(job_id)
@@ -4363,8 +4394,8 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
             "restarting": "restarting",
             "completed": "completed",
             "failed": "failed",
-            "canceled": "canceled",
-            "cancelled": "canceled",
+            "canceled": "cancelled",
+            "cancelled": "cancelled",
             "interrupted": "interrupted",
         }
 
@@ -7179,6 +7210,60 @@ def reset_image_phase_status(image_ids: List[int], phase_code: str) -> int:
         conn.close()
 
 
+def list_stale_running_image_phase_rows(min_age_seconds: int = 3600, limit: int = 50) -> dict:
+    """Find image_phase_status rows stuck in 'running' longer than min_age_seconds.
+
+    Returns a dict with ``count_estimate`` (total matching rows) and ``rows``
+    (up to ``limit`` sample rows with image_id, phase_id, updated_at).
+    Used by ``check_database_health`` and ``get_stale_running_phase_status`` MCP tools.
+    """
+    from datetime import datetime, timedelta
+
+    cutoff = datetime.now() - timedelta(seconds=max(int(min_age_seconds), 0))
+    limit = max(1, min(int(limit), 500))
+
+    with connection() as conn:
+        c = conn.cursor()
+
+        # Count total stale rows
+        c.execute(
+            "SELECT COUNT(*) FROM image_phase_status "
+            "WHERE LOWER(TRIM(status)) = 'running' AND updated_at < %s",
+            (cutoff,),
+        )
+        count_row = c.fetchone()
+        count_estimate = count_row[0] if count_row else 0
+
+        # Fetch sample rows
+        c.execute(
+            "SELECT ips.image_id, ips.phase_id, pp.code AS phase_code, "
+            "       ips.updated_at, i.file_path "
+            "FROM image_phase_status ips "
+            "LEFT JOIN pipeline_phases pp ON pp.id = ips.phase_id "
+            "LEFT JOIN images i ON i.id = ips.image_id "
+            "WHERE LOWER(TRIM(ips.status)) = 'running' AND ips.updated_at < %s "
+            "ORDER BY ips.updated_at ASC "
+            "LIMIT %s",
+            (cutoff, limit),
+        )
+
+        rows = []
+        for row in c.fetchall():
+            rows.append({
+                "image_id": row[0],
+                "phase_id": row[1],
+                "phase_code": row[2],
+                "updated_at": str(row[3]) if row[3] else None,
+                "file_path": row[4],
+            })
+
+    return {
+        "count_estimate": count_estimate,
+        "min_age_seconds": min_age_seconds,
+        "rows": rows,
+    }
+
+
 def is_image_scoring_complete(image_id: int) -> bool:
     """
     Check if an image has all required scores in the database.
@@ -9838,6 +9923,75 @@ def get_image_phase_status(image_id, phase_code):
         "skip_reason": r["skip_reason"],
         "skipped_by": r["skipped_by"],
     }
+
+
+def list_stale_running_image_phase_rows(min_age_seconds: int = 3600, limit: int = 50) -> dict:
+    """
+    Find image_phase_status rows stuck in 'running' longer than min_age_seconds.
+
+    Used to detect folder phase badges stuck showing 'running' after crashes or forced stops.
+
+    Returns:
+        dict: {
+            "count_estimate": int,  # Total count of stale running rows
+            "rows": [               # Up to 'limit' rows
+                {
+                    "image_id": int,
+                    "image_file_path": str,
+                    "phase_code": str,
+                    "status": str,
+                    "updated_at": datetime,
+                    "age_seconds": int,
+                    "job_id": int or None,
+                    "last_error": str or None
+                },
+                ...
+            ]
+        }
+    """
+    try:
+        # Count total stale running rows
+        count_rows = get_connector().query(
+            "SELECT COUNT(*) as cnt FROM image_phase_status ips "
+            "WHERE ips.status = ? AND ips.updated_at < CURRENT_TIMESTAMP - INTERVAL ? SECOND",
+            ("running", min_age_seconds),
+        )
+        count_estimate = count_rows[0]["cnt"] if count_rows else 0
+
+        # Fetch up to 'limit' rows with full details
+        rows = get_connector().query(
+            "SELECT ips.id, ips.image_id, i.file_path, pp.code, ips.status, "
+            "       ips.updated_at, ips.job_id, ips.last_error, "
+            "       EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - ips.updated_at)) as age_seconds "
+            "FROM image_phase_status ips "
+            "JOIN images i ON i.id = ips.image_id "
+            "JOIN pipeline_phases pp ON pp.id = ips.phase_id "
+            "WHERE ips.status = ? AND ips.updated_at < CURRENT_TIMESTAMP - INTERVAL ? SECOND "
+            "ORDER BY ips.updated_at ASC "
+            "LIMIT ?",
+            ("running", min_age_seconds, limit),
+        )
+
+        result_rows = []
+        for r in rows:
+            result_rows.append({
+                "image_id": r["image_id"],
+                "image_file_path": r["file_path"],
+                "phase_code": (r["code"] or "").strip(),
+                "status": (r["status"] or "").strip(),
+                "updated_at": r["updated_at"],
+                "age_seconds": int(r["age_seconds"] or 0),
+                "job_id": r["job_id"],
+                "last_error": r["last_error"],
+            })
+
+        return {
+            "count_estimate": count_estimate,
+            "rows": result_rows,
+        }
+    except Exception as e:
+        logger.error(f"Failed to list stale running image phase rows: {e}", exc_info=True)
+        return {"count_estimate": 0, "rows": [], "error": str(e)}
 
 
 def get_all_phases(enabled_only=True):

@@ -240,12 +240,11 @@ def setup_server_endpoints(fastapi_app, scoring_runner=None, tagging_runner=None
             raise HTTPException(status_code=400, detail="Multi-statement queries not allowed")
 
         try:
-            conn = db.get_db()
-            conn.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
-            c = conn.cursor()
-            c.execute(query, parameters)
-            rows = c.fetchall()
-            conn.close()
-            return rows
+            with db.connection() as conn:
+                conn.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
+                c = conn.cursor()
+                c.execute(query, parameters)
+                rows = c.fetchall()
+                return rows
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))

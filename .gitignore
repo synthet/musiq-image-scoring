@@ -229,3 +229,14 @@ tools/toolbox.exe
 image_scoring_backup.sql
 webui.log.1
 postgres_backup.dump
+
+# Scratch/dev artifacts (do not commit)
+/scratch/
+/artifact/scratch/
+_db_methods.txt
+analyze_dump.py
+fix_all_backups_state.json
+
+# ML feature cache (regenerated at runtime)
+thumbnails/feature_cache/
+

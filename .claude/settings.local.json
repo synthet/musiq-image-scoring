@@ -114,9 +114,32 @@
       "Bash(python -m pytest -m \"not gpu and not db and not ml and not firebird\" --ignore=tests/archive_firebird -k \"not test_import_images\" --tb=short)",
       "Bash(python:*)",
       "Bash(rm \"D:/Photos/Z6ii/28-400mm/2026/2026-04-09/\"*.JPG)",
-      "Bash(ls \"D:/Photos/Z6ii/28-400mm/2026/2026-04-09/\"*.JPG)"
+      "Bash(ls \"D:/Photos/Z6ii/28-400mm/2026/2026-04-09/\"*.JPG)",
+      "Skill(update-config)",
+      "mcp__imgscore-py-sse__get_recent_jobs",
+      "mcp__imgscore-py-sse__get_error_summary",
+      "mcp__imgscore-py-sse__check_database_health",
+      "mcp__imgscore-py-sse__get_stale_running_phase_status",
+      "mcp__imgscore-py-sse__get_pipeline_stats",
+      "mcp__imgscore-py-sse__get_runner_status",
+      "mcp__imgscore-py-sse__get_server_log_tail",
+      "mcp__imgscore-py-sse__check_stack_invariants",
+      "mcp__imgscore-py-sse__execute_sql",
+      "Bash(mkdir -p .claude/skills .claude/agents)",
+      "Bash(cp -r .cursor/skills/* .claude/skills/)",
+      "Bash(cp .cursor/agents/*.md .claude/agents/)",
+      "Bash(powershell *)",
+      "Bash(git rm *)",
+      "mcp__imgscore-py-sse__get_job_details",
+      "mcp__imgscore-py-sse__get_job_phases",
+      "mcp__imgscore-py-sse__get_job_execution_report",
+      "Bash(powershell.exe *)"
     ]
   },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "imgscore-py-sse"
+  ],
   "disabledMcpjsonServers": [
     "imgscore-py-firebird",
     "imgscore-py-stdio",

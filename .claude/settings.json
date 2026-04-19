@@ -47,6 +47,10 @@
       "<ELECTRON_IMAGE_SCORING_PATH>"
     ]
   },
+  "enabledMcpjsonServers": [
+    "imgscore-py-stdio",
+    "imgscore-py-postgres"
+  ],
   "disabledMcpjsonServers": [
     "imgscore-py-firebird"
   ]

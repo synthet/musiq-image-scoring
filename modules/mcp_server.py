@@ -1715,7 +1715,7 @@ def get_performance_metrics(days: int = 7) -> dict:
         result["total_jobs_7d"] = len(rows)
         result["jobs_completed_7d"] = jobs_by_status.get("completed", 0)
         result["jobs_failed_7d"] = jobs_by_status.get("failed", 0)
-        result["jobs_cancelled_7d"] = jobs_by_status.get("cancelled", 0)
+        result["jobs_cancelled_7d"] = jobs_by_status.get("cancelled", 0) + jobs_by_status.get("canceled", 0)
         result["jobs_interrupted_7d"] = jobs_by_status.get("interrupted", 0)
 
         if durations:
@@ -1896,7 +1896,7 @@ def validate_config() -> dict:
         try:
             with db.connection() as conn:
                 c = conn.cursor()
-                c.execute("SELECT 1 FROM RDB$DATABASE")
+                c.execute("SELECT 1")
                 c.fetchone()
             out["database_reachable"] = True
         except Exception as e:
@@ -2063,6 +2063,9 @@ def execute_code(code: str) -> dict:
     stderr_capture = io.StringIO()
     result = None
 
+    # Log invocation for audit trail
+    logger.warning("execute_code invoked: %s", code[:200] if code else "(empty)")
+
     exec_globals = {
         "gr": gr,
         "demo": _gradio_context.get("demo"),
@@ -2078,17 +2081,26 @@ def execute_code(code: str) -> dict:
     }
 
     try:
-        import builtins
+        import builtins as _builtins_mod
+        # Blocked dangerous builtins: file I/O, code execution, introspection, subprocess
+        dangerous_builtins = {
+            "__import__", "open", "eval", "exec", "compile", "globals", "locals",
+            "breakpoint", "__loader__", "__spec__", "super", "vars", "dir",
+            "getattr", "setattr", "delattr", "hasattr", "type", "isinstance",
+        }
+        safe_builtins = {k: v for k, v in vars(_builtins_mod).items()
+                         if k not in dangerous_builtins}
         old_stdout, old_stderr = sys.stdout, sys.stderr
         sys.stdout, sys.stderr = stdout_capture, stderr_capture
         try:
-            exec_globals["__builtins__"] = builtins
+            exec_globals["__builtins__"] = safe_builtins
             exec(code, exec_globals)
             if "result" in exec_globals:
                 result = exec_globals["result"]
         finally:
             sys.stdout, sys.stderr = old_stdout, old_stderr
     except Exception as e:
+        logger.warning("execute_code raised: %s", e)
         return {
             "error": str(e),
             "stdout": stdout_capture.getvalue(),

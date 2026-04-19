@@ -34,10 +34,19 @@ fi
 
 pattern='^(<<<<<<<|>>>>>>>|={7}$)'
 
-if rg --line-number --with-filename --color=never -e "$pattern" -- "${tracked_files[@]}"; then
-  echo
-  echo "❌ Unresolved merge conflict markers detected."
-  exit 1
+if command -v rg >/dev/null 2>&1; then
+  if rg --line-number --with-filename --color=never -e "$pattern" -- "${tracked_files[@]}"; then
+    echo
+    echo "❌ Unresolved merge conflict markers detected."
+    exit 1
+  fi
+else
+  # Fallback to grep -E when ripgrep is not available on the runner.
+  if grep -HnE "$pattern" -- "${tracked_files[@]}"; then
+    echo
+    echo "❌ Unresolved merge conflict markers detected."
+    exit 1
+  fi
 fi
 
 echo "✅ No unresolved merge conflict markers found in tracked source files."

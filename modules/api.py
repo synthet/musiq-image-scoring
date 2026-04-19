@@ -251,7 +251,7 @@ def _synthetic_bird_species_job_phases(job: Dict[str, Any]) -> List[Dict[str, An
     elif st in ("failed", "interrupted"):
         pstate = st
     elif st in ("canceled", "cancelled"):
-        pstate = "canceled"
+        pstate = "cancelled"
     elif st == "paused":
         pstate = "paused"
     else:
@@ -5171,6 +5171,10 @@ def create_api_router() -> APIRouter:
             None,
             description="When true, force post-completion data-quality audit (see processing.post_run_data_quality_audit).",
         )
+        generate_captions: bool = Field(
+            True,
+            description="Generate BLIP captions for title/description during the keywords phase.",
+        )
 
         @model_validator(mode="after")
         def _normalize_run_mode_and_legacy_flags(self):
@@ -5214,6 +5218,9 @@ def create_api_router() -> APIRouter:
         scope_paths = [p for p in scope_paths if p]
         if not scope_paths:
             raise HTTPException(status_code=400, detail="scope_paths must not be empty")
+        # Resolve each scope path to a local OS path (e.g. WSL /mnt/d/... → D:/ on Windows)
+        # so the job dispatcher and runners see paths that actually exist on this host.
+        scope_paths = [_scope_resolve_path(p) for p in scope_paths]
         primary_path = scope_paths[0]
 
         # bird_species is not a pipeline PhaseCode — handle it before normalize_phase_codes.
@@ -5293,6 +5300,7 @@ def create_api_router() -> APIRouter:
             "force_rescan": mode_flags["force_rescan"],
             "phases": phase_values,
             "target_phases": phase_values,
+            "generate_captions": bool(request.generate_captions),
         }
         payload = augment_queue_payload_for_audit(payload, trigger="api", tool_id="run_submit")
         run_description = build_run_submit_description(
@@ -5430,7 +5438,7 @@ def create_api_router() -> APIRouter:
             if status == "queued":
                 db.request_cancel_job(run_id)
             elif status in ("pending", "running", "paused", "interrupted", "cancel_requested", "restarting"):
-                db.update_job_status(run_id, "canceled")
+                db.update_job_status(run_id, "cancelled")
                 # Stop the active runner when running (DB update alone doesn't stop the process)
                 if status == "running":
                     state = _job_dispatcher.get_state()

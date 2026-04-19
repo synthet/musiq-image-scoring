@@ -153,8 +153,7 @@ def resolve_selectors(
     normalized_image_paths = _dedupe_strs(image_paths)
     normalized_folder_paths = _dedupe_strs(folder_paths)
 
-    conn = db.get_db()
-    try:
+    with db.connection() as conn:
         path_image_ids, missing_image_paths = _fetch_image_ids_by_paths(conn, normalized_image_paths)
         path_folder_ids, missing_folder_paths = _fetch_folder_ids_by_paths(conn, normalized_folder_paths)
 
@@ -202,6 +201,4 @@ def resolve_selectors(
             "indexed_image_paths": _dedupe_strs(indexed_image_paths),
             "indexed_folder_ids": _dedupe_ints(indexed_folder_ids),
         }
-    finally:
-        conn.close()
 

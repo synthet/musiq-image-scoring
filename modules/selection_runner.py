@@ -307,11 +307,37 @@ class SelectionRunner:
             next_code = next_phase.get("phase_code")
             log(f"Advancing to next phase: {next_code}")
             try:
+                # Forward tagging-relevant flags from the parent payload so the
+                # keywords phase sees the same generate_captions/custom_keywords
+                # the user requested at /runs/submit time (otherwise the
+                # dispatcher defaults generate_captions to False and BLIP
+                # title/description never get written).
+                parent_payload: dict = {}
+                try:
+                    import json as _json
+                    row = db.get_connector().query_one(
+                        "SELECT queue_payload FROM jobs WHERE id = ?", (job_id,)
+                    )
+                    raw = (row or {}).get("queue_payload")
+                    if isinstance(raw, str) and raw:
+                        parsed = _json.loads(raw)
+                        if isinstance(parsed, dict):
+                            parent_payload = parsed
+                    elif isinstance(raw, dict):
+                        parent_payload = raw
+                except Exception as _pe:
+                    logger.debug("follow-up payload propagation: parent read failed: %s", _pe)
+
+                followup_body: dict = {
+                    "input_path": input_path,
+                    "parent_job_id": job_id,
+                }
+                for _k in ("generate_captions", "custom_keywords", "overwrite"):
+                    if _k in parent_payload:
+                        followup_body[_k] = parent_payload[_k]
+
                 fq_payload = augment_queue_payload_for_audit(
-                    {
-                        "input_path": input_path,
-                        "parent_job_id": job_id,
-                    },
+                    followup_body,
                     trigger="runner",
                     tool_id="phase_followup",
                 )

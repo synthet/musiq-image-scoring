@@ -50,9 +50,8 @@ def get_diagnostics() -> Dict[str, Any]:
         db_info["path"] = os.environ.get("FIREBIRD_DATABASE", "SCORING_HISTORY.FDB")
 
     try:
-        conn = db.get_db()
-        db_info["reachable"] = True
-        conn.close()
+        with db.connection() as conn:
+            db_info["reachable"] = True
         
         # Metadata for local files (Firebird/SQLite)
         if engine == "firebird" or engine == "sqlite":
