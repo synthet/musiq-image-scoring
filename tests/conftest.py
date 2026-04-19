@@ -18,14 +18,22 @@ _log = logging.getLogger(__name__)
 
 
 def _postgres_tests_enabled(_config):
-    """PostgreSQL tests are enabled by default (v6.4+).
-
-    Disable with SKIP_POSTGRES_TESTS=1 if no Postgres instance is available.
-    """
+    """Return whether Postgres test setup should be active (explicit opt-in only)."""
     if os.environ.get("SKIP_POSTGRES_TESTS", "").strip().lower() in ("1", "true", "yes"):
         return False
     if os.environ.get("RUN_POSTGRES_TESTS", "").strip().lower() in ("1", "true", "yes"):
         return True
+    marker_expr = ""
+    if _config is not None:
+        try:
+            marker_expr = (_config.getoption("-m") or "").strip()
+        except Exception:
+            marker_expr = ""
+    marker_expr = marker_expr.lower()
+    if "postgres" not in marker_expr:
+        return False
+    if "not postgres" in marker_expr:
+        return False
     return True
 
 
@@ -33,11 +41,11 @@ def _postgres_tests_enabled(_config):
 def postgres_test_session(request):
     """
     Isolated PostgreSQL database (image_scoring_test) with full app schema.
-    Enabled by default since v6.4. Disable with SKIP_POSTGRES_TESTS=1.
+    Activation is explicit opt-in via ``RUN_POSTGRES_TESTS=1`` or ``pytest -m postgres``.
     """
     if not _postgres_tests_enabled(request.config):
         pytest.skip(
-            "PostgreSQL tests disabled via SKIP_POSTGRES_TESTS=1"
+            "PostgreSQL tests disabled (set RUN_POSTGRES_TESTS=1 or run with -m postgres)"
         )
 
     try:
@@ -90,7 +98,7 @@ def pytest_sessionstart(session):
     Firebird test setup (``scripts/setup_test_db.py``) is no longer invoked
     automatically — run it manually if you need a Firebird test database.
     """
-    if not postgres_production_allowed_in_pytest():
+    if _postgres_tests_enabled(session.config) and not postgres_production_allowed_in_pytest():
         try:
             from modules import config
         except Exception as e:
