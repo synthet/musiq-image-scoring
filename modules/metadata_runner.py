@@ -240,7 +240,10 @@ class MetadataRunner:
                         error=path_error,
                     )
                 except Exception:
-                    pass
+                    logger.exception(
+                        "metadata_runner: failed to mark image %s FAILED for missing local path",
+                        image_id,
+                    )
                 continue
 
             try:

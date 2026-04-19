@@ -25,6 +25,17 @@ def _translate(sql: str) -> str:
     return _translate_fb_to_pg(sql)
 
 
+def _prepare(sql: str, params: Sequence | None) -> tuple[str, tuple | None]:
+    """Translate SQL and, when params are bound, escape literal ``%`` in string
+    literals so psycopg2's format substitution doesn't consume them as specifiers.
+    """
+    from modules.db import _escape_pct_in_string_literals
+    pg_sql = _translate(sql)
+    if params:
+        return _escape_pct_in_string_literals(pg_sql), tuple(params)
+    return pg_sql, None
+
+
 # ---------------------------------------------------------------------------
 # Transaction context
 # ---------------------------------------------------------------------------
@@ -41,8 +52,9 @@ class _PgTx:
 
     def query(self, sql: str, params: Sequence | None = None) -> list[dict]:
         import psycopg2.extras
+        pg_sql, pg_params = _prepare(sql, params)
         with self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(_translate(sql), tuple(params) if params else None)
+            cur.execute(pg_sql, pg_params)
             return [dict(r) for r in cur.fetchall()]
 
     def query_one(self, sql: str, params: Sequence | None = None) -> dict | None:
@@ -50,14 +62,16 @@ class _PgTx:
         return rows[0] if rows else None
 
     def execute(self, sql: str, params: Sequence | None = None) -> int:
+        pg_sql, pg_params = _prepare(sql, params)
         with self._conn.cursor() as cur:
-            cur.execute(_translate(sql), tuple(params) if params else None)
+            cur.execute(pg_sql, pg_params)
             return cur.rowcount
 
     def execute_returning(self, sql: str, params: Sequence | None = None) -> list[dict]:
         import psycopg2.extras
+        pg_sql, pg_params = _prepare(sql, params)
         with self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(_translate(sql), tuple(params) if params else None)
+            cur.execute(pg_sql, pg_params)
             if cur.description:
                 return [dict(r) for r in cur.fetchall()]
             return []
@@ -78,37 +92,35 @@ class PostgresConnector:
 
     def query(self, sql: str, params: Sequence | None = None) -> list[dict]:
         from modules import db_postgres
-        return db_postgres.execute_select(
-            _translate(sql), tuple(params) if params else None
-        )
+        pg_sql, pg_params = _prepare(sql, params)
+        return db_postgres.execute_select(pg_sql, pg_params)
 
     def query_one(self, sql: str, params: Sequence | None = None) -> dict | None:
         from modules import db_postgres
-        row = db_postgres.execute_select_one(
-            _translate(sql), tuple(params) if params else None
-        )
+        pg_sql, pg_params = _prepare(sql, params)
+        row = db_postgres.execute_select_one(pg_sql, pg_params)
         return dict(row) if row else None
 
     def execute(self, sql: str, params: Sequence | None = None) -> int:
         from modules import db_postgres
-        return db_postgres.execute_write(
-            _translate(sql), tuple(params) if params else None
-        )
+        pg_sql, pg_params = _prepare(sql, params)
+        return db_postgres.execute_write(pg_sql, pg_params)
 
     def execute_returning(self, sql: str, params: Sequence | None = None) -> list[dict]:
         import psycopg2.extras
         from modules import db_postgres
-        pg_sql = _translate(sql)
+        pg_sql, pg_params = _prepare(sql, params)
         with db_postgres.PGConnectionManager(commit=True) as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(pg_sql, tuple(params) if params else None)
+                cur.execute(pg_sql, pg_params)
                 if cur.description:
                     return [dict(r) for r in cur.fetchall()]
                 return []
 
     def execute_many(self, sql: str, params_list: list[Sequence]) -> None:
+        from modules.db import _escape_pct_in_string_literals
         from modules import db_postgres
-        pg_sql = _translate(sql)
+        pg_sql = _escape_pct_in_string_literals(_translate(sql))
         with db_postgres.PGConnectionManager(commit=True) as conn:
             with conn.cursor() as cur:
                 cur.executemany(pg_sql, [tuple(p) for p in params_list])

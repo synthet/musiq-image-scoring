@@ -68,20 +68,19 @@ def list_tables() -> List[str]:
     """List all user tables in the database."""
     with suppress_stdout():
         try:
-            conn = db.get_db()
-            c = conn.cursor()
-            # RDB$SYSTEM_FLAG = 0 means user table
-            # RDB$VIEW_BLR IS NULL filters out views
-            query = """
-                SELECT RDB$RELATION_NAME 
-                FROM RDB$RELATIONS 
-                WHERE RDB$SYSTEM_FLAG = 0 AND RDB$VIEW_BLR IS NULL 
-                ORDER BY RDB$RELATION_NAME
-            """
-            c.execute(query)
-            rows = c.fetchall()
-            conn.close()
-            return [str(row[0]).strip() for row in rows]
+            with db.connection() as conn:
+                c = conn.cursor()
+                # RDB$SYSTEM_FLAG = 0 means user table
+                # RDB$VIEW_BLR IS NULL filters out views
+                query = """
+                    SELECT RDB$RELATION_NAME
+                    FROM RDB$RELATIONS
+                    WHERE RDB$SYSTEM_FLAG = 0 AND RDB$VIEW_BLR IS NULL
+                    ORDER BY RDB$RELATION_NAME
+                """
+                c.execute(query)
+                rows = c.fetchall()
+                return [str(row[0]).strip() for row in rows]
         except Exception as e:
             return [f"Error: {str(e)}"]
 
@@ -90,116 +89,114 @@ def get_table_schema(table_name: str) -> List[Dict[str, Any]]:
     """Get schema information for a specific table."""
     with suppress_stdout():
         try:
-            conn = db.get_db()
-            c = conn.cursor()
-            
-            # 1. Get Column details
-            # Queries RDB$RELATION_FIELDS joined with RDB$FIELDS
-            # Note: Firebird system tables can be complex.
-            # RDB$FIELD_SOURCE links to domain definition in RDB$FIELDS
-            query = """
-                SELECT 
-                    rf.RDB$FIELD_NAME,
-                    f.RDB$FIELD_TYPE,
-                    f.RDB$FIELD_LENGTH,
-                    rf.RDB$NULL_FLAG
-                FROM RDB$RELATION_FIELDS rf
-                JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
-                WHERE rf.RDB$RELATION_NAME = ?
-                ORDER BY rf.RDB$FIELD_POSITION
-            """
-            c.execute(query, (table_name.upper(),))
-            rows = c.fetchall()
-            
-            # Basic Type Mapping (Approximate for Firebird)
-            type_map = {
-                7: 'SMALLINT', 8: 'INTEGER', 10: 'FLOAT', 12: 'DATE', 
-                13: 'TIME', 14: 'CHAR', 16: 'BIGINT', 27: 'DOUBLE', 
-                35: 'TIMESTAMP', 37: 'VARCHAR', 261: 'BLOB'
-            }
+            with db.connection() as conn:
+                c = conn.cursor()
 
-            schema = []
-            for row in rows:
-                # Handle varying row formats (tuple vs obj)
-                field_name = str(row[0]).strip()
-                field_type_code = row[1]
-                field_length = row[2]
-                null_flag = row[3]
-                
-                type_name = type_map.get(field_type_code, f"UNKNOWN({field_type_code})")
-                
-                schema.append({
-                    "name": field_name,
-                    "type": type_name,
-                    "length": field_length,
-                    "nullable": (null_flag != 1)
-                })
-                
-            conn.close()
-            return schema
+                # 1. Get Column details
+                # Queries RDB$RELATION_FIELDS joined with RDB$FIELDS
+                # Note: Firebird system tables can be complex.
+                # RDB$FIELD_SOURCE links to domain definition in RDB$FIELDS
+                query = """
+                    SELECT
+                        rf.RDB$FIELD_NAME,
+                        f.RDB$FIELD_TYPE,
+                        f.RDB$FIELD_LENGTH,
+                        rf.RDB$NULL_FLAG
+                    FROM RDB$RELATION_FIELDS rf
+                    JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
+                    WHERE rf.RDB$RELATION_NAME = ?
+                    ORDER BY rf.RDB$FIELD_POSITION
+                """
+                c.execute(query, (table_name.upper(),))
+                rows = c.fetchall()
+
+                # Basic Type Mapping (Approximate for Firebird)
+                type_map = {
+                    7: 'SMALLINT', 8: 'INTEGER', 10: 'FLOAT', 12: 'DATE',
+                    13: 'TIME', 14: 'CHAR', 16: 'BIGINT', 27: 'DOUBLE',
+                    35: 'TIMESTAMP', 37: 'VARCHAR', 261: 'BLOB'
+                }
+
+                schema = []
+                for row in rows:
+                    # Handle varying row formats (tuple vs obj)
+                    field_name = str(row[0]).strip()
+                    field_type_code = row[1]
+                    field_length = row[2]
+                    null_flag = row[3]
+
+                    type_name = type_map.get(field_type_code, f"UNKNOWN({field_type_code})")
+
+                    schema.append({
+                        "name": field_name,
+                        "type": type_name,
+                        "length": field_length,
+                        "nullable": (null_flag != 1)
+                    })
+
+                return schema
         except Exception as e:
             return [{"error": str(e)}]
 
 @mcp.tool()
 def run_sql(query: str, params: List[Any] = None) -> Dict[str, Any]:
     """Execute a raw SQL query.
-    
+
     WARNING: This tool allows ANY query, including modifications. Use with caution.
     """
     # Params needs to be a list if provided
     if params is None:
         params = []
-        
+
     with suppress_stdout():
         try:
-            conn = db.get_db()
-            c = conn.cursor()
-            
-            # Check if it's a SELECT query for returning results
-            is_select = query.strip().upper().startswith("SELECT") or query.strip().upper().startswith("WITH")
-            
-            # Execute
-            if params:
-                c.execute(query, tuple(params))
-            else:
-                c.execute(query)
-            
-            result = {}
-            if is_select:
-                rows = c.fetchall()
-                
-                # Try to get column names from description
-                cols = []
-                if c.description:
-                    cols = [d[0] for d in c.description]
-                
-                # Convert rows
-                data = []
-                for row in rows:
-                    if hasattr(row, 'keys'):
-                        # Dict-like row (sqlite3.Row or similar from db.py wrapper)
-                        row_dict = dict(row)
-                        # Fix bytes/blob for JSON serialization if needed?
-                        # For now assume simple types
-                        data.append(row_dict)
-                    else:
-                        # Tuple row
-                        if cols:
-                            data.append(dict(zip(cols, row)))
+            with db.connection() as conn:
+                c = conn.cursor()
+
+                # Check if it's a SELECT query for returning results
+                is_select = query.strip().upper().startswith("SELECT") or query.strip().upper().startswith("WITH")
+
+                # Execute
+                if params:
+                    c.execute(query, tuple(params))
+                else:
+                    c.execute(query)
+
+                result = {}
+                if is_select:
+                    rows = c.fetchall()
+
+                    # Try to get column names from description
+                    cols = []
+                    if c.description:
+                        cols = [d[0] for d in c.description]
+
+                    # Convert rows
+                    data = []
+                    for row in rows:
+                        if hasattr(row, 'keys'):
+                            # Dict-like row (sqlite3.Row or similar from db.py wrapper)
+                            row_dict = dict(row)
+                            # Fix bytes/blob for JSON serialization if needed?
+                            # For now assume simple types
+                            data.append(row_dict)
                         else:
-                            data.append(list(row))
-                            
-                result = {
-                    "columns": cols,
-                    "row_count": len(rows),
-                    "data": data[:500] # Limit to prevent overwhelming MCP
-                }
-            else:
-                conn.commit()
-                result = {"status": "success", "message": "Query executed successfully."}
-                
-            conn.close()
-            return result
+                            # Tuple row
+                            if cols:
+                                data.append(dict(zip(cols, row)))
+                            else:
+                                data.append(list(row))
+
+                    result = {
+                        "columns": cols,
+                        "row_count": len(rows),
+                        "data": data[:500] # Limit to prevent overwhelming MCP
+                    }
+                else:
+                    conn.commit()
+                    result = {"status": "success", "message": "Query executed successfully."}
+
+                return result
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
@@ -208,15 +205,14 @@ def get_firebird_version() -> str:
     """Get the Firebird database version."""
     with suppress_stdout():
         try:
-            conn = db.get_db()
-            c = conn.cursor()
-            # Classic way to get version in FB 2.1+
-            c.execute("SELECT rdb$get_context('SYSTEM', 'ENGINE_VERSION') as ver FROM rdb$database")
-            row = c.fetchone()
-            conn.close()
-            if row:
-                return str(row[0])
-            return "Unknown"
+            with db.connection() as conn:
+                c = conn.cursor()
+                # Classic way to get version in FB 2.1+
+                c.execute("SELECT rdb$get_context('SYSTEM', 'ENGINE_VERSION') as ver FROM rdb$database")
+                row = c.fetchone()
+                if row:
+                    return str(row[0])
+                return "Unknown"
         except Exception as e:
             return f"Error: {str(e)}"
 

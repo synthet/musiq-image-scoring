@@ -55,11 +55,10 @@ def heal_phase_data(
           AND ({incomplete_sql})
     """
     
-    conn = db.get_db()
-    c = conn.cursor()
-    c.execute(reset_query, (phase_code,))
-    false_positive_ids = [row[0] for row in c.fetchall()]
-    conn.close()
+    with db.connection() as conn:
+        c = conn.cursor()
+        c.execute(reset_query, (phase_code,))
+        false_positive_ids = [row[0] for row in c.fetchall()]
     
     resets_performed = 0
     if not dry_run and false_positive_ids:
@@ -90,11 +89,10 @@ def heal_phase_data(
         
     folder_query += " GROUP BY f.path ORDER BY image_count DESC"
     
-    conn = db.get_db()
-    c = conn.cursor()
-    c.execute(folder_query, tuple(params))
-    folders_needing_work = [{"folder_path": row[0], "image_count": row[1]} for row in c.fetchall()]
-    conn.close()
+    with db.connection() as conn:
+        c = conn.cursor()
+        c.execute(folder_query, tuple(params))
+        folders_needing_work = [{"folder_path": row[0], "image_count": row[1]} for row in c.fetchall()]
     
     # Filter out folders already being processed (active/queued runs)
     active_jobs = _get_active_jobs_snapshot()
@@ -141,15 +139,14 @@ def heal_phase_data(
 
 def _get_active_jobs_snapshot() -> List[Dict[str, Any]]:
     """Retrieve currently active or queued jobs with input paths."""
-    conn = db.get_db()
-    c = conn.cursor()
-    c.execute(
-        "SELECT id, input_path, status FROM jobs "
-        "WHERE LOWER(TRIM(status)) IN ('running', 'queued') "
-        "AND input_path IS NOT NULL AND input_path <> ''"
-    )
-    rows = c.fetchall()
-    conn.close()
+    with db.connection() as conn:
+        c = conn.cursor()
+        c.execute(
+            "SELECT id, input_path, status FROM jobs "
+            "WHERE LOWER(TRIM(status)) IN ('running', 'queued') "
+            "AND input_path IS NOT NULL AND input_path <> ''"
+        )
+        rows = c.fetchall()
     return [{"id": r[0], "input_path": r[1], "status": r[2]} for r in rows]
 
 def _enqueue_heal_run(folder_path: str, phase_code: str, run_mode: str = "validate_and_repair") -> tuple[int, int]:

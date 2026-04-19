@@ -14,7 +14,7 @@ def test_scoring_start_batch_selector_empty_does_not_require_path(monkeypatch):
     runner = ScoringRunner()
     calls = []
 
-    def fake_run(input_path, job_id, skip_existing, resolved_image_ids=None):
+    def fake_run(input_path, job_id, skip_existing, resolved_image_ids=None, **kwargs):
         calls.append((input_path, job_id, skip_existing, resolved_image_ids))
         runner.status_message = "Done (no images)"
 

@@ -29,13 +29,17 @@ class EventManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
         self.loop = None
+        self._lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
-        self.active_connections.append(websocket)
+        async with self._lock:
+            self.active_connections.append(websocket)
         logger.info(f"Client connected. Total connections: {len(self.active_connections)}")
 
     def disconnect(self, websocket: WebSocket):
+        # Called from both async and sync contexts; list.remove is atomic under GIL
+        # but the lock ensures consistency with concurrent connect/broadcast
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
             logger.info(f"Client disconnected. Total connections: {len(self.active_connections)}")
@@ -52,8 +56,11 @@ class EventManager:
         
         logger.debug(f"Broadcasting event: {event_type}")
         
-        # Iterate over a copy to safe remove if needed
-        for connection in self.active_connections[:]:
+        # Take a snapshot under the lock to avoid concurrent modification
+        async with self._lock:
+            connections = self.active_connections[:]
+        
+        for connection in connections:
             try:
                 await connection.send_text(json_message)
             except Exception as e:

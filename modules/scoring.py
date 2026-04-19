@@ -42,12 +42,16 @@ class ScoringRunner:
         
         # State persistence
         self.is_running = False
+        self._start_lock = threading.Lock()  # Prevents TOCTOU race on is_running
         self.job_type = None # 'scoring' or 'fix_db'
         self.log_history = []
         self.status_message = "Idle"
         self._thread = None
         self.current_count = 0
         self.total_count = 0
+        # Circuit breaker for model loading failures
+        self._model_load_failures = 0
+        self._MODEL_LOAD_MAX_FAILURES = 3
         
     def get_status(self):
         """
@@ -61,25 +65,24 @@ class ScoringRunner:
         """
         Starts batch processing in a background thread. Non-blocking.
         """
-        if self.is_running:
-            return "Error: Already running."
+        with self._start_lock:
+            if self.is_running:
+                return "Error: Already running."
+            self.is_running = True
 
-        self.is_running = True
         self.job_type = 'scoring'
         self.log_history = []
         self.status_message = "Starting..."
         self.current_count = 0
         self.total_count = 0
 
-        # Convert Windows path to WSL path if running in WSL (legacy check)
-        if input_path and ":" in input_path and len(input_path) > 1 and input_path[1] == ":":
-            drive = input_path[0].lower()
-            path = input_path[2:].replace("\\", "/")
-            wsl_path = f"/mnt/{drive}{path}"
-            # Check if we are actually in WSL context
-            if os.path.exists("/mnt/"):
-                 if os.path.exists(wsl_path):
-                     input_path = wsl_path
+        # Resolve cross-platform paths (WSL ↔ Windows) so the runner works regardless
+        # of whether the caller passed a native or foreign path format.
+        if input_path:
+            from modules.utils import convert_path_to_local
+            resolved = convert_path_to_local(input_path)
+            if os.path.exists(resolved):
+                input_path = resolved
 
         if resolved_image_ids is None and (not input_path or not os.path.exists(input_path)):
             self.log_history.append(f"Error: Path not found: {input_path}")
@@ -138,23 +141,48 @@ class ScoringRunner:
         
         # Checking/Loading Models (skip when a scorer was injected via constructor)
         if self.shared_scorer is None:
+            # Circuit breaker: stop retrying after repeated failures
+            if self._model_load_failures >= self._MODEL_LOAD_MAX_FAILURES:
+                msg = (f"Model loading circuit breaker open: {self._model_load_failures} consecutive failures. "
+                       f"Restart the WebUI to reset.")
+                log(msg, "ERROR")
+                self.status_message = "Error loading models (circuit breaker open)"
+                db.update_job_status(job_id, "failed", msg)
+                event_manager.broadcast_threadsafe(
+                    "job_completed",
+                    {"job_id": job_id, "status": "failed", "error": msg},
+                )
+                return
+
             log("Initializing models first (this happens once)...")
             try:
                 new_scorer = MultiModelMUSIQ()
                 
                 # Load models
                 musiq_models = ['spaq', 'ava']
+                all_loaded = True
                 for model_name in musiq_models:
                     log(f"Loading model: {model_name.upper()}...")
                     success = new_scorer.load_model(model_name)
                     if not success:
                          log(f"Warning: Failed to load {model_name}", "WARNING")
+                         all_loaded = False
+
+                if not all_loaded:
+                    self._model_load_failures += 1
+                    msg = f"One or more models failed to load (attempt {self._model_load_failures}/{self._MODEL_LOAD_MAX_FAILURES})"
+                    log(msg, "ERROR")
+                    self.status_message = "Error loading models"
+                    db.update_job_status(job_id, "failed", msg)
+                    return
 
                 self.shared_scorer = new_scorer
+                self._model_load_failures = 0  # Reset on success
                 log("Models initialized successfully.")
 
             except Exception as e:
-                msg = f"Error loading models: {str(e)}"
+                self._model_load_failures += 1
+                msg = f"Error loading models (attempt {self._model_load_failures}/{self._MODEL_LOAD_MAX_FAILURES}): {str(e)}"
                 log(msg, "ERROR")
                 self.status_message = "Error loading models"
                 db.update_job_status(job_id, "failed", msg)
@@ -435,29 +463,55 @@ class ScoringRunner:
                 {"job_id": job_id, "status": "failed", "error": msg},
             )
             return
-            
+
+        # Circuit breaker: stop retrying after repeated failures
+        if self._model_load_failures >= self._MODEL_LOAD_MAX_FAILURES:
+            msg = (f"Model loading circuit breaker open: {self._model_load_failures} consecutive failures. "
+                   f"Restart the WebUI to reset.")
+            log(msg)
+            self.status_message = "Error loading models (circuit breaker open)"
+            db.update_job_status(job_id, "failed", msg)
+            event_manager.broadcast_threadsafe(
+                "job_completed",
+                {"job_id": job_id, "status": "failed", "error": msg},
+            )
+            return
+
         records = db.get_incomplete_records()
         if not records:
             log("No incomplete records found.")
             db.update_job_status(job_id, "completed", "No incomplete records.")
             return
-            
+
         log(f"Found {len(records)} incomplete records requiring fix.")
         self.status_message = "Fixing..."
-        
+
         # Checking/Loading Models (Same as run_batch)
         if self.shared_scorer is None:
             log("Initializing models...")
             try:
                 new_scorer = MultiModelMUSIQ()
                 musiq_models = ['spaq', 'ava']
+                all_loaded = True
                 for model_name in musiq_models:
                     success = new_scorer.load_model(model_name)
                     if not success:
-                         log(f"Warning: Failed to load {model_name}")
+                        log(f"Warning: Failed to load {model_name}")
+                        all_loaded = False
+
+                if not all_loaded:
+                    self._model_load_failures += 1
+                    msg = f"One or more models failed to load (attempt {self._model_load_failures}/{self._MODEL_LOAD_MAX_FAILURES})"
+                    log(msg)
+                    self.status_message = "Error loading models"
+                    db.update_job_status(job_id, "failed", msg)
+                    return
+
                 self.shared_scorer = new_scorer
+                self._model_load_failures = 0  # Reset on success
             except Exception as e:
-                msg = f"Error loading models: {str(e)}"
+                self._model_load_failures += 1
+                msg = f"Error loading models (attempt {self._model_load_failures}/{self._MODEL_LOAD_MAX_FAILURES}): {str(e)}"
                 log(msg)
                 self.status_message = "Error loading models"
                 db.update_job_status(job_id, "failed", msg)
@@ -611,21 +665,20 @@ class ScoringRunner:
             # Let's verify what DB fields correspond to
             
             # Update specific columns
-            conn = db.get_db()
-            c = conn.cursor()
-            
-            c.execute("""
-                UPDATE images 
-                SET score_general = ?, score_aesthetic = ?, score_technical = ?,
-                    rating = ?, label = ?
-                WHERE file_path = ?
-            """, (gen, aes, tech, rating, label, file_path))
-            
-            # Also update scores_json summary if possible (complex text manipulation)
-            # Maybe skip for now as columns are the source of truth for UI
-            
-            conn.commit()
-            conn.close()
+            with db.connection() as conn:
+                c = conn.cursor()
+                
+                c.execute("""
+                    UPDATE images 
+                    SET score_general = ?, score_aesthetic = ?, score_technical = ?,
+                        rating = ?, label = ?
+                    WHERE file_path = ?
+                """, (gen, aes, tech, rating, label, file_path))
+                
+                # Also update scores_json summary if possible (complex text manipulation)
+                # Maybe skip for now as columns are the source of truth for UI
+                
+                conn.commit()
             
             # 5. Write Metadata (XMP)
             # Use xmp module
@@ -688,19 +741,36 @@ class ScoringRunner:
 
         if not os.path.exists(file_path):
             return False, f"File not found: {file_path}"
-        
+
+        # Circuit breaker: stop retrying after repeated failures
+        if self._model_load_failures >= self._MODEL_LOAD_MAX_FAILURES:
+            return False, (f"Model loading circuit breaker open: {self._model_load_failures} consecutive failures. "
+                          f"Restart the WebUI to reset.")
+
         self.status_message = "Scoring (Manual)..."
-        
+
         # Initialize models if needed
         if self.shared_scorer is None:
             try:
                 # MultiModelMUSIQ is imported via canonical package path at module import time.
                 new_scorer = MultiModelMUSIQ()
+                all_loaded = True
                 for m in ['spaq', 'ava']:
-                    new_scorer.load_model(m)
+                    success = new_scorer.load_model(m)
+                    if not success:
+                        all_loaded = False
+
+                if not all_loaded:
+                    self._model_load_failures += 1
+                    return False, (f"One or more models failed to load (attempt {self._model_load_failures}/"
+                                  f"{self._MODEL_LOAD_MAX_FAILURES})")
+
                 self.shared_scorer = new_scorer
+                self._model_load_failures = 0  # Reset on success
             except Exception as e:
-                return False, f"Error initializing models: {e}"
+                self._model_load_failures += 1
+                return False, (f"Error initializing models (attempt {self._model_load_failures}/"
+                              f"{self._MODEL_LOAD_MAX_FAILURES}): {e}")
 
         # Create Job
         from modules import pipeline

@@ -769,27 +769,29 @@ class TaggingRunner:
             if tags or caption:
                 tags_str = ",".join(tags)
                 # Update DB
-                conn = db.get_db()
-                c = conn.cursor()
-                row = db.get_image_details(file_path)
-                image_id = row['id'] if row else None
+                try:
+                    row = db.get_image_details(file_path)
+                    image_id = row['id'] if row else None
 
-                if image_id:
-                    if caption:
-                         c.execute("UPDATE images SET keywords = ?, title = ?, description = ? WHERE id = ?",
-                                   (tags_str, title, caption, image_id))
-                    else:
-                         c.execute("UPDATE images SET keywords = ? WHERE id = ?", (tags_str, image_id))
-                    conn.commit()
+                    if not image_id:
+                        return False, "Image not found in DB"
+
+                    with db.connection() as conn:
+                        c = conn.cursor()
+                        if caption:
+                            c.execute("UPDATE images SET keywords = ?, title = ?, description = ? WHERE id = ?",
+                                      (tags_str, title, caption, image_id))
+                        else:
+                            c.execute("UPDATE images SET keywords = ? WHERE id = ?", (tags_str, image_id))
+                        conn.commit()
+
                     # Sync keywords to normalized schema (dual-write)
                     db._sync_image_keywords(image_id, tags_str)
                     success_msg = f"Tags: {len(tags)} found"
                     if caption: success_msg += ", Caption generated"
-                else:
-                    conn.close()
-                    return False, "Image not found in DB"
-
-                conn.close()
+                except Exception as e:
+                    logger.error(f"Error updating image tags: {e}", exc_info=True)
+                    return False, f"Database error: {e}"
                 
                 # Write Metadata
                 self.write_metadata(file_path, tags, title, caption)

@@ -235,8 +235,14 @@ class PipelineOrchestrator:
                     is_running, log, msg, current, total = result[:5]
                     if not is_running:
                         phase_job = db.get_job_by_id(self.current_phase_job_id) if self.current_phase_job_id else None
-                        if phase_job and phase_job.get("status") == "failed":
+                        phase_status = (phase_job.get("status") or "").strip().lower() if phase_job else ""
+                        if phase_status == "failed":
                             db.set_job_phase_state(self.root_job_id, self.current_phase, "failed", error_message=phase_job.get("log"))
+                            self._active = False
+                        elif phase_status in ("paused", "interrupted", "cancelled", "canceled"):
+                            # Propagate non-completed terminal/pause states instead of assuming completion
+                            mapped = "cancelled" if phase_status in ("cancelled", "canceled") else phase_status
+                            db.set_job_phase_state(self.root_job_id, self.current_phase, mapped)
                             self._active = False
                         else:
                             db.set_job_phase_state(self.root_job_id, self.current_phase, "completed")
@@ -260,8 +266,8 @@ class PipelineOrchestrator:
                     db.set_job_phase_state(self.root_job_id, self.current_phase, "failed", error_message="Pipeline stopped")
                     db.update_job_status(
                         self.root_job_id,
-                        "canceled",
-                        runner_state="canceled",
+                        "cancelled",
+                        runner_state="cancelled",
                         current_phase=self.current_phase,
                     )
                 self.current_phase = None

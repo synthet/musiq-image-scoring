@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import contextmanager
 
 from modules import selector_resolver
 
@@ -39,6 +40,11 @@ def test_resolve_selectors_resolves_paths_and_recursive_folders(monkeypatch):
         @staticmethod
         def get_db():
             return conn
+
+        @staticmethod
+        @contextmanager
+        def connection():
+            yield conn
 
     monkeypatch.setattr(selector_resolver, "db", FakeDB)
     monkeypatch.setattr(selector_resolver.utils, "convert_path_to_wsl", lambda p: p)
@@ -91,6 +97,11 @@ def test_resolve_selectors_indexes_missing_paths(monkeypatch, tmp_path):
         @staticmethod
         def get_db():
             return conn
+
+        @staticmethod
+        @contextmanager
+        def connection():
+            yield conn
 
     FakeDB.sync_folder_to_db = staticmethod(sync_folder_to_db)
     FakeDB.get_or_create_folder = staticmethod(get_or_create_folder)

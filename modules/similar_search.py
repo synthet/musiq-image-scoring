@@ -36,14 +36,11 @@ def _get_or_compute_embedding(image_id, file_path=None):
         return np.frombuffer(emb_bytes, dtype=np.float32)
 
     if not file_path:
-        conn = db.get_db()
-        c = conn.cursor()
-        try:
+        with db.connection() as conn:
+            c = conn.cursor()
             c.execute("SELECT file_path FROM images WHERE id = %s", (image_id,))
             row = c.fetchone()
             file_path = row[0] if row else None
-        finally:
-            conn.close()
         if not file_path:
             return None
 
@@ -108,15 +105,12 @@ def search_similar_images(example_path=None, example_image_id=None,
         example_image_id = details['id']
         file_path = example_path
     else:
-        conn = db.get_db()
-        c = conn.cursor()
-        try:
+        with db.connection() as conn:
+            c = conn.cursor()
             ph = "%s" if db._get_db_engine() == "postgres" else "?"
             c.execute(f"SELECT file_path FROM images WHERE id = {ph}", (example_image_id,))
             row = c.fetchone()
             file_path = row[0] if row else None
-        finally:
-            conn.close()
 
     query_vec = _get_or_compute_embedding(example_image_id, file_path)
     if query_vec is None:
@@ -128,9 +122,8 @@ def search_similar_images(example_path=None, example_image_id=None,
         )
 
     # Postgres: pgvector cosine distance operator <=> for efficient ANN search
-    conn = db.get_db()
-    c = conn.cursor()
-    try:
+    with db.connection() as conn:
+        c = conn.cursor()
         sub = db._pg_default_embedding_space_subquery_sql()
         has_e = db._postgres_has_default_embedding_sql("i")
         emb_expr = "COALESCE(ie.embedding, i.image_embedding)"
@@ -166,8 +159,6 @@ def search_similar_images(example_path=None, example_image_id=None,
         params.extend([query_vec, limit])
         c.execute(sql, tuple(params))
         rows = c.fetchall()
-    finally:
-        conn.close()
 
     results = []
     for row in rows:
@@ -208,9 +199,8 @@ def find_near_duplicates(threshold=None, folder_path=None, limit=None):
         return _find_near_duplicates_python(threshold, folder_path, limit)
 
     # Postgres: count embeddings to choose pgvector self-join vs Python block path
-    conn = db.get_db()
-    c = conn.cursor()
-    try:
+    with db.connection() as conn:
+        c = conn.cursor()
         import os
         sub = db._pg_default_embedding_space_subquery_sql()
         has_e = db._postgres_has_default_embedding_sql("images")
@@ -234,8 +224,6 @@ def find_near_duplicates(threshold=None, folder_path=None, limit=None):
         c.execute(count_sql, tuple(count_params))
         count_row = c.fetchone()
         n_embeddings = count_row[0] if count_row else 0
-    finally:
-        conn.close()
 
     if n_embeddings < 2:
         return []
@@ -245,9 +233,8 @@ def find_near_duplicates(threshold=None, folder_path=None, limit=None):
         return _find_near_duplicates_python(threshold, folder_path, limit)
 
     # Postgres: SQL self-join using pgvector
-    conn = db.get_db()
-    c = conn.cursor()
-    try:
+    with db.connection() as conn:
+        c = conn.cursor()
         sub = db._pg_default_embedding_space_subquery_sql()
         has_e_a = db._postgres_has_default_embedding_sql("a")
         has_e_b = db._postgres_has_default_embedding_sql("b")
@@ -279,8 +266,6 @@ def find_near_duplicates(threshold=None, folder_path=None, limit=None):
 
         c.execute(sql, tuple(sql_params))
         rows = c.fetchall()
-    finally:
-        conn.close()
 
     results = []
     for row in rows:

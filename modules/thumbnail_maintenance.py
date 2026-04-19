@@ -248,11 +248,10 @@ def repair_thumbnail_paths_batch(
         ORDER BY id
         """
 
-    conn = db.get_db()
-    cur = conn.cursor()
-    cur.execute(sql)
-    rows = cur.fetchall()
-    conn.close()
+    with db.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(sql)
+        rows = cur.fetchall()
 
     scanned = 0
     repaired = 0
