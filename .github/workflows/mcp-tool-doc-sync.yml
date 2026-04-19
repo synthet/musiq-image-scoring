@@ -1,0 +1,34 @@
+name: MCP Tool Doc Sync
+
+on:
+  pull_request:
+    paths:
+      - 'modules/mcp_server.py'
+      - 'AGENTS.md'
+      - 'docs/technical/MCP_DEBUGGING_TOOLS.md'
+      - 'scripts/generate_mcp_tool_inventory.py'
+      - '.github/workflows/mcp-tool-doc-sync.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'modules/mcp_server.py'
+      - 'AGENTS.md'
+      - 'docs/technical/MCP_DEBUGGING_TOOLS.md'
+      - 'scripts/generate_mcp_tool_inventory.py'
+      - '.github/workflows/mcp-tool-doc-sync.yml'
+
+jobs:
+  verify-mcp-tool-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify generated MCP tool inventory
+        run: |
+          python scripts/generate_mcp_tool_inventory.py --check-docs AGENTS.md docs/technical/MCP_DEBUGGING_TOOLS.md
