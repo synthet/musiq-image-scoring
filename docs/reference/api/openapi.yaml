@@ -238,18 +238,18 @@ paths:
               title: Body
       responses:
         '200':
-          description: Successful Response
+          description: JPEG preview bytes
           content:
-            application/json:
-              schema: {}
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
         '400':
           description: Bad Request - Invalid input parameters
         '404':
           description: Not Found - Resource not found
         '500':
           description: Internal Server Error
-        '503':
-          description: Service Unavailable - Runner not initialized
         '422':
           description: Validation Error
           content:
@@ -2907,7 +2907,7 @@ paths:
   /api/raw-preview:
     get:
       tags:
-      - Utilities
+      - Image Scoring API
       summary: Get RAW file preview
       description: "Extracts or generates a JPEG preview for a RAW image file.\n        \n        This endpoint is optimized\
         \ for performance:\n        - Tries to extract embedded JPEG preview first (fastest)\n        - Falls back to full\
@@ -2925,18 +2925,18 @@ paths:
         description: Full path to the image file
       responses:
         '200':
-          description: Successful Response
+          description: JPEG preview bytes
           content:
-            application/json:
-              schema: {}
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
         '400':
           description: Bad Request - Invalid input parameters
         '404':
           description: Not Found - Resource not found
         '500':
           description: Internal Server Error
-        '503':
-          description: Service Unavailable - Runner not initialized
         '422':
           description: Validation Error
           content:

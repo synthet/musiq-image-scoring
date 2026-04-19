@@ -112,6 +112,7 @@ def setup_server_endpoints(fastapi_app, scoring_runner=None, tagging_runner=None
     """Configures FastAPI endpoints for the Gradio app."""
 
     from fastapi import HTTPException, Query
+    from fastapi.responses import Response
 
     from modules import api, api_db
     api.set_runners(
@@ -189,11 +190,24 @@ def setup_server_endpoints(fastapi_app, scoring_runner=None, tagging_runner=None
             "background_color": "#ffffff"
         })
 
-    @fastapi_app.get("/api/raw-preview")
+    @fastapi_app.get(
+        "/api/raw-preview",
+        response_class=Response,
+        response_model=None,
+        summary="Get RAW embedded preview",
+        description="Returns an embedded RAW preview as binary JPEG bytes.",
+        responses={
+            200: {
+                "description": "JPEG preview bytes",
+                "content": {"image/jpeg": {}},
+            },
+            400: {"description": "Unsupported RAW format"},
+            404: {"description": "File not found"},
+            500: {"description": "Preview extraction failed"},
+        },
+    )
     async def raw_preview_endpoint(path: str):
         import urllib.parse
-        from fastapi.responses import Response
-        from fastapi import HTTPException
         import io
 
         try:
@@ -221,6 +235,8 @@ def setup_server_endpoints(fastapi_app, scoring_runner=None, tagging_runner=None
                 media_type="image/jpeg",
                 headers={"Cache-Control": "public, max-age=3600"}
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 

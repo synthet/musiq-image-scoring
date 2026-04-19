@@ -476,9 +476,9 @@ Use this only if you intentionally run legacy/Electron compatibility workflows.
    git status
 
    # 2) Open each conflicted file and resolve blocks between:
-   # <<<<<<< HEAD
-   # =======
-   # >>>>>>> <incoming-branch>
+   # [conflict-start] HEAD
+   # [conflict-split]
+   # [conflict-end] <incoming-branch>
 
    # 3) Mark each file as resolved
    git add modules/api.py modules/db.py modules/metadata_runner.py
