@@ -16,10 +16,13 @@
         "operationId": "get_api_schema_api_schema_get",
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "JPEG preview bytes",
             "content": {
-              "application/json": {
-                "schema": {}
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               }
             }
           },
@@ -238,9 +241,6 @@
             "description": "Not Found - Resource not found"
           },
           "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
             "description": "Service Unavailable - Runner not initialized"
           },
           "422": {
@@ -452,10 +452,13 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "JPEG preview bytes",
             "content": {
-              "application/json": {
-                "schema": {}
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               }
             }
           },
@@ -467,9 +470,6 @@
           },
           "500": {
             "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
           },
           "422": {
             "description": "Validation Error",
@@ -631,10 +631,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "JPEG preview bytes",
             "content": {
-              "application/json": {
-                "schema": {}
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               }
             }
           },
@@ -646,9 +649,6 @@
           },
           "500": {
             "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
           },
           "422": {
             "description": "Validation Error",

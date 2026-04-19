@@ -2810,6 +2810,7 @@ def create_api_router() -> APIRouter:
     
     @router.get(
         "/raw-preview",
+        response_model=None,
         summary="Get RAW file preview",
         description="""
         Extracts or generates a JPEG preview for a RAW image file.
@@ -2822,7 +2823,16 @@ def create_api_router() -> APIRouter:
         
         **Query Parameters:**
         - path: Full path to the specific image file (URL encoded)
-        """
+        """,
+        responses={
+            200: {
+                "description": "JPEG preview bytes",
+                "content": {"image/jpeg": {}},
+            },
+            400: {"description": "Bad Request - Invalid input parameters"},
+            404: {"description": "Not Found - Resource not found"},
+            500: {"description": "Internal Server Error"},
+        },
     )
     async def get_raw_preview(path: str = Query(..., description="Full path to the image file")):
         """Get or generate a preview for a RAW file."""
@@ -2880,6 +2890,8 @@ def create_api_router() -> APIRouter:
             else:
                  raise HTTPException(status_code=500, detail="Failed to generate preview")
                  
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 

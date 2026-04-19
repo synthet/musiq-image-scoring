@@ -238,18 +238,18 @@ paths:
               title: Body
       responses:
         '200':
-          description: Successful Response
+          description: JPEG preview bytes
           content:
-            application/json:
-              schema: {}
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
         '400':
           description: Bad Request - Invalid input parameters
         '404':
           description: Not Found - Resource not found
         '500':
           description: Internal Server Error
-        '503':
-          description: Service Unavailable - Runner not initialized
         '422':
           description: Validation Error
           content:
@@ -2925,18 +2925,18 @@ paths:
         description: Full path to the image file
       responses:
         '200':
-          description: Successful Response
+          description: JPEG preview bytes
           content:
-            application/json:
-              schema: {}
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
         '400':
           description: Bad Request - Invalid input parameters
         '404':
           description: Not Found - Resource not found
         '500':
           description: Internal Server Error
-        '503':
-          description: Service Unavailable - Runner not initialized
         '422':
           description: Validation Error
           content:
