@@ -76,8 +76,8 @@ source ~/.bashrc
 # Make sure virtual environment is activated
 source ~/.venvs/tf/bin/activate
 
-# Install TensorFlow 2.15.0 with GPU support
-pip install tensorflow==2.15.0
+# Install canonical WSL/Linux GPU dependencies
+pip install -r requirements/requirements_wsl_gpu.txt
 ```
 
 ### Step 5: Verify Installation
@@ -171,7 +171,7 @@ Once setup is complete:
    - Restart Ubuntu terminal
 
 3. **"TensorFlow not built with CUDA"**
-   - Reinstall TensorFlow: `pip uninstall tensorflow && pip install tensorflow==2.15.0`
+   - Reinstall from canonical requirements: `pip install -r requirements/requirements_wsl_gpu.txt`
    - Check CUDA version compatibility
 
 4. **"Permission denied"**
@@ -184,6 +184,8 @@ Once setup is complete:
 |----------------|--------|-------|---------|
 | Windows Native | CPU | ~30ms | âœ… Working |
 | WSL2 + Ubuntu | GPU | ~5ms | âœ… Working (after setup) |
+
+See also: [Python & Dependency Version Caveats](PYTHON_VERSION_CAVEATS.md).
 
 ## Next Steps
 
