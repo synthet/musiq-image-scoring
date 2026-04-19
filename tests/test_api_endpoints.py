@@ -10,13 +10,29 @@ Skipped automatically when ML/framework dependencies are not installed
 
 import pytest
 
-try:
-    from fastapi import FastAPI
-    from fastapi.testclient import TestClient
-    from modules import api, db
-    from modules.ui import app as ui_app
-except ImportError as e:
-    pytest.skip(f"API/ML deps not available: {e}", allow_module_level=True)
+FastAPI = None
+TestClient = None
+api = None
+db = None
+ui_security = None
+
+
+def _ensure_api_deps_loaded():
+    """Import API test deps lazily so module import stays lightweight."""
+    global FastAPI, TestClient, api, db, ui_security
+    if api is not None:
+        return
+
+    FastAPI = pytest.importorskip("fastapi").FastAPI
+    TestClient = pytest.importorskip("fastapi.testclient").TestClient
+    api = pytest.importorskip("modules.api")
+    db = pytest.importorskip("modules.db")
+    ui_security = pytest.importorskip("modules.ui.security")
+
+
+@pytest.fixture(autouse=True)
+def _api_test_deps():
+    _ensure_api_deps_loaded()
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +61,7 @@ class _RunnerStub:
 
 
 def _build_client():
+    _ensure_api_deps_loaded()
     app = FastAPI()
     app.include_router(api.create_api_router())
     app.include_router(api.create_public_api_router())
@@ -72,6 +89,15 @@ def test_health_returns_healthy_when_no_runners(monkeypatch):
     assert data["scoring_available"] is False
     assert data["tagging_available"] is False
     assert data["clustering_available"] is False
+
+
+def test_minimal_environment_executes_health_endpoint():
+    import sys
+
+    with _build_client() as client:
+        response = client.get("/api/health")
+    assert response.status_code == 200
+    assert "modules.ui.app" not in sys.modules
 
 
 def test_health_reflects_available_runners(monkeypatch):
@@ -148,7 +174,7 @@ def test_scoring_start_returns_503_when_runner_unavailable(monkeypatch):
 
 def test_scoring_start_returns_400_when_no_selector(monkeypatch):
     monkeypatch.setattr(api, "_scoring_runner", _RunnerStub())
-    monkeypatch.setattr(ui_app, "_check_rate_limit", _noop_rate_limit)
+    monkeypatch.setattr(ui_security, "_check_rate_limit", _noop_rate_limit)
     with _build_client() as client:
         response = client.post("/api/scoring/start", json={})
     assert response.status_code == 400
@@ -156,7 +182,7 @@ def test_scoring_start_returns_400_when_no_selector(monkeypatch):
 
 def test_scoring_start_enqueues_job_and_returns_job_id(monkeypatch, tmp_path):
     monkeypatch.setattr(api, "_scoring_runner", _RunnerStub())
-    monkeypatch.setattr(ui_app, "_check_rate_limit", _noop_rate_limit)
+    monkeypatch.setattr(ui_security, "_check_rate_limit", _noop_rate_limit)
     monkeypatch.setattr("modules.selector_resolver.resolve_selectors", _noop_resolve_selectors)
     monkeypatch.setattr(db, "create_job_phases", lambda *a, **kw: [])
     monkeypatch.setattr(db, "enqueue_job", lambda *a, **kw: (42, 1))
@@ -229,7 +255,7 @@ def test_tagging_start_returns_503_when_runner_unavailable(monkeypatch):
 
 def test_tagging_start_returns_400_when_no_selector(monkeypatch):
     monkeypatch.setattr(api, "_tagging_runner", _RunnerStub())
-    monkeypatch.setattr(ui_app, "_check_rate_limit", _noop_rate_limit)
+    monkeypatch.setattr(ui_security, "_check_rate_limit", _noop_rate_limit)
     with _build_client() as client:
         response = client.post("/api/tagging/start", json={})
     assert response.status_code == 400
@@ -237,7 +263,7 @@ def test_tagging_start_returns_400_when_no_selector(monkeypatch):
 
 def test_tagging_start_enqueues_job(monkeypatch, tmp_path):
     monkeypatch.setattr(api, "_tagging_runner", _RunnerStub())
-    monkeypatch.setattr(ui_app, "_check_rate_limit", _noop_rate_limit)
+    monkeypatch.setattr(ui_security, "_check_rate_limit", _noop_rate_limit)
     monkeypatch.setattr("modules.selector_resolver.resolve_selectors", _noop_resolve_selectors)
     monkeypatch.setattr(db, "create_job_phases", lambda *a, **kw: [])
     monkeypatch.setattr(db, "enqueue_job", lambda *a, **kw: (99, 2))
@@ -279,7 +305,7 @@ def test_clustering_start_returns_503_when_runner_unavailable(monkeypatch):
 
 def test_clustering_start_returns_400_when_no_selector(monkeypatch):
     monkeypatch.setattr(api, "_clustering_runner", _RunnerStub())
-    monkeypatch.setattr(ui_app, "_check_rate_limit", _noop_rate_limit)
+    monkeypatch.setattr(ui_security, "_check_rate_limit", _noop_rate_limit)
     with _build_client() as client:
         response = client.post("/api/clustering/start", json={})
     assert response.status_code == 400
