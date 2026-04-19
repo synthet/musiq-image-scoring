@@ -78,7 +78,7 @@ That's it! The Docker container includes all dependencies, CUDA support, and con
    source ~/.venvs/tf/bin/activate
    cd /path/to/image-scoring
    pip install --upgrade pip
-   pip install -r requirements/requirements_wsl_gpu.txt
+   pip install -r requirements/requirements_wsl_gpu.txt  # Canonical WSL/Linux GPU requirements
    ```
 
 3. **Verify GPU access**:
@@ -91,7 +91,7 @@ That's it! The Docker container includes all dependencies, CUDA support, and con
    python launch.py
    ```
 
-📖 **Detailed guide:** [WSL2 TensorFlow GPU Setup](docs/setup/WSL2_TENSORFLOW_GPU_SETUP.md) | [Windows/WSL Deployment](docs/setup/WINDOWS_WSL_DEPLOYMENT.md)
+📖 **Detailed guide:** [WSL2 TensorFlow GPU Setup](docs/setup/WSL2_TENSORFLOW_GPU_SETUP.md) | [Windows/WSL Deployment](docs/setup/WINDOWS_WSL_DEPLOYMENT.md) | [Python & Dependency Version Caveats](docs/setup/PYTHON_VERSION_CAVEATS.md)
 
 ---
 
@@ -112,15 +112,17 @@ python -m venv .venv
 .venv\Scripts\activate.bat
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements.txt  # Canonical Windows-native requirements
 ```
 
 **Limitations:**
 - ❌ No VILA model (requires TensorFlow Hub + Kaggle)
-- ❌ No GPU acceleration (TensorFlow dropped Windows GPU support after v2.10)
+- ❌ No GPU acceleration in this Windows-native path (use Docker/WSL2 GPU requirements instead)
 - ⚠️ Slower batch processing (5-10x slower than GPU)
 
 📖 **For production use, we strongly recommend Docker or WSL2.**
+
+📖 **Version caveats:** [Python & Dependency Version Caveats](docs/setup/PYTHON_VERSION_CAVEATS.md)
 
 ---
 
@@ -128,7 +130,7 @@ pip install -r requirements.txt
 
 **Why?** Run the Gradio WebUI natively on Windows without WSL. CPU-only, no VILA.
 
-**Prerequisites:** Python 3.10+, Firebird binaries in `Firebird/` (firebird.exe, fbclient.dll — see [Firebird 5.0](https://firebirdsql.org/en/firebird-5-0/) Embedded package).
+**Prerequisites:** Compatible Python (see [Python & Dependency Version Caveats](docs/setup/PYTHON_VERSION_CAVEATS.md)), Firebird binaries in `Firebird/` (firebird.exe, fbclient.dll — see [Firebird 5.0](https://firebirdsql.org/en/firebird-5-0/) Embedded package).
 
 **Setup:**
 
@@ -377,14 +379,14 @@ The tool uses a **triple fallback mechanism** for maximum reliability:
 2. **TensorFlow GPU not detected**:
    ```bash
    pip uninstall tensorflow
-   pip install tensorflow[and-cuda]==2.15.0
+   pip install -r requirements/requirements_wsl_gpu.txt
    ```
 
 3. **Import errors**:
    ```bash
    sudo apt install libgl1 libsm6 libxext6
    pip install --upgrade pip
-   pip install -r requirements.txt --force-reinstall
+   pip install -r requirements/requirements_wsl_gpu.txt  # Reinstall canonical WSL/Linux GPU requirements
    ```
 
 ### Windows Native Issues
@@ -456,19 +458,13 @@ The tool uses a **triple fallback mechanism** for maximum reliability:
 
 ## Dependencies
 
-### Core Dependencies (Image Quality Scoring)
-- **tensorflow-cpu==2.15.0**: CPU-only TensorFlow
-- **Pillow==10.4.0**: Image processing
-- **numpy==1.24.4**: Numerical computing
-- **tensorflow-hub==0.16.1**: TensorFlow Hub model loading (primary source)
-- **kagglehub==0.3.4**: Kaggle Hub for VILA and all models (fallback source)
-### Keyword Extraction Dependencies (Optional)
-- **torch>=2.0.0**: PyTorch framework
-- **transformers>=4.30.0**: Hugging Face transformers
-- **keybert>=0.7.0**: Keyword extraction
-- **spacy>=3.6.0**: Natural language processing
+Dependency versions are maintained in platform-specific requirements files.
 
-📖 **See:** [requirements.txt](requirements.txt) for complete dependency list
+- **WSL2 / Linux GPU (recommended):** [`requirements/requirements_wsl_gpu.txt`](requirements/requirements_wsl_gpu.txt)
+- **Windows-native CPU workflow:** [`requirements.txt`](requirements.txt)
+- **Minimal CPU experiments:** [`requirements/requirements_simple.txt`](requirements/requirements_simple.txt)
+
+📖 **Version caveats and platform guidance:** [Python & Dependency Version Caveats](docs/setup/PYTHON_VERSION_CAVEATS.md)
 
 ---
 

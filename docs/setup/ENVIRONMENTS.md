@@ -27,7 +27,7 @@ This document describes each Python environment referenced in the image-scoring 
   ```bash
   python3 -m venv ~/.venvs/tf
   source ~/.venvs/tf/bin/activate
-  pip install -r requirements.txt  # and any GPU/requirements variants
+  pip install -r requirements/requirements_wsl_gpu.txt  # canonical WSL/Linux GPU requirements
   ```
 - **Note:** The path is in the **WSL home directory** (`~`), not under the project. Project-local `.venv` is not used by `run_webui.bat` or these scripts.
 
@@ -100,3 +100,6 @@ See also the Cursor rule **Run Python in WSL (Webapp Environment)** (`.cursor/ru
 | What does the Web UI use? | WSL + **`~/.venvs/tf`** (via `run_webui.bat`). |
 | Does default Web UI (`run_webui.bat`) use project `.venv`? | No — it uses `~/.venvs/tf`. |
 | Where do WSL pytest tests run? | In **`~/.venvs/image-scoring-tests`** (or custom `VENV_DIR`). |
+
+
+See also: [Python & Dependency Version Caveats](PYTHON_VERSION_CAVEATS.md).

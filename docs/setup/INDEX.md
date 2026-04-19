@@ -18,6 +18,7 @@
 
 | Document | Description |
 |----------|-------------|
+| [PYTHON_VERSION_CAVEATS.md](PYTHON_VERSION_CAVEATS.md) | Canonical requirements files by platform + Python compatibility caveats |
 | [ENVIRONMENTS.md](ENVIRONMENTS.md) | Virtual environments (.venv, ~/.venvs/tf, tests) |
 | [WINDOWS_WSL_DEPLOYMENT.md](WINDOWS_WSL_DEPLOYMENT.md) | Windows + WSL2 deployment guide |
 | [WSL_PYTHON_PACKAGES.md](WSL_PYTHON_PACKAGES.md) | Python packages in WSL2 venv |
