@@ -37,14 +37,22 @@ Choose your deployment method based on your needs:
 
 1. **Install Docker Desktop** and ensure WSL2 backend is enabled in settings
 
-2. **Launch the WebUI:**
-   ```cmd
-   run_webui_docker.bat
+2. **Start the default Docker Compose stack (Postgres + WebUI):**
+   ```bash
+   docker compose up -d --build db webui
    ```
 
 3. **Access the interface** at `http://localhost:7860`
 
-That's it! The Docker container includes all dependencies, CUDA support, and connects to your Windows Firebird database automatically.
+That's it! The default Compose flow uses **PostgreSQL (`db` service on `localhost:5432`)** as the primary backend and starts the WebUI on `localhost:7860`.
+
+> Legacy note: Firebird remains available for Electron/legacy compatibility paths, but it is not the default backend for Docker workflows.
+
+4. **Check service health (optional):**
+   ```bash
+   docker compose ps
+   docker compose logs -f webui
+   ```
 
 📖 **See also:** [Docker Deployment Guide](docs/setup/WINDOWS_WSL_DEPLOYMENT.md#docker-option)
 
@@ -282,7 +290,27 @@ Hybrid scoring system combining technical and aesthetic evaluation:
 - **GPU Acceleration**: 10-15x faster with CUDA (WSL2/Docker)
 - **Batch Processing**: Efficient multi-threaded pipeline
 - **Smart Caching**: Avoid re-processing scored images
-- **Database**: Firebird SQL for fast queries and metadata storage
+- **Database (Primary)**: PostgreSQL + pgvector for metadata, embeddings, and operational queries
+- **Database (Legacy Compatibility)**: Firebird remains supported for Electron/legacy paths during migration
+
+## Architecture
+
+### Primary (Current) data path: PostgreSQL
+
+- **Default backend** for WebUI + API + runners is PostgreSQL (`docker-compose.yml` service `db`, port `5432`).
+- **Container defaults**: `POSTGRES_HOST=db`, `POSTGRES_PORT=5432`, `POSTGRES_DB=image_scoring`, `POSTGRES_USER=postgres`, `POSTGRES_PASSWORD=postgres`.
+- **Vector/search support** is provided by the `pgvector/pgvector:pg17` image.
+
+### Legacy compatibility path: Firebird
+
+- Firebird is still supported for backward compatibility, especially for Electron-era workflows and migration parity checks.
+- In Docker, Firebird environment values remain available for compatibility, but they are not the primary operational path.
+- Use this path only when you explicitly need legacy behavior or migration validation.
+
+📖 **Migration/status docs:**
+- [Firebird → PostgreSQL Migration Plan](docs/plans/database/FIREBIRD_POSTGRES_MIGRATION.md)
+- [Database Schema Reference](docs/technical/DB_SCHEMA.md)
+- [Detailed Project Review (2026-01-31)](docs/reports/project-reviews/PROJECT_REVIEW_DETAILED_2026-01-31.md)
 
 ## Output Format
 
@@ -353,6 +381,23 @@ The tool uses a **triple fallback mechanism** for maximum reliability:
 
 ## Troubleshooting
 
+### Start with backend mode checks
+
+1. **Confirm Docker services are running (default Postgres flow):**
+   ```bash
+   docker compose ps
+   ```
+2. **Confirm Postgres is healthy:**
+   ```bash
+   docker compose logs db --tail=100
+   ```
+3. **Confirm WebUI can reach Postgres (from container logs):**
+   ```bash
+   docker compose logs webui --tail=200
+   ```
+
+If you are debugging an Electron/legacy flow, see the **Legacy Firebird Compatibility** subsection below.
+
 ### Docker Issues
 
 1. **"Docker is not running"**:
@@ -365,8 +410,24 @@ The tool uses a **triple fallback mechanism** for maximum reliability:
    - Run: `docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi`
 
 3. **Database connection errors**:
-   - Ensure Firebird service is running on Windows
-   - Check Windows Firewall allows port 3050
+   - Ensure Compose `db` service is healthy: `docker compose ps`
+   - Confirm credentials match `docker-compose.yml` defaults (`postgres/postgres`, DB `image_scoring`)
+   - Restart stack: `docker compose up -d db webui`
+
+### Legacy Firebird Compatibility (Non-default)
+
+Use this only if you intentionally run legacy/Electron compatibility workflows.
+
+1. **Firebird file/client issues**:
+   - Verify Firebird client libraries are present at configured paths
+   - Confirm `FIREBIRD_WIN_DB_PATH` points to a valid `.FDB` file
+
+2. **Connection issues to external Firebird service**:
+   - Ensure Firebird service is running on the host
+   - Check host firewall/network rules for Firebird port (`3050`) when using TCP mode
+
+3. **Migration sanity checks**:
+   - Validate expected behavior against the migration tracker: [FIREBIRD_POSTGRES_MIGRATION.md](docs/plans/database/FIREBIRD_POSTGRES_MIGRATION.md)
 
 ### WSL2 Issues
 
