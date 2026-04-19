@@ -68,6 +68,21 @@ class ScoringRunner:
         with self._start_lock:
             if self.is_running:
                 return "Error: Already running."
+
+            # Resolve cross-platform paths (WSL ↔ Windows) so the runner works regardless
+            # of whether the caller passed a native or foreign path format.
+            if input_path:
+                from modules.utils import convert_path_to_local
+                resolved = convert_path_to_local(input_path)
+                if os.path.exists(resolved):
+                    input_path = resolved
+
+            if resolved_image_ids is None and (not input_path or not os.path.exists(input_path)):
+                self.log_history.append(f"Error: Path not found: {input_path}")
+                self.status_message = "Failed (Path not found)"
+                return "Path not found"
+
+            # All validation passed, now mark as running
             self.is_running = True
 
         self.job_type = 'scoring'
@@ -75,20 +90,6 @@ class ScoringRunner:
         self.status_message = "Starting..."
         self.current_count = 0
         self.total_count = 0
-
-        # Resolve cross-platform paths (WSL ↔ Windows) so the runner works regardless
-        # of whether the caller passed a native or foreign path format.
-        if input_path:
-            from modules.utils import convert_path_to_local
-            resolved = convert_path_to_local(input_path)
-            if os.path.exists(resolved):
-                input_path = resolved
-
-        if resolved_image_ids is None and (not input_path or not os.path.exists(input_path)):
-            self.log_history.append(f"Error: Path not found: {input_path}")
-            self.is_running = False
-            self.status_message = "Failed (Path not found)"
-            return "Path not found"
 
         def target():
             try:
@@ -345,7 +346,7 @@ class ScoringRunner:
 
         scores = []
         incomplete = 0
-        for rec in collector._pending:
+        for rec in collector.get_pending_records():
             snap = rec.get("before_snapshot")
             if snap is None:
                 continue
@@ -374,7 +375,7 @@ class ScoringRunner:
         import statistics as _stats
 
         processed_ids = [
-            rec["image_id"] for rec in collector._pending if rec.get("action") == "processed"
+            rec["image_id"] for rec in collector.get_pending_records() if rec.get("action") == "processed"
         ]
         if not processed_ids:
             return None
@@ -418,10 +419,12 @@ class ScoringRunner:
         """
         Starts DB fix in background thread.
         """
-        if self.is_running:
-            return "Error: Already running."
-            
-        self.is_running = True
+        with self._start_lock:
+            if self.is_running:
+                return "Error: Already running."
+
+            self.is_running = True
+
         self.job_type = 'fix_db'
         self.log_history = []
         self.status_message = "Starting Fix DB..."

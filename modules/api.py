@@ -167,6 +167,7 @@ def _normalize_jobs_table_row(d: dict) -> dict:
         try:
             out["scope_paths"] = json.loads(out["scope_paths"]) if out["scope_paths"] else []
         except (json.JSONDecodeError, TypeError):
+            logger.warning("_normalize_jobs_table_row: bad scope_paths JSON on row id=%s", out.get("id"))
             out["scope_paths"] = []
     if out.get("scope_paths") is None:
         out["scope_paths"] = []
@@ -179,6 +180,9 @@ def _normalize_jobs_table_row(d: dict) -> dict:
             out["queue_payload"] = json.loads(qp)
         except (json.JSONDecodeError, TypeError):
             pass
+    # Normalize cancelled (UK) → canceled (US) in API contract
+    if isinstance(out.get("status"), str) and out["status"] == "cancelled":
+        out["status"] = "canceled"
     out["capabilities"] = {
         "execution_report": _job_supports_execution_report(out),
     }
@@ -3131,17 +3135,24 @@ def create_api_router() -> APIRouter:
             False,
             description="Terminal jobs only; JSON object with runs + total for pagination.",
         ),
+        status: str = Query(
+            None,
+            description="Comma-separated status filter (e.g. 'running,paused,queued').",
+        ),
     ):
         """Get recent job history."""
         from modules import db
         try:
 
             def _fetch_recent():
+                status_filter = None
+                if status:
+                    status_filter = [s.strip().lower() for s in status.split(",")]
                 if history:
-                    rows = db.get_jobs(limit, offset, history_only=True)
-                    total = db.count_jobs(history_only=True)
+                    rows = db.get_jobs(limit, offset, history_only=True, status_filter=status_filter)
+                    total = db.count_jobs(history_only=True, status_filter=status_filter)
                     return rows, total
-                rows = db.get_jobs(limit, offset, history_only=False)
+                rows = db.get_jobs(limit, offset, history_only=False, status_filter=status_filter)
                 return rows, None
 
             jobs, total = await asyncio.wait_for(
@@ -5323,6 +5334,7 @@ def create_api_router() -> APIRouter:
             phase_values=phase_values,
             client_description=request.description,
         )
+        # post_run_audit: client value wins over augment_queue_payload_for_audit; must stay after augment call.
         if request.post_run_audit is not None:
             payload["post_run_audit"] = bool(request.post_run_audit)
         if request.validation_repair_mode or mode_flags.get("fix_incomplete_stages"):
@@ -5347,17 +5359,16 @@ def create_api_router() -> APIRouter:
         try:
             job_id, position = await asyncio.wait_for(
                 asyncio.to_thread(
-                    db.enqueue_job,
+                    db.enqueue_job_with_phases,
                     primary_path,
                     phase_code,
                     job_type,
                     payload,
                     run_description,
+                    phase_values,
+                    "queued",
                 ),
                 timeout=30.0,
-            )
-            await asyncio.to_thread(
-                db.create_job_phases, job_id, phase_values, "queued",
             )
             return {"run_id": job_id, "queue_position": position, "success": True}
         except asyncio.TimeoutError:
@@ -5381,7 +5392,10 @@ def create_api_router() -> APIRouter:
                     status_code=400,
                     detail=f"Run {run_id} is not running (status={job.get('status')})",
                 )
-            db.update_job_status(run_id, "paused", "user_pause")
+            try:
+                db.update_job_status(run_id, "paused", "user_pause")
+            except ValueError as e:
+                raise HTTPException(status_code=409, detail=str(e))
             _stop_runner_for_job_row(job)
             _join_runner_threads(per_thread_timeout=4.0)
             try:
@@ -5421,11 +5435,17 @@ def create_api_router() -> APIRouter:
             try:
                 payload = json.loads(payload_raw)
                 if isinstance(payload, str):
+                    logger.warning("resume_run: double-encoded queue_payload detected on run_id=%s; decoding again", run_id)
                     payload = json.loads(payload)
             except Exception:
                 payload = {}
             payload["skip_done"] = True
             db.update_job_payload(run_id, json.dumps(payload))
+
+            # Verify job has a phase plan before requeuing
+            phases = db.get_job_phases(run_id)
+            if not phases:
+                raise HTTPException(status_code=409, detail=f"Run {run_id} has no phase plan — cannot resume. Use retry instead.")
 
             # Requeue the same row
             _, position = db.requeue_job(run_id)
@@ -5447,10 +5467,15 @@ def create_api_router() -> APIRouter:
             if not job:
                 raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
             status = str(job.get("status") or "").strip().lower()
+            cancel_method = None
             if status == "queued":
-                db.request_cancel_job(run_id)
+                result = db.request_cancel_job(run_id)
+                if not result.get("success"):
+                    raise HTTPException(status_code=409, detail=f"Could not cancel run {run_id}: {result.get('reason')}")
+                cancel_method = "cancel_requested"
             elif status in ("pending", "running", "paused", "interrupted", "cancel_requested", "restarting"):
                 db.update_job_status(run_id, "cancelled")
+                cancel_method = "update_status"
                 # Stop the active runner when running (DB update alone doesn't stop the process)
                 if status == "running":
                     state = _job_dispatcher.get_state()
@@ -5470,7 +5495,7 @@ def create_api_router() -> APIRouter:
                                 break
             else:
                 raise HTTPException(status_code=400, detail=f"Cannot cancel run with status={status}")
-            return {"success": True, "message": f"Run {run_id} canceled"}
+            return {"success": True, "message": f"Run {run_id} canceled", "method": cancel_method}
         except HTTPException:
             raise
         except Exception as e:
@@ -5516,6 +5541,9 @@ def create_api_router() -> APIRouter:
                     ("tagging", _tagging_runner),
                     ("clustering", _clustering_runner),
                     ("selection", _selection_runner),
+                    ("indexing", _indexing_runner),
+                    ("metadata", _metadata_runner),
+                    ("bird_species", _bird_species_runner),
                 ]:
                     if runner is None:
                         continue
@@ -5587,7 +5615,7 @@ def create_api_router() -> APIRouter:
 
             elif status in ("completed", "failed", "canceled", "cancelled"):
                 # Terminal — must create a new job (Retry semantics)
-                new_id, pos = _reenqueue_job(job)
+                new_id, pos = _create_retry_job(job, "force_run")
                 actions_taken.append(f"retried as new job {new_id} (position {pos})")
                 return {"success": True, "run_id": new_id, "queue_position": pos, "actions": actions_taken}
 
@@ -5609,21 +5637,36 @@ def create_api_router() -> APIRouter:
         try:
             payload = json.loads(payload_raw)
             if isinstance(payload, str):
+                logger.warning("_resume_job_inplace: double-encoded queue_payload detected on run_id=%s; decoding again", run_id)
                 payload = json.loads(payload)
         except Exception:
             payload = {}
         payload["skip_done"] = True
         db.update_job_payload(run_id, json.dumps(payload))
 
+        # Verify job has a phase plan before requeuing
+        phases = db.get_job_phases(run_id)
+        if not phases:
+            raise HTTPException(status_code=409, detail=f"Run {run_id} has no phase plan — cannot resume. Use retry instead.")
+
         _, position = db.requeue_job(run_id)
         db.resume_job_phases(run_id)
         return run_id, position
 
-    def _reenqueue_job(job: dict) -> tuple:
-        """Re-enqueue a job with skip_done=True. Returns (new_job_id, position)."""
-        from modules import db
+    def _create_retry_job(original_job: dict, source: str) -> tuple:
+        """Shared helper: create a retry job from an original job.
 
-        payload_raw = job.get("queue_payload") or "{}"
+        Args:
+            original_job: job dict from db.get_job()
+            source: "retry_run" or "force_run" to determine description suffix
+
+        Returns:
+            (new_job_id, queue_position)
+        """
+        from modules import db
+        from modules.phases import sort_phase_value_strings
+
+        payload_raw = original_job.get("queue_payload") or "{}"
         try:
             payload = json.loads(payload_raw)
             if isinstance(payload, str):
@@ -5632,46 +5675,47 @@ def create_api_router() -> APIRouter:
             payload = {}
         payload["skip_done"] = True
 
-        orig_job_type = job.get("job_type", "indexing") # Safest default is indexing for new workflow
+        orig_job_type = original_job.get("job_type", "scoring")
         _phase_code_map = {
             "indexing": "indexing",
             "metadata": "metadata",
             "scoring": "scoring",
             "tagging": "keywords",
             "clustering": "culling",
-            "selection": "culling"
+            "selection": "culling",
         }
-        phase_code = _phase_code_map.get(orig_job_type, "indexing")
+        phase_code = _phase_code_map.get(orig_job_type, "scoring")
 
-        prior = job.get("description")
-        retry_desc = (
-            f"{str(prior).strip()} (re-queued via force_run)"
-            if prior and str(prior).strip()
-            else f"Retry via force_run of job #{job.get('id')} ({orig_job_type}) for {job.get('input_path') or ''}."
-        )
+        prior = original_job.get("description")
+        if source == "force_run":
+            retry_desc = (
+                f"{str(prior).strip()} (re-queued via force_run)"
+                if prior and str(prior).strip()
+                else f"Retry via force_run of job #{original_job.get('id')} ({orig_job_type}) for {original_job.get('input_path') or ''}."
+            )
+        else:  # "retry_run"
+            retry_desc = (
+                f"{str(prior).strip()} (retry from Runs UI)"
+                if prior and str(prior).strip()
+                else f"Retry of run #{original_job.get('id')} ({orig_job_type}) for {original_job.get('input_path') or ''}."
+            )
 
-        new_job_id, position = db.enqueue_job(
-            input_path=job.get("input_path", ""),
+        orig_phases = db.get_job_phases(original_job["id"])
+        if orig_phases:
+            phase_codes = sort_phase_value_strings([p["phase_code"] for p in orig_phases])
+        else:
+            _defaults = {"tagging": ["keywords"], "selection": ["culling", "metadata"], "clustering": ["culling"]}
+            phase_codes = sort_phase_value_strings(_defaults.get(orig_job_type, ["indexing", "metadata", "scoring"]))
+
+        new_job_id, position = db.enqueue_job_with_phases(
+            input_path=original_job.get("input_path", ""),
             phase_code=phase_code,
             job_type=orig_job_type,
             queue_payload=json.dumps(payload),
             description=retry_desc,
+            phase_codes=phase_codes,
+            first_phase_state="queued",
         )
-        from modules.phases import sort_phase_value_strings
-
-        orig_phases = db.get_job_phases(job["id"])
-        if orig_phases:
-            phase_codes = sort_phase_value_strings([p["phase_code"] for p in orig_phases])
-        else:
-            _defaults = {
-                "indexing": ["indexing"],
-                "metadata": ["metadata"],
-                "tagging": ["keywords"], 
-                "selection": ["culling", "metadata"], 
-                "clustering": ["culling"]
-            }
-            phase_codes = sort_phase_value_strings(_defaults.get(orig_job_type, ["indexing", "metadata", "scoring"]))
-        db.create_job_phases(new_job_id, phase_codes, first_phase_state="queued")
         return new_job_id, position
 
     @router.post("/runs/{run_id}/retry", summary="Retry a failed/canceled Run")
@@ -5681,46 +5725,10 @@ def create_api_router() -> APIRouter:
             job = db.get_job(run_id)
             if not job:
                 raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
-            payload_raw = job.get("queue_payload") or "{}"
-            try:
-                payload = json.loads(payload_raw)
-            except Exception:
-                payload = {}
-            payload["skip_done"] = True
-            # Derive phase_code and job_type from original job
-            orig_job_type = job.get("job_type", "scoring")
-            _phase_code_map = {
-                "indexing": "indexing",
-                "metadata": "metadata",
-                "scoring": "scoring",
-                "tagging": "keywords",
-                "clustering": "culling",
-                "selection": "culling",
-            }
-            phase_code = _phase_code_map.get(orig_job_type, "scoring")
-            prior = job.get("description")
-            retry_desc = (
-                f"{str(prior).strip()} (retry from Runs UI)"
-                if prior and str(prior).strip()
-                else f"Retry of run #{run_id} ({orig_job_type}) for {job.get('input_path') or ''}."
-            )
-            new_job_id, position = db.enqueue_job(
-                input_path=job.get("input_path", ""),
-                phase_code=phase_code,
-                job_type=orig_job_type,
-                queue_payload=json.dumps(payload),
-                description=retry_desc,
-            )
-            # Copy phases from original job, or default from job_type
-            from modules.phases import sort_phase_value_strings
-
-            orig_phases = db.get_job_phases(run_id)
-            if orig_phases:
-                phase_codes = sort_phase_value_strings([p["phase_code"] for p in orig_phases])
-            else:
-                _defaults = {"tagging": ["keywords"], "selection": ["culling", "metadata"], "clustering": ["culling"]}
-                phase_codes = sort_phase_value_strings(_defaults.get(orig_job_type, ["indexing", "metadata", "scoring"]))
-            db.create_job_phases(new_job_id, phase_codes, first_phase_state="queued")
+            TERMINAL_STATUSES = {"failed", "interrupted", "canceled", "cancelled", "completed"}
+            if job.get("status", "").lower() not in TERMINAL_STATUSES:
+                raise HTTPException(status_code=409, detail=f"Run {run_id} cannot be retried (status={job.get('status')})")
+            new_job_id, position = _create_retry_job(job, "retry_run")
             return {"success": True, "run_id": new_job_id, "queue_position": position}
         except HTTPException:
             raise
@@ -5750,7 +5758,7 @@ def create_api_router() -> APIRouter:
     async def retry_run_stage(run_id: int, stage_code: str):
         from modules import db
         try:
-            db.set_job_phase_state(run_id, stage_code, "pending")
+            db.force_reset_job_phase_to_queued(run_id, stage_code)
             return {"success": True}
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
