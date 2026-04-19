@@ -9950,11 +9950,14 @@ def list_stale_running_image_phase_rows(min_age_seconds: int = 3600, limit: int 
         }
     """
     try:
+        from datetime import datetime, timedelta
+        cutoff_time = datetime.utcnow() - timedelta(seconds=min_age_seconds)
+
         # Count total stale running rows
         count_rows = get_connector().query(
             "SELECT COUNT(*) as cnt FROM image_phase_status ips "
-            "WHERE ips.status = ? AND ips.updated_at < CURRENT_TIMESTAMP - INTERVAL ? SECOND",
-            ("running", min_age_seconds),
+            "WHERE ips.status = ? AND ips.updated_at < ?",
+            ("running", cutoff_time),
         )
         count_estimate = count_rows[0]["cnt"] if count_rows else 0
 
@@ -9966,10 +9969,10 @@ def list_stale_running_image_phase_rows(min_age_seconds: int = 3600, limit: int 
             "FROM image_phase_status ips "
             "JOIN images i ON i.id = ips.image_id "
             "JOIN pipeline_phases pp ON pp.id = ips.phase_id "
-            "WHERE ips.status = ? AND ips.updated_at < CURRENT_TIMESTAMP - INTERVAL ? SECOND "
+            "WHERE ips.status = ? AND ips.updated_at < ? "
             "ORDER BY ips.updated_at ASC "
             "LIMIT ?",
-            ("running", min_age_seconds, limit),
+            ("running", cutoff_time, limit),
         )
 
         result_rows = []
