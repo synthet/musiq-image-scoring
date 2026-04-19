@@ -2907,7 +2907,7 @@ paths:
   /api/raw-preview:
     get:
       tags:
-      - Utilities
+      - Image Scoring API
       summary: Get RAW file preview
       description: "Extracts or generates a JPEG preview for a RAW image file.\n        \n        This endpoint is optimized\
         \ for performance:\n        - Tries to extract embedded JPEG preview first (fastest)\n        - Falls back to full\
