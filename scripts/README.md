@@ -59,7 +59,7 @@ Run the unresolved conflict marker check locally before pushing:
 scripts/check_conflict_markers.sh
 ```
 
-The script scans tracked source files under `modules/`, `tests/`, and `scripts/`, and fails if it finds unresolved merge markers (`<<<<<<<`, `=======`, `>>>>>>>`).
+The script scans tracked source files under `modules/`, `tests/`, and `scripts/`, and fails if it finds unresolved merge markers (start/split/end conflict marker lines).
 
 ## API Contract Scripts
 
