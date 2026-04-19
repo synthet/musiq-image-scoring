@@ -6,318 +6,24 @@
     "version": "1.0.0"
   },
   "paths": {
-    "/api/schema": {
-      "get": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Get API schema (LLM-optimized)",
-        "description": "Get API schema in a format optimized for LLM agents.\n        \n        Returns a simplified, readable schema description that LLM agents\n        can easily parse and understand. This is a simplified version of\n        the full OpenAPI schema available at /openapi.json.\n        \n        **Use Cases:**\n        - LLM agent API discovery\n        - Code generation\n        - API understanding without parsing full OpenAPI spec\n        \n        **Note:** For complete OpenAPI 3.0 schema, use /openapi.json instead.",
-        "operationId": "get_api_schema_api_schema_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          }
-        }
-      }
-    },
-    "/api/scoring/start": {
+    "/api/clustering/start": {
       "post": {
         "tags": [
           "Image Scoring API"
         ],
-        "summary": "Start batch image scoring",
-        "description": "Initiates a batch image quality assessment job for all images in the specified directory.\n        \n        The scoring process uses multiple AI models to evaluate images:\n        - **SPAQ**: Spatial Perception of Aesthetic Quality\n        - **AVA**: Aesthetic Visual Analysis\n        - **KonIQ**: Konstanz Image Quality\n        - **PaQ2PiQ**: Perceptual Quality to Perceptual Image Quality\n        - **LIQE**: Learning Image Quality Evaluator\n        \n        Results include:\n        - Technical score (sharpness, noise, exposure)\n        - Aesthetic score (composition, appeal)\n        - General quality score (weighted combination)\n        - Rating (1-5 stars) and color label (Red/Yellow/Green/Blue/Purple)\n        \n        The job runs asynchronously. Use GET /api/scoring/status to monitor progress.\n        \n        **Path Handling:**\n        - Windows paths: `D:/Photos/2024` or `D:\\Photos\\2024`\n        - WSL paths: `/mnt/d/Photos/2024`\n        - Paths are automatically converted between formats when needed\n        \n        **Skip Logic:**\n        - If `skip_existing=True`: Images with complete scores are skipped\n        - If `force_rescore=True`: All images are re-scored regardless of existing data\n        - Incomplete scores (missing models or metadata) are always completed\n        \n        **Example Request:**\n        ```json\n        {\n            \"input_path\": \"D:/Photos/2024\",\n            \"skip_existing\": true,\n            \"force_rescore\": false\n        }\n        ```\n        \n        **Example Response:**\n        ```json\n        {\n            \"success\": true,\n            \"message\": \"Scoring job started successfully\",\n            \"data\": {\n                \"job_id\": 123,\n                \"input_path\": \"D:/Photos/2024\"\n            }\n        }\n        ```",
-        "operationId": "start_scoring_api_scoring_start_post",
+        "summary": "Start clustering job",
+        "description": "Starts a clustering job that groups visually similar images into stacks.\n\n        Uses MobileNetV2 embeddings and cosine similarity to find groups of related images.\n        Optionally uses EXIF timestamps for burst detection.\n\n        The job runs asynchronously. Use GET /api/clustering/status to monitor progress.",
+        "operationId": "start_clustering_api_clustering_start_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ScoringStartRequest"
+                "$ref": "#/components/schemas/ClusteringStartRequest"
               }
             }
           },
           "required": true
         },
-        "responses": {
-          "200": {
-            "description": "Job started successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                },
-                "example": {
-                  "success": true,
-                  "message": "Scoring job started successfully",
-                  "data": {
-                    "job_id": 123,
-                    "input_path": "D:/Photos/2024"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid input path or path not found"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Scoring runner not available"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/scoring/stop": {
-      "post": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Stop scoring job",
-        "description": "Sends a stop signal to the currently running scoring job.\n        \n        The job will finish processing the current image and then stop gracefully.\n        Use GET /api/scoring/status to verify the job has stopped.\n        \n        **Note:** If no job is running, returns success=False with appropriate message.",
-        "operationId": "stop_scoring_api_scoring_stop_post",
-        "responses": {
-          "200": {
-            "description": "Stop confirmation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          }
-        }
-      }
-    },
-    "/api/scoring/status": {
-      "get": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Get scoring status",
-        "description": "Returns the current status of the scoring job including:\n        - Whether a job is currently running\n        - Progress information (current/total images)\n        - Status message\n        - Full log output\n        - Job type (scoring, fix_db, etc.)\n        \n        **Polling:** This endpoint can be polled periodically to monitor job progress.\n        Recommended polling interval: 2-5 seconds.",
-        "operationId": "get_scoring_status_api_scoring_status_get",
-        "responses": {
-          "200": {
-            "description": "Current scoring job status",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StatusResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          }
-        }
-      }
-    },
-    "/api/scoring/fix-db": {
-      "post": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Fix database (re-score incomplete)",
-        "description": "Starts a database fix operation that re-scores images with incomplete data.\n        \n        This operation:\n        - Finds images missing scores from one or more models\n        - Finds images missing metadata (rating or label)\n        - Re-runs scoring only for missing components\n        - Updates database with complete scores\n        \n        Useful for:\n        - Backfilling scores after adding new models\n        - Fixing corrupted or incomplete records\n        - Updating metadata for images scored before metadata features were added\n        \n        The operation runs asynchronously. Monitor progress with GET /api/scoring/status.\n\n        Note: this endpoint starts immediately and intentionally bypasses the persisted queue.",
-        "operationId": "fix_database_api_scoring_fix_db_post",
-        "responses": {
-          "200": {
-            "description": "Fix operation start confirmation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          }
-        }
-      }
-    },
-    "/api/scoring/single": {
-      "post": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Score single image",
-        "description": "Scores a single image file using all available models.\n        \n        This is a blocking operation that runs the full scoring pipeline for one image.\n        Use this for testing or when you need immediate results for a single file.\n        \n        For batch operations, use POST /api/scoring/start instead.\n        \n        **Supported formats:** JPG, JPEG, PNG, NEF, NRW, DNG, CR2, ARW, ORF, CR3, RW2",
-        "operationId": "score_single_image_api_scoring_single_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SingleImageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Scoring result with success status and message",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/tagging/start": {
-      "post": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Start batch tagging",
-        "description": "Initiates a batch image tagging job using CLIP (Contrastive Language-Image Pre-Training).\n        \n        The tagging process:\n        - Extracts relevant keywords from images using zero-shot classification\n        - Optionally generates captions using BLIP (Bootstrapping Language-Image Pre-training)\n        - Writes metadata to XMP sidecar files and embedded metadata\n        - Updates database with keywords, title, and description\n        \n        **Keyword Extraction:**\n        - Uses default keyword set if custom_keywords not provided\n        - Default keywords: landscape, portrait, urban, cityscape, nature, wildlife, etc.\n        - Returns top 5 most relevant keywords per image\n        \n        **Caption Generation:**\n        - Enabled with generate_captions=True\n        - Uses BLIP model to generate natural language descriptions\n        - Title is auto-generated from caption (first 50 chars)\n        \n        **Path Handling:**\n        - Provide input_path and/or selectors (image_ids, image_paths, folder_ids, folder_paths)\n        - Directory path processes images in that folder and subfolders\n        - Paths are automatically converted between Windows/WSL formats\n        \n        The job runs asynchronously. Use GET /api/tagging/status to monitor progress.",
-        "operationId": "start_tagging_api_tagging_start_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TaggingStartRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Tagging job start confirmation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/tagging/stop": {
-      "post": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Stop tagging job",
-        "description": "Sends a stop signal to the currently running tagging job.",
-        "operationId": "stop_tagging_api_tagging_stop_post",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -340,18 +46,28 @@
           },
           "503": {
             "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/tagging/status": {
+    "/api/clustering/status": {
       "get": {
         "tags": [
           "Image Scoring API"
         ],
-        "summary": "Get tagging status",
-        "description": "Returns the current status of the tagging job including progress and logs.",
-        "operationId": "get_tagging_status_api_tagging_status_get",
+        "summary": "Get clustering status",
+        "description": "Returns the current status of the clustering job including progress and logs.",
+        "operationId": "get_clustering_status_api_clustering_status_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -378,24 +94,14 @@
         }
       }
     },
-    "/api/tagging/single": {
+    "/api/clustering/stop": {
       "post": {
         "tags": [
           "Image Scoring API"
         ],
-        "summary": "Tag single image",
-        "description": "Tags a single image file with keywords and optionally generates a caption.\n        \n        This is a blocking operation that processes one image immediately.\n        For batch operations, use POST /api/tagging/start instead.",
-        "operationId": "tag_single_image_api_tagging_single_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TaggingSingleRequest"
-              }
-            }
-          },
-          "required": true
-        },
+        "summary": "Stop clustering job",
+        "description": "Sends a stop signal to the currently running clustering job.",
+        "operationId": "stop_clustering_api_clustering_stop_post",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -418,586 +124,6 @@
           },
           "503": {
             "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/tagging/propagate": {
-      "post": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Propagate tags",
-        "description": "Propagates keywords from tagged images to visually similar untagged images.\n        \n        This operation uses image embeddings to find nearest neighbors and applies\n        tags based on similarity-weighted voting.\n        \n        **Use Cases:**\n        - Automatically tagging large datasets from a small set of manually tagged examples\n        - Ensuring consistent tagging across similar bursts or shots\n        - Quickly organizing imported photo collections",
-        "operationId": "tag_propagation_api_tagging_propagate_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TagPropagationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/status": {
-      "get": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Get all runners status",
-        "description": "Returns the status of all runners (scoring and tagging) in a single response.\n        \n        Useful for monitoring the overall system state. Each runner's status includes:\n        - Availability (whether runner is initialized)\n        - Running state\n        - Progress information\n        - Status message\n        - Recent log output (last 2000 characters)\n        \n        **Response Structure:**\n        ```json\n        {\n            \"scoring\": {\n                \"available\": true,\n                \"is_running\": false,\n                \"status_message\": \"Idle\",\n                \"progress\": {\"current\": 0, \"total\": 0},\n                \"log\": \"\",\n                \"job_type\": null\n            },\n            \"tagging\": {\n                \"available\": true,\n                \"is_running\": false,\n                \"status_message\": \"Idle\",\n                \"progress\": {\"current\": 0, \"total\": 0},\n                \"log\": \"\"\n            }\n        }\n        ```",
-        "operationId": "get_all_status_api_status_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Get All Status Api Status Get"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          }
-        }
-      }
-    },
-    "/api/health": {
-      "get": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Health check",
-        "description": "Simple health check endpoint to verify API availability and runner initialization.\n        \n        Returns:\n        - status: \"healthy\" if API is operational\n        - scoring_available: True if scoring runner is initialized\n        - tagging_available: True if tagging runner is initialized\n        \n        Use this endpoint for:\n        - Health monitoring\n        - Service discovery\n        - Initial API capability detection",
-        "operationId": "health_check_api_health_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          }
-        }
-      }
-    },
-    "/api/scoring/fix-image": {
-      "post": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Fix image metadata",
-        "description": "Recalculates scores and updates metadata for a single image without running neural networks.\n        \n        This operation:\n        - Uses existing model scores from the database\n        - Recalculates weighted scores (technical, aesthetic, general)\n        - Updates rating and color label based on recalculated scores\n        - Writes updated metadata to XMP sidecar and embedded metadata\n        - Regenerates thumbnail if needed\n        \n        **Use Cases:**\n        - Fixing metadata after score recalculation logic changes\n        - Updating ratings/labels without re-running expensive model inference\n        - Correcting corrupted metadata\n        \n        **Requirements:**\n        - Image must exist in database\n        - At least one model score must be present\n        - If all scores missing, operation will fail\n        \n        This is much faster than full re-scoring as it doesn't run AI models.",
-        "operationId": "fix_image_metadata_api_scoring_fix_image_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SingleImageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/raw-preview": {
-      "get": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Get RAW file preview",
-        "description": "Extracts or generates a JPEG preview for a RAW image file.\n        \n        This endpoint is optimized for performance:\n        - Tries to extract embedded JPEG preview first (fastest)\n        - Falls back to full RAW decode if needed\n        - Caches generated previews\n        - Returns a JPEG image directly\n        \n        **Query Parameters:**\n        - path: Full path to the specific image file (URL encoded)",
-        "operationId": "get_raw_preview_api_raw_preview_get",
-        "parameters": [
-          {
-            "name": "path",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Full path to the image file",
-              "title": "Path"
-            },
-            "description": "Full path to the image file"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/jobs/recent": {
-      "get": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Get recent jobs",
-        "description": "Returns a list of recent job history entries.\n        \n        Jobs are ordered by creation time (most recent first).\n        Each job entry includes:\n        - id: Unique job identifier\n        - input_path: Path that was processed\n        - status: Job status (pending, running, completed, failed, canceled, interrupted)\n        - created_at: Job creation timestamp\n        - current_phase / next_phase_index / runner_state: Persisted execution cursor fields\n        - log: Job log output (if available)\n        \n        **Query Parameters:**\n        - limit: Maximum number of jobs to return (default: 10, max: 1000)",
-        "operationId": "get_recent_jobs_api_jobs_recent_get",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 10,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": true
-                  },
-                  "title": "Response Get Recent Jobs Api Jobs Recent Get"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/jobs/queue": {
-      "get": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Get queue state",
-        "description": "Returns dispatcher state and currently queued jobs.",
-        "operationId": "get_jobs_queue_api_jobs_queue_get",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 200,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Jobs Queue Api Jobs Queue Get"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/jobs/{job_id}": {
-      "get": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Get job details",
-        "description": "Returns detailed information for a specific job by ID.\n        \n        **Path Parameters:**\n        - job_id: Integer job identifier\n        \n        **Returns:**\n        - Full job record including status, timestamps, logs, etc.\n        - 404 if job not found",
-        "operationId": "get_job_details_api_jobs__job_id__get",
-        "parameters": [
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Job Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Job Details Api Jobs  Job Id  Get"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/jobs/{job_id}/cancel": {
-      "post": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Cancel a queued job",
-        "description": "Cancels queued jobs. Running jobs currently return running_not_supported.",
-        "operationId": "cancel_job_api_jobs__job_id__cancel_post",
-        "parameters": [
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Job Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/similar": {
-      "get": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Find similar images",
-        "description": "Find images visually similar to a given image using embedding-based cosine similarity.\n        \n        **Query Parameters:**\n        - image_id: Required. Integer ID of the query image.\n        - limit: Maximum number of results (default: 20).\n        - folder_path: Optional. Scope search to a specific folder path.\n        - min_similarity: Minimum similarity threshold 0.0-1.0 (default: 0.80).\n        \n        **Returns:**\n        - query_image_id: ID of the query image\n        - results: List of {image_id, file_path, similarity}\n        - count: Number of results returned\n        \n        **Errors:**\n        - 400: Missing or invalid image_id\n        - 404: Image not found\n        - 400: No embeddings (run clustering first)",
-        "operationId": "get_similar_images_api_similar_get",
-        "parameters": [
-          {
-            "name": "image_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "description": "ID of the query image",
-              "title": "Image Id"
-            },
-            "description": "ID of the query image"
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "description": "Maximum number of results",
-              "default": 20,
-              "title": "Limit"
-            },
-            "description": "Maximum number of results"
-          },
-          {
-            "name": "folder_path",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Scope search to folder",
-              "title": "Folder Path"
-            },
-            "description": "Scope search to folder"
-          },
-          {
-            "name": "min_similarity",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "number",
-                  "maximum": 1.0,
-                  "minimum": 0.0
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Minimum similarity threshold",
-              "default": 0.8,
-              "title": "Min Similarity"
-            },
-            "description": "Minimum similarity threshold"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
           }
         }
       }
@@ -1056,87 +182,20 @@
         }
       }
     },
-    "/api/outliers": {
+    "/api/folders": {
       "get": {
         "tags": [
           "Image Scoring API"
         ],
-        "summary": "Find visual outliers in a folder",
-        "description": "Identify visually atypical images inside a folder using embedding-based similarity analysis.\n\n        **Query Parameters:**\n        - folder_path: Required. Restrict analysis to this folder.\n        - z_threshold: Optional z-score cutoff (default from config).\n        - k: Optional number of nearest neighbors used per image (default from config).\n        - limit: Maximum number of outliers to return (default: 100).\n\n        **Returns:**\n        - outliers: List of flagged images with outlier scores, z-scores, and nearest-neighbor explainability.\n        - stats: Folder-level summary statistics used during detection.\n        - skipped: Images skipped due to missing embeddings.",
-        "operationId": "get_outliers_api_outliers_get",
-        "parameters": [
-          {
-            "name": "folder_path",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Folder path to analyze",
-              "title": "Folder Path"
-            },
-            "description": "Folder path to analyze"
-          },
-          {
-            "name": "z_threshold",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "number",
-                  "minimum": 0.0
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Outlier z-score threshold",
-              "title": "Z Threshold"
-            },
-            "description": "Outlier z-score threshold"
-          },
-          {
-            "name": "k",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Top-K neighbors used for local density",
-              "title": "K"
-            },
-            "description": "Top-K neighbors used for local density"
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1000,
-              "minimum": 1,
-              "description": "Maximum outlier results to return",
-              "default": 100,
-              "title": "Limit"
-            },
-            "description": "Maximum outlier results to return"
-          }
-        ],
+        "summary": "Get folder list",
+        "description": "Returns all folders in the database with their paths. Use folder_path query param on /api/images to browse folder contents.",
+        "operationId": "get_folders_api_folders_get",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OutlierResponse"
-                }
+                "schema": {}
               }
             }
           },
@@ -1151,90 +210,24 @@
           },
           "503": {
             "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
           }
         }
       }
     },
-    "/api/clustering/start": {
+    "/api/folders/rebuild": {
       "post": {
         "tags": [
           "Image Scoring API"
         ],
-        "summary": "Start clustering job",
-        "description": "Starts a clustering job that groups visually similar images into stacks.\n\n        Uses MobileNetV2 embeddings and cosine similarity to find groups of related images.\n        Optionally uses EXIF timestamps for burst detection.\n\n        The job runs asynchronously. Use GET /api/clustering/status to monitor progress.",
-        "operationId": "start_clustering_api_clustering_start_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ClusteringStartRequest"
-              }
-            }
-          },
-          "required": true
-        },
+        "summary": "Rebuild folder cache",
+        "description": "Scans images in the database and rebuilds the folder tree. Use when the Pipeline tab shows no folders.",
+        "operationId": "rebuild_folders_api_folders_rebuild_post",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/clustering/stop": {
-      "post": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Stop clustering job",
-        "description": "Sends a stop signal to the currently running clustering job.",
-        "operationId": "stop_clustering_api_clustering_stop_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
+                "schema": {}
               }
             }
           },
@@ -1253,21 +246,21 @@
         }
       }
     },
-    "/api/clustering/status": {
+    "/api/health": {
       "get": {
         "tags": [
           "Image Scoring API"
         ],
-        "summary": "Get clustering status",
-        "description": "Returns the current status of the clustering job including progress and logs.",
-        "operationId": "get_clustering_status_api_clustering_status_get",
+        "summary": "Health check",
+        "description": "Simple health check endpoint to verify API availability and runner initialization.\n        \n        Returns:\n        - status: \"healthy\" if API is operational\n        - scoring_available: True if scoring runner is initialized\n        - tagging_available: True if tagging runner is initialized\n        \n        Use this endpoint for:\n        - Health monitoring\n        - Service discovery\n        - Initial API capability detection",
+        "operationId": "health_check_api_health_get",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StatusResponse"
+                  "$ref": "#/components/schemas/HealthResponse"
                 }
               }
             }
@@ -1567,14 +560,723 @@
         }
       }
     },
-    "/api/folders": {
+    "/api/import/register": {
+      "post": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Register images from folder (import without scoring)",
+        "description": "Scans a folder for image files and adds them to the database without scoring.\n        Skips images already in the database (by path or EXIF ImageUniqueID).\n        Supports Windows (D:\\...) and WSL (/mnt/...) paths.",
+        "operationId": "import_register_api_import_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/queue": {
       "get": {
         "tags": [
           "Image Scoring API"
         ],
-        "summary": "Get folder list",
-        "description": "Returns all folders in the database with their paths. Use folder_path query param on /api/images to browse folder contents.",
-        "operationId": "get_folders_api_folders_get",
+        "summary": "Get queue state",
+        "description": "Returns dispatcher state and currently queued jobs.",
+        "operationId": "get_jobs_queue_api_jobs_queue_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 200,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Jobs Queue Api Jobs Queue Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/recent": {
+      "get": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Get recent jobs",
+        "description": "Returns a list of recent job history entries.\n        \n        Jobs are ordered by creation time (most recent first).\n        Each job entry includes:\n        - id: Unique job identifier\n        - input_path: Path that was processed\n        - status: Job status (pending, running, completed, failed, canceled, interrupted)\n        - created_at: Job creation timestamp\n        - current_phase / next_phase_index / runner_state: Persisted execution cursor fields\n        - log: Job log output (if available)\n        \n        **Query Parameters:**\n        - limit: Maximum number of jobs to return (default: 10, max: 1000)",
+        "operationId": "get_recent_jobs_api_jobs_recent_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Get Recent Jobs Api Jobs Recent Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Get job details",
+        "description": "Returns detailed information for a specific job by ID.\n        \n        **Path Parameters:**\n        - job_id: Integer job identifier\n        \n        **Returns:**\n        - Full job record including status, timestamps, logs, etc.\n        - 404 if job not found",
+        "operationId": "get_job_details_api_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Job Details Api Jobs  Job Id  Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Cancel a queued job",
+        "description": "Cancels queued jobs. Running jobs currently return running_not_supported.",
+        "operationId": "cancel_job_api_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/outliers": {
+      "get": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Find visual outliers in a folder",
+        "description": "Identify visually atypical images inside a folder using embedding-based similarity analysis.\n\n        **Query Parameters:**\n        - folder_path: Required. Restrict analysis to this folder.\n        - z_threshold: Optional z-score cutoff (default from config).\n        - k: Optional number of nearest neighbors used per image (default from config).\n        - limit: Maximum number of outliers to return (default: 100).\n\n        **Returns:**\n        - outliers: List of flagged images with outlier scores, z-scores, and nearest-neighbor explainability.\n        - stats: Folder-level summary statistics used during detection.\n        - skipped: Images skipped due to missing embeddings.",
+        "operationId": "get_outliers_api_outliers_get",
+        "parameters": [
+          {
+            "name": "folder_path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Folder path to analyze",
+              "title": "Folder Path"
+            },
+            "description": "Folder path to analyze"
+          },
+          {
+            "name": "z_threshold",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Outlier z-score threshold",
+              "title": "Z Threshold"
+            },
+            "description": "Outlier z-score threshold"
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Top-K neighbors used for local density",
+              "title": "K"
+            },
+            "description": "Top-K neighbors used for local density"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Maximum outlier results to return",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "Maximum outlier results to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutlierResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/phases/decision": {
+      "get": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Explain phase run/skip decision",
+        "description": "Returns policy diagnostics describing why a phase would run or be skipped for an image.",
+        "operationId": "get_phase_decision_api_phases_decision_get",
+        "parameters": [
+          {
+            "name": "image_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Image ID",
+              "title": "Image Id"
+            },
+            "description": "Image ID"
+          },
+          {
+            "name": "phase_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Phase code (scoring|culling|keywords|...)",
+              "title": "Phase Code"
+            },
+            "description": "Phase code (scoring|culling|keywords|...)"
+          },
+          {
+            "name": "current_executor_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional explicit executor version override",
+              "title": "Current Executor Version"
+            },
+            "description": "Optional explicit executor version override"
+          },
+          {
+            "name": "force_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If true, policy returns run decision as forced",
+              "default": false,
+              "title": "Force Run"
+            },
+            "description": "If true, policy returns run decision as forced"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhaseDecisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pipeline/phase/retry": {
+      "post": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Retry a skipped pipeline phase",
+        "description": "Converts skipped statuses to running and starts the selected phase runner.",
+        "operationId": "retry_pipeline_phase_api_pipeline_phase_retry_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelinePhaseControlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pipeline/phase/skip": {
+      "post": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Skip a pipeline phase",
+        "description": "Marks all images in a folder phase as skipped, storing reason and actor.",
+        "operationId": "skip_pipeline_phase_api_pipeline_phase_skip_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelinePhaseControlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pipeline/submit": {
+      "post": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Submit to processing pipeline",
+        "description": "Submits an image file or folder for sequential processing through the pipeline.\n\n        Operations are executed in order: score -> tag -> cluster.\n        For folder submissions, only the first applicable operation is queued immediately;\n        subsequent operations should be triggered by the Electron app after the previous\n        one completes (via status polling or WebSocket events).\n\n        For single-file submissions, the first operation runs immediately.\n\n        For single files, only 'score' and 'tag' operations are supported.\n        'cluster' requires a folder path.",
+        "operationId": "submit_pipeline_api_pipeline_submit_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineSubmitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/raw-preview": {
+      "get": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Get RAW file preview",
+        "description": "Extracts or generates a JPEG preview for a RAW image file.\n        \n        This endpoint is optimized for performance:\n        - Tries to extract embedded JPEG preview first (fastest)\n        - Falls back to full RAW decode if needed\n        - Caches generated previews\n        - Returns a JPEG image directly\n        \n        **Query Parameters:**\n        - path: Full path to the specific image file (URL encoded)",
+        "operationId": "get_raw_preview_api_raw_preview_get",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Full path to the image file",
+              "title": "Path"
+            },
+            "description": "Full path to the image file"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schema": {
+      "get": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Get API schema (LLM-optimized)",
+        "description": "Get API schema in a format optimized for LLM agents.\n        \n        Returns a simplified, readable schema description that LLM agents\n        can easily parse and understand. This is a simplified version of\n        the full OpenAPI schema available at /openapi.json.\n        \n        **Use Cases:**\n        - LLM agent API discovery\n        - Code generation\n        - API understanding without parsing full OpenAPI spec\n        \n        **Note:** For complete OpenAPI 3.0 schema, use /openapi.json instead.",
+        "operationId": "get_api_schema_api_schema_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1599,14 +1301,352 @@
         }
       }
     },
-    "/api/folders/rebuild": {
+    "/api/scoring/fix-db": {
       "post": {
         "tags": [
           "Image Scoring API"
         ],
-        "summary": "Rebuild folder cache",
-        "description": "Scans images in the database and rebuilds the folder tree. Use when the Pipeline tab shows no folders.",
-        "operationId": "rebuild_folders_api_folders_rebuild_post",
+        "summary": "Fix database (re-score incomplete)",
+        "description": "Starts a database fix operation that re-scores images with incomplete data.\n        \n        This operation:\n        - Finds images missing scores from one or more models\n        - Finds images missing metadata (rating or label)\n        - Re-runs scoring only for missing components\n        - Updates database with complete scores\n        \n        Useful for:\n        - Backfilling scores after adding new models\n        - Fixing corrupted or incomplete records\n        - Updating metadata for images scored before metadata features were added\n        \n        The operation runs asynchronously. Monitor progress with GET /api/scoring/status.\n\n        Note: this endpoint starts immediately and intentionally bypasses the persisted queue.",
+        "operationId": "fix_database_api_scoring_fix_db_post",
+        "responses": {
+          "200": {
+            "description": "Fix operation start confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          }
+        }
+      }
+    },
+    "/api/scoring/fix-image": {
+      "post": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Fix image metadata",
+        "description": "Recalculates scores and updates metadata for a single image without running neural networks.\n        \n        This operation:\n        - Uses existing model scores from the database\n        - Recalculates weighted scores (technical, aesthetic, general)\n        - Updates rating and color label based on recalculated scores\n        - Writes updated metadata to XMP sidecar and embedded metadata\n        - Regenerates thumbnail if needed\n        \n        **Use Cases:**\n        - Fixing metadata after score recalculation logic changes\n        - Updating ratings/labels without re-running expensive model inference\n        - Correcting corrupted metadata\n        \n        **Requirements:**\n        - Image must exist in database\n        - At least one model score must be present\n        - If all scores missing, operation will fail\n        \n        This is much faster than full re-scoring as it doesn't run AI models.",
+        "operationId": "fix_image_metadata_api_scoring_fix_image_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SingleImageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scoring/single": {
+      "post": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Score single image",
+        "description": "Scores a single image file using all available models.\n        \n        This is a blocking operation that runs the full scoring pipeline for one image.\n        Use this for testing or when you need immediate results for a single file.\n        \n        For batch operations, use POST /api/scoring/start instead.\n        \n        **Supported formats:** JPG, JPEG, PNG, NEF, NRW, DNG, CR2, ARW, ORF, CR3, RW2",
+        "operationId": "score_single_image_api_scoring_single_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SingleImageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Scoring result with success status and message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scoring/start": {
+      "post": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Start batch image scoring",
+        "description": "Initiates a batch image quality assessment job for all images in the specified directory.\n        \n        The scoring process uses multiple AI models to evaluate images:\n        - **SPAQ**: Spatial Perception of Aesthetic Quality\n        - **AVA**: Aesthetic Visual Analysis\n        - **KonIQ**: Konstanz Image Quality\n        - **PaQ2PiQ**: Perceptual Quality to Perceptual Image Quality\n        - **LIQE**: Learning Image Quality Evaluator\n        \n        Results include:\n        - Technical score (sharpness, noise, exposure)\n        - Aesthetic score (composition, appeal)\n        - General quality score (weighted combination)\n        - Rating (1-5 stars) and color label (Red/Yellow/Green/Blue/Purple)\n        \n        The job runs asynchronously. Use GET /api/scoring/status to monitor progress.\n        \n        **Path Handling:**\n        - Windows paths: `D:/Photos/2024` or `D:\\Photos\\2024`\n        - WSL paths: `/mnt/d/Photos/2024`\n        - Paths are automatically converted between formats when needed\n        \n        **Skip Logic:**\n        - If `skip_existing=True`: Images with complete scores are skipped\n        - If `force_rescore=True`: All images are re-scored regardless of existing data\n        - Incomplete scores (missing models or metadata) are always completed\n        \n        **Example Request:**\n        ```json\n        {\n            \"input_path\": \"D:/Photos/2024\",\n            \"skip_existing\": true,\n            \"force_rescore\": false\n        }\n        ```\n        \n        **Example Response:**\n        ```json\n        {\n            \"success\": true,\n            \"message\": \"Scoring job started successfully\",\n            \"data\": {\n                \"job_id\": 123,\n                \"input_path\": \"D:/Photos/2024\"\n            }\n        }\n        ```",
+        "operationId": "start_scoring_api_scoring_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoringStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Job started successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Scoring job started successfully",
+                  "data": {
+                    "job_id": 123,
+                    "input_path": "D:/Photos/2024"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input path or path not found"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Scoring runner not available"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scoring/status": {
+      "get": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Get scoring status",
+        "description": "Returns the current status of the scoring job including:\n        - Whether a job is currently running\n        - Progress information (current/total images)\n        - Status message\n        - Full log output\n        - Job type (scoring, fix_db, etc.)\n        \n        **Polling:** This endpoint can be polled periodically to monitor job progress.\n        Recommended polling interval: 2-5 seconds.",
+        "operationId": "get_scoring_status_api_scoring_status_get",
+        "responses": {
+          "200": {
+            "description": "Current scoring job status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          }
+        }
+      }
+    },
+    "/api/scoring/stop": {
+      "post": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Stop scoring job",
+        "description": "Sends a stop signal to the currently running scoring job.\n        \n        The job will finish processing the current image and then stop gracefully.\n        Use GET /api/scoring/status to verify the job has stopped.\n        \n        **Note:** If no job is running, returns success=False with appropriate message.",
+        "operationId": "stop_scoring_api_scoring_stop_post",
+        "responses": {
+          "200": {
+            "description": "Stop confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          }
+        }
+      }
+    },
+    "/api/similar": {
+      "get": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Find similar images",
+        "description": "Find images visually similar to a given image using embedding-based cosine similarity.\n        \n        **Query Parameters:**\n        - image_id: Required. Integer ID of the query image.\n        - limit: Maximum number of results (default: 20).\n        - folder_path: Optional. Scope search to a specific folder path.\n        - min_similarity: Minimum similarity threshold 0.0-1.0 (default: 0.80).\n        \n        **Returns:**\n        - query_image_id: ID of the query image\n        - results: List of {image_id, file_path, similarity}\n        - count: Number of results returned\n        \n        **Errors:**\n        - 400: Missing or invalid image_id\n        - 404: Image not found\n        - 400: No embeddings (run clustering first)",
+        "operationId": "get_similar_images_api_similar_get",
+        "parameters": [
+          {
+            "name": "image_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "ID of the query image",
+              "title": "Image Id"
+            },
+            "description": "ID of the query image"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum number of results",
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "Maximum number of results"
+          },
+          {
+            "name": "folder_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scope search to folder",
+              "title": "Folder Path"
+            },
+            "description": "Scope search to folder"
+          },
+          {
+            "name": "min_similarity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 1.0,
+                  "minimum": 0.0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum similarity threshold",
+              "default": 0.8,
+              "title": "Min Similarity"
+            },
+            "description": "Minimum similarity threshold"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1627,6 +1667,16 @@
           },
           "503": {
             "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
@@ -1802,201 +1852,315 @@
         }
       }
     },
-    "/api/import/register": {
-      "post": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Register images from folder (import without scoring)",
-        "description": "Scans a folder for image files and adds them to the database without scoring.\n        Skips images already in the database (by path or EXIF ImageUniqueID).\n        Supports Windows (D:\\...) and WSL (/mnt/...) paths.",
-        "operationId": "import_register_api_import_register_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ImportRegisterRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/pipeline/submit": {
-      "post": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Submit to processing pipeline",
-        "description": "Submits an image file or folder for sequential processing through the pipeline.\n\n        Operations are executed in order: score -> tag -> cluster.\n        For folder submissions, only the first applicable operation is queued immediately;\n        subsequent operations should be triggered by the Electron app after the previous\n        one completes (via status polling or WebSocket events).\n\n        For single-file submissions, the first operation runs immediately.\n\n        For single files, only 'score' and 'tag' operations are supported.\n        'cluster' requires a folder path.",
-        "operationId": "submit_pipeline_api_pipeline_submit_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PipelineSubmitRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/phases/decision": {
+    "/api/status": {
       "get": {
         "tags": [
           "Image Scoring API"
         ],
-        "summary": "Explain phase run/skip decision",
-        "description": "Returns policy diagnostics describing why a phase would run or be skipped for an image.",
-        "operationId": "get_phase_decision_api_phases_decision_get",
+        "summary": "Get all runners status",
+        "description": "Returns the status of all runners (scoring and tagging) in a single response.\n        \n        Useful for monitoring the overall system state. Each runner's status includes:\n        - Availability (whether runner is initialized)\n        - Running state\n        - Progress information\n        - Status message\n        - Recent log output (last 2000 characters)\n        \n        **Response Structure:**\n        ```json\n        {\n            \"scoring\": {\n                \"available\": true,\n                \"is_running\": false,\n                \"status_message\": \"Idle\",\n                \"progress\": {\"current\": 0, \"total\": 0},\n                \"log\": \"\",\n                \"job_type\": null\n            },\n            \"tagging\": {\n                \"available\": true,\n                \"is_running\": false,\n                \"status_message\": \"Idle\",\n                \"progress\": {\"current\": 0, \"total\": 0},\n                \"log\": \"\"\n            }\n        }\n        ```",
+        "operationId": "get_all_status_api_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get All Status Api Status Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          }
+        }
+      }
+    },
+    "/api/tagging/propagate": {
+      "post": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Propagate tags",
+        "description": "Propagates keywords from tagged images to visually similar untagged images.\n        \n        This operation uses image embeddings to find nearest neighbors and applies\n        tags based on similarity-weighted voting.\n        \n        **Use Cases:**\n        - Automatically tagging large datasets from a small set of manually tagged examples\n        - Ensuring consistent tagging across similar bursts or shots\n        - Quickly organizing imported photo collections",
+        "operationId": "tag_propagation_api_tagging_propagate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagPropagationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tagging/single": {
+      "post": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Tag single image",
+        "description": "Tags a single image file with keywords and optionally generates a caption.\n        \n        This is a blocking operation that processes one image immediately.\n        For batch operations, use POST /api/tagging/start instead.",
+        "operationId": "tag_single_image_api_tagging_single_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaggingSingleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tagging/start": {
+      "post": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Start batch tagging",
+        "description": "Initiates a batch image tagging job using CLIP (Contrastive Language-Image Pre-Training).\n        \n        The tagging process:\n        - Extracts relevant keywords from images using zero-shot classification\n        - Optionally generates captions using BLIP (Bootstrapping Language-Image Pre-training)\n        - Writes metadata to XMP sidecar files and embedded metadata\n        - Updates database with keywords, title, and description\n        \n        **Keyword Extraction:**\n        - Uses default keyword set if custom_keywords not provided\n        - Default keywords: landscape, portrait, urban, cityscape, nature, wildlife, etc.\n        - Returns top 5 most relevant keywords per image\n        \n        **Caption Generation:**\n        - Enabled with generate_captions=True\n        - Uses BLIP model to generate natural language descriptions\n        - Title is auto-generated from caption (first 50 chars)\n        \n        **Path Handling:**\n        - Provide input_path and/or selectors (image_ids, image_paths, folder_ids, folder_paths)\n        - Directory path processes images in that folder and subfolders\n        - Paths are automatically converted between Windows/WSL formats\n        \n        The job runs asynchronously. Use GET /api/tagging/status to monitor progress.",
+        "operationId": "start_tagging_api_tagging_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaggingStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Tagging job start confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tagging/status": {
+      "get": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Get tagging status",
+        "description": "Returns the current status of the tagging job including progress and logs.",
+        "operationId": "get_tagging_status_api_tagging_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          }
+        }
+      }
+    },
+    "/api/tagging/stop": {
+      "post": {
+        "tags": [
+          "Image Scoring API"
+        ],
+        "summary": "Stop tagging job",
+        "description": "Sends a stop signal to the currently running tagging job.",
+        "operationId": "stop_tagging_api_tagging_stop_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          }
+        }
+      }
+    },
+    "/source-image": {
+      "get": {
+        "tags": [
+          "General API"
+        ],
+        "summary": "Get full-resolution source image or RAW preview",
+        "description": "Serve source image bytes. RAW formats return generated or extracted JPEG previews; non-RAW files are streamed with their native media type when supported.",
+        "operationId": "source_image_source_image_get",
         "parameters": [
           {
-            "name": "image_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "description": "Image ID",
-              "title": "Image Id"
-            },
-            "description": "Image ID"
-          },
-          {
-            "name": "phase_code",
+            "name": "path",
             "in": "query",
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Phase code (scoring|culling|keywords|...)",
-              "title": "Phase Code"
+              "minLength": 1,
+              "description": "URL-encoded absolute file path. RAW formats (.nef/.cr2/.dng/.arw/.orf/.nrw/.cr3/.rw2) return JPEG previews; non-RAW files are streamed in their native media type when supported.",
+              "title": "Path"
             },
-            "description": "Phase code (scoring|culling|keywords|...)"
-          },
-          {
-            "name": "current_executor_version",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional explicit executor version override",
-              "title": "Current Executor Version"
-            },
-            "description": "Optional explicit executor version override"
-          },
-          {
-            "name": "force_run",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "If true, policy returns run decision as forced",
-              "default": false,
-              "title": "Force Run"
-            },
-            "description": "If true, policy returns run decision as forced"
+            "description": "URL-encoded absolute file path. RAW formats (.nef/.cr2/.dng/.arw/.orf/.nrw/.cr3/.rw2) return JPEG previews; non-RAW files are streamed in their native media type when supported."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Image bytes for RAW previews (JPEG) or direct non-RAW files.",
             "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PhaseDecisionResponse"
-                }
-              }
+              "image/jpeg": {},
+              "image/png": {},
+              "image/gif": {},
+              "image/webp": {},
+              "image/bmp": {},
+              "image/tiff": {}
             }
           },
           "400": {
-            "description": "Bad Request - Invalid input parameters"
+            "description": "Invalid path or request parameters."
+          },
+          "403": {
+            "description": "Requested path is outside configured allowed roots."
           },
           "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
+            "description": "File not found."
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Validation failure (for example, missing `path` query parameter).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2004,114 +2168,9 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/api/pipeline/phase/skip": {
-      "post": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Skip a pipeline phase",
-        "description": "Marks all images in a folder phase as skipped, storing reason and actor.",
-        "operationId": "skip_pipeline_phase_api_pipeline_phase_skip_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PipelinePhaseControlRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
           },
           "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/pipeline/phase/retry": {
-      "post": {
-        "tags": [
-          "Image Scoring API"
-        ],
-        "summary": "Retry a skipped pipeline phase",
-        "description": "Converts skipped statuses to running and starts the selected phase runner.",
-        "operationId": "retry_pipeline_phase_api_pipeline_phase_retry_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PipelinePhaseControlRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
+            "description": "RAW preview extraction/generation failure."
           }
         }
       }

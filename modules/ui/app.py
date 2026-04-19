@@ -22,6 +22,7 @@ from modules.metadata_runner import MetadataRunner
 from modules.maintenance_runner import MaintenanceRunner
 from modules import phase_executors
 from modules.ui import status_gradio
+from modules.ui.source_image_api import router as source_image_router
 
 # Cache platform check
 IS_WINDOWS = platform.system() == "Windows"
@@ -123,6 +124,7 @@ def setup_server_endpoints(fastapi_app, scoring_runner=None, tagging_runner=None
     fastapi_app.include_router(api_router)
     fastapi_app.include_router(api.create_public_api_router())
     fastapi_app.include_router(api_db.router)
+    fastapi_app.include_router(source_image_router)
 
     @fastapi_app.on_event("shutdown")
     async def _shutdown_dispatcher():
@@ -245,57 +247,5 @@ def setup_server_endpoints(fastapi_app, scoring_runner=None, tagging_runner=None
             rows = c.fetchall()
             conn.close()
             return rows
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
-    @fastapi_app.get("/source-image")
-    async def source_image_endpoint(path: str):
-        """Serves full-resolution source images. For RAW files generates JPEG preview on-the-fly."""
-        import urllib.parse
-        from fastapi.responses import Response, FileResponse
-        from fastapi import HTTPException
-        import io
-
-        try:
-            file_path = urllib.parse.unquote(path)
-            resolved = utils.resolve_file_path(file_path)
-            file_path = resolved if resolved else utils.convert_path_to_local(file_path)
-            file_path = _validate_file_path(file_path)
-
-            if not os.path.exists(file_path):
-                raise HTTPException(status_code=404, detail="File not found")
-
-            ext = Path(file_path).suffix.lower()
-            is_raw = ext in ['.nef', '.cr2', '.dng', '.arw', '.orf', '.nrw', '.cr3', '.rw2']
-
-            if is_raw:
-                img = thumbnails.extract_embedded_jpeg(file_path, min_size=1000)
-                if img and img.width > 1000:
-                    jpeg_bytes = io.BytesIO()
-                    img.save(jpeg_bytes, format='JPEG', quality=95)
-                    jpeg_bytes.seek(0)
-                    return Response(content=jpeg_bytes.read(), media_type="image/jpeg",
-                                    headers={"Cache-Control": "public, max-age=3600"})
-                preview_path = thumbnails.generate_preview(file_path)
-                if preview_path and os.path.exists(preview_path):
-                    return FileResponse(preview_path, media_type="image/jpeg",
-                                        headers={"Cache-Control": "public, max-age=3600"})
-                if img:
-                    jpeg_bytes = io.BytesIO()
-                    img.save(jpeg_bytes, format='JPEG', quality=95)
-                    jpeg_bytes.seek(0)
-                    return Response(content=jpeg_bytes.read(), media_type="image/jpeg",
-                                    headers={"Cache-Control": "public, max-age=3600"})
-                raise HTTPException(status_code=500, detail="Failed to generate RAW preview")
-            else:
-                media_types = {
-                    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-                    '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
-                    '.tiff': 'image/tiff', '.tif': 'image/tiff',
-                }
-                return FileResponse(file_path, media_type=media_types.get(ext, 'image/jpeg'),
-                                    headers={"Cache-Control": "public, max-age=3600"})
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))

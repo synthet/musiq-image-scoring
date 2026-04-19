@@ -5029,6 +5029,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /source-image:
+    get:
+      tags:
+      - General API
+      summary: Get full-resolution source image or RAW preview
+      description: Serve source image bytes. RAW formats return generated or extracted JPEG previews;
+        non-RAW files are streamed with their native media type when supported.
+      operationId: source_image_source_image_get
+      parameters:
+      - name: path
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          description: URL-encoded absolute file path. RAW formats (.nef/.cr2/.dng/.arw/.orf/.nrw/.cr3/.rw2)
+            return JPEG previews; non-RAW files are streamed in their native media type when supported.
+          title: Path
+        description: URL-encoded absolute file path. RAW formats (.nef/.cr2/.dng/.arw/.orf/.nrw/.cr3/.rw2)
+          return JPEG previews; non-RAW files are streamed in their native media type when supported.
+      responses:
+        '200':
+          description: Image bytes for RAW previews (JPEG) or direct non-RAW files.
+          content:
+            image/jpeg: {}
+            image/png: {}
+            image/gif: {}
+            image/webp: {}
+            image/bmp: {}
+            image/tiff: {}
+        '400':
+          description: Invalid path or request parameters.
+        '403':
+          description: Requested path is outside configured allowed roots.
+        '404':
+          description: File not found.
+        '422':
+          description: Validation failure (for example, missing `path` query parameter).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+        '500':
+          description: RAW preview extraction/generation failure.
 components:
   schemas:
     ApiResponse:
