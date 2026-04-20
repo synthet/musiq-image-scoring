@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
 import { useUiStore } from '@/stores/uiStore'
 import { CollapsibleInspectorSection, KeyValueTable, formatInspectorValue } from '@/components/images/InspectorPrimitives'
-import { imageInspectorAbsoluteUrl } from '@/utils/inspectorLinks'
+import { imageInspectorAbsoluteUrl, imageInspectorPath } from '@/utils/inspectorLinks'
 import type { ImageDetail, ImagePhaseStatusRow } from '@/types/api'
 
 function detailPreviewSrc(image: ImageDetail): string | null {
@@ -212,11 +212,11 @@ export function ImageInspectorPage() {
 
       if (e.key === 'ArrowLeft') {
         if (neighbors?.prev_id) {
-          navigate(`/images/${neighbors.prev_id}`)
+          navigate(imageInspectorPath(neighbors.prev_id))
         }
       } else if (e.key === 'ArrowRight') {
         if (neighbors?.next_id) {
-          navigate(`/images/${neighbors.next_id}`)
+          navigate(imageInspectorPath(neighbors.next_id))
         }
       } else if (e.key === 'Escape') {
         navigate('/images')
