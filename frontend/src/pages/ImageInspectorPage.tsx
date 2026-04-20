@@ -116,11 +116,7 @@ function PhaseStatusTable({ phases }: { phases: NonNullable<ImageDetail['phase_s
             const r = isString ? null : (row as ImagePhaseStatusRow)
             const rawStatus = isString ? row : r?.status
             const normalizedStatus = normalizePhaseStatus(rawStatus)
-            const statusText = isString
-              ? rawStatus
-              : rawStatus
-                ? statusLabel(normalizedStatus)
-                : '—'
+            const statusText = rawStatus ? statusLabel(normalizedStatus) : '—'
             return (
               <tr key={code} className="border-b border-[#2d2d2d] hover:bg-[#2a2a2a]">
                 <td className="px-2 py-1 font-mono text-[#4fc1ff]">{code}</td>

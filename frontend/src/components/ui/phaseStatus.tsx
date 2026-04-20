@@ -1,27 +1,35 @@
-import { CheckCircle2, Circle, Clock3, Loader2, XCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Loader2, MinusCircle } from 'lucide-react'
 
 export function normalizePhaseStatus(status: string | null | undefined): string {
   if (!status) return 'unknown'
-  return String(status).trim().toLowerCase()
+
+  const normalized = String(status).trim().toLowerCase()
+  return PHASE_STATUS_ALIASES[normalized] ?? normalized
 }
 
-export function PhaseStatusIcon({ status }: { status: string }) {
-  switch (status) {
-    case 'completed':
-    case 'success':
-    case 'done':
-      return <CheckCircle2 className="text-[#89d185]" size={12} />
-    case 'running':
-    case 'processing':
-    case 'in_progress':
-      return <Loader2 className="text-[#4fc1ff] animate-spin" size={12} />
-    case 'pending':
-    case 'queued':
-      return <Clock3 className="text-[#9d9d9d]" size={12} />
-    case 'failed':
-    case 'error':
-      return <XCircle className="text-[#f44747]" size={12} />
-    default:
-      return <Circle className="text-[#9d9d9d]" size={12} />
+const PHASE_STATUS_ALIASES: Record<string, string> = {
+  complete: 'done',
+  completed: 'done',
+  success: 'done',
+  succeeded: 'done',
+  in_progress: 'running',
+  processing: 'running',
+  error: 'failed',
+  cancelled: 'canceled',
+}
+
+export function PhaseStatusIcon({ status }: { status: string | null | undefined }) {
+  const normalized = normalizePhaseStatus(status)
+
+  if (normalized === 'done') {
+    return <CheckCircle2 className="text-[#89d185]" size={12} />
   }
+  if (normalized === 'running') {
+    return <Loader2 className="text-[#4fc1ff] animate-spin" size={12} />
+  }
+  if (normalized === 'failed' || normalized === 'canceled') {
+    return <AlertCircle className="text-[#f44747]" size={12} />
+  }
+
+  return <MinusCircle className="text-[#9d9d9d]" size={12} />
 }
