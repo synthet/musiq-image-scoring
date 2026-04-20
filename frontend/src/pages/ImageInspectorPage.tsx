@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
 import { useUiStore } from '@/stores/uiStore'
 import { CollapsibleInspectorSection, KeyValueTable, formatInspectorValue } from '@/components/images/InspectorPrimitives'
+import { statusLabel } from '@/components/ui/badge'
 import { imageInspectorAbsoluteUrl } from '@/utils/inspectorLinks'
 import type { ImageDetail, ImagePhaseStatusRow } from '@/types/api'
 
@@ -115,7 +116,7 @@ function PhaseStatusTable({ phases }: { phases: NonNullable<ImageDetail['phase_s
             return (
               <tr key={code} className="border-b border-[#2d2d2d] hover:bg-[#2a2a2a]">
                 <td className="px-2 py-1 font-mono text-[#4fc1ff]">{code}</td>
-                <td className="px-2 py-1">{isString ? row : r?.status ?? '—'}</td>
+                <td className="px-2 py-1">{isString ? row : statusLabel(r?.status ?? 'unknown')}</td>
                 <td className="px-2 py-1 text-[#6d6d6d] font-mono">
                   {isString ? '—' : r?.updated_at ? String(r.updated_at).slice(0, 19) : '—'}
                 </td>
