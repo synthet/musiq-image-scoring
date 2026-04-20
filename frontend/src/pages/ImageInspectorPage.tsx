@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
 import { useUiStore } from '@/stores/uiStore'
 import { CollapsibleInspectorSection, KeyValueTable, formatInspectorValue } from '@/components/images/InspectorPrimitives'
+import { imageInspectorAbsoluteUrl } from '@/utils/inspectorLinks'
 import type { ImageDetail, ImagePhaseStatusRow } from '@/types/api'
 
 function detailPreviewSrc(image: ImageDetail): string | null {
@@ -269,7 +270,7 @@ export function ImageInspectorPage() {
         <span className="text-[10px] text-[#6d6d6d] font-mono ml-auto shrink-0">
           id{' '}
           <a
-            href={`http://localhost:7860/ui/images/${data.id}`}
+            href={imageInspectorAbsoluteUrl(data.id)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-[#4fc1ff] hover:underline cursor-pointer"
@@ -304,7 +305,7 @@ export function ImageInspectorPage() {
                   if (k === 'id' && typeof v === 'number') {
                     return (
                       <a
-                        href={`http://localhost:7860/ui/images/${v}`}
+                        href={imageInspectorAbsoluteUrl(v)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[#4fc1ff] hover:underline cursor-pointer"

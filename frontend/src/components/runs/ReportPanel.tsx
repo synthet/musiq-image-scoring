@@ -8,6 +8,7 @@ import {
 import { runsApi } from '@/api/runs'
 import { STAGE_DISPLAY } from '@/types/api'
 import type { JobExecutionReport, PhaseExecutionReport, ImageAction } from '@/types/api'
+import { imageInspectorPath } from '@/utils/inspectorLinks'
 
 const PAGE_SIZE = 20
 
@@ -177,7 +178,7 @@ function ImageActionsTable({ runId, report }: { runId: number; report: JobExecut
                     <tr key={item.id} className="border-b border-border/50 hover:bg-muted/30">
                       <td className="py-1.5 px-2 max-w-[200px] truncate" title={item.file_path ?? ''}>
                         <Link
-                          to={`/images/${item.image_id}`}
+                          to={imageInspectorPath(item.image_id)}
                           className="hover:text-primary hover:underline"
                         >
                           {item.file_path ? item.file_path.split(/[/\\]/).pop() : `#${item.image_id}`}
