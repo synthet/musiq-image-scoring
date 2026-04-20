@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
+import { imageInspectorPath } from '@/utils/routes'
 import { useUiStore } from '@/stores/uiStore'
 import { CollapsibleInspectorSection, KeyValueTable, formatInspectorValue } from '@/components/images/InspectorPrimitives'
 import { statusLabel } from '@/components/ui/badge'
@@ -225,11 +226,11 @@ export function ImageInspectorPage() {
 
       if (e.key === 'ArrowLeft') {
         if (neighbors?.prev_id) {
-          navigate(`/images/${neighbors.prev_id}`)
+          navigate(imageInspectorPath(neighbors.prev_id))
         }
       } else if (e.key === 'ArrowRight') {
         if (neighbors?.next_id) {
-          navigate(`/images/${neighbors.next_id}`)
+          navigate(imageInspectorPath(neighbors.next_id))
         }
       } else if (e.key === 'Escape') {
         navigate('/images')
@@ -282,14 +283,12 @@ export function ImageInspectorPage() {
         <span className="text-sm font-medium text-[#cccccc] truncate">{data.file_name}</span>
         <span className="text-[10px] text-[#6d6d6d] font-mono ml-auto shrink-0">
           id{' '}
-          <a
-            href={`http://localhost:7860/ui/images/${data.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            to={imageInspectorPath(data.id)}
             className="text-[#4fc1ff] hover:underline cursor-pointer"
           >
             {data.id}
-          </a>
+          </Link>
         </span>
       </div>
 
@@ -317,14 +316,12 @@ export function ImageInspectorPage() {
                 renderValue={(k, v) => {
                   if (k === 'id' && typeof v === 'number') {
                     return (
-                      <a
-                        href={`http://localhost:7860/ui/images/${v}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <Link
+                        to={imageInspectorPath(v)}
                         className="text-[#4fc1ff] hover:underline cursor-pointer"
                       >
                         {v}
-                      </a>
+                      </Link>
                     )
                   }
                   return formatInspectorValue(v)

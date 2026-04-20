@@ -15,6 +15,7 @@ import { STAGE_DISPLAY, STEP_DISPLAY } from '@/types/api'
 import type { Stage, Step, WorkItem } from '@/types/api'
 import { useWsStore } from '@/stores/wsStore'
 import { RUNS_QUERY_ROOT, runDetailQueryKey, runStagesQueryKey } from '@/queryKeys/runs'
+import { imageInspectorPath } from '@/utils/routes'
 
 const WORK_ITEMS_PAGE_SIZE = 50
 
@@ -311,7 +312,7 @@ function WorkItemsTable({
               >
                 <td className="px-4 py-1.5 text-[#cccccc] truncate max-w-[300px]">
                   <Link
-                    to={`/images/${item.image_id}`}
+                    to={imageInspectorPath(item.image_id)}
                     className="hover:text-[#4fc1ff] hover:underline"
                   >
                     {item.filename}

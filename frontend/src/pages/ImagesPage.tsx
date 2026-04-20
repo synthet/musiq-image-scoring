@@ -7,6 +7,7 @@ import { galleryApi } from '@/api/gallery'
 import { useUiStore } from '@/stores/uiStore'
 import { Button } from '@/components/ui/button'
 import { LabelBadge } from '@/components/images/InspectorPrimitives'
+import { imageInspectorPath } from '@/utils/routes'
 import type { Image } from '@/types/api'
 
 const PAGE_SIZES = [25, 50, 100] as const
@@ -147,16 +148,16 @@ export function ImagesPage() {
               {images.map((row) => (
                 <tr
                   key={row.id}
-                  onClick={() => navigate(`/images/${row.id}`)}
+                  onClick={() => navigate(imageInspectorPath(row.id))}
                   className="border-b border-[#2d2d2d] hover:bg-[#2a2d2e] cursor-pointer"
                 >
                   <td className="px-3 py-1.5 font-mono text-[#4fc1ff]">
-                    <Link to={`/images/${row.id}`} className="hover:underline">
+                    <Link to={imageInspectorPath(row.id)} className="hover:underline">
                       {row.id}
                     </Link>
                   </td>
                   <td className="px-3 py-1.5 text-[#cccccc] max-w-[14rem] truncate" title={row.file_name}>
-                    <Link to={`/images/${row.id}`} className="hover:text-[#4fc1ff] hover:underline">
+                    <Link to={imageInspectorPath(row.id)} className="hover:text-[#4fc1ff] hover:underline">
                       {row.file_name}
                     </Link>
                   </td>
