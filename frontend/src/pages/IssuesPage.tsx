@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { AlertTriangle, RefreshCcw } from 'lucide-react'
 import { incidentsApi } from '@/api/incidents'
 import { Button } from '@/components/ui/button'
+import { imageInspectorPath } from '@/utils/routes'
 import type { ImageIncident } from '@/types/api'
 
 const PAGE_SIZE = 50
@@ -146,7 +147,7 @@ export function IssuesPage() {
                     <td className="p-2">{row.phase_code ?? '—'}</td>
                     <td className="p-2 max-w-[200px]">
                       <Link
-                        to={`/images/${row.image_id}`}
+                        to={imageInspectorPath(row.image_id)}
                         className="text-[#4fc1ff] hover:underline"
                         title={row.file_path ?? undefined}
                       >
