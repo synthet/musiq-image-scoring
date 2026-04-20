@@ -49,10 +49,25 @@ All composite scores are stored as floats 0.0–1.0 in the database.
 
 ## Hybrid Environment
 
-- **Windows**: Runs the WebUI, Firebird DB, and file management.
+- **Windows**: Runs the WebUI, PostgreSQL DB (port 5432), and file management.
 - **WSL 2 (Linux)**: Runs GPU inference (TensorFlow + PyTorch with CUDA).
 - Path conversion is handled automatically (`/mnt/d/...` ↔ `D:\...`) in `modules/utils.py`.
 - **CRITICAL**: Database access from WSL must use TCP (port 3050), never direct file access.
+
+## Test Database Safety
+
+When running or writing tests:
+- **Use only** the test database **`image_scoring_test`** (PostgreSQL).
+- **Never** use production database names (`scoring_history.fdb` / `image_scoring`) in test code or config.
+- Enforcement is automatic in `modules/db.py` and `modules/db_postgres.py` via `DB_FILE` and `POSTGRES_TEST_DB` constants when `pytest` is active.
+
+## Backend Implementer Persona
+
+When acting as `imgscore-backend-implementer`:
+- **Scope**: `modules/*`, REST/API, phase logic, DB layer, migrations.
+- **Out of Scope**: Gallery/Electron UI unless COORDINATED contract change.
+- **Minimal Diff**: One logical change per pass; no drive-by refactors or formatting sweeps.
+- **Style**: Match existing style, imports, and error-handling.
 
 ## How to Add a New Model
 

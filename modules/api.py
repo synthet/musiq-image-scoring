@@ -105,7 +105,7 @@ from modules.job_description import (
     build_bird_species_job_description,
     build_workflow_run_description,
 )
-from modules import db
+from modules import db, config
 
 logger = logging.getLogger(__name__)
 
@@ -379,13 +379,27 @@ def _images_list_payload(
             folder_path=folder_path,
             stack_id=stack_id,
         )
+        
+        # Batch fetch phase statuses
+        img_ids = [img["id"] for img in images]
+        phase_map = db.get_batch_image_phase_statuses(img_ids)
+        
+        payload_images = []
+        for img in images:
+            d = _row_to_dict(img, exclude_keys={"image_embedding"})
+            # Ensure we get the correct ID key (DB drivers may vary lowercase/uppercase)
+            img_id = d.get("id") or d.get("ID")
+            d["phase_statuses"] = phase_map.get(img_id, {}) if img_id else {}
+            payload_images.append(d)
+
         return {
-            "images": [_row_to_dict(img, exclude_keys={"image_embedding"}) for img in images],
+            "images": payload_images,
             "total": total_count,
             "page": page,
             "page_size": page_size,
             "total_pages": (total_count + page_size - 1) // page_size if page_size > 0 else 0,
         }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -4660,7 +4674,8 @@ def create_api_router() -> APIRouter:
             if _tagging_runner is None:
                 raise HTTPException(status_code=503, detail="Tagging runner not available")
             job_id = db.create_job(request.input_path, phase_code="keywords")
-            result = _tagging_runner.start_batch(request.input_path, job_id=job_id, overwrite=False, generate_captions=False)
+            generate_captions = config.get_config_section('tagging').get('captions_default', True)
+            result = _tagging_runner.start_batch(request.input_path, job_id=job_id, overwrite=False, generate_captions=generate_captions)
         elif phase == "culling":
             culling_runner = _selection_runner or _clustering_runner
             if culling_runner is None:
@@ -4804,7 +4819,8 @@ def create_api_router() -> APIRouter:
             if _tagging_runner is None:
                 raise HTTPException(status_code=503, detail="Tagging runner not available")
             job_id = db.create_job(request.input_path, phase_code="keywords")
-            result = _tagging_runner.start_batch(request.input_path, job_id=job_id, overwrite=True, generate_captions=False)
+            generate_captions = config.get_config_section('tagging').get('captions_default', True)
+            result = _tagging_runner.start_batch(request.input_path, job_id=job_id, overwrite=True, generate_captions=generate_captions)
         restart_phases = ordered[start_idx:]  # e.g. ["scoring", "culling", "keywords"]
         db.create_job_phases(job_id, restart_phases)  # immediate start
 

@@ -31,6 +31,7 @@ Existing features and implementation docs only. Plans and proposals → [plans/I
 | [MODELS_SUMMARY.md](MODELS_SUMMARY.md) | Overview of all models (MUSIQ, LIQE) |
 | [MODEL_INPUT_SPECIFICATIONS.md](MODEL_INPUT_SPECIFICATIONS.md) | Input formats, score ranges, constraints |
 | [WEIGHTED_SCORING_STRATEGY.md](WEIGHTED_SCORING_STRATEGY.md) | Hybrid pipeline scoring weights (v2.5.2) |
+| [SCORING_CHANGES.md](SCORING_CHANGES.md) | Image Scoring Pipeline V2 changes summary (LIQE, AVA, SPAQ) |
 | [MULTI_MODEL_SCORING.md](MULTI_MODEL_SCORING.md) | Multi-model MUSIQ assessment runner |
 | [MODEL_SOURCE_TESTING.md](MODEL_SOURCE_TESTING.md) | Model source URL verification guide |
 

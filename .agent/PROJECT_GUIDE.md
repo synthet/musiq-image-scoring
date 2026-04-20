@@ -3,7 +3,7 @@
 This guide provides instructions for AI agents on how to navigate, maintain, and execute the Image Scoring project.
 
 ## Project Context
-`image-scoring` is a multi-model quality assessment tool with a hybrid architecture (Windows + WSL 2). It uses TensorFlow and PyTorch for scoring, and Firebird SQL for storage.
+`image-scoring` is a multi-model quality assessment tool with a hybrid architecture (Windows + WSL 2). It uses TensorFlow and PyTorch for scoring, and PostgreSQL for storage.
 
 ## Core Agentic Skills (Commands)
 
@@ -39,4 +39,4 @@ This guide provides instructions for AI agents on how to navigate, maintain, and
 ## Troubleshooting Flow
 1. Run `/verify_system` to check CUDA and model weights.
 2. Check `test_output.log` for recent failure details.
-3. Verify Firebird Server is running on Windows (Port 3050).
+3. Verify PostgreSQL (port 5432) is running.

@@ -5,7 +5,7 @@ description: Image Scoring MCP server tools — diagnostics, queries, monitoring
 
 # Image Scoring MCP Server
 
-The project includes a Model Context Protocol (MCP) server that exposes **45** diagnostic and query tools. Implementation: [`modules/mcp_server.py`](../../../modules/mcp_server.py). Full index: [`mcp_tools_reference.md`](../../mcp_tools_reference.md).
+The project includes a Model Context Protocol (MCP) server that exposes **46** diagnostic and query tools. Implementation: [`modules/mcp_server.py`](../../../modules/mcp_server.py). Full index: [`mcp_tools_reference.md`](../../mcp_tools_reference.md).
 
 ## Configuration
 
@@ -14,17 +14,28 @@ The project includes a Model Context Protocol (MCP) server that exposes **45** d
 - **`imgscore-py-sse`** / **`imgscore-el-sse`**: WebUI SSE (same URL); `execute_code` when `ENABLE_MCP_EXECUTE_CODE=1`.
 - **`execute_code`**: SSE only; set **`ENABLE_MCP_EXECUTE_CODE=1`** on the WebUI process.
 
+## MCP Schema Checks
+
+**Before calling any MCP tool**, check the tool schema/descriptor for required parameters and types.
+
+- **Required parameters**: Check the `required` array in the schema.
+- **Parameter types**: Verify `properties.<name>.type`.
+- **Optional parameters**: Use when they improve results (e.g. `limit`, `folder_path`).
+
+Tool descriptors can be found in the `mcps/` folder or via `list_tools` on the server.
+
 ## Tool index (abbrev.)
 
 | Area | Tools |
 |------|--------|
-| Diagnostic | `get_error_summary`, `check_database_health`, `get_model_status`, `diagnose_phase_consistency` |
+| Diagnostic | `get_error_summary`, `check_database_health`, `get_model_status`, `diagnose_phase_consistency`, `get_stale_running_phase_status`, `verify_environment` |
 | Query | `get_database_stats`, `query_images`, `get_image_details`, `search_images_by_hash`, `execute_sql` |
-| Errors / paths | `get_failed_images`, `get_incomplete_images`, `validate_file_paths` |
-| Jobs | `get_performance_metrics`, `get_runner_status`, `get_recent_jobs`, `get_pipeline_stats`, `run_processing_job` |
-| Config | `validate_config`, `get_config`, `set_config_value`, `read_debug_log` |
-| Stacks / similarity | `get_folder_tree`, `get_stacks_summary`, `search_similar_images`, `find_near_duplicates`, `propagate_tags`, `find_outliers` |
-| Gradio | `execute_code` (SSE + env flag) |
+| Errors & Paths | `get_failed_images`, `get_incomplete_images`, `validate_file_paths`, `summarize_directory`, `search_missing_sidecars` |
+| Performance & Jobs | `get_performance_metrics`, `get_runner_status`, `get_recent_jobs`, `get_job_details`, `get_job_phases`, `get_job_stage_images`, `get_run_diagnostics`, `get_job_execution_report`, `get_pipeline_stats`, `run_processing_job` |
+| HTTP & Engine | `probe_backend_http`, `get_database_engine_info`, `get_embedding_stats`, `check_stack_invariants` |
+| Config & Logs | `validate_config`, `get_config`, `set_config_value`, `read_debug_log`, `get_server_log_tail` |
+| Folders & Stacks | `get_folder_tree`, `get_stacks_summary`, `get_gallery_status`, `search_similar_images`, `find_near_duplicates`, `propagate_tags`, `find_outliers` |
+| Execute Code | `execute_code` (SSE + env flag) |
 
 ## Workflows
 

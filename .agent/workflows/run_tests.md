@@ -21,4 +21,4 @@ description: Run the image scoring test suite (Pytest)
    ```
 
 4. **Cleanup**:
-   The tests automatically create temporary Firebird databases. These should clean up after the run, but if they persist, look for `test_*.fdb` files in the root.
+   The tests automatically create a temporary PostgreSQL test database. This is isolated from production.

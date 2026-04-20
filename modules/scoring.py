@@ -97,9 +97,13 @@ class ScoringRunner:
                 if target_phases is not None:
                     run_kwargs["target_phases"] = target_phases
                 self._run_batch_internal(input_path, job_id, skip_existing, report_collector=report_collector, **run_kwargs)
-            except Exception:
+            except Exception as e:
                 logger.exception("ScoringRunner thread crashed (job_id=%s)", job_id)
                 self.status_message = "Failed"
+                try:
+                    db.update_job_status(job_id, "failed", error=f"Thread crash: {e}")
+                except Exception as update_err:
+                    logger.error("Failed to mark job %s as failed: %s", job_id, update_err)
             finally:
                 self.is_running = False
             if "Error" in self.status_message:
@@ -816,5 +820,10 @@ class ScoringRunner:
             return True, f"Scoring Complete. General Score: {gen:.2f}"
             
         except Exception as e:
+            if db_job_id:
+                try:
+                    db.update_job_status(db_job_id, "failed", error=str(e), runner_state="error")
+                except Exception as update_err:
+                    logger.error("Failed to mark job %s as failed: %s", db_job_id, update_err)
             self.status_message = "Error"
             return False, f"Error running scoring: {e}"

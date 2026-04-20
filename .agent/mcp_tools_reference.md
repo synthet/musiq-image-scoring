@@ -119,7 +119,6 @@ ORDER BY p.code, action_count DESC, jia.action;
 | **`get_model_status`** | GPU / CUDA / model load |
 | **`diagnose_phase_consistency`** | `image_id` (+ optional `folder_path`): folder vs image phase mismatch |
 | **`get_stale_running_phase_status`** | Long-`running` `image_phase_status` rows (`min_age_seconds`, `limit`) |
-| **`get_migration_parity`** | Firebird↔Postgres parity snapshot (when configured) |
 | **`verify_environment`** | Host / venv / key deps sanity check |
 
 ### Data query

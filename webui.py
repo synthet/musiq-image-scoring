@@ -186,6 +186,23 @@ def main():
         event_manager.set_loop(loop)
         print("EventManager: Event loop attached.")
 
+        # Reconcile stale running jobs from previous crash
+        try:
+            from modules import db
+            logger = logging.getLogger(__name__)
+            stale_jobs = db.list_stale_running_image_phase_rows(min_age_seconds=600, limit=1000)
+            if stale_jobs.get("rows"):
+                logger.info("Found %d stale running image phases; reconciling...", len(stale_jobs["rows"]))
+                for row in stale_jobs["rows"]:
+                    job_id = row.get("job_id")
+                    if job_id:
+                        try:
+                            db.reconcile_stale_running_phases_for_jobs([job_id])
+                        except Exception as e:
+                            logger.error("Failed to reconcile job %s: %s", job_id, e)
+        except Exception as e:
+            logger.error("Startup reconciliation failed: %s", e)
+
         # Start event loop health monitor
         from modules.profiling import get_loop_monitor
         monitor = get_loop_monitor()

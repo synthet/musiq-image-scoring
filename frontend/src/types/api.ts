@@ -300,6 +300,9 @@ export interface Image {
   burst_uuid?: string | null
   scores_json?: string | null
   model_version?: string | null
+
+  /** Phase-level status rows (mapping of phase_code -> status row) */
+  phase_statuses?: Record<string, ImagePhaseStatusRow | string> | null
 }
 
 /** Per-phase row from `get_image_phase_statuses` (GET /api/images/{id}). */

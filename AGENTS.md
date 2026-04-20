@@ -6,7 +6,7 @@ This document describes the AI agents and MCP (Model Context Protocol) server in
 
 The Image Scoring project provides an MCP server that enables AI agents (like Cursor IDE's AI assistant) to interact with the application for debugging, monitoring, and analysis tasks:
 
-- **Query and analyze** the PostgreSQL database (primary) or legacy Firebird database
+- **Query and analyze** the PostgreSQL database (primary)
 - **Monitor** scoring and tagging jobs
 - **Diagnose** errors and system issues
 - **Track** performance metrics
@@ -21,9 +21,9 @@ This repo vendors **[agent-sdlc](https://github.com/synthet/agent-sdlc)**-style 
 
 ## MCP servers (Image Scoring)
 
-The same FastMCP app exposes **47** tools; Cursor can attach it in two ways (separate `mcpServers` entries).
+The same FastMCP app exposes **46** tools; Cursor can attach it in two ways (separate `mcpServers` entries).
 
-**Unique server names:** Each repo’s `.cursor/mcp.json` uses a workspace prefix so keys do not collide when Cursor merges configs: **`imgscore-py-*`** (Python / `image-scoring` workspace), **`imgscore-el-*`** (`electron-image-scoring` workspace). Shared tools such as Playwright or Firebird use the same prefix (`imgscore-py-playwright`, `imgscore-el-firebird`, …).
+**Unique server names:** Each repo’s `.cursor/mcp.json` uses a workspace prefix so keys do not collide when Cursor merges configs: **`imgscore-py-*`** (Python / `image-scoring` workspace), **`imgscore-el-*`** (`electron-image-scoring` workspace). Shared tools such as Playwright or Chrome use the same prefix (`imgscore-py-playwright`, `imgscore-el-playwright`, …).
 
 ### Configuration
 
@@ -99,7 +99,7 @@ ENABLE_MCP_SERVER=1 python webui.py
 
 ## Available Tools
 
-The MCP server registers **47** tools (see [`modules/mcp_server.py`](modules/mcp_server.py)). Summary:
+The MCP server registers **46** tools (see [`modules/mcp_server.py`](modules/mcp_server.py)). Summary:
 
 ### Diagnostic
 
@@ -110,7 +110,6 @@ The MCP server registers **47** tools (see [`modules/mcp_server.py`](modules/mcp
 | `get_model_status` | GPU / PyTorch / TensorFlow / model load status |
 | `diagnose_phase_consistency` | Per-image vs folder phase status mismatches |
 | `get_stale_running_phase_status` | `image_phase_status` rows stuck in `running` (age filter) |
-| `get_migration_parity` | Firebird↔Postgres parity snapshot (when applicable) |
 | `verify_environment` | Host, Python, and key dependency sanity check |
 
 ### Data query
@@ -320,7 +319,7 @@ Agent: "How fast is the system processing images?"
 
 1. Verify database is initialized: Check `get_model_status` (non-DB tool)
 2. Check database connection settings in config (`database.engine`, `database.postgres.*`)
-3. Ensure PostgreSQL is running (`docker compose up -d`) or Firebird is accessible (legacy mode)
+3. Ensure PostgreSQL is running (`docker compose up -d`)
 
 ### Tools Not Appearing in Cursor
 
@@ -344,48 +343,28 @@ Potential additions to the MCP server:
 
 ### Environment overview
 
-This is a Python 3.12 project using a virtualenv at `.venv/`. The main application is a **FastAPI + Gradio** server (`python webui.py`) on port 7860 backed by **PostgreSQL + pgvector** (primary, local Docker on port 5432). A legacy **Firebird 5.0** database is retained for Electron frontend compatibility (Phase 4 migration pending).
+This is a Python 3.12 project using a virtualenv at `.venv/`. The main application is a **FastAPI + Gradio** server (`python webui.py`) on port 7860 backed by **PostgreSQL + pgvector** (primary, local Docker on port 5432).
 
-### Firebird 5.0 setup (required for legacy/Electron compatibility only)
-
-Firebird 5.0 is installed at `/opt/firebird/`. Before starting the WebUI or running DB-dependent tests, the Firebird server must be running:
-
-```bash
-export LD_LIBRARY_PATH=/opt/firebird/lib:$LD_LIBRARY_PATH
-/opt/firebird/bin/firebird -a -d &
-```
-
-If the database file (`scoring_history.fdb`) does not exist, create it:
-
-```bash
-/opt/firebird/bin/isql -user sysdba -password masterkey <<< "CREATE DATABASE '/workspace/scoring_history.fdb' PAGE_SIZE 16384;"
-```
 
 ### Starting the WebUI
 
 ```bash
 source /workspace/.venv/bin/activate
-export LD_LIBRARY_PATH=/opt/firebird/lib:$LD_LIBRARY_PATH
-WEBUI_HOST=0.0.0.0 \
-FIREBIRD_CLIENT_LIBRARY=/opt/firebird/lib/libfbclient.so \
-FIREBIRD_USE_LOCAL_PATH=1 \
-python webui.py
+WEBUI_HOST=0.0.0.0 python webui.py
 ```
 
 Key env vars:
-- `FIREBIRD_USE_LOCAL_PATH=1` — uses embedded/local file access instead of TCP to a Windows host (critical in Cloud VMs)
-- `FIREBIRD_CLIENT_LIBRARY=/opt/firebird/lib/libfbclient.so` — points to the Firebird 5.0 client library
 - `WEBUI_HOST=0.0.0.0` — binds to all interfaces for browser access
 
 ### Running tests
 
 ```bash
 source /workspace/.venv/bin/activate
-python -m pytest -m "not gpu and not db and not ml and not firebird" --ignore=tests/test_probe.py
+python -m pytest -m "not gpu and not db and not ml" --ignore=tests/test_probe.py
 ```
 
 - `tests/test_probe.py` must be ignored — it executes DB calls at import time and crashes collection.
-- Some tests in `test_culling.py` and `test_db_consistency.py` are missing the `db`/`firebird` marker and will ERROR during collection; this is a pre-existing issue.
+- Some tests in `test_culling.py` and `test_db_consistency.py` are missing the `db` marker and will ERROR during collection; this is a pre-existing issue.
 - Some tests may be slow (e.g., `test_events.py::test_websocket_connection` can hang); use `timeout` if needed.
 
 ### Linting
@@ -402,7 +381,7 @@ ruff check
 - The base `requirements.txt` pins `tensorflow-cpu>=2.15.1,<2.16.0` which is **incompatible with Python 3.12**. Use `requirements/requirements_wsl_gpu.txt` (filtered to remove NVIDIA/CUDA packages) for installing deps on Python 3.12.
 - The DB migration in `_init_db_impl()` may log errors about missing columns (`CULL_DECISION`, `RATING`) when creating a fresh database. The server still starts and serves API requests.
 - No `config.json` ships with the repo — it is created at runtime. The app handles its absence gracefully.
-- After installing Firebird, `/tmp/firebird/` files are owned by the `firebird` user. Run `sudo chmod -R 777 /tmp/firebird/` before using `isql` as a non-firebird user, or the client will fail with "Permission denied" on `fb_init`/`fb50_trace`.
+- After installing PostgreSQL, ensure it is reachable.
 - `tests/test_exifread.py` may also fail collection if the `exifread` package is not installed; add `--ignore=tests/test_exifread.py` alongside `test_probe.py` when running the fast test subset.
 
 ## Generated MCP Tool Inventory
@@ -410,7 +389,7 @@ ruff check
 <!-- BEGIN MCP TOOL INVENTORY -->
 _This section is auto-generated by `python scripts/generate_mcp_tool_inventory.py --update-docs AGENTS.md docs/technical/MCP_DEBUGGING_TOOLS.md`. Do not edit manually._
 
-Tool count: **47**
+Tool count: **46**
 
 | Tool | Signature |
 |---|---|
@@ -421,7 +400,6 @@ Tool count: **47**
 | `execute_sql` | `(query: str, params: list = None)` |
 | `get_folder_tree` | `(root_path: Optional[str] = None)` |
 | `get_stacks_summary` | `(folder_path: Optional[str] = None)` |
-| `get_migration_parity` | `()` |
 | `get_failed_images` | `(limit: int = 50)` |
 | `get_incomplete_images` | `(limit: int = 100)` |
 | `get_error_summary` | `()` |

@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate, Link } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { ChevronLeft, ChevronRight, Database } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Database, Scan, FileText, Zap, Layers, Tag, Bird } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
 import { useUiStore } from '@/stores/uiStore'
 import { Button } from '@/components/ui/button'
-import { LabelBadge } from '@/components/images/InspectorPrimitives'
+import { LABEL_COLORS } from '@/components/images/InspectorPrimitives'
 import { imageInspectorPath } from '@/utils/routes'
-import type { Image } from '@/types/api'
+import type { Image, ImagePhaseStatusRow } from '@/types/api'
 
 const PAGE_SIZES = [25, 50, 100] as const
 
@@ -16,16 +16,72 @@ const SORT_COLUMNS: { key: string; label: string }[] = [
   { key: 'id', label: 'ID' },
   { key: 'file_name', label: 'File' },
   { key: 'file_path', label: 'Path' },
-  { key: 'score_general', label: 'Score' },
-  { key: 'rating', label: 'Rating' },
-  { key: 'label', label: 'Label' },
+  { key: 'score_general', label: 'Quality' },
+  { key: 'phases', label: 'Phases' },
   { key: 'created_at', label: 'Created' },
-  { key: 'updated_at', label: 'Updated' },
 ]
 
 function truncatePath(s: string, max = 64): string {
   if (s.length <= max) return s
   return `…${s.slice(-(max - 1))}`
+}
+
+function PhaseIcon({ 
+  code, 
+  status, 
+  error, 
+  icon: Icon 
+}: { 
+  code: string; 
+  status?: string; 
+  error?: string | null; 
+  icon: any 
+}) {
+  const color = useMemo(() => {
+    if (!status || status === 'not_started') return LABEL_COLORS.gray
+    if (status === 'completed') return LABEL_COLORS.green
+    if (status === 'running') return LABEL_COLORS.blue
+    if (status === 'failed') return LABEL_COLORS.red
+    if (status === 'pending' || status === 'queued') return LABEL_COLORS.orange
+    return LABEL_COLORS.gray
+  }, [status])
+
+  const title = useMemo(() => {
+    let t = `${code.charAt(0).toUpperCase() + code.slice(1)}: ${status || 'not_started'}`
+    if (error) t += `\nError: ${error}`
+    return t
+  }, [code, status, error])
+
+  return (
+    <div 
+      className="p-1 rounded-sm transition-colors hover:bg-[#3c3c3c]" 
+      title={title}
+      style={{ color }}
+    >
+      <Icon size={14} strokeWidth={2.5} />
+    </div>
+  )
+}
+
+function ImagePhases({ phases }: { phases?: Record<string, ImagePhaseStatusRow | string> | null }) {
+  if (!phases) return <span className="text-[#6d6d6d]">—</span>
+
+  const getStatus = (code: string) => {
+    const p = phases[code]
+    if (typeof p === 'string') return { status: p }
+    return p as ImagePhaseStatusRow | undefined
+  }
+
+  return (
+    <div className="flex items-center gap-0.5">
+      <PhaseIcon code="indexing" icon={Scan} status={getStatus('indexing')?.status} error={getStatus('indexing')?.last_error} />
+      <PhaseIcon code="metadata" icon={FileText} status={getStatus('metadata')?.status} error={getStatus('metadata')?.last_error} />
+      <PhaseIcon code="scoring" icon={Zap} status={getStatus('scoring')?.status} error={getStatus('scoring')?.last_error} />
+      <PhaseIcon code="culling" icon={Layers} status={getStatus('culling')?.status} error={getStatus('culling')?.last_error} />
+      <PhaseIcon code="keywords" icon={Tag} status={getStatus('keywords')?.status} error={getStatus('keywords')?.last_error} />
+      <PhaseIcon code="birds" icon={Bird} status={getStatus('bird_species')?.status} error={getStatus('bird_species')?.last_error} />
+    </div>
+  )
 }
 
 export function ImagesPage() {
@@ -136,7 +192,7 @@ export function ImagesPage() {
                       )}
                     >
                       {col.label}
-                      {sortBy === col.key && (
+                      {sortBy === col.key && col.key !== 'phases' && (
                         <span className="text-[10px] font-mono">{order === 'asc' ? '↑' : '↓'}</span>
                       )}
                     </button>
@@ -170,13 +226,11 @@ export function ImagesPage() {
                   <td className="px-3 py-1.5 text-[#cccccc]">
                     {row.score_general != null ? (row.score_general * 100).toFixed(1) : '—'}
                   </td>
-                  <td className="px-3 py-1.5">{row.rating ?? '—'}</td>
-                  <td className="px-3 py-1.5"><LabelBadge label={row.label} /></td>
-                  <td className="px-3 py-1.5 text-[#6d6d6d] font-mono">
-                    {row.created_at ? String(row.created_at).slice(0, 19) : '—'}
+                  <td className="px-3 py-1.5 text-center">
+                    <ImagePhases phases={row.phase_statuses} />
                   </td>
                   <td className="px-3 py-1.5 text-[#6d6d6d] font-mono">
-                    {row.updated_at ? String(row.updated_at).slice(0, 19) : '—'}
+                    {row.created_at ? String(row.created_at).slice(0, 19) : '—'}
                   </td>
                 </tr>
               ))}

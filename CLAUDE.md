@@ -9,7 +9,7 @@ AI-powered image scoring, tagging, and clustering engine using MUSIQ, LIQE, BLIP
 | **image-scoring-backend** (this) | `https://github.com/synthet/image-scoring-backend` | AI scoring engine, FastAPI server, PostgreSQL DB schema owner |
 | **image-scoring-gallery** | `https://github.com/synthet/image-scoring-gallery` | Desktop UI, IPC query layer, React/Vite |
 
-This project is the **schema authority** — DDL is managed via `modules/db_postgres.py` (PostgreSQL) and Alembic migrations. The legacy Firebird schema in `modules/db.py` (`_init_db_impl()`) is retained for reference and Electron compatibility (Phase 4 migration pending).
+This project is the **schema authority** — DDL is managed via `modules/db_postgres.py` (PostgreSQL) and Alembic migrations.
 
 ## Architecture
 
@@ -31,7 +31,7 @@ Phase status values: `not_started | running | done | skipped | failed`
 
 | Module | Role |
 |--------|------|
-| `modules/db.py` | Database abstraction layer; engine routing (`_get_db_engine()`), Firebird→PG SQL translation |
+| `modules/db.py` | Database abstraction layer; engine routing (`_get_db_engine()`) and PostgreSQL connection factory |
 | `modules/api.py` | FastAPI REST endpoints for scoring, tagging, clustering jobs |
 | `modules/engine.py` | Batch processor; producer-consumer pipeline orchestrator |
 | `modules/pipeline.py` | Low-level pipeline primitives |
@@ -62,12 +62,11 @@ Phase status values: `not_started | running | done | skipped | failed`
 
 - **Hybrid:** Windows host + WSL 2 for GPU/ML workloads
 - **DB (primary):** PostgreSQL + pgvector (local Docker, port 5432) — set `database.engine: "postgres"` in `config.json`
-- **DB (legacy):** Firebird SQL (`SCORING_HISTORY.FDB`, port 3050) — still used by Electron frontend; Python backend has fully cut over to PostgreSQL (Phase 3 complete)
 - **WebUI:** FastAPI on port 7860; `/ui/` serves the React SPA (primary product UI), `/app` is a minimal Gradio operator status page (threads, profiling, runners, log tail)
 
 ## Key Files
 
-- `modules/db.py` — DB abstraction layer, engine routing, Firebird→PG SQL translation
+- `modules/db.py` — DB abstraction layer and engine routing
 - `modules/db_postgres.py` — PostgreSQL schema, connection pool, DDL init
 - `modules/api.py` — FastAPI REST endpoints (scoring, tagging, clustering jobs)
 - `modules/engine.py` — Scoring pipeline orchestrator
@@ -230,20 +229,4 @@ val = get_config_value("scoring.force_rescore_default", default=False)
 - `.agent/mcp_tools_reference.md` — MCP tools quick reference
 - `AGENTS.md` — MCP server configuration for Cursor/AI agents
 
-### Wiki Maintenance (LLM-maintained docs)
 
-The `docs/` directory is an LLM-maintained wiki. The LLM writes and updates it; the human curates sources and directs analysis. Full conventions in `docs/WIKI_SCHEMA.md`.
-
-**Rules for any docs change:**
-1. **Always update indexes** — every new page must appear in its folder's `INDEX.md` and in `docs/INDEX.md`
-2. **Always cross-reference** — link to related pages; link from related pages back
-3. **Always log** — append an entry to `docs/log.md` for any ingest, query-filed, lint, or significant update
-4. **Never delete pages** — archive to `docs/archive/` instead
-5. **Never modify raw sources** — files in `docs/raw/` are immutable
-6. **Prefer updates over rewrites** — minimal diffs to existing pages
-7. **Follow naming conventions** — `UPPER_SNAKE_CASE.md` (default), date-stamped for reports
-
-**Slash commands:**
-- `/wiki-ingest` — Process a source document into the wiki (read, summarize, cross-reference, index, log)
-- `/wiki-query` — Answer a question from the wiki with citations; optionally file the answer as a new page
-- `/wiki-lint` — Health-check: find orphans, broken links, stale content, missing cross-references

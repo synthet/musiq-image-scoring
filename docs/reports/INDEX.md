@@ -30,6 +30,7 @@ Historical reports, research, reviews, and debugging sessions.
 | [project-reviews/INDEX.md](project-reviews/INDEX.md) | Project review summaries and detailed reviews |
 | [project-reviews/UX_UI_REVIEW_2026-03-12.md](project-reviews/UX_UI_REVIEW_2026-03-12.md) | UX/UI heuristic review of current WebUI |
 | [CODE_DESIGN_REVIEW_2026-04-18.md](CODE_DESIGN_REVIEW_2026-04-18.md) | Comprehensive code & design review — 3 critical, 5 high, 7 medium findings (execute_code RCE, cancelled/canceled duality, connection leaks, stuck jobs, god object) |
+| [SECURITY_FIXES_2026_04_19.md](SECURITY_FIXES_2026_04_19.md) | Security & architecture fixes (RCE mitigation, connection leaks, thread safety, status normalization) |
 | [CODE_DESIGN_REVIEW.md](CODE_DESIGN_REVIEW.md) | Code and design review |
 | [2026_02_09_CODE_AND_DESIGN_REVIEW.md](2026_02_09_CODE_AND_DESIGN_REVIEW.md) | Code & design review |
 

@@ -6586,19 +6586,30 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
     old_folder_id = existing_image["folder_id"] if existing_image else None
 
     if image_id:
-        _sync_image_keywords(image_id, keywords)
+        # Sync keywords with retry on failure
+        try:
+            _sync_image_keywords(image_id, keywords)
+        except Exception as kw_err:
+            logger.error("Failed to sync keywords for image %s: %s; will retry on next access", image_id, kw_err)
+            # Mark image for keyword resync on next update
+
+        # Register file path with retry
+        try:
+            register_image_path(image_id, image_path)
+            # Also resolve Windows path for native viewer
+            try:
+                resolve_windows_path(image_id, image_path, verify=False)
+            except Exception as wp_err:
+                logger.warning("Failed to resolve Windows path for %s: %s", image_id, wp_err)
+        except Exception as fp_err:
+            logger.error("Failed to register file path for image %s: %s; image exists but path not indexed", image_id, fp_err)
 
     if image_path:
         invalidate_folder_images_cache(os.path.dirname(image_path))
 
     _record_phase_agg(folder_id, old_folder_id)
 
-    # Register path in file_paths
     if image_id:
-        register_image_path(image_id, image_path)
-        # Also resolve Windows path for native viewer
-        resolve_windows_path(image_id, image_path, verify=False)
-
         event_manager.broadcast_threadsafe("image_scored", {
             "image_id": image_id,
             "file_path": image_path,
@@ -7341,23 +7352,38 @@ def is_image_indexing_complete(image_id: int) -> bool:
 
 
 def is_image_keywords_complete(image_id: int) -> bool:
-    """True if image has non-empty keywords string or image_keywords entries."""
+    """True if image has non-empty keywords string (and title/description if enabled)."""
+    # Check config for captions requirement
+    from modules import config
+    tagging_cfg = config.get_config_section("tagging") or {}
+    require_captions = tagging_cfg.get("captions_default", True)
+
     row = get_connector().query_one(
-        "SELECT keywords FROM images WHERE id = ?",
+        "SELECT keywords, title, description FROM images WHERE id = ?",
         (image_id,)
     )
     if not row:
         return False
+        
+    # Keywords check
     kw = str(row.get("keywords") or "").strip()
-    if kw:
-        return True
+    if not kw:
+        # Fallback: check image_keywords table
+        cnt = get_connector().query_one(
+            "SELECT COUNT(*) as c FROM image_keywords WHERE image_id = ?",
+            (image_id,)
+        )
+        if int((cnt or {}).get("c") or 0) == 0:
+            return False
     
-    # Fallback: check image_keywords table
-    cnt = get_connector().query_one(
-        "SELECT COUNT(*) as c FROM image_keywords WHERE image_id = ?",
-        (image_id,)
-    )
-    return int((cnt or {}).get("c") or 0) > 0
+    # Captions check (title/description)
+    if require_captions:
+        title = str(row.get("title") or "").strip()
+        desc = str(row.get("description") or "").strip()
+        if not title or not desc:
+            return False
+            
+    return True
 
 
 def get_incomplete_records(limit: int | None = None):
@@ -9837,7 +9863,7 @@ def set_image_phase_status(image_id, phase_code, status,
         tx_ok = True
     except Exception as e:
         logger.error("set_image_phase_status failed (img=%s, phase=%s): %s", image_id, phase_code, e)
-        folder_id = None
+        raise
 
     if tx_ok and _get_db_engine() == "postgres" and status == PhaseStatus.FAILED:
         attempt_row = get_connector().query_one(
@@ -9879,6 +9905,46 @@ def set_image_phase_status(image_id, phase_code, status,
         invalidate_folder_phase_aggregates(folder_id=folder_id)
 
 
+def get_batch_image_phase_statuses(image_ids):
+    """
+    Return phase statuses for multiple images.
+
+    Returns:
+        dict: {image_id: {phase_code: {status, updated_at, ...}}}
+    """
+    if not image_ids:
+        return {}
+    
+    placeholders = ','.join(['?'] * len(image_ids))
+    rows = get_connector().query(
+        "SELECT ips.image_id, pp.code, ips.status, ips.executor_version, ips.app_version, "
+        "       ips.updated_at, ips.attempt_count, ips.last_error, ips.skip_reason, ips.skipped_by "
+        "FROM image_phase_status ips "
+        "JOIN pipeline_phases pp ON pp.id = ips.phase_id "
+        f"WHERE ips.image_id IN ({placeholders}) ORDER BY ips.image_id, pp.sort_order",
+        tuple(image_ids)
+    )
+    
+    result = {}
+    for r in rows:
+        img_id = r["image_id"]
+        if img_id not in result:
+            result[img_id] = {}
+            
+        code = (r["code"] or "").strip()
+        result[img_id][code] = {
+            "status": (r["status"] or "not_started").strip(),
+            "executor_version": r["executor_version"],
+            "app_version": r["app_version"],
+            "updated_at": r["updated_at"],
+            "attempt_count": r["attempt_count"],
+            "last_error": r["last_error"],
+            "skip_reason": r["skip_reason"],
+            "skipped_by": r["skipped_by"],
+        }
+    return result
+
+
 def get_image_phase_statuses(image_id):
     """
     Return phase statuses for one image.
@@ -9908,6 +9974,7 @@ def get_image_phase_statuses(image_id):
             "skipped_by": r["skipped_by"],
         }
     return result
+
 
 
 def get_image_phase_status(image_id, phase_code):

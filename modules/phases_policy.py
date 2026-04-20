@@ -61,7 +61,7 @@ def explain_phase_run_decision(
     decision["stored_status"] = status
     decision["stored_executor_version"] = stored_version
 
-    if status in (PhaseStatus.NOT_STARTED, PhaseStatus.FAILED, PhaseStatus.SKIPPED):
+    if status in (PhaseStatus.NOT_STARTED, PhaseStatus.FAILED):
         decision["reason"] = f"status_{status}"
         return decision
 

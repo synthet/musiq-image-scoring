@@ -350,7 +350,11 @@ class TaggingRunner:
     def get_status(self):
         return self.is_running, "\n".join(self.log_history), self.status_message, self.current_count, self.total_count
         
-    def start_batch(self, input_path: str, job_id: int = None, custom_keywords: List[str] = None, overwrite: bool = False, generate_captions: bool = False, resolved_image_ids: List[int] = None):
+    def start_batch(self, input_path: str, job_id: int = None, custom_keywords: List[str] = None, overwrite: bool = False, generate_captions: Optional[bool] = None, resolved_image_ids: List[int] = None):
+        # Resolve generate_captions from config if not provided
+        if generate_captions is None:
+            from modules import config
+            generate_captions = config.get_config_section('tagging').get('captions_default', True)
         if self.is_running:
             return "Error: Already running."
             
@@ -525,7 +529,7 @@ class TaggingRunner:
             if decision['should_run']:
                 final_images.append(row)
             else:
-                logger.debug("Skipping keywords image_id=%s: %s", row['id'], decision['reason'])
+                logger.info("Skipping keywords image_id=%s: %s", row['id'], decision['reason'])
 
         all_images = final_images
         log(f"Found {len(all_images)} images to process.")

@@ -14,7 +14,7 @@ description: Launch the Image Scoring application using Docker Compose (GPU-acce
    ```
 
 2. **Wait for Initialization**:
-   The container will check for Firebird availability and run database migrations automatically.
+   The container will check for PostgreSQL connectivity and run database migrations automatically.
 
 3. **Access Interface**:
    Open your browser to:

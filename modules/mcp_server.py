@@ -509,58 +509,6 @@ def get_stacks_summary(folder_path: Optional[str] = None) -> dict:
         return summary
 
 
-@mcp.tool(annotations=_RO)
-def get_migration_parity() -> dict:
-    """Compare image and folder counts between Firebird (legacy) and PostgreSQL (new).
-    Useful for verifying the migration status."""
-    parity = {
-        "postgres": {"images": 0, "folders": 0, "stacks": 0},
-        "firebird": {"images": 0, "folders": 0, "stacks": 0},
-        "mismatch": False,
-        "firebird_available": False
-    }
-
-    # Postgres stats (using the default connection which is likely postgres now)
-    try:
-        with db.connection() as conn:
-            c = conn.cursor()
-            c.execute("SELECT COUNT(*) FROM images")
-            parity["postgres"]["images"] = c.fetchone()[0]
-            c.execute("SELECT COUNT(*) FROM folders")
-            parity["postgres"]["folders"] = c.fetchone()[0]
-            c.execute("SELECT COUNT(*) FROM stacks")
-            parity["postgres"]["stacks"] = c.fetchone()[0]
-    except Exception as e:
-        parity["postgres"]["error"] = str(e)
-
-    # Firebird stats (attempt direct connection if file exists)
-    fdb_path = getattr(db, "DB_PATH", "scoring_history.fdb")
-    if os.path.exists(fdb_path):
-        parity["firebird_available"] = True
-        try:
-            from firebird.driver import connect
-            # Use the credentials from db.py
-            with connect(fdb_path, user=db.DB_USER, password=db.DB_PASS) as f_conn:
-                fc = f_conn.cursor()
-                fc.execute("SELECT COUNT(*) FROM images")
-                parity["firebird"]["images"] = fc.fetchone()[0]
-                fc.execute("SELECT COUNT(*) FROM folders")
-                parity["firebird"]["folders"] = fc.fetchone()[0]
-                fc.execute("SELECT COUNT(*) FROM stacks")
-                parity["firebird"]["stacks"] = fc.fetchone()[0]
-        except Exception as e:
-            parity["firebird"]["error"] = str(e)
-    else:
-        parity["firebird"]["error"] = f"Firebird file {fdb_path} not found"
-
-    # Compare
-    if parity["firebird_available"]:
-        for key in ["images", "folders", "stacks"]:
-            if parity["postgres"][key] != parity["firebird"][key]:
-                parity["mismatch"] = True
-                break
-
-    return parity
 
 
 # ============================================================
