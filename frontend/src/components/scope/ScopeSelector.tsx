@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import { X, Plus, Trash2, FolderOpen, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { X, Plus, Trash2, FolderOpen } from 'lucide-react'
 import { ApiError, parseApiErrorDetail } from '@/api/client'
 import { runsApi, type RunSubmitRequest } from '@/api/runs'
 import { scopeApi } from '@/api/scope'
 import { Button } from '@/components/ui/button'
+import { PhaseStatusIcon } from '@/components/status/PhaseStatusIcon'
 import { useUiStore } from '@/stores/uiStore'
 import { STAGE_DISPLAY } from '@/types/api'
 import type { StageCode, ScopePreviewResult, ValidationRepairPreview } from '@/types/api'
@@ -476,16 +477,5 @@ function PreviewPanel({ preview }: { preview: ScopePreviewResult }) {
 }
 
 function StageStatusIcon({ status }: { status: string }) {
-  switch (status) {
-    case 'done':
-      return <CheckCircle2 size={12} className="text-[#89d185]" />
-    case 'failed':
-      return <AlertCircle size={12} className="text-[#f44747]" />
-    case 'partial':
-    case 'running':
-    case 'queued':
-      return <Loader2 size={12} className="text-[#cca700]" />
-    default:
-      return <div className="w-3 h-3 rounded-full border border-[#474747]" />
-  }
+  return <PhaseStatusIcon status={status} size={12} animated />
 }

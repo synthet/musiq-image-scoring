@@ -1,10 +1,11 @@
 import { clsx } from 'clsx'
 import {
-  CheckCircle2, XCircle, Loader2, Circle, MinusCircle, ChevronRight, AlertTriangle,
+  ChevronRight,
 } from 'lucide-react'
 import { STAGE_DISPLAY } from '@/types/api'
 import type { Stage, StageState } from '@/types/api'
 import { Progress } from '@/components/ui/progress'
+import { PhaseStatusIcon, normalizePhaseStatus, getPhaseStatusMeta } from '@/components/status/PhaseStatusIcon'
 import { useWsStore } from '@/stores/wsStore'
 
 interface WorkflowGraphProps {
@@ -106,36 +107,12 @@ function StageNode({ stage, liveProgress, isSelected, onClick }: StageNodeProps)
 }
 
 function StateIcon({ state }: { state: StageState }) {
-  switch (state) {
-    case 'completed':
-      return <CheckCircle2 size={14} className="text-[#89d185] shrink-0" />
-    case 'running':
-      return <Loader2 size={14} className="text-[#4fc1ff] shrink-0 animate-spin" />
-    case 'failed':
-      return <XCircle size={14} className="text-[#f44747] shrink-0" />
-    case 'interrupted':
-      return <AlertTriangle size={14} className="text-[#cca700] shrink-0" />
-    case 'skipped':
-      return <MinusCircle size={14} className="text-[#6d6d6d] shrink-0" />
-    default:
-      return <Circle size={14} className="text-[#474747] shrink-0" />
-  }
+  return <PhaseStatusIcon status={state} size={14} animated />
 }
 
 function StageBadgeText({ state }: { state: StageState }) {
-  const colors: Record<StageState, string> = {
-    pending: 'text-[#6d6d6d]',
-    queued: 'text-[#9d9d9d]',
-    running: 'text-[#4fc1ff]',
-    paused: 'text-[#cca700]',
-    completed: 'text-[#89d185]',
-    failed: 'text-[#f44747]',
-    skipped: 'text-[#6d6d6d]',
-    interrupted: 'text-[#cca700]',
-    cancel_requested: 'text-[#cca700]',
-    restarting: 'text-[#9d9d9d]',
-    canceled: 'text-[#f44747]',
-  }
+  const { colorClass } = getPhaseStatusMeta(state)
+  const normalizedState = normalizePhaseStatus(state)
   const labels: Record<StageState, string> = {
     pending: 'Pending',
     queued: 'Queued',
@@ -149,7 +126,8 @@ function StageBadgeText({ state }: { state: StageState }) {
     restarting: 'Restarting',
     canceled: 'Canceled',
   }
-  return <span className={clsx('text-[10px]', colors[state])}>{labels[state]}</span>
+  const fallbackLabel = normalizedState.charAt(0).toUpperCase() + normalizedState.slice(1).replace('_', ' ')
+  return <span className={clsx('text-[10px]', colorClass)}>{labels[state] ?? fallbackLabel}</span>
 }
 
 function DurationText({ stage }: { stage: Stage }) {

@@ -10,6 +10,7 @@ import { runsApi } from '@/api/runs'
 import { Button } from '@/components/ui/button'
 import { StageBadge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { PhaseStatusIcon, getPhaseStatusMeta, normalizePhaseStatus } from '@/components/status/PhaseStatusIcon'
 import { STAGE_DISPLAY, STEP_DISPLAY } from '@/types/api'
 import type { Stage, Step, WorkItem } from '@/types/api'
 import { useWsStore } from '@/stores/wsStore'
@@ -372,21 +373,25 @@ function WorkItemsTable({
 }
 
 function WorkItemStatus({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    done: 'text-[#89d185]',
-    running: 'text-[#4fc1ff]',
-    failed: 'text-[#f44747]',
-    skipped: 'text-[#6d6d6d]',
-    pending: 'text-[#6d6d6d]',
-  }
+  const normalized = normalizePhaseStatus(status)
+  const { colorClass } = getPhaseStatusMeta(status)
   const labels: Record<string, string> = {
-    done: '✓ Done',
-    running: '⟳ Running',
-    failed: '✗ Failed',
-    skipped: '— Skipped',
-    pending: '○ Waiting',
+    completed: 'Done',
+    running: 'Running',
+    failed: 'Failed',
+    skipped: 'Skipped',
+    pending: 'Waiting',
+    queued: 'Queued',
+    partial: 'Partial',
   }
-  return <span className={clsx('font-medium', styles[status] ?? 'text-[#6d6d6d]')}>{labels[status] ?? status}</span>
+  const label = labels[normalized] ?? normalized.replace('_', ' ')
+
+  return (
+    <span className={clsx('inline-flex items-center gap-1 font-medium', colorClass)}>
+      <PhaseStatusIcon status={status} size={12} animated />
+      {label}
+    </span>
+  )
 }
 
 function formatEta(sec: number): string {
