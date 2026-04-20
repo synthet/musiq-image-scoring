@@ -8,6 +8,8 @@ import { CollapsibleInspectorSection, KeyValueTable, formatInspectorValue } from
 import { imageInspectorAbsoluteUrl, imageInspectorPath } from '@/utils/inspectorLinks'
 import type { ImageDetail, ImagePhaseStatusRow } from '@/types/api'
 
+const IMAGES_LIST_PATH = '/images'
+
 function detailPreviewSrc(image: ImageDetail): string | null {
   const full = image.resolved_path || image.file_path
   if (full) return `/source-image?path=${encodeURIComponent(full)}`
@@ -187,7 +189,6 @@ export function ImageInspectorPage() {
   const { imageId: rawId } = useParams<{ imageId: string }>()
   const id = rawId ? parseInt(rawId, 10) : NaN
   const navigate = useNavigate()
-  const imagesListPath = '/images'
 
   const sortBy = useUiStore((s) => s.sortBy)
   const order = useUiStore((s) => s.sortOrder)
@@ -220,7 +221,7 @@ export function ImageInspectorPage() {
           navigate(imageInspectorPath(neighbors.next_id))
         }
       } else if (e.key === 'Escape') {
-        navigate(imagesListPath)
+        navigate(IMAGES_LIST_PATH)
       }
     }
 
@@ -246,7 +247,7 @@ export function ImageInspectorPage() {
     return (
       <div className="p-4 space-y-2">
         <div className="text-sm text-[#f44747]">Could not load image.</div>
-        <Link to={imagesListPath} className="text-xs text-[#4fc1ff] hover:underline inline-flex items-center gap-1">
+        <Link to={IMAGES_LIST_PATH} className="text-xs text-[#4fc1ff] hover:underline inline-flex items-center gap-1">
           <ArrowLeft size={12} /> Back to Images
         </Link>
       </div>
@@ -262,7 +263,7 @@ export function ImageInspectorPage() {
     <div className="flex flex-col h-full min-h-0 bg-[#1e1e1e] overflow-hidden">
       <div className="shrink-0 flex items-center gap-3 px-4 py-2 border-b border-[#3c3c3c] bg-[#252526]">
         <Link
-          to={imagesListPath}
+          to={IMAGES_LIST_PATH}
           className="text-xs text-[#4fc1ff] hover:underline inline-flex items-center gap-1 shrink-0"
         >
           <ArrowLeft size={12} /> Images
