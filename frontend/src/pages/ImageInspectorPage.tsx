@@ -5,6 +5,8 @@ import { ArrowLeft } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
 import { useUiStore } from '@/stores/uiStore'
 import { CollapsibleInspectorSection, KeyValueTable, formatInspectorValue } from '@/components/images/InspectorPrimitives'
+import { statusLabel } from '@/components/ui/badge'
+import { PhaseStatusIcon, normalizePhaseStatus } from '@/components/ui/phaseStatus'
 import type { ImageDetail, ImagePhaseStatusRow } from '@/types/api'
 
 function detailPreviewSrc(image: ImageDetail): string | null {
@@ -111,10 +113,22 @@ function PhaseStatusTable({ phases }: { phases: NonNullable<ImageDetail['phase_s
           {rows.map(([code, row]) => {
             const isString = typeof row === 'string'
             const r = isString ? null : (row as ImagePhaseStatusRow)
+            const rawStatus = isString ? row : r?.status
+            const normalizedStatus = normalizePhaseStatus(rawStatus)
+            const statusText = isString
+              ? row
+              : rawStatus
+                ? statusLabel(normalizedStatus)
+                : '—'
             return (
               <tr key={code} className="border-b border-[#2d2d2d] hover:bg-[#2a2a2a]">
                 <td className="px-2 py-1 font-mono text-[#4fc1ff]">{code}</td>
-                <td className="px-2 py-1">{isString ? row : r?.status ?? '—'}</td>
+                <td className="px-2 py-1">
+                  <div className="flex items-center gap-1.5">
+                    <PhaseStatusIcon status={normalizedStatus} />
+                    <span>{statusText}</span>
+                  </div>
+                </td>
                 <td className="px-2 py-1 text-[#6d6d6d] font-mono">
                   {isString ? '—' : r?.updated_at ? String(r.updated_at).slice(0, 19) : '—'}
                 </td>
