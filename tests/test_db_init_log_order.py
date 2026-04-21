@@ -10,7 +10,7 @@ from pathlib import Path
 
 def test_init_db_impl_log_marker_order():
     root = Path(__file__).resolve().parents[1]
-    text = (root / "modules" / "db.py").read_text(encoding="utf-8")
+    text = (root / "modules" / "db_legacy.py").read_text(encoding="utf-8")
 
     phase1_done = text.find('[Phase 1] OK - Complete (integrity + index hardening).')
     phase2_start = text.find('[Phase 2] Starting Keyword Normalization + IMAGE_XMP Backfill...')
