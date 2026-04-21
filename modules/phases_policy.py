@@ -98,6 +98,16 @@ def explain_phase_run_decision(
             decision["should_run"] = True
             decision["reason"] = "missing_indexing_data"
             return decision
+    elif code == PhaseCode.BIRD_SPECIES.value:
+        if not db.is_image_bird_species_complete(image_id):
+            decision["should_run"] = True
+            decision["reason"] = "missing_bird_species_data"
+            return decision
+    elif code == PhaseCode.CULLING.value:
+        if not db.is_image_culling_complete(image_id):
+            decision["should_run"] = True
+            decision["reason"] = "missing_cull_decision"
+            return decision
 
     decision["should_run"] = False
     decision["reason"] = "already_done_current_executor"

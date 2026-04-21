@@ -69,7 +69,7 @@ def _get_image_ids_with_species_keyword(image_ids: List[int]) -> set:
                 f"SELECT DISTINCT ik.image_id FROM image_keywords ik "
                 f"JOIN keywords_dim kd ON ik.keyword_id = kd.keyword_id "
                 f"WHERE ik.image_id IN ({placeholders}) "
-                f"AND kd.keyword_norm LIKE 'species:%'",
+                f"AND LOWER(kd.keyword_norm) LIKE 'species:%'",
                 tuple(int(x) for x in chunk),
             )
             found_ids.update(row[0] for row in c.fetchall())
@@ -362,6 +362,9 @@ class BirdSpeciesRunner:
         processed = 0
         skipped = 0
 
+        # Track phase status for each image
+        phase_code = "bird_species"
+
         for row in all_images:
             if self.stop_event.is_set():
                 log("Stopped by user.", "WARNING")
@@ -375,6 +378,7 @@ class BirdSpeciesRunner:
             inference_path = _resolve_inference_path(row, file_path)
 
             if not inference_path or not os.path.exists(inference_path):
+                db.set_image_phase_status(row["id"], phase_code, "failed", error="File not found")
                 log(f"Skipped (file not found): {os.path.basename(file_path)}", "WARNING")
                 skipped += 1
                 self.current_count += 1
@@ -395,13 +399,16 @@ class BirdSpeciesRunner:
                     merged_str = ",".join(merged)
 
                     db.update_image_fields_batch([(row["id"], {"keywords": merged_str})])
+                    db.set_image_phase_status(row["id"], phase_code, "done")
                     log(f"{os.path.basename(file_path)}: {', '.join(new_species_kws)}")
                     processed += 1
                 else:
+                    db.set_image_phase_status(row["id"], phase_code, "done")
                     log(f"{os.path.basename(file_path)}: no species above threshold")
                     skipped += 1
 
             except Exception as exc:
+                db.set_image_phase_status(row["id"], phase_code, "failed", error=str(exc))
                 log(f"Error classifying {os.path.basename(file_path)}: {exc}", "ERROR")
                 logger.exception("BirdSpeciesRunner error on %s", file_path)
                 skipped += 1

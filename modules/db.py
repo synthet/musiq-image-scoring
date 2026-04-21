@@ -7351,6 +7351,41 @@ def is_image_indexing_complete(image_id: int) -> bool:
     return row is not None and row.get("image_embedding") is not None
 
 
+def is_image_bird_species_complete(image_id: int) -> bool:
+    """True if image lacks 'birds' keyword, or has both 'birds' and a 'species:' keyword."""
+    conn = get_connector()
+    row = conn.query_one("SELECT keywords FROM images WHERE id = ?", (image_id,))
+    if not row:
+        return False
+    kw_str = str(row.get("keywords") or "").lower()
+
+    cnt_birds = conn.query_one(
+        "SELECT COUNT(*) AS c FROM image_keywords ik "
+        "JOIN keywords_dim kd ON kd.keyword_id = ik.keyword_id "
+        "WHERE ik.image_id = ? AND LOWER(kd.keyword_norm) LIKE '%birds%'",
+        (image_id,),
+    )
+    has_birds = "birds" in kw_str or int((cnt_birds or {}).get("c") or 0) > 0
+    if not has_birds:
+        return True
+
+    cnt_species = conn.query_one(
+        "SELECT COUNT(*) AS c FROM image_keywords ik "
+        "JOIN keywords_dim kd ON kd.keyword_id = ik.keyword_id "
+        "WHERE ik.image_id = ? AND LOWER(kd.keyword_norm) LIKE 'species:%'",
+        (image_id,),
+    )
+    return "species:" in kw_str or int((cnt_species or {}).get("c") or 0) > 0
+
+
+def is_image_culling_complete(image_id: int) -> bool:
+    """True if image has a non-empty cull_decision."""
+    row = get_connector().query_one(
+        "SELECT cull_decision FROM images WHERE id = ?", (image_id,)
+    )
+    return row is not None and str(row.get("cull_decision") or "").strip() != ""
+
+
 def is_image_keywords_complete(image_id: int) -> bool:
     """True if image has non-empty keywords string (and title/description if enabled)."""
     # Check config for captions requirement

@@ -6201,8 +6201,8 @@ def create_api_router() -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
-        n = int(data.get("scheduled_this_round") or 0)
-        rem = int(data.get("folders_remaining_after") or 0)
+        n = int(data.get("scheduled") or 0)
+        rem = int(data.get("eligible_folders") or 0)
         msg = (
             f"Scheduled {n} folder run(s); {rem} folder(s) still need work after this round."
             if not request.dry_run

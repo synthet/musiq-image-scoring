@@ -191,8 +191,8 @@ class IndexingRunner:
             return
         try:
             text = "\n".join(self.log_history)
-            if len(text) > MAX_PERSISTED_JOB_LOG_CHARS:
-                text = text[-MAX_PERSISTED_JOB_LOG_CHARS:]
+            if len(text) > _MAX_PERSISTED_JOB_LOG_CHARS:
+                text = text[-_MAX_PERSISTED_JOB_LOG_CHARS:]
 
             db.update_job_log(job_id, text)
         except Exception:

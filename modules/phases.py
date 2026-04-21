@@ -34,6 +34,7 @@ class PhaseCode(str, Enum):
     SCORING   = "scoring"
     CULLING   = "culling"
     KEYWORDS  = "keywords"
+    BIRD_SPECIES = "bird_species"
 
 
 # Same execution order as PipelineOrchestrator.PHASE_ORDER — UI and job_phases must follow this.
@@ -43,6 +44,7 @@ PIPELINE_PHASE_ORDER: Tuple[PhaseCode, ...] = (
     PhaseCode.SCORING,
     PhaseCode.CULLING,
     PhaseCode.KEYWORDS,
+    PhaseCode.BIRD_SPECIES,
 )
 
 _PHASE_ORDER_INDEX = {p: i for i, p in enumerate(PIPELINE_PHASE_ORDER)}
@@ -258,6 +260,14 @@ SEED_PHASES = [
         "name": "Keywords",
         "description": "CLIP keyword tagging + BLIP captioning",
         "sort_order": 50,
+        "optional": True,
+        "default_skip": False,
+    },
+    {
+        "code": PhaseCode.BIRD_SPECIES,
+        "name": "Bird Species",
+        "description": "Identify and classify bird species in images",
+        "sort_order": 60,
         "optional": True,
         "default_skip": False,
     },

@@ -25,8 +25,6 @@ SCORE_SNAPSHOT_COLUMNS = (
     "score_aesthetic",
     "score_spaq",
     "score_ava",
-    "score_koniq",
-    "score_paq2piq",
     "score_liqe",
     "rating",
     "label",
@@ -60,6 +58,9 @@ def describe_incomplete_fields(row: dict) -> str:
     parts = []
     for col in SCORE_SNAPSHOT_COLUMNS:
         val = row.get(col)
+        # Skip legacy columns if they happen to be in the list but are NULL
+        if col in ("score_koniq", "score_paq2piq"):
+            continue
         if col == "label":
             if val is None or (isinstance(val, str) and not val.strip()):
                 parts.append(f"{col}=empty")

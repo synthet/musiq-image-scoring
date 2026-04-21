@@ -39,10 +39,11 @@ function PhaseIcon({
 }) {
   const color = useMemo(() => {
     if (!status || status === 'not_started') return LABEL_COLORS.gray
-    if (status === 'completed') return LABEL_COLORS.green
+    if (status === 'done' || status === 'completed') return LABEL_COLORS.green
     if (status === 'running') return LABEL_COLORS.blue
     if (status === 'failed') return LABEL_COLORS.red
     if (status === 'pending' || status === 'queued') return LABEL_COLORS.orange
+    if (status === 'skipped') return '#c5956c'
     return LABEL_COLORS.gray
   }, [status])
 
@@ -192,7 +193,7 @@ export function ImagesPage() {
                       )}
                     >
                       {col.label}
-                      {sortBy === col.key && col.key !== 'phases' && (
+                      {sortBy === col.key && (
                         <span className="text-[10px] font-mono">{order === 'asc' ? '↑' : '↓'}</span>
                       )}
                     </button>
