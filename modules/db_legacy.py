@@ -662,6 +662,7 @@ def generate_image_uuid(metadata: dict | None) -> str:
     return str(uuid.uuid4())
 
 # --- Sort validation whitelist (SQL injection prevention) ---
+_VIRTUAL_SORT_KEYS = {"phases"}
 ALLOWED_SORT_COLUMNS = {
     "score", "score_general", "score_aesthetic", "score_technical",
     "score_spaq", "score_ava", "score_koniq", "score_paq2piq", "score_liqe",
@@ -673,7 +674,7 @@ ALLOWED_SORT_ORDERS = {"asc", "desc"}
 
 def _validate_sort(sort_by: str, order: str) -> tuple:
     """Validate and sanitize ORDER BY parameters to prevent SQL injection."""
-    if sort_by not in ALLOWED_SORT_COLUMNS:
+    if sort_by not in ALLOWED_SORT_COLUMNS and sort_by not in _VIRTUAL_SORT_KEYS:
         sort_by = "score_general"
     if order.lower() not in ALLOWED_SORT_ORDERS:
         order = "desc"
@@ -1357,8 +1358,14 @@ def _build_image_query_components(
     if conditions:
         where_clause = " WHERE " + " AND ".join(conditions)
 
-    # ORDER BY - EXIF columns need special handling
-    if need_exif_join and sort_by in exif_sort_cols:
+    # ORDER BY - Handle phases sort and EXIF columns
+    if sort_by == "phases":
+        sort_expr = (
+            "(SELECT COALESCE(SUM(CASE WHEN ips.status IN ('done', 'skipped') THEN 1 ELSE 0 END), 0)"
+            " FROM image_phase_status ips WHERE ips.image_id = images.id)"
+        )
+        order_by = f"{sort_expr} {order}"
+    elif need_exif_join and sort_by in exif_sort_cols:
         nulls = " NULLS LAST" if order == "DESC" else " NULLS FIRST"
         if sort_by == "date_time_original":
             sort_expr = (
@@ -7142,7 +7149,9 @@ def _incomplete_images_where_sql(table_alias: str = "") -> str:
         f"{prefix}score_general IS NULL OR {prefix}score_general <= 0",
         f"{prefix}score_technical IS NULL OR {prefix}score_technical <= 0",
     ]
-    models = ['spaq', 'ava', 'koniq', 'paq2piq', 'liqe']
+    # Only check for models that are consistently used in the default pipeline.
+    # koniq and paq2piq are excluded as they are optional/not currently loaded by default.
+    models = ['spaq', 'ava', 'liqe']
     for m in models:
         score_checks.append(f"{prefix}score_{m} IS NULL OR {prefix}score_{m} <= 0")
     score_cond = " OR ".join(score_checks)
@@ -7169,35 +7178,61 @@ def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
             AND NOT EXISTS (
                 SELECT 1 FROM image_exif ie WHERE ie.image_id = {prefix}id
             )
+            AND NOT EXISTS (
+                SELECT 1 FROM image_xmp ix WHERE ix.image_id = {prefix}id
+            )
         )"""
 
     if code == "scoring":
         return _incomplete_images_where_sql(table_alias)
 
     if code == "culling":
-        return f"({prefix}stack_id IS NULL)"
+        # Check if cull_decision is set.
+        return f"{prefix}cull_decision IS NULL OR TRIM(CAST({prefix}cull_decision AS VARCHAR(20))) = ''"
 
     if code == "keywords":
+        # Check config for captions requirement
+        tagging_cfg = config.get_config_section("tagging") or {}
+        require_captions = tagging_cfg.get("captions_default", True)
+        
+        caption_check = ""
+        if require_captions:
+            # If captions are required, an image is incomplete if EITHER Title OR Description is empty
+            caption_check = f" OR {prefix}title IS NULL OR TRIM(CAST({prefix}title AS VARCHAR(255))) = '' OR {prefix}description IS NULL OR TRIM(CAST({prefix}description AS VARCHAR(1024))) = ''"
+
         return f"""(
-            NOT EXISTS (
-                SELECT 1 FROM image_keywords ik WHERE ik.image_id = {prefix}id
+            (
+                NOT EXISTS (
+                    SELECT 1 FROM image_keywords ik WHERE ik.image_id = {prefix}id
+                )
+                AND ({prefix}keywords IS NULL OR TRIM(CAST({prefix}keywords AS VARCHAR(2048))) = '')
             )
+            {caption_check}
         )"""
 
     if code == "bird_species":
+        # Check normalized keywords
+        norm_birds_check = f"""EXISTS (
+            SELECT 1 FROM image_keywords ik_b
+            JOIN keywords_dim kd_b ON kd_b.keyword_id = ik_b.keyword_id
+            WHERE ik_b.image_id = {prefix}id
+              AND LOWER(kd_b.keyword_norm) LIKE '%birds%'
+        )"""
+        norm_species_check = f"""EXISTS (
+            SELECT 1 FROM image_keywords ik_s
+            JOIN keywords_dim kd_s ON kd_s.keyword_id = ik_s.keyword_id
+            WHERE ik_s.image_id = {prefix}id
+              AND LOWER(kd_s.keyword_norm) LIKE 'species:%'
+        )"""
+        
+        # Check legacy keywords
+        # Note: We cast to VARCHAR to handle potential large keyword strings in some DB dialects
+        legacy_birds_check = f"LOWER(CAST({prefix}keywords AS VARCHAR(2048))) LIKE '%birds%'"
+        legacy_species_check = f"LOWER(CAST({prefix}keywords AS VARCHAR(2048))) LIKE '%species:%'"
+
         return f"""(
-            EXISTS (
-                SELECT 1 FROM image_keywords ik_b
-                JOIN keywords_dim kd_b ON kd_b.keyword_id = ik_b.keyword_id
-                WHERE ik_b.image_id = {prefix}id
-                  AND LOWER(kd_b.keyword_norm) LIKE '%birds%'
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM image_keywords ik_s
-                JOIN keywords_dim kd_s ON kd_s.keyword_id = ik_s.keyword_id
-                WHERE ik_s.image_id = {prefix}id
-                  AND kd_s.keyword_norm LIKE 'species:%'
-            )
+            ({norm_birds_check} OR {legacy_birds_check})
+            AND NOT ({norm_species_check} OR {legacy_species_check})
         )"""
 
     return "1=0"  # Default to no matches for unknown phase
@@ -7351,41 +7386,6 @@ def is_image_indexing_complete(image_id: int) -> bool:
     return row is not None and row.get("image_embedding") is not None
 
 
-def is_image_bird_species_complete(image_id: int) -> bool:
-    """True if image lacks 'birds' keyword, or has both 'birds' and a 'species:' keyword."""
-    conn = get_connector()
-    row = conn.query_one("SELECT keywords FROM images WHERE id = ?", (image_id,))
-    if not row:
-        return False
-    kw_str = str(row.get("keywords") or "").lower()
-
-    cnt_birds = conn.query_one(
-        "SELECT COUNT(*) AS c FROM image_keywords ik "
-        "JOIN keywords_dim kd ON kd.keyword_id = ik.keyword_id "
-        "WHERE ik.image_id = ? AND LOWER(kd.keyword_norm) LIKE '%birds%'",
-        (image_id,),
-    )
-    has_birds = "birds" in kw_str or int((cnt_birds or {}).get("c") or 0) > 0
-    if not has_birds:
-        return True
-
-    cnt_species = conn.query_one(
-        "SELECT COUNT(*) AS c FROM image_keywords ik "
-        "JOIN keywords_dim kd ON kd.keyword_id = ik.keyword_id "
-        "WHERE ik.image_id = ? AND LOWER(kd.keyword_norm) LIKE 'species:%'",
-        (image_id,),
-    )
-    return "species:" in kw_str or int((cnt_species or {}).get("c") or 0) > 0
-
-
-def is_image_culling_complete(image_id: int) -> bool:
-    """True if image has a non-empty cull_decision."""
-    row = get_connector().query_one(
-        "SELECT cull_decision FROM images WHERE id = ?", (image_id,)
-    )
-    return row is not None and str(row.get("cull_decision") or "").strip() != ""
-
-
 def is_image_keywords_complete(image_id: int) -> bool:
     """True if image has non-empty keywords string (and title/description if enabled)."""
     # Check config for captions requirement
@@ -7419,6 +7419,8 @@ def is_image_keywords_complete(image_id: int) -> bool:
             return False
             
     return True
+
+
 
 
 def get_incomplete_records(limit: int | None = None):
