@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.4.4] - 2026-04-21
+
+### Fixed
+
+- **Restore missing job functions in `modules/db_legacy.py`**: `enqueue_job_with_phases`, `force_reset_job_phase_to_queued`, `get_recent_jobs`, `reconcile_stale_running_phases_for_terminal_jobs`, `count_reconcilable_terminal_job_phases`, `adjust_job_priority`, `get_next_pending_job_phase`, and `get_current_running_job_phase` were inadvertently dropped when `modules/db/jobs.py` was deleted during the facade refactor. Their absence caused 500 errors on `POST /api/runs/submit` (`AttributeError: module 'modules.db_legacy' has no attribute 'enqueue_job_with_phases'`) and a latent runtime failure in the maintenance runner's terminal-job reconciliation path.
+
 ## [7.4.3] - 2026-04-19
 
 ### Added

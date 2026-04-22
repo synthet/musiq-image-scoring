@@ -4673,6 +4673,194 @@ def enqueue_job(input_path, phase_code=None, job_type=None, queue_payload=None, 
         return None, 0
 
 
+def enqueue_job_with_phases(input_path, phase_code=None, job_type=None, queue_payload=None, description=None, phase_codes=None, first_phase_state="queued"):
+    """Atomically create a queued job and its phase plan in a single transaction."""
+    if not phase_codes:
+        return None, 0
+
+    phase_id = get_phase_id(phase_code) if phase_code else None
+    if job_type is None:
+        job_type = phase_code
+
+    now = datetime.datetime.now()
+    payload_dict = {}
+    if queue_payload is None:
+        payload_json = None
+    elif isinstance(queue_payload, dict):
+        payload_dict = queue_payload
+        payload_json = json.dumps(queue_payload)
+    elif isinstance(queue_payload, str):
+        payload_json = queue_payload
+        try:
+            parsed = json.loads(queue_payload)
+            if isinstance(parsed, dict):
+                payload_dict = parsed
+        except Exception:
+            payload_dict = {}
+    else:
+        payload_json = json.dumps(queue_payload)
+
+    priority = int((payload_dict or {}).get("priority", 100))
+    priority = max(1, min(priority, 999))
+    target_scope = None
+    if payload_dict:
+        target_scope = payload_dict.get("target_scope") or payload_dict.get("scope")
+    if not target_scope:
+        target_scope = input_path
+
+    def _tx(tx):
+        rows = tx.execute_returning(
+            """
+            INSERT INTO jobs (
+                input_path, phase_id, job_type, status, queue_position,
+                created_at, enqueued_at, queue_payload, cancel_requested,
+                priority, target_scope, retry_count, description
+            ) VALUES (?, ?, ?, 'queued', NULL, ?, ?, ?, 0, ?, ?, 0, ?) RETURNING id
+            """,
+            (input_path, phase_id, job_type, now, now, payload_json, priority, target_scope, description),
+        )
+        job_id = rows[0]['id'] if rows else None
+        if not job_id:
+            raise RuntimeError("Failed to insert job row")
+
+        tx.execute("UPDATE jobs SET queue_position = ? WHERE id = ?", (job_id, job_id))
+
+        count_rows = tx.query(
+            """
+            SELECT COUNT(*) AS cnt FROM jobs
+            WHERE status = 'queued' AND COALESCE(queue_position, id) <= ?
+            """,
+            (job_id,),
+        )
+        display_position = int((count_rows[0].get('cnt') or count_rows[0].get('COUNT(*)') or 0) if count_rows else 0)
+
+        tx.execute("DELETE FROM job_phases WHERE job_id = ?", (job_id,))
+        for idx, pc in enumerate(phase_codes):
+            if idx > 0:
+                state = "pending"
+                started_at = None
+            elif first_phase_state == "queued":
+                state = "queued"
+                started_at = None
+            else:
+                state = "running"
+                started_at = now
+            tx.execute(
+                "INSERT INTO job_phases (job_id, phase_order, phase_code, state, started_at) VALUES (?, ?, ?, ?, ?)",
+                (job_id, idx, pc, state, started_at),
+            )
+        return job_id, display_position
+
+    try:
+        return get_connector().run_transaction(_tx)
+    except Exception:
+        logger.exception("enqueue_job_with_phases failed")
+        return None, 0
+
+
+def get_next_pending_job_phase(job_id, tx=None):
+    """Find the next phase ready to run (state='pending')."""
+    phases = get_job_phases(job_id, tx=tx)
+    for p in phases:
+        if (p.get("state") or "").strip().lower() == "pending":
+            return p.get("phase_code")
+    return None
+
+
+def get_current_running_job_phase(job_id, tx=None):
+    """Return current running phase for a job, if any (state='running')."""
+    conn = tx if tx else get_connector()
+    row = conn.query_one(
+        "SELECT phase_code FROM job_phases WHERE job_id = ? AND state = 'running' ORDER BY phase_order FETCH FIRST 1 ROWS ONLY",
+        (job_id,),
+    )
+    return row["phase_code"] if row else None
+
+
+def count_reconcilable_terminal_job_phases() -> int:
+    """Count image_phase_status rows in 'running' state for jobs that are terminal."""
+    row = get_connector().query_one(
+        """
+        SELECT COUNT(*) as cnt
+        FROM image_phase_status ips
+        JOIN jobs j ON j.id = ips.job_id
+        WHERE ips.status = 'running'
+          AND j.status IN ('completed', 'failed', 'canceled', 'interrupted')
+        """
+    )
+    return int(row["cnt"] if row else 0)
+
+
+def reconcile_stale_running_phases_for_terminal_jobs(limit=5000) -> int:
+    """Find jobs in terminal states and reset any stuck 'running' image phases to 'failed'."""
+    rows = get_connector().query(
+        """
+        SELECT DISTINCT j.id
+        FROM jobs j
+        JOIN image_phase_status ips ON ips.job_id = j.id
+        WHERE j.status IN ('completed', 'failed', 'canceled', 'interrupted')
+          AND ips.status = 'running'
+        LIMIT ?
+        """,
+        (limit,)
+    )
+    job_ids = [r["id"] for r in rows]
+    if not job_ids:
+        return 0
+
+    return reconcile_stale_running_phases_for_jobs(
+        job_ids,
+        error_message="reconcile_terminal:job_finished",
+        in_flight_to="failed",
+    )
+
+
+def get_recent_jobs(limit=50, offset=0):
+    """Retrieve a list of recent jobs, ordered by creation time."""
+    return get_jobs(limit=limit, offset=offset)
+
+
+def force_reset_job_phase_to_queued(job_id: int, phase_code: str):
+    """Admin reset: unconditionally set a phase back to queued."""
+    def _tx(tx):
+        tx.execute(
+            "UPDATE job_phases SET state='queued', started_at=NULL, completed_at=NULL, error_message=NULL "
+            "WHERE job_id=? AND phase_code=?",
+            (job_id, phase_code),
+        )
+    get_connector().run_transaction(_tx)
+
+
+def adjust_job_priority(job_id, delta):
+    """Increase/decrease job priority for queued/paused jobs."""
+    try:
+        d = int(delta)
+    except Exception:
+        d = 10
+
+    def _tx(tx):
+        rowcount = tx.execute(
+            """
+            UPDATE jobs
+            SET priority = CASE
+                WHEN COALESCE(priority, 100) + ? < 1 THEN 1
+                WHEN COALESCE(priority, 100) + ? > 999 THEN 999
+                ELSE COALESCE(priority, 100) + ?
+            END
+            WHERE id = ? AND status IN ('queued', 'paused')
+            """,
+            (d, d, d, job_id),
+        )
+        if rowcount > 0:
+            row = tx.query_one("SELECT priority FROM jobs WHERE id = ?", (job_id,))
+            new_priority = int(row["priority"]) if row and row["priority"] is not None else 100
+        else:
+            new_priority = None
+        return {"success": rowcount > 0, "priority": new_priority}
+
+    return get_connector().run_transaction(_tx)
+
+
 def requeue_job(job_id):
     """Reset an existing job row to queued status (in-place resume).
 
