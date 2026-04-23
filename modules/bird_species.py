@@ -232,20 +232,23 @@ class BirdSpeciesRunner:
             job_id = _db.create_job(input_path or "BIRD_SPECIES")
 
         def target():
-            try:
-                self._run_batch_internal(
-                    input_path, candidate_species, threshold, top_k,
-                    overwrite, job_id=job_id, resolved_image_ids=resolved_image_ids,
-                )
-            except Exception:
-                logger.exception("BirdSpeciesRunner thread crashed (job_id=%s)", job_id)
-                self.status_message = "Failed"
-            finally:
-                self.is_running = False
-            if "Error" in self.status_message:
-                self.status_message = "Failed"
-            elif not self.status_message.startswith("Done"):
-                self.status_message = "Done"
+            from modules.pipeline import safe_runner_thread
+            def target_wrapper():
+                try:
+                    self._run_batch_internal(
+                        input_path, candidate_species, threshold, top_k,
+                        overwrite, job_id=job_id, resolved_image_ids=resolved_image_ids,
+                    )
+                except Exception:
+                    self.status_message = "Failed"
+                    raise
+                finally:
+                    if "Error" in self.status_message:
+                        self.status_message = "Failed"
+                    elif not self.status_message.startswith("Done"):
+                        self.status_message = "Done"
+
+            safe_runner_thread(self, job_id, target_wrapper)
 
         self._thread = threading.Thread(target=target, name="bird-species-runner", daemon=True)
         self._thread.start()

@@ -13,6 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.4.5] - 2026-04-22
+
+### Fixed
+
+- **Runs audit — folder "fully scored" predicate drift**: `check_and_update_folder_status()` now uses the same completeness fragment (`_incomplete_images_where_sql()`) as the healer instead of a narrow `score_general > 0` probe, so folders only flip to `is_fully_scored=1` when every image passes the phase-incomplete check. Engine's skip path recomputes the flag once before skipping a supposedly-scored folder, so stale flags self-heal instead of trapping images in a heal loop. See `docs/reports/RCA_runs_audit_2026-04-22.md` and `FIX_PLAN_runs_audit_2026-04-22.md`.
+- **Phase-transition corruption gate**: `PipelineOrchestrator` now waits for non-terminal `image_phase_status` rows to drain at a phase boundary (up to ~20s grace) and force-fails stragglers afterward, preventing the next phase from observing half-written state. Folder phase aggregates are force-refreshed at the boundary so stale cached summaries don't cause skips or double-processing.
+- **Runner terminal-state safety**: Long-running runners (`bird_species`, `clustering`, `indexing`, `metadata`, `scoring`, `selection`, `tagging`) now execute inside a new `safe_runner_thread()` helper that guarantees `is_running` is cleared and a terminal job status is written even when the thread crashes mid-phase.
+- **Workflow healing**: Heal scheduler no longer re-enqueues runs for folders that are missing on disk, and re-checks images already marked `done` against the completeness predicate so phantom-complete rows can be healed instead of silently ignored.
+- **Keywords phase-incomplete gate**: Removed the title/description caption requirement from `get_phase_incomplete_sql("keywords")`; an image is now considered keyword-complete when it has keyword rows (either in `image_keywords` or the legacy column), matching the phase's actual contract and preventing the keywords phase from being re-scheduled indefinitely for caption-only gaps.
+- **API `/api/runs/run_quality_schedule` response count**: Correctly report scheduled-folder count when the handler returns a list payload instead of a scalar.
+
+### Added
+
+- `modules.pipeline.safe_runner_thread()` — shared try/finally wrapper that enforces terminal DB state + runner flag reset for background runner threads.
+- `modules.db_legacy.delete_orphan_stacks()` — helper to drop stack rows with no associated images.
+- `docs/reports/RCA_runs_audit_2026-04-22.md` and `docs/reports/FIX_PLAN_runs_audit_2026-04-22.md` — RCA and fix plan for the runs/DB/logs audit that motivated this release.
+
 ## [7.4.4] - 2026-04-21
 
 ### Fixed

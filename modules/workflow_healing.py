@@ -77,7 +77,7 @@ def heal_phase_data(
         JOIN folders f ON f.id = i.folder_id
         JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
         JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
-        WHERE LOWER(TRIM(ips.status)) IN ('not_started', 'failed', 'partial')
+        WHERE LOWER(TRIM(ips.status)) IN ('not_started', 'failed', 'partial', 'done')
           AND ({incomplete_sql})
     """
     params: List[Any] = [phase_code]
@@ -116,7 +116,10 @@ def heal_phase_data(
     if not dry_run:
         for folder in to_schedule:
             try:
-                job_id, pos = _enqueue_heal_run(folder["folder_path"], phase_code, run_mode=run_mode)
+                result = _enqueue_heal_run(folder["folder_path"], phase_code, run_mode=run_mode)
+                if result is None or result[0] is None:
+                    continue  # missing on disk; logged inside
+                job_id, pos = result
                 scheduled_detail.append({
                     "folder_path": folder["folder_path"],
                     "job_id": job_id,
@@ -151,6 +154,11 @@ def _get_active_jobs_snapshot() -> List[Dict[str, Any]]:
 
 def _enqueue_heal_run(folder_path: str, phase_code: str, run_mode: str = "validate_and_repair") -> tuple[int, int]:
     """Enqueue a targeted pipeline run for a folder and phase."""
+    import os
+    if not os.path.isdir(folder_path):
+        logger.info("Heal skip (missing on disk): %s", folder_path)
+        return None, None
+
     # Mapping phase codes to job types (same as schedule_folder_quality_runs)
     job_type_map = {
         "indexing": "indexing",

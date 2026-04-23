@@ -1023,17 +1023,20 @@ class ClusteringRunner:
         self.stop_event.clear()
         
         def target():
-            try:
-                self._run_internal(input_path, threshold, time_gap, force_rescan, job_id, resolved_image_ids=resolved_image_ids)
-            except Exception:
-                logger.exception("ClusteringRunner thread crashed (job_id=%s)", job_id)
-                self.status_message = "Failed"
-            finally:
-                self.is_running = False
-            if "Error" in self.status_message:
-                self.status_message = "Failed"
-            elif not self.status_message.startswith("Done"):
-                self.status_message = "Done"
+            from modules.pipeline import safe_runner_thread
+            def target_wrapper():
+                try:
+                    self._run_internal(input_path, threshold, time_gap, force_rescan, job_id, resolved_image_ids=resolved_image_ids)
+                except Exception:
+                    self.status_message = "Failed"
+                    raise
+                finally:
+                    if "Error" in self.status_message:
+                        self.status_message = "Failed"
+                    elif not self.status_message.startswith("Done"):
+                        self.status_message = "Done"
+
+            safe_runner_thread(self, job_id, target_wrapper)
 
         self._thread = threading.Thread(target=target)
         self._thread.start()

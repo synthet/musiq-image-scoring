@@ -3881,10 +3881,15 @@ def check_and_update_folder_status(folder_path):
     folder_id = get_or_create_folder(folder_path)
     if not folder_id: return False
 
-    rows = list(get_connector().query("SELECT file_name, score_general FROM images WHERE folder_id = ?", (folder_id,)))
+    incomplete_sql = _incomplete_images_where_sql()  # no alias needed
+    rows = list(get_connector().query(
+        f"SELECT file_name, CASE WHEN {incomplete_sql} THEN 0 ELSE 1 END AS is_complete "
+        f"FROM images WHERE folder_id = ?",
+        (folder_id,)
+    ))
 
     # helper set of scored filenames
-    scored_files = {row['file_name'] for row in rows if row['score_general'] and row['score_general'] > 0}
+    scored_files = {row['file_name'] for row in rows if row['is_complete']}
             
     # 3. Compare
     all_scored = True
@@ -7379,23 +7384,11 @@ def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
         return f"{prefix}cull_decision IS NULL OR TRIM(CAST({prefix}cull_decision AS VARCHAR(20))) = ''"
 
     if code == "keywords":
-        # Check config for captions requirement
-        tagging_cfg = config.get_config_section("tagging") or {}
-        require_captions = tagging_cfg.get("captions_default", True)
-        
-        caption_check = ""
-        if require_captions:
-            # If captions are required, an image is incomplete if EITHER Title OR Description is empty
-            caption_check = f" OR {prefix}title IS NULL OR TRIM(CAST({prefix}title AS VARCHAR(255))) = '' OR {prefix}description IS NULL OR TRIM(CAST({prefix}description AS VARCHAR(1024))) = ''"
-
         return f"""(
-            (
-                NOT EXISTS (
-                    SELECT 1 FROM image_keywords ik WHERE ik.image_id = {prefix}id
-                )
-                AND ({prefix}keywords IS NULL OR TRIM(CAST({prefix}keywords AS VARCHAR(2048))) = '')
+            NOT EXISTS (
+                SELECT 1 FROM image_keywords ik WHERE ik.image_id = {prefix}id
             )
-            {caption_check}
+            AND ({prefix}keywords IS NULL OR TRIM(CAST({prefix}keywords AS VARCHAR(2048))) = '')
         )"""
 
     if code == "bird_species":
@@ -11013,3 +11006,10 @@ def _backfill_image_xmp():
             pass
     finally:
         conn.close()
+
+def delete_orphan_stacks():
+    """Deletes stacks that have no images associated with them."""
+    return get_connector().execute("""
+        DELETE FROM stacks
+         WHERE NOT EXISTS (SELECT 1 FROM images WHERE images.stack_id = stacks.id)
+    """)

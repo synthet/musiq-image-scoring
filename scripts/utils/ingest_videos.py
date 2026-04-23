@@ -30,8 +30,7 @@ except (AttributeError, OSError):
 
 # Keep in sync with organize_videos.py
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".wmv", ".webm", ".m4v", ".flv", ".3gp", ".mpeg", ".mpg", ".ogv"}
-IMAGE_EXTS = {".jpg", ".jpeg"}
-MEDIA_EXTS = VIDEO_EXTS | IMAGE_EXTS
+MEDIA_EXTS = VIDEO_EXTS
 
 CHUNK = 8 * 1024 * 1024
 
@@ -336,11 +335,7 @@ def main() -> int:
         metavar="YYYY-MM-DD",
         help="Only ingest files with mtime on or after this local date (ingest only)",
     )
-    parser.add_argument(
-        "--videos-only",
-        action="store_true",
-        help="Ingest video extensions only (no JPEG sidecars; ingest only)",
-    )
+
     parser.add_argument(
         "--dedupe-nikon-z8",
         action="store_true",
@@ -372,7 +367,7 @@ def main() -> int:
             print("Error: --since requires --source", file=sys.stderr)
             return 1
 
-    exts = VIDEO_EXTS if args.videos_only else MEDIA_EXTS
+    exts = MEDIA_EXTS
 
     total_errors = 0
 

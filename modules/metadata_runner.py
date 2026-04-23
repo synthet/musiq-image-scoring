@@ -44,17 +44,20 @@ class MetadataRunner:
             job_id = db.create_job(input_path or "ALL_IMAGES_METADATA", job_type="metadata")
 
         def target():
-            try:
-                self._run_batch_internal(input_path, job_id, skip_existing, resolved_image_ids, report_collector=report_collector)
-            except Exception:
-                logger.exception("MetadataRunner thread crashed (job_id=%s)", job_id)
-                self.status_message = "Failed"
-            finally:
-                self.is_running = False
-            if "Error" in self.status_message:
-                self.status_message = "Failed"
-            elif not self.status_message.startswith("Done"):
-                self.status_message = "Done"
+            from modules.pipeline import safe_runner_thread
+            def target_wrapper():
+                try:
+                    self._run_batch_internal(input_path, job_id, skip_existing, resolved_image_ids, report_collector=report_collector)
+                except Exception:
+                    self.status_message = "Failed"
+                    raise
+                finally:
+                    if "Error" in self.status_message:
+                        self.status_message = "Failed"
+                    elif not self.status_message.startswith("Done"):
+                        self.status_message = "Done"
+
+            safe_runner_thread(self, job_id, target_wrapper)
 
         self._thread = threading.Thread(target=target)
         self._thread.start()

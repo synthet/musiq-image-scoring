@@ -52,6 +52,37 @@ class ImageJob:
     skip_reason: Optional[str] = None  # Reason from policy/runner when status is "skipped"
 
 
+def safe_runner_thread(runner_obj, job_id, run_func, *args, **kwargs):
+    """
+    Executes a runner's core logic inside a try/finally block that guarantees
+    the runner clears its is_running flag and writes a terminal state to the DB.
+    """
+    terminal_written = False
+    try:
+        run_func(*args, **kwargs)
+        if job_id:
+             try:
+                 db.update_job_status(job_id, "completed")
+                 terminal_written = True
+             except Exception:
+                 pass
+    except Exception as e:
+        logger.exception("Runner %s failed", runner_obj.__class__.__name__)
+        if job_id:
+             try:
+                 db.update_job_status(job_id, "failed", error=str(e)[:500])
+                 terminal_written = True
+             except Exception:
+                 pass
+        raise
+    finally:
+        runner_obj.is_running = False
+        if job_id and not terminal_written:
+             try:
+                 db.update_job_status(job_id, "failed", error="Runner exited without terminal state")
+             except Exception:
+                 pass
+
 def _is_phase_targeted(target_phases: List[Any], phase_code: PhaseCode) -> bool:
     """
     Return True when a phase should run for this job.

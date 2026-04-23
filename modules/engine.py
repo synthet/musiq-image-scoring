@@ -101,11 +101,16 @@ class BatchImageProcessor:
             if self.skip_existing:
                 try:
                     if db.is_folder_scored(root):
-                        self.log(f"Skipping fully scored folder: {root}")
-                        # We do not process files in this folder.
-                        # We DO continue into subdirectories (os.walk default), 
-                        # because they might not be scored.
-                        continue
+                        # One-time validation: does the flag still hold?
+                        if not db.check_and_update_folder_status(root):
+                            # Flag was stale; don't skip — fall through to scan.
+                            pass
+                        else:
+                            self.log(f"Skipping fully scored folder: {root}")
+                            # We do not process files in this folder.
+                            # We DO continue into subdirectories (os.walk default), 
+                            # because they might not be scored.
+                            continue
                 except Exception as e:
                     self.log(f"Error checking folder status for {root}: {e}", "WARNING")
 

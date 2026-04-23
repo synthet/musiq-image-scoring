@@ -369,17 +369,20 @@ class TaggingRunner:
             job_id = db.create_job(input_path or "ALL_IMAGES_TAGGING")
             
         def target():
-            try:
-                self._run_batch_internal(input_path, custom_keywords, overwrite, generate_captions, job_id=job_id, resolved_image_ids=resolved_image_ids)
-            except Exception:
-                logger.exception("TaggingRunner thread crashed (job_id=%s)", job_id)
-                self.status_message = "Failed"
-            finally:
-                self.is_running = False
-            if "Error" in self.status_message:
-                self.status_message = "Failed"
-            elif not self.status_message.startswith("Done"):
-                self.status_message = "Done"
+            from modules.pipeline import safe_runner_thread
+            def target_wrapper():
+                try:
+                    self._run_batch_internal(input_path, custom_keywords, overwrite, generate_captions, job_id=job_id, resolved_image_ids=resolved_image_ids)
+                except Exception:
+                    self.status_message = "Failed"
+                    raise
+                finally:
+                    if "Error" in self.status_message:
+                        self.status_message = "Failed"
+                    elif not self.status_message.startswith("Done"):
+                        self.status_message = "Done"
+
+            safe_runner_thread(self, job_id, target_wrapper)
 
         self._thread = threading.Thread(target=target)
         self._thread.start()
@@ -551,8 +554,8 @@ class TaggingRunner:
 
             path = row['file_path']
             folder = os.path.dirname(path)
-            processed_folders.add(folder)
-            
+
+
             # Convert DB path to WSL path for processing if needed
             original_windows_path = path
             if ":" in path and path[1] == ":" and os.path.exists("/mnt/"):
@@ -599,33 +602,40 @@ class TaggingRunner:
                         import textwrap
                         title = textwrap.shorten(caption, width=50, placeholder="...")
 
-                # Update DB and Write Metadata
-                if tags or caption:
+                tags = [t.strip() for t in (tags or []) if t and t.strip()]
+                caption = (caption or "").strip()
+                produced_output = bool(tags or caption)
+
+                if produced_output:
                     tags_str = ",".join(tags)
-                    # Update local DB
                     db.update_image_fields_batch([(row['id'], {
                         "keywords": tags_str,
                         "title": title if title else row.get('title'),
                         "description": caption if caption else row.get('description')
                     })])
-                    
-                    # Store embedding if not already present? 
-                    # Tagging typically doesn't generate NEW embeddings, it uses original ones if needed.
-                    
-                    # Write to XMP sidecar & File
                     self.write_metadata(original_windows_path, tags, title, caption)
                     processed_count += 1
+                    processed_folders.add(folder)
+                    db.set_image_phase_status(
+                        row['id'],
+                        PhaseCode.KEYWORDS,
+                        PhaseStatus.DONE,
+                        app_version=APP_VERSION,
+                        executor_version=TAGGER_VERSION,
+                        job_id=job_id,
+                    )
                 else:
                     skipped_count += 1
-
-                db.set_image_phase_status(
-                    row['id'],
-                    PhaseCode.KEYWORDS,
-                    PhaseStatus.DONE,
-                    app_version=APP_VERSION,
-                    executor_version=TAGGER_VERSION,
-                    job_id=job_id,
-                )
+                    db.set_image_phase_status(
+                        row['id'],
+                        PhaseCode.KEYWORDS,
+                        PhaseStatus.SKIPPED,
+                        app_version=APP_VERSION,
+                        executor_version=TAGGER_VERSION,
+                        job_id=job_id,
+                        skip_reason="no tags produced",
+                        skipped_by="tagging",
+                    )
             except Exception as e:
                 log(f"Error processing {path}: {e}", "ERROR")
                 skipped_count += 1
@@ -637,10 +647,13 @@ class TaggingRunner:
                         app_version=APP_VERSION,
                         executor_version=TAGGER_VERSION,
                         job_id=job_id,
-                        error=str(e),
+                        error=str(e)[:1024],
                     )
                 except Exception:
-                    pass
+                    logger.exception(
+                        "tagging: failed to record FAILED phase status for image_id=%s",
+                        row.get('id'),
+                    )
 
             self.current_count += 1
             if self.current_count % 5 == 0:

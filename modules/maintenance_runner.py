@@ -134,6 +134,13 @@ class MaintenanceRunner:
         logger.info("Maintenance reconcile: job_id=%s limit=%s", job_id, limit)
         n = db.reconcile_stale_running_phases_for_terminal_jobs(limit=limit)
         runner_emit(self.log_history, job_id, f"Reconciled {n} stuck phase row(s).", phase="maintenance")
+        
+        try:
+            db.delete_orphan_stacks()
+            runner_emit(self.log_history, job_id, "Cleaned up orphan stacks.", phase="maintenance")
+        except Exception as e:
+            logger.warning("Failed to delete orphan stacks during reconcile: %s", e)
+            
         logger.info("Maintenance reconcile: job_id=%s done, rows_updated=%s", job_id, n)
         db.update_job_progress(job_id, 100)
 

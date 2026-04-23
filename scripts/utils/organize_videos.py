@@ -21,12 +21,11 @@ def _get_root() -> Path:
         return Path(sys.argv[1]).resolve()
     return Path(r"D:\Videos")
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".wmv", ".webm", ".m4v", ".flv", ".3gp", ".mpeg", ".mpg", ".ogv"}
-IMAGE_EXTS = {".jpg", ".jpeg"}  # DJI sometimes saves JPGs alongside videos
 
 # Patterns: (regex, source_name, date_group or None for file_mtime)
 PATTERNS = [
     # DJI drone: DJI_20251123153554_0043_D.MP4
-    (re.compile(r"^DJI_(\d{8})\d{6}_.*\.(mp4|MP4|jpg|JPG)$", re.I), "DJI", lambda m: m.group(1)),
+    (re.compile(r"^DJI_(\d{8})\d{6}_.*\.(mp4|MP4)$", re.I), "DJI", lambda m: m.group(1)),
     # Date-prefix (action cam, etc): 20250505_0959.MOV or 20250613_102.MOV
     (re.compile(r"^(\d{8})_\d+\.(mov|MOV|mp4|MP4)$", re.I), "ActionCam", lambda m: m.group(1)),
     # Pixel: PXL_20240330_151858411_compressed.mp4
@@ -58,11 +57,12 @@ def classify(path: Path, root: Path) -> tuple[str, tuple[int, int]] | None:
     """Return (source, (year, month)) or None if skip."""
     name = path.name
     ext = path.suffix.lower()
-    if ext not in VIDEO_EXTS and ext not in IMAGE_EXTS:
+    if ext not in VIDEO_EXTS:
         return None
 
-    # Only organize files at root level (leave subfolders as-is)
-    if path.parent != root:
+    # Only organize files at root level (leave subfolders as-is), 
+    # UNLESS they are in the 'Other' category which we want to re-classify.
+    if path.parent != root and "Other" not in path.parts:
         return None
 
     for pattern, source, date_extractor in PATTERNS:
@@ -92,7 +92,7 @@ def main():
     print(f"Organizing: {root}\n")
 
     files = list(root.rglob("*"))
-    media = [f for f in files if f.is_file() and f.suffix.lower() in VIDEO_EXTS | IMAGE_EXTS]
+    media = [f for f in files if f.is_file() and f.suffix.lower() in VIDEO_EXTS]
 
     # Analyze
     by_source = defaultdict(list)

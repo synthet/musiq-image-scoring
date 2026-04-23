@@ -41,6 +41,7 @@ class PipelineOrchestrator:
         self.current_phase_job_id: Optional[int] = None
         self._active: bool = False
         self._lock = threading.Lock()
+        self._phase_drain_ticks: int = 0
         self._resume_policy: bool = bool(config.get_config_value("pipeline.auto_resume_interrupted", False))
         self._last_recovery_info: Dict = {}
         
@@ -49,6 +50,95 @@ class PipelineOrchestrator:
         if enable_background_tick:
             self._thread = threading.Thread(target=self._run_loop, daemon=True)
             self._thread.start()
+
+    # Max on_tick cycles to wait for stragglers before force-terminating them.
+    # on_tick fires every 2s, so 10 ≈ 20s of grace.
+    _MAX_PHASE_DRAIN_TICKS = 10
+
+    def _count_non_terminal_phase_rows(self, folder_path: str, phase_code: str) -> int:
+        """Return number of image_phase_status rows for this folder+phase still in a non-terminal state.
+
+        Terminal statuses: done, skipped, failed. Anything else (running, queued,
+        restarting, cancel_requested, not_started) means the previous phase has
+        not actually finished writing its per-image rows — advancing to the
+        next phase here is the root cause of cross-phase corruption.
+        """
+        try:
+            from modules.db_legacy import get_connector
+            path_like_unix = folder_path + "/%"
+            path_like_win = folder_path + "\\%"
+            row = get_connector().query_one(
+                """
+                SELECT COUNT(*) AS n
+                FROM image_phase_status ips
+                JOIN pipeline_phases pp ON pp.id = ips.phase_id
+                JOIN images i ON i.id = ips.image_id
+                WHERE LOWER(TRIM(pp.code)) = LOWER(TRIM(?))
+                  AND LOWER(TRIM(ips.status)) NOT IN ('done', 'skipped', 'failed')
+                  AND i.folder_id IN (
+                      SELECT id FROM folders
+                      WHERE path = ? OR path LIKE ? OR path LIKE ?
+                  )
+                """,
+                (phase_code, folder_path, path_like_unix, path_like_win),
+            )
+            return int(row["n"]) if row and row.get("n") is not None else 0
+        except Exception as e:
+            logger.debug("Non-terminal row probe failed for %s/%s: %s", folder_path, phase_code, e)
+            return 0
+
+    def _force_terminate_stragglers(self, folder_path: str, phase_code: str, reason: str) -> int:
+        """Mark non-terminal image_phase_status rows for this folder+phase as failed.
+
+        Called after the runner reports done but stragglers remain past the drain grace.
+        Returns the number of rows flipped.
+        """
+        try:
+            from modules.db_legacy import get_connector
+            path_like_unix = folder_path + "/%"
+            path_like_win = folder_path + "\\%"
+            affected = get_connector().execute(
+                """
+                UPDATE image_phase_status
+                SET status = 'failed',
+                    last_error = COALESCE(last_error, ?),
+                    finished_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id IN (
+                    SELECT ips.id
+                    FROM image_phase_status ips
+                    JOIN pipeline_phases pp ON pp.id = ips.phase_id
+                    JOIN images i ON i.id = ips.image_id
+                    WHERE LOWER(TRIM(pp.code)) = LOWER(TRIM(?))
+                      AND LOWER(TRIM(ips.status)) NOT IN ('done', 'skipped', 'failed')
+                      AND i.folder_id IN (
+                          SELECT id FROM folders
+                          WHERE path = ? OR path LIKE ? OR path LIKE ?
+                      )
+                )
+                """,
+                (reason, phase_code, folder_path, path_like_unix, path_like_win),
+            )
+            return int(affected or 0)
+        except Exception as e:
+            logger.warning("Failed to force-terminate stragglers in %s/%s: %s", phase_code, folder_path, e)
+            return 0
+
+    def _refresh_folder_aggregates(self, folder_path: str) -> None:
+        """Force synchronous recomputation of folder phase aggregates at a phase boundary.
+
+        Without this, the next phase may read a stale cached summary (phase_agg_dirty
+        not yet flipped, or flipped but cache still serving old JSON) and skip or
+        double-process images.
+        """
+        try:
+            db.invalidate_folder_phase_aggregates(folder_path=folder_path)
+        except Exception as e:
+            logger.debug("invalidate_folder_phase_aggregates failed for %s: %s", folder_path, e)
+        try:
+            db.get_folder_phase_summary(folder_path, force_refresh=True)
+        except Exception as e:
+            logger.debug("get_folder_phase_summary refresh failed for %s: %s", folder_path, e)
 
     def _run_loop(self):
         while not self._stop_event.is_set():
@@ -249,6 +339,37 @@ class PipelineOrchestrator:
                             db.set_job_phase_state(self.root_job_id, self.current_phase, mapped)
                             self._active = False
                         else:
+                            # Prerequisite gate: the runner is done, but image_phase_status
+                            # rows may still be non-terminal (e.g. ResultWorker draining,
+                            # a thread died mid-write). Advancing now causes the next phase
+                            # to observe half-written state, which is the primary source of
+                            # multi-phase corruption. Grace-wait first; force-fail stragglers
+                            # after _MAX_PHASE_DRAIN_TICKS cycles so the pipeline can make
+                            # progress instead of stalling forever.
+                            straggler_count = self._count_non_terminal_phase_rows(
+                                self.folder_path, self.current_phase
+                            )
+                            if straggler_count > 0:
+                                self._phase_drain_ticks += 1
+                                if self._phase_drain_ticks < self._MAX_PHASE_DRAIN_TICKS:
+                                    logger.info(
+                                        "Pipeline: phase %s reported done but %d image_phase_status "
+                                        "rows still non-terminal for %s (drain tick %d/%d).",
+                                        self.current_phase, straggler_count, self.folder_path,
+                                        self._phase_drain_ticks, self._MAX_PHASE_DRAIN_TICKS,
+                                    )
+                                    return self.get_status()
+                                forced = self._force_terminate_stragglers(
+                                    self.folder_path,
+                                    self.current_phase,
+                                    reason="force-failed at phase transition: runner exited with rows still non-terminal",
+                                )
+                                logger.warning(
+                                    "Pipeline: forcibly failed %d stale %s rows in %s after %d drain ticks.",
+                                    forced, self.current_phase, self.folder_path, self._phase_drain_ticks,
+                                )
+                            self._phase_drain_ticks = 0
+                            self._refresh_folder_aggregates(self.folder_path)
                             db.set_job_phase_state(self.root_job_id, self.current_phase, "completed")
                             self._start_next_phase()
 

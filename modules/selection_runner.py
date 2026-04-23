@@ -64,15 +64,8 @@ class SelectionRunner:
             job_id = db.create_job(input_path or "ALL_IMAGES_SELECTION")
 
         def target():
-            try:
-                self._run_internal(input_path, force_rescan, job_id=job_id)
-            except Exception:
-                logger.exception("SelectionRunner thread crashed (job_id=%s)", job_id)
-                with self._lock:
-                    self._status_message = "Failed"
-            finally:
-                with self._lock:
-                    self.is_running = False
+            from modules.pipeline import safe_runner_thread
+            safe_runner_thread(self, job_id, self._run_internal, input_path, force_rescan, job_id)
 
         self._thread = threading.Thread(target=target, daemon=True)
         self._thread.start()
