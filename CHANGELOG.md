@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.4.6] - 2026-04-23
+
+### Fixed
+
+- **UI-initiated pipeline runs**: `PipelineOrchestrator` now creates its root job with `job_type="ui_pipeline"` (distinct from background `"pipeline"` runs). `modules.api` execution-report eligibility and the job→phase dispatch mapping recognize both types, and `update_job_status` resolves `current_phase` correctly for either. This separates UI-driven pipelines from scheduled ones for filtering and reporting without losing phase resolution.
+- **Phase-continuation recovery**: `get_running_job_for_phase_continuation()` now skips `ui_pipeline` jobs so the background continuation path doesn't steal phases belonging to a user-initiated UI run.
+- **Workflow healing — false positives during active writes**: `heal_phase_data()` now excludes `image_phase_status` rows whose `updated_at` is within the last minute, preventing the healer from racing the ResultWorker and re-queueing images whose "done" rows are simply still being written.
+
+### Changed
+
+- **Phase-drain log clarity**: `PipelineOrchestrator` drain-tick log now states that it is waiting for the ResultWorker to finish writing to the DB, making the benign grace period easier to distinguish from a real stall.
+- **`modules/db/__init__.py` docstring**: Trimmed the facade module's header to state intent concisely (facade over `modules.db_legacy`, PostgreSQL-native migration target) without altering runtime behavior.
+
 ## [7.4.5] - 2026-04-22
 
 ### Fixed

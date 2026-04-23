@@ -4352,6 +4352,7 @@ def get_running_job_for_phase_continuation():
         FROM jobs j
         INNER JOIN job_phases jp ON jp.job_id = j.id AND jp.state = 'running'
         WHERE j.status = 'running'
+          AND j.job_type != 'ui_pipeline'
         ORDER BY j.id ASC, jp.phase_order ASC
         FETCH FIRST 1 ROWS ONLY
         """
@@ -4493,9 +4494,9 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
                     p_row = tx.query_one("SELECT code FROM pipeline_phases WHERE id = ?", (job_row["phase_id"],))
                     if p_row:
                         phase_code = p_row["code"]
-                if not phase_code and job_row["job_type"] != "pipeline":
+                if not phase_code and job_row["job_type"] not in ("pipeline", "ui_pipeline"):
                     phase_code = job_row["job_type"]
-                if not phase_code and job_row["job_type"] == "pipeline":
+                if not phase_code and job_row["job_type"] in ("pipeline", "ui_pipeline"):
                     phase_code = get_next_running_job_phase(job_id, tx=tx)
 
             phase_state = phase_state_map.get(new_status, "running")

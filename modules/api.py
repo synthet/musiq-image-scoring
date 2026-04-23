@@ -207,7 +207,7 @@ def _job_supports_execution_report(job: Optional[Dict[str, Any]], phase_codes: O
     if codes:
         return bool(codes.intersection({"indexing", "metadata", "scoring"}))
 
-    if jt == "pipeline":
+    if jt in ("pipeline", "ui_pipeline"):
         return True
     return False
 
@@ -1459,7 +1459,7 @@ def _map_job_row_to_dispatch_phase(job: Dict[str, Any]) -> str:
     """Map a jobs row to the phase key used by ``_stop_runner_for_phase``."""
     jt = (job.get("job_type") or "").strip().lower()
     cur = (job.get("current_phase") or "").strip().lower()
-    if jt == "pipeline" and cur:
+    if jt in ("pipeline", "ui_pipeline") and cur:
         return cur
     if jt in ("tag", "tagging", "keywords"):
         return "keywords"

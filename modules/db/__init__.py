@@ -1,14 +1,12 @@
 """
-modules.db — thin facade over the monolithic modules.db_legacy.
+Facade for the database module.
 
-The package structure exists so individual domain areas (jobs, images,
-folders, engine, etc.) can be migrated out of the monolith incrementally.
-Until a submodule is ready to take over, callers transparently get the
-legacy monolith's implementation via a sys.modules alias — this keeps
-`modules.db.X` and `modules.db_legacy.X` bound to the same function objects,
-so tests patching `modules.db.X` and intra-monolith calls see each other.
+Historically, this project used a monolithic `modules.db_legacy.py`. 
+To support cleaner imports and transition to a PostgreSQL-native 
+architecture, we use this package as a facade that currently 
+aliases back to the legacy monolith.
 
-Adding a new helper? Put it on modules.db_legacy (authoritative), then
+New PostgreSQL-native code should prefer the granular helpers that will 
 migrate into a submodule when the surrounding area is extracted.
 """
 import sys as _sys
@@ -53,6 +51,4 @@ def _ensure_new_helpers(mod):
 _ensure_new_helpers(_db_legacy)
 
 # Alias the package to the monolith so `modules.db` IS `modules.db_legacy`.
-# Attribute lookups and monkey-patching on modules.db now hit the same
-# module globals the legacy internal functions resolve against.
 _sys.modules[__name__] = _db_legacy

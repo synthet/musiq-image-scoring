@@ -53,6 +53,7 @@ def heal_phase_data(
         JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
         WHERE LOWER(TRIM(ips.status)) = 'done'
           AND ({incomplete_sql})
+          AND (ips.updated_at IS NULL OR ips.updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute'))
     """
     
     with db.connection() as conn:

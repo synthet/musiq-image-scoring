@@ -234,7 +234,7 @@ class PipelineOrchestrator:
 
             self.root_job_id = db.create_job(
                 folder_path,
-                job_type="pipeline",
+                job_type="ui_pipeline",
                 status="running",
                 current_phase=None,
                 next_phase_index=0,
@@ -354,7 +354,8 @@ class PipelineOrchestrator:
                                 if self._phase_drain_ticks < self._MAX_PHASE_DRAIN_TICKS:
                                     logger.info(
                                         "Pipeline: phase %s reported done but %d image_phase_status "
-                                        "rows still non-terminal for %s (drain tick %d/%d).",
+                                        "rows still non-terminal for %s (drain tick %d/%d). "
+                                        "Waiting for ResultWorker to finish writing to DB.",
                                         self.current_phase, straggler_count, self.folder_path,
                                         self._phase_drain_ticks, self._MAX_PHASE_DRAIN_TICKS,
                                     )
