@@ -10,14 +10,60 @@ This module provides logic to:
 
 from __future__ import annotations
 import logging
+import os
+import re
 from typing import Any, List, Dict, Optional
+from urllib.parse import urlparse
 
-from modules import db, utils
+from modules import db
 from modules.phases import PhaseCode
 from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
 from modules.run_modes import resolve_run_mode_flags
 
 logger = logging.getLogger(__name__)
+
+_UI_IMAGE_ID_RE = re.compile(r"/(?:ui/)?images/(\d+)(?:/|$)")
+
+
+def _resolve_image_id_to_path(image_id: int) -> Optional[str]:
+    with db.connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT file_path FROM images WHERE id = ?", (image_id,))
+        row = c.fetchone()
+    return row[0] if row and row[0] else None
+
+
+def normalize_heal_root(root: Optional[str]) -> Optional[str]:
+    """Accept folder path, file path, or /ui/images/<id> URL; return folder path.
+
+    Why: heal is folder-scoped, but callers often hand over a file path or a UI
+    link. Coerce to the parent folder so the SQL filter still hits.
+    """
+    if not root:
+        return None
+    s = str(root).strip()
+    if not s:
+        return None
+
+    # UI URL form: http://host/ui/images/<id> or path-only /ui/images/<id>
+    url_candidate = s if s.startswith(("http://", "https://")) else None
+    path_part = urlparse(url_candidate).path if url_candidate else s
+    m = _UI_IMAGE_ID_RE.search(path_part)
+    if m:
+        try:
+            resolved = _resolve_image_id_to_path(int(m.group(1)))
+        except Exception:
+            logger.exception("heal: failed resolving image id from %s", s)
+            resolved = None
+        if not resolved:
+            logger.info("heal: could not resolve image id in %s", s)
+            return None
+        s = resolved
+
+    # File path → parent folder; folder path → itself
+    if os.path.isfile(s):
+        s = os.path.dirname(s)
+    return s.rstrip("/\\") or None
 
 def heal_phase_data(
     phase_code: str,
@@ -41,7 +87,8 @@ def heal_phase_data(
         Summary of identified issues, resets, and scheduled runs.
     """
     phase_code = phase_code.lower().strip()
-    
+    root_path = normalize_heal_root(root_path)
+
     # 1. Identify "False Positives" (Done but missing data)
     # -----------------------------------------------------------------------
     incomplete_sql = db.get_phase_incomplete_sql(phase_code, table_alias="i")
@@ -50,7 +97,7 @@ def heal_phase_data(
         SELECT i.id
         FROM images i
         JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
-        JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
+        LEFT JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
         WHERE LOWER(TRIM(ips.status)) = 'done'
           AND ({incomplete_sql})
           AND (ips.updated_at IS NULL OR ips.updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute'))
@@ -77,8 +124,8 @@ def heal_phase_data(
         FROM images i
         JOIN folders f ON f.id = i.folder_id
         JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
-        JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
-        WHERE LOWER(TRIM(ips.status)) IN ('not_started', 'failed', 'partial', 'done')
+        LEFT JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
+        WHERE (ips.status IS NULL OR LOWER(TRIM(ips.status)) IN ('not_started', 'failed', 'partial', 'done'))
           AND ({incomplete_sql})
     """
     params: List[Any] = [phase_code]
@@ -126,7 +173,7 @@ def heal_phase_data(
                     "job_id": job_id,
                     "queue_position": pos
                 })
-            except Exception as e:
+            except Exception:
                 logger.exception("Heal [%s]: Failed to schedule for %s", phase_code, folder["folder_path"])
     
     return {

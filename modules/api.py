@@ -84,7 +84,6 @@ import os
 import platform
 import logging
 import threading
-from pathlib import Path
 from modules.phases_policy import explain_phase_run_decision
 from modules.selector_resolver import resolve_selectors
 from modules.pipeline_selector_composer import (
@@ -1259,7 +1258,13 @@ class MaintenanceStartRequest(BaseModel):
 class HealPhaseRequest(BaseModel):
     """Request parameters for workflow healing per phase."""
 
-    root_path: Optional[str] = Field(None, description="Only folders under this library path (prefix).")
+    root_path: Optional[str] = Field(
+        None,
+        description=(
+            "Scope restriction. Accepts a folder path, a file path (parent folder is used), "
+            "or a /ui/images/<id> URL (resolved to the image's folder)."
+        ),
+    )
     dry_run: bool = False
     budget: int = Field(
         10,
@@ -1658,9 +1663,6 @@ def create_api_router() -> APIRouter:
     )
     async def get_api_schema():
         """Get API schema in a format optimized for LLM agents."""
-        from fastapi.openapi.utils import get_openapi
-        from fastapi import Request
-        
         # This will be populated when the router is included in the main app
         # For now, return a structured description
         return {

@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.4.7] - 2026-04-23
+
+### Fixed
+
+- **Workflow healing — scope input flexibility**: `heal_phase_data()` now accepts a folder path, a file path, or a `/ui/images/<id>` URL as `root_path`, normalizing via `normalize_heal_root()` to the containing folder. Previously non-folder inputs silently matched nothing. `HealPhaseRequest.root_path` description updated to reflect the accepted forms.
+- **Workflow healing — missing `image_phase_status` rows**: Both the "false positive" (done-but-incomplete) and "missing run" queries now `LEFT JOIN image_phase_status` instead of inner-joining, so images that have never had a phase status row written are still caught by the healer. The missing-run filter treats a `NULL` status as not-started.
+
 ## [7.4.6] - 2026-04-23
 
 ### Fixed
