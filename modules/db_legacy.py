@@ -3403,7 +3403,8 @@ def _convert_to_windows_path(path):
         drive = hm.group(2).upper()
         rest = (hm.group(3) or "").strip("/")
         if rest:
-            return f"{drive}:\\{rest.replace('/', '\\')}"
+            rest_win = rest.replace("/", "\\")
+            return f"{drive}:\\{rest_win}"
         return f"{drive}:\\"
 
     # Already Windows format?
