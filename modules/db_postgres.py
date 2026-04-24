@@ -130,6 +130,8 @@ POSTGRES_APP_TABLES = (
     "jobs",
     "folders",
     "stacks",
+    "image_embeddings_768",
+    "image_embeddings_512",
     "image_embeddings",
     "embedding_spaces",
     "images",
@@ -158,6 +160,35 @@ _SEED_DEFAULT_EMBEDDING_SPACE_SQL = """
                    'MobileNetV2 ImageNet weights, GAP — visual similarity / culling', 1
             WHERE NOT EXISTS (SELECT 1 FROM embedding_spaces WHERE code = 'mobilenet_v2_imagenet_gap')
             """
+
+# Additional embedding-space rows seeded alongside the default (CLIP/BioCLIP/BLIP
+# image towers — see docs/technical/EMBEDDINGS.md and migrations 0012).
+_SEED_EXTRA_EMBEDDING_SPACES_SQL = [
+    (
+        """
+        INSERT INTO embedding_spaces (code, dim, description, active)
+        SELECT 'clip_vit_b32_image', 512,
+               'CLIP ViT-B/32 image tower (transformers) — tagging/similarity', 1
+        WHERE NOT EXISTS (SELECT 1 FROM embedding_spaces WHERE code = 'clip_vit_b32_image')
+        """
+    ),
+    (
+        """
+        INSERT INTO embedding_spaces (code, dim, description, active)
+        SELECT 'bioclip_2_image', 512,
+               'BioCLIP 2 image tower (open_clip) — bird/species similarity', 1
+        WHERE NOT EXISTS (SELECT 1 FROM embedding_spaces WHERE code = 'bioclip_2_image')
+        """
+    ),
+    (
+        """
+        INSERT INTO embedding_spaces (code, dim, description, active)
+        SELECT 'blip_vit_b16_image', 768,
+               'BLIP base vision encoder pooler_output — caption-aligned similarity', 1
+        WHERE NOT EXISTS (SELECT 1 FROM embedding_spaces WHERE code = 'blip_vit_b16_image')
+        """
+    ),
+]
 
 
 def ensure_database_exists(dbname: str, admin_dbname: str = "postgres") -> None:
@@ -207,6 +238,8 @@ def truncate_app_tables() -> None:
         with conn.cursor() as cur:
             cur.execute(f"TRUNCATE {table_list} RESTART IDENTITY CASCADE")
             cur.execute(_SEED_DEFAULT_EMBEDDING_SPACE_SQL)
+            for extra_sql in _SEED_EXTRA_EMBEDDING_SPACES_SQL:
+                cur.execute(extra_sql)
             try:
                 from modules.phases import SEED_PHASES
 
@@ -555,7 +588,51 @@ def _init_db_transaction():
               ON image_embeddings USING hnsw (embedding vector_cosine_ops);
             """)
 
+            # ------------------------------------------------------------------
+            # IMAGE_EMBEDDINGS_512 — 512-d spaces (CLIP, BioCLIP image towers)
+            # ------------------------------------------------------------------
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS image_embeddings_512 (
+                id                      SERIAL PRIMARY KEY,
+                image_id                INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                embedding_space_id      INTEGER NOT NULL REFERENCES embedding_spaces(id) ON DELETE CASCADE,
+                embedding               vector(512) NOT NULL,
+                model_version           VARCHAR(64),
+                updated_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (image_id, embedding_space_id)
+            );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_image_embeddings_512_image ON image_embeddings_512(image_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_image_embeddings_512_space ON image_embeddings_512(embedding_space_id);")
+            cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_image_embeddings_512_hnsw
+              ON image_embeddings_512 USING hnsw (embedding vector_cosine_ops);
+            """)
+
+            # ------------------------------------------------------------------
+            # IMAGE_EMBEDDINGS_768 — 768-d spaces (BLIP vision encoder)
+            # ------------------------------------------------------------------
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS image_embeddings_768 (
+                id                      SERIAL PRIMARY KEY,
+                image_id                INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                embedding_space_id      INTEGER NOT NULL REFERENCES embedding_spaces(id) ON DELETE CASCADE,
+                embedding               vector(768) NOT NULL,
+                model_version           VARCHAR(64),
+                updated_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (image_id, embedding_space_id)
+            );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_image_embeddings_768_image ON image_embeddings_768(image_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_image_embeddings_768_space ON image_embeddings_768(embedding_space_id);")
+            cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_image_embeddings_768_hnsw
+              ON image_embeddings_768 USING hnsw (embedding vector_cosine_ops);
+            """)
+
             cur.execute(_SEED_DEFAULT_EMBEDDING_SPACE_SQL)
+            for extra_sql in _SEED_EXTRA_EMBEDDING_SPACES_SQL:
+                cur.execute(extra_sql)
 
             # Back-fill FK on stacks.best_image_id now that images exists
             # (Firebird adds this as a separate alter; we declare it inline above for stacks

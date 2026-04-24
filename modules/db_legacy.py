@@ -3403,7 +3403,7 @@ def _convert_to_windows_path(path):
         drive = hm.group(2).upper()
         rest = (hm.group(3) or "").strip("/")
         if rest:
-            return f"{drive}:\\{rest.replace('/', os.sep)}"
+            return f"{drive}:\\{rest.replace('/', '\\')}"
         return f"{drive}:\\"
 
     # Already Windows format?
@@ -3931,6 +3931,86 @@ def backfill_folder_phase_aggregates(limit=None):
         recomputed += 1
 
     return {"recomputed": recomputed, "total": len(paths)}
+
+
+def backfill_index_meta_for_folder(folder_path: str) -> int:
+    """Set INDEXING=DONE and METADATA=DONE for images in `folder_path`
+    whose SCORING is DONE but indexing/metadata are missing. Returns count."""
+    from modules import utils
+
+    if not folder_path:
+        return 0
+
+    wsl_path = utils.convert_path_to_wsl(folder_path) if hasattr(utils, "convert_path_to_wsl") else folder_path
+    target_path = wsl_path or folder_path
+    rows = get_connector().query(
+        """
+        SELECT i.id
+        FROM images i
+        JOIN folders f ON f.id = i.folder_id
+        WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+          AND EXISTS (SELECT 1 FROM image_phase_status ips
+                      JOIN pipeline_phases pp ON pp.id = ips.phase_id
+                      WHERE ips.image_id = i.id
+                        AND LOWER(TRIM(pp.code)) = 'scoring'
+                        AND LOWER(TRIM(ips.status)) = 'done')
+          AND (NOT EXISTS (SELECT 1 FROM image_phase_status ips2
+                           JOIN pipeline_phases pp2 ON pp2.id = ips2.phase_id
+                           WHERE ips2.image_id = i.id
+                             AND LOWER(TRIM(pp2.code)) = 'indexing'
+                             AND LOWER(TRIM(ips2.status)) = 'done')
+               OR NOT EXISTS (SELECT 1 FROM image_phase_status ips3
+                              JOIN pipeline_phases pp3 ON pp3.id = ips3.phase_id
+                              WHERE ips3.image_id = i.id
+                                AND LOWER(TRIM(pp3.code)) = 'metadata'
+                                AND LOWER(TRIM(ips3.status)) = 'done'))
+        """,
+        (target_path, target_path + "/%", target_path + "\\%"),
+    )
+    image_ids = [r["id"] for r in rows]
+    for iid in image_ids:
+        set_image_phase_status(iid, "indexing", "done")
+        set_image_phase_status(iid, "metadata", "done")
+    if image_ids:
+        invalidate_folder_phase_aggregates(folder_path=target_path)
+    return len(image_ids)
+
+
+def backfill_index_meta_global(limit=None, dry_run=False) -> int:
+    """Global equivalent of backfill_index_meta_for_folder. Sets INDEXING=DONE
+    and METADATA=DONE for every image with SCORING=DONE that lacks either
+    earlier phase. Optional ``limit`` caps the work; ``dry_run`` only counts."""
+    rows = get_connector().query(
+        """
+        SELECT i.id FROM images i
+        WHERE EXISTS (SELECT 1 FROM image_phase_status ips
+                      JOIN pipeline_phases pp ON pp.id = ips.phase_id
+                      WHERE ips.image_id = i.id
+                        AND LOWER(TRIM(pp.code)) = 'scoring'
+                        AND LOWER(TRIM(ips.status)) = 'done')
+          AND (NOT EXISTS (SELECT 1 FROM image_phase_status ips2
+                           JOIN pipeline_phases pp2 ON pp2.id = ips2.phase_id
+                           WHERE ips2.image_id = i.id
+                             AND LOWER(TRIM(pp2.code)) = 'indexing'
+                             AND LOWER(TRIM(ips2.status)) = 'done')
+               OR NOT EXISTS (SELECT 1 FROM image_phase_status ips3
+                              JOIN pipeline_phases pp3 ON pp3.id = ips3.phase_id
+                              WHERE ips3.image_id = i.id
+                                AND LOWER(TRIM(pp3.code)) = 'metadata'
+                                AND LOWER(TRIM(ips3.status)) = 'done'))
+        """
+    )
+    image_ids = [r["id"] for r in rows]
+    if isinstance(limit, int) and limit > 0:
+        image_ids = image_ids[:limit]
+    if dry_run:
+        return len(image_ids)
+    for iid in image_ids:
+        set_image_phase_status(iid, "indexing", "done")
+        set_image_phase_status(iid, "metadata", "done")
+    if image_ids:
+        get_connector().execute("UPDATE folders SET phase_agg_dirty = 1")
+    return len(image_ids)
 
 
 def delete_folder_cache_entry(folder_path: str, delete_descendants: bool = True) -> dict:
@@ -4794,7 +4874,9 @@ def count_reconcilable_terminal_job_phases() -> int:
           AND j.status IN ('completed', 'failed', 'canceled', 'interrupted')
         """
     )
-    return int(row["cnt"] if row else 0)
+    if not row:
+        return 0
+    return int(next(iter(row.values())) or 0)
 
 
 def reconcile_stale_running_phases_for_terminal_jobs(limit=5000) -> int:
@@ -9326,6 +9408,150 @@ def update_image_embeddings_batch(pairs, model_version=None):
             conn.run_transaction(_tx)
     except Exception as e:
         print(f"Error batch-updating embeddings: {e}")
+
+
+def _pg_embedding_table_for_dim(dim: int) -> str:
+    """Return the per-dimension fact table name for a given vector dim.
+
+    See ``docs/plans/database/DB_VECTORS_REFACTOR.md`` (Pattern B: registry +
+    keyed fact table per dimension family) and migration ``0012``.
+    """
+    if dim == 1280:
+        return "image_embeddings"
+    if dim in (512, 768):
+        return f"image_embeddings_{dim}"
+    raise ValueError(
+        f"No image_embeddings table for dim={dim}; add a migration + DDL "
+        f"before persisting vectors of this size."
+    )
+
+
+def update_image_embeddings_batch_for_space(space_code, rows):
+    """Upsert a batch of embeddings for a named embedding space (Postgres only).
+
+    ``rows`` is a sequence of ``(image_id, vector, model_version | None)`` tuples
+    where ``vector`` is any 1-D numeric array-like (list, tuple, numpy array,
+    torch tensor). The caller is responsible for L2-normalization; this helper
+    only validates the dim against the registered ``embedding_spaces`` row and
+    upserts into the matching per-dim table.
+
+    Silent no-op when the DB engine is not Postgres or the embedding space is
+    not registered — callers treat embedding persistence as best-effort.
+    """
+    if not rows:
+        return 0
+    try:
+        if _get_db_engine() != "postgres":
+            return 0
+        import numpy as np
+        from modules.embedding_spaces import SPACE_DIMS, get_embedding_space_id
+
+        expected_dim = SPACE_DIMS.get(space_code)
+        if expected_dim is None:
+            logger.warning(
+                "update_image_embeddings_batch_for_space: unknown embedding space %r "
+                "(add to SPACE_DIMS in modules/embedding_spaces.py).",
+                space_code,
+            )
+            return 0
+        sid = get_embedding_space_id(space_code)
+        if sid is None:
+            logger.warning(
+                "update_image_embeddings_batch_for_space: embedding space %r not "
+                "found in embedding_spaces registry; did migration 0012 run?",
+                space_code,
+            )
+            return 0
+        table = _pg_embedding_table_for_dim(expected_dim)
+
+        normalized: list[tuple[int, "np.ndarray", str | None]] = []
+        for image_id, vec, model_version in rows:
+            if vec is None or image_id is None:
+                continue
+            arr = np.asarray(vec, dtype=np.float32).reshape(-1)
+            if arr.shape[0] != expected_dim:
+                raise ValueError(
+                    f"Embedding dim mismatch for space {space_code!r}: expected "
+                    f"{expected_dim}, got {arr.shape[0]}"
+                )
+            normalized.append((int(image_id), arr, model_version))
+
+        if not normalized:
+            return 0
+
+        sql = (
+            f"INSERT INTO {table} (image_id, embedding_space_id, embedding, model_version, updated_at) "
+            f"VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP) "
+            f"ON CONFLICT (image_id, embedding_space_id) "
+            f"DO UPDATE SET embedding = EXCLUDED.embedding, "
+            f"              model_version = EXCLUDED.model_version, "
+            f"              updated_at = CURRENT_TIMESTAMP"
+        )
+        written = 0
+        with db_postgres.PGConnectionManager(commit=True) as pg_conn:
+            with pg_conn.cursor() as cur:
+                for image_id, arr, model_version in normalized:
+                    cur.execute(sql, (image_id, sid, arr, model_version))
+                    written += 1
+        return written
+    except ValueError:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error upserting embeddings for space %r (%d rows): %s",
+            space_code,
+            len(rows),
+            e,
+        )
+        return 0
+
+
+def get_images_missing_embedding_for_space(space_code, folder_path=None, limit=None):
+    """Return image rows lacking a stored embedding for ``space_code``.
+
+    Columns: ``id``, ``file_path``, ``thumbnail_path``, ``thumbnail_path_win``.
+    Postgres-only; returns ``[]`` on other engines. Rows are ordered by ``id``
+    for stable resume.
+    """
+    try:
+        if _get_db_engine() != "postgres":
+            return []
+        from modules.embedding_spaces import SPACE_DIMS, get_embedding_space_id
+
+        expected_dim = SPACE_DIMS.get(space_code)
+        if expected_dim is None:
+            return []
+        sid = get_embedding_space_id(space_code)
+        if sid is None:
+            return []
+        table = _pg_embedding_table_for_dim(expected_dim)
+        params: list = [sid]
+        folder_clause = ""
+        if folder_path:
+            norm = os.path.normpath(folder_path)
+            frow = db_postgres.execute_select_one(
+                "SELECT id FROM folders WHERE path = %s", (norm,)
+            )
+            if not frow:
+                return []
+            folder_clause = " AND i.folder_id = %s"
+            params.append(frow["id"])
+        sql = (
+            f"SELECT i.id, i.file_path, i.thumbnail_path, i.thumbnail_path_win "
+            f"FROM images i "
+            f"WHERE NOT EXISTS ("
+            f"  SELECT 1 FROM {table} e "
+            f"  WHERE e.image_id = i.id AND e.embedding_space_id = %s"
+            f"){folder_clause} "
+            f"ORDER BY i.id"
+        )
+        if limit:
+            sql += " LIMIT %s"
+            params.append(int(limit))
+        return db_postgres.execute_select(sql, tuple(params))
+    except Exception as e:
+        logger.error("Error loading images missing embeddings for %r: %s", space_code, e)
+        return []
 
 
 def _pg_vec_to_bytes(vec) -> "bytes | None":

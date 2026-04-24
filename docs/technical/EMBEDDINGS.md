@@ -69,6 +69,42 @@ If you add another stored vector, define up front:
 
 Treat a new space as **not interchangeable** with MobileNet embeddings without migration, reindex, and caller updates.
 
+### Registered spaces (as of Alembic `0012`)
+
+| Space code | Dim | Table | Producer (piggyback phase) | Model version (default) |
+|---|---|---|---|---|
+| `mobilenet_v2_imagenet_gap` | 1280 | `image_embeddings` | `modules/clustering.py` (culling / indexing) | `CLUSTER_VERSION` |
+| `clip_vit_b32_image` | 512 | `image_embeddings_512` | `modules/tagging.py::KeywordScorer.predict` (keywords phase) | `openai/clip-vit-base-patch32` |
+| `bioclip_2_image` | 512 | `image_embeddings_512` | `modules/bird_species.py::BioCLIPClassifier.classify` (bird-species phase) | `hf-hub:imageomics/bioclip-2` |
+| `blip_vit_b16_image` | 768 | `image_embeddings_768` | `modules/tagging.py::CaptionGenerator.generate` (keywords phase, captions enabled) | `Salesforce/blip-image-captioning-base` |
+
+All four spaces share the same keyed-fact-table shape (`image_id`, `embedding_space_id`, `embedding vector(N)`, `model_version`, `updated_at`) with a unique key on `(image_id, embedding_space_id)` and an HNSW cosine index on `embedding`. Dimension routing is centralized in `modules/db._pg_embedding_table_for_dim()`.
+
+### Adding a new space
+
+1. Register the code in `modules/embedding_spaces.SPACE_DIMS` with the correct dim.
+2. If the dim is not already served by `image_embeddings`, `image_embeddings_512`, or `image_embeddings_768`, create a new per-dim table following the pattern in migration `0012` and extend `_pg_embedding_table_for_dim()`.
+3. Add an Alembic migration that inserts the registry row and any new DDL; mirror in `modules/db_postgres._init_db_transaction()` so greenfield installs match.
+4. Extract the vector inside the phase that already runs the model (see `modules/embeddings_extract.py` for templates) and flush via `db.update_image_embeddings_batch_for_space(code, rows)`.
+5. Wire consumers (`similar_search.search_similar_images(..., embedding_space=code)`, MCP `search_similar_images` / `get_embedding_stats`) when the space becomes useful for retrieval.
+
+### Config flags
+
+The `embeddings` section in `config.json` gates per-model persistence and pins the `model_version` string stored on each row:
+
+```json
+"embeddings": {
+  "persist_clip_image": true,
+  "persist_blip_image": true,
+  "persist_bioclip_image": true,
+  "model_versions": {
+    "clip_vit_b32_image": "openai/clip-vit-base-patch32",
+    "blip_vit_b16_image": "Salesforce/blip-image-captioning-base",
+    "bioclip_2_image": "hf-hub:imageomics/bioclip-2"
+  }
+}
+```
+
 ## Related code
 
 - [`modules/embedding_spaces.py`](../../modules/embedding_spaces.py) — default space code, `get_default_embedding_space_id()`

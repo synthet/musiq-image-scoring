@@ -379,17 +379,16 @@ def _images_list_payload(
             stack_id=stack_id,
         )
         
-        # Batch fetch phase statuses
-        img_ids = [img["id"] for img in images]
-        phase_map = db.get_batch_image_phase_statuses(img_ids)
-        
         payload_images = []
         for img in images:
             d = _row_to_dict(img, exclude_keys={"image_embedding"})
-            # Ensure we get the correct ID key (DB drivers may vary lowercase/uppercase)
+            payload_images.append(d)
+
+        img_ids = [d.get("id") or d.get("ID") for d in payload_images if (d.get("id") or d.get("ID"))]
+        phase_map = db.get_batch_image_phase_statuses(img_ids)
+        for d in payload_images:
             img_id = d.get("id") or d.get("ID")
             d["phase_statuses"] = phase_map.get(img_id, {}) if img_id else {}
-            payload_images.append(d)
 
         return {
             "images": payload_images,
@@ -1179,6 +1178,11 @@ class PipelinePhaseControlRequest(BaseModel):
     phase_code: str = Field(..., description="Phase code (e.g. scoring, culling, keywords).")
     reason: Optional[str] = Field(None, description="Skip reason when action=skip.")
     actor: Optional[str] = Field(None, description="Actor identifier who initiated action.")
+
+
+class PipelineBackfillRequest(BaseModel):
+    """Request model for backfilling Index/Meta phase status on a folder."""
+    input_path: str = Field(..., description="Folder path to backfill INDEXING/METADATA statuses for.")
 
 
 
@@ -4692,6 +4696,29 @@ def create_api_router() -> APIRouter:
             success=(result == "Started"),
             message=f"Retry {request.phase_code}: {result}",
             data={"updated_images": updated, "phase_code": request.phase_code, "job_id": job_id}
+        )
+
+    @router.post(
+        "/pipeline/phase/backfill-index-meta",
+        response_model=ApiResponse,
+        summary="Backfill Index/Meta phase status",
+        description=(
+            "Sets INDEXING=DONE and METADATA=DONE for images that have "
+            "SCORING=DONE but lack these statuses in the given folder."
+        ),
+        tags=["General API"],
+    )
+    async def backfill_index_meta(request: PipelineBackfillRequest):
+        from modules.ui.security import _check_rate_limit
+        from modules import db
+        _check_rate_limit("pipeline_backfill")
+        if not os.path.exists(request.input_path):
+            raise HTTPException(status_code=400, detail=f"Path not found: {request.input_path}")
+        updated = db.backfill_index_meta_for_folder(request.input_path)
+        return ApiResponse(
+            success=True,
+            message=f"Backfilled Index/Meta for {updated} image(s)",
+            data={"updated_images": updated},
         )
 
     @router.post("/pipeline/run/pause", response_model=ApiResponse, summary="Pause current run")

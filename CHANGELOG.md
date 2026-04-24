@@ -13,6 +13,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.4.8] - 2026-04-23
+
+### Added
+
+- **Multi-dimension image embeddings (piggyback persistence)**: Image-tower features from CLIP (512-d), BioCLIP 2 (512-d), and BLIP vision encoder (768-d) are now persisted to pgvector alongside the existing MobileNetV2 1280-d space, computed **inside the phase that already runs each model** (no extra passes).
+  - New per-dimension fact tables `image_embeddings_512` and `image_embeddings_768` (same shape as `image_embeddings`) with HNSW cosine indexes and `UNIQUE(image_id, embedding_space_id)`.
+  - New seeded `embedding_spaces` rows: `clip_vit_b32_image`, `bioclip_2_image`, `blip_vit_b16_image`. Dimension-to-table routing centralized in `modules.db._pg_embedding_table_for_dim()`; batch upserts go through new `modules.db.update_image_embeddings_batch_for_space(space_code, rows)` with dim-vs-registry validation.
+  - `KeywordScorer` / `CaptionGenerator` (tagging phase) and `BioCLIPClassifier` (bird-species phase) expose the image embedding computed during their existing forward pass; `TaggingRunner` and `BirdSpeciesRunner` flush it best-effort per batch (embedding write failure does not fail the primary phase).
+  - Alembic revision `0012_multi_dim_image_embeddings.py`; greenfield installs pick the same DDL up from `modules.db_postgres._init_db_transaction()`.
+  - `modules.similar_search.search_similar_images(..., embedding_space=...)` and MCP tools `search_similar_images` + `get_embedding_stats` accept an optional `embedding_space` to query or report on a specific space; `get_embedding_stats` also returns a `per_space` coverage breakdown when no space is specified.
+  - New config section `embeddings.persist_clip_image` / `persist_blip_image` / `persist_bioclip_image` gates each writer; `embeddings.model_versions.*` pins the `model_version` string stored on every row for future invalidation.
+  - Docs: `docs/technical/EMBEDDINGS.md` now lists the registered spaces, their tables, producers, and a recipe for adding new ones; worklog entry appended to `docs/plans/database/DB_VECTORS_REFACTOR.md`.
+
+### Fixed
+
+- **Restore `backfill_index_meta_for_folder` / `backfill_index_meta_global` in `modules/db_legacy.py`**: these helpers were dropped during the db facade refactor and were still called by `modules/api.py` and `modules/maintenance_runner.py`, causing production crashes on the maintenance path.
+- **Restore `POST /api/pipeline/phase/backfill-index-meta`**: the endpoint and its `PipelineBackfillRequest` model were re-added so operators can backfill `INDEXING=DONE` / `METADATA=DONE` for images that already have `SCORING=DONE`.
+- **`_images_list_payload` row-type safety**: list-endpoint payloads now convert each row to a dict (excluding `image_embedding`) before id/key access, fixing a `TypeError` when results arrive as mapping-like rows that don't support `row["id"]`.
+- **`count_reconcilable_terminal_job_phases` alias-agnostic**: the count now reads the first value of the returned row instead of a specific column alias (`cnt`), so query-shape changes don't silently regress it.
+- **`_convert_to_windows_path` under WSL**: the hybrid Windows/WSL branch now emits a literal `\` separator instead of `os.sep`, preventing mangled (`d:/…`) paths when the backend is run under WSL.
+- **Runner terminal-state & graceful-stop contract**: `modules/pipeline.safe_runner_thread` now (a) passes `log=` (not `error=`) to `db.update_job_status` on failures — the prior kwarg would have raised `TypeError` on every runner crash path — and (b) respects a runner's `_status_message = "stopped"` signal by *skipping* the terminal `"completed"` write, so the graceful-stop `SelectionRunner` path preserves `image_phase_status = running` and lets the explicit `"interrupted"` call from the caller win instead of being clobbered by an auto-`"completed"`.
+- **Postgres sequence repair auto-discovery**: `scripts/python/postgres_sequence_repair.py` now discovers SERIAL / owned-sequence columns via `pg_depend` instead of a hand-maintained list, fixing duplicate-key errors on the first insert after a Firebird→Postgres migration for tables that the static list had missed (e.g. `file_paths`). Each failed repair now rolls back its own sub-transaction so later tables still get repaired.
+- **Test suite isolation — `pydantic` stub leak**: `tests/test_clustering_representative.py` no longer overwrites `pydantic.BaseModel` / `pydantic.Field` on the real `pydantic` module when it is already imported by an earlier test; the stub is only injected when this test was the first to create the module. Previously, running this test early in a session corrupted `pydantic` for the rest of the pytest run and cascaded into six order-dependent failures (`test_api_endpoints::test_stats_returns_dict`, `test_log_views::test_webui_rotation_from_config_{defaults,custom}`, and `test_raw_preview_endpoint::*`) because Gradio's module body could no longer build `class ListFiles(GradioRootModel): root: list[FileData]`. Fast subset (`pytest -m "not gpu and not db and not ml and not firebird and not wsl and not network and not sample_data"`) is now green: **579 passed, 133 skipped, 0 failed**.
+
 ## [7.4.7] - 2026-04-23
 
 ### Fixed

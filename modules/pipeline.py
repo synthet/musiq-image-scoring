@@ -55,33 +55,40 @@ class ImageJob:
 def safe_runner_thread(runner_obj, job_id, run_func, *args, **kwargs):
     """
     Executes a runner's core logic inside a try/finally block that guarantees
-    the runner clears its is_running flag and writes a terminal state to the DB.
+    the runner clears its is_running flag.
+
+    Acts as a safety net for terminal job state:
+    - On exception, marks the job ``failed`` (using supported ``log=`` kwarg)
+      and re-raises.
+    - On clean return, marks the job ``completed`` only when the runner left
+      the job in a non-terminal status and did not signal a graceful stop. A
+      runner can opt out of this fallback by leaving its ``_status_message``
+      set to ``"stopped"`` (graceful pause/interrupt) — caller is expected to
+      record the resumable terminal state (e.g. ``interrupted``) explicitly.
     """
-    terminal_written = False
     try:
         run_func(*args, **kwargs)
         if job_id:
-             try:
-                 db.update_job_status(job_id, "completed")
-                 terminal_written = True
-             except Exception:
-                 pass
+            try:
+                runner_msg = (getattr(runner_obj, "_status_message", "") or "").strip().lower()
+                if runner_msg == "stopped":
+                    return
+                row = db.get_job(job_id)
+                current = (row or {}).get("status", "").strip().lower()
+                if current not in db.JOB_TERMINAL_STATES:
+                    db.update_job_status(job_id, "completed")
+            except Exception:
+                logger.exception("safe_runner_thread: terminal write failed for job %s", job_id)
     except Exception as e:
         logger.exception("Runner %s failed", runner_obj.__class__.__name__)
         if job_id:
-             try:
-                 db.update_job_status(job_id, "failed", error=str(e)[:500])
-                 terminal_written = True
-             except Exception:
-                 pass
+            try:
+                db.update_job_status(job_id, "failed", log=str(e)[:500])
+            except Exception:
+                pass
         raise
     finally:
         runner_obj.is_running = False
-        if job_id and not terminal_written:
-             try:
-                 db.update_job_status(job_id, "failed", error="Runner exited without terminal state")
-             except Exception:
-                 pass
 
 def _is_phase_targeted(target_phases: List[Any], phase_code: PhaseCode) -> bool:
     """

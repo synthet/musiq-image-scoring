@@ -107,6 +107,10 @@ class BioCLIPClassifier:
         # Cache text embeddings when species list is stable across a batch
         self._cached_species_list: Optional[List[str]] = None
         self._cached_text_features = None
+        # Most-recent BioCLIP image embedding (512-d, L2-normalized) populated
+        # as a side effect of classify() so BirdSpeciesRunner can persist it
+        # under the ``bioclip_2_image`` space without an extra forward pass.
+        self.last_image_embedding = None
 
     def load_model(self):
         """Lazily load BioCLIP 2. Call once before running a batch."""
@@ -153,6 +157,7 @@ class BioCLIPClassifier:
         from modules.thumbnails import open_image_for_ml
 
         self.load_model()
+        self.last_image_embedding = None
         try:
             img = open_image_for_ml(image_path).convert("RGB")
             img_tensor = self.preprocess(img).unsqueeze(0).to(self.device)
@@ -165,6 +170,13 @@ class BioCLIPClassifier:
                 # Temperature-scaled cosine similarity → softmax probabilities
                 logits = (img_features @ text_features.T) * 100
                 probs = logits.softmax(dim=-1)[0].tolist()
+
+            try:
+                from modules.embeddings_extract import extract_bioclip_image_features
+
+                self.last_image_embedding = extract_bioclip_image_features(img_features)
+            except Exception as emb_err:  # noqa: BLE001 — best-effort side effect
+                logger.debug("BioCLIP embedding extraction failed: %s", emb_err)
 
             results = sorted(
                 zip(candidate_species, probs),
@@ -206,6 +218,42 @@ class BirdSpeciesRunner:
     def stop(self):
         """Signal the running batch to stop after the current image."""
         self.stop_event.set()
+
+    def _persist_bioclip_embedding(self, image_id: int) -> None:
+        """Upsert the BioCLIP image embedding produced during the last classify.
+
+        Best-effort: any DB or numpy error is logged at DEBUG and swallowed so
+        embedding persistence never fails a bird-species job. No-op on
+        non-Postgres engines (see ``db.update_image_embeddings_batch_for_space``).
+        Gated by ``config.embeddings.persist_bioclip_image`` (default true).
+        """
+        if image_id is None or self.classifier is None:
+            return
+        vec = getattr(self.classifier, "last_image_embedding", None)
+        if vec is None:
+            return
+        try:
+            from modules import config as _cfg
+            from modules import db as _db
+            from modules.embedding_spaces import BIOCLIP_IMAGE_SPACE_CODE
+
+            emb_section = _cfg.get_config_section('embeddings') or {}
+            if not bool(emb_section.get('persist_bioclip_image', True)):
+                return
+            versions = emb_section.get('model_versions') or {}
+            model_version = versions.get(BIOCLIP_IMAGE_SPACE_CODE) or getattr(
+                self.classifier, "MODEL_ID", None
+            )
+            _db.update_image_embeddings_batch_for_space(
+                BIOCLIP_IMAGE_SPACE_CODE,
+                [(image_id, vec, model_version)],
+            )
+        except Exception as exc:  # noqa: BLE001 — best-effort
+            logger.debug(
+                "bird_species: BioCLIP embedding upsert failed for image_id=%s: %s",
+                image_id,
+                exc,
+            )
 
     def start_batch(
         self,
@@ -391,6 +439,17 @@ class BirdSpeciesRunner:
                 predictions = self.classifier.classify(
                     inference_path, species_list, threshold=threshold, top_k=top_k
                 )
+
+                # Best-effort: persist the BioCLIP image embedding computed during
+                # classify() so similarity/diversity/tag-propagation can reuse it.
+                try:
+                    self._persist_bioclip_embedding(row["id"])
+                except Exception:
+                    logger.debug(
+                        "bird_species: BioCLIP embedding persist failed for image_id=%s",
+                        row.get("id"),
+                        exc_info=True,
+                    )
 
                 if predictions:
                     # Build merged keywords: keep existing non-species keywords + new species: ones

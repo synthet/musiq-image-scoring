@@ -37,7 +37,7 @@ except ImportError:
 if __name__ == "__main__":
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from modules import db, config, utils
+from modules import db, config, utils, db_postgres
 
 logger = logging.getLogger(__name__)
 
@@ -1017,8 +1017,17 @@ def get_job_execution_report(run_id: int, phase_code: Optional[str] = None, acti
 
 @mcp.tool(annotations=_RO)
 @_require_db
-def get_embedding_stats(folder_path: Optional[str] = None) -> dict:
-    """Counts of images with vs without image_embedding (MobileNetV2 / similar-search). Optional folder_path filters by exact folders.path match."""
+def get_embedding_stats(
+    folder_path: Optional[str] = None,
+    embedding_space: Optional[str] = None,
+) -> dict:
+    """Counts of images with vs without a stored image embedding.
+
+    By default reports coverage for the MobileNetV2 default space and a
+    per-space breakdown of every row in ``embedding_spaces``. Pass
+    ``embedding_space`` to get coverage counts for that specific space. Optional
+    ``folder_path`` filters by exact ``folders.path`` match.
+    """
     try:
         from modules.similar_search import EMBEDDING_DIM
         expected_dim = EMBEDDING_DIM
@@ -1034,8 +1043,117 @@ def get_embedding_stats(folder_path: Optional[str] = None) -> dict:
             return {"error": "folder_not_found", "folder_path": norm}
         folder_id = frow["id"]
 
-    # Postgres: use COALESCE predicate to count both legacy and normalized storage
-    if conn.type == 'postgres':
+    def _per_space_counts(is_postgres: bool) -> list[dict]:
+        if not is_postgres:
+            return []
+        try:
+            rows = db_postgres.execute_select(
+                "SELECT id, code, dim FROM embedding_spaces WHERE COALESCE(active, 1) = 1 ORDER BY id"
+            )
+        except Exception:
+            return []
+        per_space: list[dict] = []
+        for r in rows:
+            dim = int(r.get("dim") or 0)
+            try:
+                table = db._pg_embedding_table_for_dim(dim)
+            except ValueError:
+                per_space.append({
+                    "code": r.get("code"),
+                    "dim": dim,
+                    "error": "no fact table for dim",
+                })
+                continue
+            params: list = [int(r.get("id"))]
+            folder_clause = ""
+            if folder_id is not None:
+                folder_clause = (
+                    " AND EXISTS ("
+                    "  SELECT 1 FROM images i WHERE i.id = e.image_id AND i.folder_id = %s"
+                    " )"
+                )
+                params.append(folder_id)
+            try:
+                row = db_postgres.execute_select_one(
+                    f"SELECT COUNT(*) AS c FROM {table} e WHERE e.embedding_space_id = %s{folder_clause}",
+                    tuple(params),
+                )
+                count = int((row or {}).get("c") or 0)
+            except Exception as exc:  # noqa: BLE001
+                per_space.append({
+                    "code": r.get("code"),
+                    "dim": dim,
+                    "error": f"count failed: {exc}",
+                })
+                continue
+            per_space.append({
+                "code": r.get("code"),
+                "dim": dim,
+                "table": table,
+                "count": count,
+            })
+        return per_space
+
+    is_postgres = conn.type == 'postgres'
+
+    # Per-space lookup for a specific embedding_space argument.
+    if embedding_space:
+        if not is_postgres:
+            return {
+                "error": "embedding_space queries require PostgreSQL (pgvector).",
+                "embedding_space": embedding_space,
+            }
+        try:
+            from modules.embedding_spaces import SPACE_DIMS, get_embedding_space_id
+
+            dim = SPACE_DIMS.get(embedding_space)
+            if dim is None:
+                row = db_postgres.execute_select_one(
+                    "SELECT dim FROM embedding_spaces WHERE code = %s",
+                    (embedding_space,),
+                )
+                if not row:
+                    return {"error": "unknown embedding_space", "embedding_space": embedding_space}
+                dim = int(row["dim"])
+            table = db._pg_embedding_table_for_dim(int(dim))
+            space_id = get_embedding_space_id(embedding_space)
+            if space_id is None:
+                return {"error": "embedding_space not registered", "embedding_space": embedding_space}
+        except ValueError as exc:
+            return {"error": str(exc), "embedding_space": embedding_space}
+
+        params_total: list = []
+        total_clause = ""
+        if folder_id is not None:
+            total_clause = " WHERE folder_id = %s"
+            params_total.append(folder_id)
+        total_row = db_postgres.execute_select_one(
+            f"SELECT COUNT(*) AS c FROM images{total_clause}",
+            tuple(params_total) if params_total else None,
+        )
+        params_with: list = [space_id]
+        with_clause = " WHERE e.embedding_space_id = %s"
+        if folder_id is not None:
+            with_clause += " AND EXISTS (SELECT 1 FROM images i WHERE i.id = e.image_id AND i.folder_id = %s)"
+            params_with.append(folder_id)
+        with_row = db_postgres.execute_select_one(
+            f"SELECT COUNT(*) AS c FROM {table} e{with_clause}",
+            tuple(params_with),
+        )
+        total = int((total_row or {}).get("c") or 0)
+        with_emb = int((with_row or {}).get("c") or 0)
+        return {
+            "folder_path": os.path.normpath(folder_path) if folder_path and str(folder_path).strip() else None,
+            "embedding_space": embedding_space,
+            "embedding_dim": int(dim),
+            "table": table,
+            "total_images": total,
+            "with_embedding": with_emb,
+            "missing_embedding": max(0, total - with_emb),
+        }
+
+    # Default: MobileNet coverage + per-space summary.
+    if is_postgres:
         sub = db._pg_default_embedding_space_subquery_sql()
         has_e = db._postgres_has_default_embedding_sql("i")
         if folder_id is not None:
@@ -1060,7 +1178,6 @@ def get_embedding_stats(folder_path: Optional[str] = None) -> dict:
                 (),
             )
     else:
-        # Firebird: legacy path
         if folder_id is not None:
             base = "folder_id = ?"
             params_t = (folder_id,)
@@ -1085,6 +1202,7 @@ def get_embedding_stats(folder_path: Optional[str] = None) -> dict:
         "with_embedding": with_emb,
         "missing_embedding": missing,
         "expected_embedding_dim": expected_dim,
+        "per_space": _per_space_counts(is_postgres),
     }
 
 
@@ -1938,9 +2056,16 @@ def search_similar_images(
     example_image_id: Optional[int] = None,
     limit: int = 20,
     folder_path: Optional[str] = None,
-    min_similarity: Optional[float] = None
+    min_similarity: Optional[float] = None,
+    embedding_space: Optional[str] = None,
 ) -> dict:
-    """Find images visually similar to an example image using stored MobileNetV2 embeddings and cosine similarity. Provide either example_path or example_image_id."""
+    """Find images visually similar to an example image using stored embeddings and cosine similarity.
+
+    Provide either ``example_path`` or ``example_image_id``. By default this uses
+    the MobileNetV2 ``mobilenet_v2_imagenet_gap`` space. Pass ``embedding_space``
+    (e.g. ``clip_vit_b32_image``, ``bioclip_2_image``, ``blip_vit_b16_image``) to
+    search a different per-dim table; non-default spaces are Postgres-only.
+    """
     from modules import similar_search
     return similar_search.search_similar_images(
         example_path=example_path,
@@ -1948,6 +2073,7 @@ def search_similar_images(
         limit=limit,
         folder_path=folder_path,
         min_similarity=min_similarity,
+        embedding_space=embedding_space,
     )
 
 

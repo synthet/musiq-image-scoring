@@ -74,5 +74,15 @@
     "n_neighbors": 30,
     "min_dist": 0.1,
     "max_points": 50000
+  },
+  "embeddings": {
+    "persist_clip_image": true,
+    "persist_blip_image": true,
+    "persist_bioclip_image": true,
+    "model_versions": {
+      "clip_vit_b32_image": "openai/clip-vit-base-patch32",
+      "blip_vit_b16_image": "Salesforce/blip-image-captioning-base",
+      "bioclip_2_image": "hf-hub:imageomics/bioclip-2"
+    }
   }
 }

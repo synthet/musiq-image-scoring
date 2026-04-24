@@ -21,36 +21,47 @@ import pytest
 # ---------------------------------------------------------------------------
 
 def _stub(name, **attrs):
-    """Create and register a stub module unless it already exists."""
+    """Create and register a stub module unless it already exists.
+
+    Returns ``(module, was_created)`` so callers can avoid mutating attributes
+    on a real module that happens to already be loaded by an earlier test —
+    overwriting attributes on a real module corrupts it for the rest of the
+    pytest session (e.g. replacing ``pydantic.BaseModel`` with ``object``
+    breaks every later test that imports gradio, pydantic, or FastAPI).
+    """
+    created = False
     if name not in sys.modules:
         parent = name.rsplit(".", 1)[0] if "." in name else None
         mod = types.ModuleType(name)
         for k, v in attrs.items():
             setattr(mod, k, v)
         sys.modules[name] = mod
-        # Attach to parent if it exists in sys.modules
         if parent and parent in sys.modules:
             setattr(sys.modules[parent], name.rsplit(".", 1)[1], mod)
-    return sys.modules[name]
+        created = True
+    return sys.modules[name], created
 
 
 # sklearn stubs (not installed in pytest environment)
 _stub("sklearn")
 _stub("sklearn.cluster", AgglomerativeClustering=MagicMock())
 
-# PIL stubs
+# PIL stubs (only when not already imported)
 _stub("PIL")
 _stub("PIL.Image")
 
-# pydantic stub (needed by modules.events)
-_pydantic = _stub("pydantic")
-_pydantic.BaseModel = object
 
-class _Field:
-    def __call__(self, *a, **kw):
-        return kw.get("default", None)
+# pydantic stub (needed by modules.events when pydantic itself is missing).
+# Only inject the placeholder BaseModel/Field when we actually created the
+# stub module — never mutate the real pydantic that another test imported.
+_pydantic, _pydantic_was_stubbed = _stub("pydantic")
+if _pydantic_was_stubbed:
+    class _Field:
+        def __call__(self, *a, **kw):
+            return kw.get("default", None)
 
-_pydantic.Field = _Field()
+    _pydantic.BaseModel = object
+    _pydantic.Field = _Field()
 
 # Heavy project-internal stubs (avoid DB / TF / fdb imports)
 _stub("modules.events", event_manager=MagicMock())

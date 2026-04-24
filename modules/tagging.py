@@ -230,6 +230,10 @@ class KeywordScorer:
         self.device = device if device else ("cuda" if torch.cuda.is_available() else "cpu")
         self.model = None
         self.processor = None
+        # Most-recent CLIP image embedding (512-d, L2-normalized) populated as a
+        # side effect of predict() so TaggingRunner can persist it under the
+        # ``clip_vit_b32_image`` space without an extra forward pass.
+        self.last_image_embedding = None
         logger.info(f"KeywordScorer initialized. Device: {self.device}")
 
     def load_model(self):
@@ -251,7 +255,8 @@ class KeywordScorer:
         Predict keywords for an image using zero-shot classification.
         """
         self.load_model()
-        
+
+        self.last_image_embedding = None
         target_keywords = keywords if keywords else self.DEFAULT_KEYWORDS
         prompts = [f"a photo of {k}" for k in target_keywords]
         
@@ -265,7 +270,14 @@ class KeywordScorer:
             
             with torch.no_grad():
                 outputs = self.model(**inputs)
-            
+
+            try:
+                from modules.embeddings_extract import extract_clip_image_features_from_outputs
+
+                self.last_image_embedding = extract_clip_image_features_from_outputs(outputs)
+            except Exception as emb_err:  # noqa: BLE001 — best-effort side effect
+                logger.debug("CLIP image embedding extraction failed: %s", emb_err)
+
             logits_per_image = outputs.logits_per_image 
             probs = logits_per_image.softmax(dim=1) 
             
@@ -294,6 +306,10 @@ class CaptionGenerator:
         self.device = device if device else ("cuda" if torch.cuda.is_available() else "cpu")
         self.model = None
         self.processor = None
+        # Most-recent BLIP vision-encoder pooler_output (768-d, L2-normalized);
+        # populated by generate() when the extract_blip flag is enabled so
+        # TaggingRunner can persist it under the ``blip_vit_b16_image`` space.
+        self.last_image_embedding = None
         logger.info(f"CaptionGenerator initialized. Device: {self.device}")
 
     def load_model(self):
@@ -309,8 +325,16 @@ class CaptionGenerator:
                 logger.error(f"Failed to load BLIP model: {e}")
                 raise
 
-    def generate(self, image_path: str) -> str:
+    def generate(self, image_path: str, extract_embedding: bool = False) -> str:
+        """Generate a caption for the image.
+
+        If ``extract_embedding`` is True, also populate ``self.last_image_embedding``
+        with a 768-d L2-normalized vector from the BLIP vision tower for
+        persistence by the caller. This costs one extra vision-tower forward
+        pass per image.
+        """
         self.load_model()
+        self.last_image_embedding = None
         try:
             from modules.thumbnails import open_image_for_ml
 
@@ -322,6 +346,17 @@ class CaptionGenerator:
             max_tokens = tagging_config.get('max_new_tokens', 50)
             context_tokens = self.model.generate(**inputs, max_new_tokens=max_tokens)
             caption = self.processor.decode(context_tokens[0], skip_special_tokens=True)
+
+            if extract_embedding:
+                try:
+                    from modules.embeddings_extract import extract_blip_image_features
+
+                    pixel_values = inputs.get("pixel_values") if isinstance(inputs, dict) else getattr(inputs, "pixel_values", None)
+                    if pixel_values is not None:
+                        self.last_image_embedding = extract_blip_image_features(self.model, pixel_values)
+                except Exception as emb_err:  # noqa: BLE001 — best-effort side effect
+                    logger.debug("BLIP image embedding extraction failed: %s", emb_err)
+
             return caption.capitalize()
         except Exception as e:
             logger.error(f"Caption generation failed for {image_path}: {e}")
@@ -584,6 +619,12 @@ class TaggingRunner:
                     if thumb_path and os.path.exists(thumb_path):
                         inference_path = thumb_path
 
+                # Resolve embedding-persistence flags once per image (cheap dict lookups).
+                from modules import config as _emb_cfg
+                _emb_section = _emb_cfg.get_config_section('embeddings') or {}
+                _persist_clip = bool(_emb_section.get('persist_clip_image', True))
+                _persist_blip = bool(_emb_section.get('persist_blip_image', True))
+
                 # Run inference
                 if self.tagging_engine is not None:
                     tags = self.tagging_engine.predict_keywords(inference_path, custom_keywords)
@@ -598,9 +639,24 @@ class TaggingRunner:
                     caption = ""
                     title = ""
                     if generate_captions:
-                        caption = self.captioner.generate(inference_path)
+                        caption = self.captioner.generate(
+                            inference_path, extract_embedding=_persist_blip
+                        )
                         import textwrap
                         title = textwrap.shorten(caption, width=50, placeholder="...")
+
+                # Best-effort: persist the freshly-computed image embeddings for
+                # this image (CLIP 512-d, BLIP 768-d) so downstream features
+                # (similarity, diversity, tag propagation) can reuse them.
+                if self.tagging_engine is None:
+                    try:
+                        self._persist_tagging_embeddings(row['id'], _persist_clip, _persist_blip)
+                    except Exception:
+                        logger.debug(
+                            "tagging: embedding persist failed for image_id=%s",
+                            row.get('id'),
+                            exc_info=True,
+                        )
 
                 tags = [t.strip() for t in (tags or []) if t and t.strip()]
                 caption = (caption or "").strip()
@@ -709,6 +765,59 @@ class TaggingRunner:
                          log(f"Folder marked as fully processed: {f}")
                  except Exception as e:
                      log(f"Failed to update status for {f}: {e}")
+
+    def _persist_tagging_embeddings(self, image_id: int, persist_clip: bool, persist_blip: bool) -> None:
+        """Upsert CLIP / BLIP image embeddings produced during the last inference.
+
+        Best-effort: any DB or numpy error is logged at DEBUG and swallowed so
+        embedding persistence never fails a tagging job. No-op on non-Postgres
+        engines (see ``db.update_image_embeddings_batch_for_space``).
+        """
+        if image_id is None:
+            return
+        from modules.embedding_spaces import (
+            BLIP_IMAGE_SPACE_CODE,
+            CLIP_IMAGE_SPACE_CODE,
+        )
+
+        emb_section = {}
+        try:
+            from modules import config as _cfg
+
+            emb_section = _cfg.get_config_section('embeddings') or {}
+        except Exception:
+            emb_section = {}
+        versions = emb_section.get('model_versions') or {}
+
+        if persist_clip and self.scorer is not None:
+            vec = getattr(self.scorer, "last_image_embedding", None)
+            if vec is not None:
+                try:
+                    db.update_image_embeddings_batch_for_space(
+                        CLIP_IMAGE_SPACE_CODE,
+                        [(image_id, vec, versions.get(CLIP_IMAGE_SPACE_CODE) or getattr(self.scorer, "model_name", None))],
+                    )
+                except Exception as exc:  # noqa: BLE001 — best-effort
+                    logger.debug(
+                        "tagging: CLIP embedding upsert failed for image_id=%s: %s",
+                        image_id,
+                        exc,
+                    )
+
+        if persist_blip and self.captioner is not None:
+            vec = getattr(self.captioner, "last_image_embedding", None)
+            if vec is not None:
+                try:
+                    db.update_image_embeddings_batch_for_space(
+                        BLIP_IMAGE_SPACE_CODE,
+                        [(image_id, vec, versions.get(BLIP_IMAGE_SPACE_CODE) or getattr(self.captioner, "model_name", None))],
+                    )
+                except Exception as exc:  # noqa: BLE001 — best-effort
+                    logger.debug(
+                        "tagging: BLIP embedding upsert failed for image_id=%s: %s",
+                        image_id,
+                        exc,
+                    )
 
     def write_metadata(self, image_path: str, keywords: List[str], title: str = "", description: str = "", rating: int = 0, label: str = "") -> bool:
         """

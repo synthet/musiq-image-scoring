@@ -20,29 +20,51 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-# (table_name, serial_column) — must match PostgreSQL SERIAL / sequence column names.
-TABLES_WITH_SERIAL_PK = [
-    ("jobs", "id"),
-    ("folders", "id"),
-    ("stacks", "id"),
-    ("images", "id"),
-    ("job_phases", "id"),
-    ("job_steps", "id"),
-    ("culling_sessions", "id"),
-    ("culling_picks", "id"),
-    ("pipeline_phases", "id"),
-    ("image_phase_status", "id"),
-    ("keywords_dim", "keyword_id"),
-]
+# Discovered at runtime from pg_depend — see _discover_serial_columns().
+# A hand-maintained list was previously used here but silently drifted: file_paths
+# and several other tables were missing, so their sequences were never advanced
+# after Firebird→Postgres migration (which inserts with explicit IDs), causing
+# duplicate-key errors on the first runtime INSERT.
+_DISCOVER_SEQ_COLUMNS_SQL = """
+SELECT t.relname AS tbl, a.attname AS col
+FROM pg_class s
+JOIN pg_depend d   ON d.objid = s.oid AND d.classid = 'pg_class'::regclass
+JOIN pg_class t    ON d.refobjid = t.oid
+JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = d.refobjsubid
+WHERE s.relkind = 'S'
+  AND t.relkind = 'r'
+  AND t.relnamespace IN (
+        SELECT oid FROM pg_namespace
+        WHERE nspname = ANY (current_schemas(false))
+      )
+ORDER BY t.relname, a.attnum
+"""
+
+
+def _discover_serial_columns(pg_conn):
+    """Return [(table, column), ...] for every SERIAL/owned-sequence column in the current schema."""
+    cur = pg_conn.cursor()
+    try:
+        cur.execute(_DISCOVER_SEQ_COLUMNS_SQL)
+        return [(row[0], row[1]) for row in cur.fetchall()]
+    finally:
+        cur.close()
 
 
 def reset_sequences(pg_conn) -> None:
-    """Reset PostgreSQL SERIAL sequences to MAX(pk); next insert gets MAX(pk)+1."""
+    """Reset every owned SERIAL sequence to MAX(pk); next insert gets MAX(pk)+1.
+
+    Autodiscovers columns via pg_depend so new tables don't need manual registration.
+    """
+    targets = _discover_serial_columns(pg_conn)
+    if not targets:
+        logger.warning("No owned sequences discovered — nothing to reset.")
+        return
     pg_cur = pg_conn.cursor()
     try:
-        for table, id_col in TABLES_WITH_SERIAL_PK:
+        for table, id_col in targets:
             try:
-                pg_cur.execute(f"SELECT MAX({id_col}) FROM {table}")
+                pg_cur.execute(f'SELECT MAX("{id_col}") FROM "{table}"')
                 row = pg_cur.fetchone()
                 max_id = row[0] if row and row[0] is not None else 0
                 pg_cur.execute(
@@ -51,7 +73,8 @@ def reset_sequences(pg_conn) -> None:
                 )
                 logger.info("  Reset sequence for %s.%s → next id after %s", table, id_col, max_id)
             except Exception as e:
-                logger.warning("  Could not reset sequence for %s: %s", table, e)
+                logger.warning("  Could not reset sequence for %s.%s: %s", table, id_col, e)
+                pg_conn.rollback()
         pg_conn.commit()
     finally:
         pg_cur.close()
@@ -128,7 +151,7 @@ def main():
 
     conn = _get_pg_conn(host, port, db, user, password)
     try:
-        logger.info("Resetting sequences for %d tables…", len(TABLES_WITH_SERIAL_PK))
+        logger.info("Resetting sequences (autodiscovered from pg_depend)…")
         reset_sequences(conn)
         logger.info("Done.")
     finally:

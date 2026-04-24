@@ -85,13 +85,98 @@ def _search_similar_images_numpy(example_image_id, query_vec, limit, folder_path
     return results
 
 
+def _search_similar_in_space_pg(example_image_id, embedding_space, limit, folder_path, min_similarity):
+    """Postgres-only similarity search scoped to a specific embedding space.
+
+    Unlike the default-space path, there is no legacy column to fall back on
+    for non-MobileNet spaces — the image must have a row in the matching
+    per-dim fact table (see ``image_embeddings_512`` / ``image_embeddings_768``).
+    """
+    from modules.embedding_spaces import SPACE_DIMS, get_embedding_space_id
+
+    expected_dim = SPACE_DIMS.get(embedding_space)
+    if expected_dim is None:
+        return {"error": f"Unknown embedding_space: {embedding_space}"}
+    space_id = get_embedding_space_id(embedding_space)
+    if space_id is None:
+        return {"error": f"Embedding space not registered: {embedding_space}"}
+    table = db._pg_embedding_table_for_dim(expected_dim)
+
+    with db.connection() as conn:
+        c = conn.cursor()
+        c.execute(
+            f"SELECT embedding FROM {table} WHERE image_id = %s AND embedding_space_id = %s",
+            (example_image_id, space_id),
+        )
+        row = c.fetchone()
+        if not row or row[0] is None:
+            return {
+                "error": (
+                    f"Example image {example_image_id} has no stored embedding for "
+                    f"space {embedding_space}; re-run the phase that produces it."
+                ),
+            }
+        import numpy as np
+
+        raw = row[0]
+        query_vec = np.asarray(raw, dtype=np.float32) if not isinstance(raw, np.ndarray) else raw.astype(np.float32)
+
+        params: list = [query_vec, example_image_id, space_id]
+        folder_clause = ""
+        if folder_path:
+            import os
+
+            norm = os.path.normpath(folder_path)
+            c.execute("SELECT id FROM folders WHERE path = %s", (norm,))
+            frow = c.fetchone()
+            if not frow:
+                return []
+            folder_clause = "AND i.folder_id = %s"
+            params.insert(1, frow[0])
+
+        sql = f"""
+            SELECT i.id AS image_id,
+                   i.file_path,
+                   1 - (e.embedding <=> %s::vector) AS similarity
+            FROM {table} e
+            JOIN images i ON i.id = e.image_id
+            WHERE e.image_id != %s
+              AND e.embedding_space_id = %s
+              {folder_clause}
+            ORDER BY e.embedding <=> %s::vector
+            LIMIT %s
+        """
+        params.append(query_vec)
+        params.append(limit)
+        c.execute(sql, tuple(params))
+        rows = c.fetchall()
+
+    results = []
+    for row in rows:
+        sim = float(row['similarity'])
+        if min_similarity is not None and sim < min_similarity:
+            break
+        results.append({
+            "image_id": int(row['image_id']),
+            "file_path": row['file_path'],
+            "similarity": round(sim, 6),
+            "embedding_space": embedding_space,
+        })
+    return results
+
+
 def search_similar_images(example_path=None, example_image_id=None,
-                          limit=20, folder_path=None, min_similarity=None):
+                          limit=20, folder_path=None, min_similarity=None,
+                          embedding_space=None):
     """
     Find images most visually similar to a given example.
     Postgres uses pgvector cosine distance; Firebird ranks candidates in Python.
 
     Provide either example_path (file path string) or example_image_id (int).
+    If ``embedding_space`` is given (e.g. ``clip_vit_b32_image``), search uses
+    the matching per-dim table instead of the default MobileNet space. Non-default
+    spaces are Postgres-only and do not fall back to a legacy column.
+
     Returns a list of dicts sorted by descending similarity.
     """
     if not example_path and example_image_id is None:
@@ -111,6 +196,16 @@ def search_similar_images(example_path=None, example_image_id=None,
             c.execute(f"SELECT file_path FROM images WHERE id = {ph}", (example_image_id,))
             row = c.fetchone()
             file_path = row[0] if row else None
+
+    # Non-default space: delegate to the per-dim query path (Postgres only).
+    from modules.embedding_spaces import DEFAULT_EMBEDDING_SPACE_CODE
+
+    if embedding_space and embedding_space != DEFAULT_EMBEDDING_SPACE_CODE:
+        if db._get_db_engine() != "postgres":
+            return {"error": "Non-default embedding_space requires PostgreSQL (pgvector)."}
+        return _search_similar_in_space_pg(
+            example_image_id, embedding_space, limit, folder_path, min_similarity
+        )
 
     query_vec = _get_or_compute_embedding(example_image_id, file_path)
     if query_vec is None:
