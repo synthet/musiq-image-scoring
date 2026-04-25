@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.5.1] - 2026-04-25
+
+### Changed
+
+- **OpenAPI spec aligned with v7.5.0 endpoints**: `docs/reference/api/openapi.yaml` now documents the multi-space embedding-map work shipped in v7.5.0:
+  - `/api/embedding_map`: added `space_code` and `pca_dim` query parameters; refreshed description and meta-block fields (`embedding_space`, `pca_dim`, and the `unknown_embedding_space` error case).
+  - `/api/similarity/search` (and the deprecated `/api/similarity/similar` alias): added `embedding_space` query parameter.
+  - `/api/images/{image_id}/similar`: new path entry for the k-NN endpoint (separate from `/{id}/neighbors`, which remains prev/next nav).
+  - `info.version`: bumped 6.3.1 → 7.5.0 to match `modules/version.py`. Spec now lists 133 paths and parses cleanly.
+
 ## [7.5.0] - 2026-04-25
 
 ### Added
