@@ -1,0 +1,112 @@
+"""
+Projection-side DB readers for non-default embedding spaces.
+
+The default 1280-d MobileNet path lives in ``db.get_embeddings_with_metadata``
+(which COALESCEs the legacy ``images.image_embedding`` column with the
+``image_embeddings`` fact table). For 512-d / 768-d spaces (CLIP, BioCLIP,
+BLIP) there is **no** legacy column to fall back on — embeddings live only in
+the per-dim fact table chosen by ``db._pg_embedding_table_for_dim``.
+
+Postgres-only. Other engines return ``[]``.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+
+def get_embeddings_with_metadata_for_space(
+    space_code: str,
+    folder_path: Optional[str] = None,
+    limit: Optional[int] = None,
+) -> list[dict]:
+    """Return embedding vectors + display metadata for ``space_code``.
+
+    Each row mirrors ``db.get_embeddings_with_metadata`` shape:
+        ``image_id``, ``file_path``, ``embedding`` (bytes),
+        ``thumbnail_path``, ``label``, ``rating``, ``score_general``.
+
+    Default space (``mobilenet_v2_imagenet_gap``) delegates to the legacy
+    helper so the dual-read / legacy-column fallback still applies. All other
+    spaces read straight from their per-dim fact table on Postgres and return
+    ``[]`` on other engines.
+    """
+    from modules import db
+    from modules.embedding_spaces import (
+        DEFAULT_EMBEDDING_SPACE_CODE,
+        SPACE_DIMS,
+        get_embedding_space_id,
+    )
+
+    if space_code == DEFAULT_EMBEDDING_SPACE_CODE:
+        return db.get_embeddings_with_metadata(folder_path=folder_path, limit=limit)
+
+    expected_dim = SPACE_DIMS.get(space_code)
+    if expected_dim is None:
+        logger.warning(
+            "get_embeddings_with_metadata_for_space: unknown space %r; "
+            "add it to SPACE_DIMS in modules/embedding_spaces.py.",
+            space_code,
+        )
+        return []
+
+    if db._get_db_engine() != "postgres":
+        return []
+
+    space_id = get_embedding_space_id(space_code)
+    if space_id is None:
+        return []
+
+    table = db._pg_embedding_table_for_dim(expected_dim)
+
+    from modules import db_postgres
+
+    params: list = [space_id]
+    folder_clause = ""
+    if folder_path:
+        norm = os.path.normpath(folder_path)
+        frow = db_postgres.execute_select_one(
+            "SELECT id FROM folders WHERE path = %s", (norm,)
+        )
+        if not frow:
+            return []
+        folder_clause = " AND i.folder_id = %s"
+        params.append(frow["id"])
+
+    sql = (
+        f"SELECT i.id AS image_id, i.file_path, e.embedding, "
+        f"       i.thumbnail_path, i.label, i.rating, i.score_general "
+        f"FROM {table} e "
+        f"JOIN images i ON i.id = e.image_id "
+        f"WHERE e.embedding_space_id = %s{folder_clause}"
+    )
+    if limit:
+        sql += " LIMIT %s"
+        params.append(int(limit))
+
+    rows = db_postgres.execute_select(sql, tuple(params))
+
+    import numpy as np
+
+    out = []
+    for r in rows:
+        emb = r.get("embedding")
+        if emb is None:
+            continue
+        emb_bytes = np.asarray(emb, dtype=np.float32).tobytes()
+        out.append({
+            "image_id": r["image_id"],
+            "file_path": r["file_path"],
+            "embedding": emb_bytes,
+            "thumbnail_path": r.get("thumbnail_path"),
+            "label": r.get("label"),
+            "rating": r.get("rating"),
+            "score_general": (
+                float(r["score_general"]) if r.get("score_general") is not None else None
+            ),
+        })
+    return out

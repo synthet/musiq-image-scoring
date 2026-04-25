@@ -625,11 +625,14 @@ def test_similarity_similar_alias_matches_existing_contract(monkeypatch):
         {"image_id": 3, "file_path": "/photos/3.jpg", "similarity": 0.90},
     ]
 
-    def fake_search_similar_images(example_image_id, limit, folder_path, min_similarity):
+    def fake_search_similar_images(
+        example_image_id, limit, folder_path, min_similarity, embedding_space=None
+    ):
         assert example_image_id == 1
         assert limit == 5
         assert folder_path == "/photos"
         assert min_similarity == 0.9
+        assert embedding_space is None
         return expected_results
 
     monkeypatch.setattr(similar_search, "search_similar_images", fake_search_similar_images)

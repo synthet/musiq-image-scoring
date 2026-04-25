@@ -1410,12 +1410,35 @@ def rebase_file_paths(old_root: str, new_root: str, dry_run: bool = True) -> dic
 
             # Update paths - using a simple replace logic
             # This is complex in SQL depending on the DB engine, so we'll do it in a transaction
-            c.execute("SELECT id, file_path FROM images WHERE file_path LIKE ?", (pattern,))
+            c.execute("SELECT id, file_path, folder_id FROM images WHERE file_path LIKE ?", (pattern,))
             rows = c.fetchall()
 
-            for image_id, old_path in rows:
+            folder_cache = {}
+            affected_folders = set()
+
+            for image_id, old_path, old_fid in rows:
                 new_path = old_path.replace(old_root, new_root, 1)
                 db.update_image_field(image_id, "file_path", new_path)
+                
+                # Update folder_id to match the new path
+                new_dir = os.path.normpath(os.path.dirname(new_path))
+                if new_dir not in folder_cache:
+                    folder_cache[new_dir] = db.get_or_create_folder(new_dir)
+                new_fid = folder_cache[new_dir]
+                
+                if new_fid != old_fid:
+                    db.update_image_field(image_id, "folder_id", new_fid)
+                    if old_fid:
+                        affected_folders.add(old_fid)
+                    if new_fid:
+                        affected_folders.add(new_fid)
+
+            # Invalidate aggregates for all affected folders
+            for fid in affected_folders:
+                try:
+                    db.invalidate_folder_phase_aggregates(folder_id=fid)
+                except Exception:
+                    pass
 
             conn.commit()
             return {"success": True, "updated_count": count}

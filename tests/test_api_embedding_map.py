@@ -205,6 +205,28 @@ def test_make_cache_key_includes_sample_cap_and_method_specific_params():
     )
     assert key_umap_small != key_umap_large
 
+
+def test_make_cache_key_separates_embedding_space_and_pca_dim():
+    """Different embedding_space or pca_dim must produce distinct cache keys."""
+    import modules.projections as proj_mod
+
+    base = dict(
+        folder_path="/photos", method="umap", max_points=100,
+        n_neighbors=30, min_dist=0.1,
+    )
+    key_default = proj_mod._make_cache_key(**base)
+    key_clip = proj_mod._make_cache_key(**base, embedding_space="clip_vit_b32_image")
+    key_default_pca = proj_mod._make_cache_key(**base, pca_dim=50)
+
+    # All three must be distinct.
+    assert key_default != key_clip
+    assert key_default != key_default_pca
+    assert key_clip != key_default_pca
+
+    # Default value (pca_dim=0) collides with the un-passed default.
+    key_pca_zero = proj_mod._make_cache_key(**base, pca_dim=0)
+    assert key_pca_zero == key_default
+
     key_umap_lo = proj_mod._make_cache_key(
         folder_path="/photos",
         method="umap",
@@ -236,6 +258,214 @@ def test_make_cache_key_includes_sample_cap_and_method_specific_params():
         min_dist=0.8,
     )
     assert key_tsne_a == key_tsne_b
+
+
+def test_embedding_map_unknown_space_returns_error_meta(monkeypatch):
+    """Passing an unknown space_code returns success=True with meta.error."""
+    import modules.projections as proj_mod
+
+    # Cache must be bypassed so the unknown-space check actually runs.
+    monkeypatch.setattr(proj_mod, "_load_cache", lambda key: None)
+    monkeypatch.setattr(proj_mod, "_save_cache", lambda key, data: None)
+
+    with _build_client() as client:
+        resp = client.get("/api/embedding_map?space_code=does_not_exist")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["success"] is True
+    assert body["data"]["points"] == []
+    assert body["data"]["meta"]["error"] == "unknown_embedding_space"
+    assert body["data"]["meta"]["embedding_space"] == "does_not_exist"
+
+
+def test_embedding_map_routes_through_projections_db_for_non_default_space(monkeypatch):
+    """A non-default space_code must go through projections_db, not db."""
+    import modules.db as db_mod
+    import modules.projections as proj_mod
+    import modules.projections_db as pdb_mod
+
+    n = 5
+    rows = _fake_rows(n, dim=8)
+
+    # Default-space reader must NOT be hit.
+    db_called = {"flag": False}
+
+    def _fail_db(**kw):
+        db_called["flag"] = True
+        return []
+
+    captured = {}
+
+    def _fake_pdb(space_code, folder_path=None, limit=None):
+        captured["space_code"] = space_code
+        captured["limit"] = limit
+        return rows
+
+    monkeypatch.setattr(db_mod, "get_embeddings_with_metadata", _fail_db)
+    monkeypatch.setattr(
+        pdb_mod, "get_embeddings_with_metadata_for_space", _fake_pdb
+    )
+    monkeypatch.setattr(proj_mod, "_project_umap", lambda v, n_n, m_d: _fake_coords(len(v)))
+    monkeypatch.setattr(proj_mod, "_load_cache", lambda key: None)
+    monkeypatch.setattr(proj_mod, "_save_cache", lambda key, data: None)
+
+    with _build_client() as client:
+        resp = client.get("/api/embedding_map?space_code=clip_vit_b32_image")
+
+    assert resp.status_code == 200
+    assert not db_called["flag"], "default-space reader was called for non-default space"
+    assert captured["space_code"] == "clip_vit_b32_image"
+    body = resp.json()
+    assert body["data"]["meta"]["embedding_space"] == "clip_vit_b32_image"
+
+
+def test_embedding_map_pca_dim_off_when_zero(monkeypatch):
+    """pca_dim=0 must skip the PCA pre-step (PCA function not called)."""
+    import modules.db as db_mod
+    import modules.projections as proj_mod
+
+    n = 5
+    rows = _fake_rows(n, dim=64)
+    monkeypatch.setattr(db_mod, "get_embeddings_with_metadata", lambda **kw: rows)
+
+    pca_called = {"flag": False}
+
+    def _spy_pca(v, n_components):
+        pca_called["flag"] = True
+        return v
+
+    monkeypatch.setattr(proj_mod, "_project_pca", _spy_pca)
+    monkeypatch.setattr(proj_mod, "_project_umap", lambda v, n_n, m_d: _fake_coords(len(v)))
+    monkeypatch.setattr(proj_mod, "_load_cache", lambda key: None)
+    monkeypatch.setattr(proj_mod, "_save_cache", lambda key, data: None)
+
+    with _build_client() as client:
+        resp = client.get("/api/embedding_map?pca_dim=0")
+
+    assert resp.status_code == 200
+    assert not pca_called["flag"]
+    assert resp.json()["data"]["meta"]["pca_dim"] == 0
+
+
+def test_embedding_map_pca_dim_explicit_runs(monkeypatch):
+    """An explicit non-zero pca_dim runs PCA with that target dim."""
+    import modules.db as db_mod
+    import modules.projections as proj_mod
+
+    n = 8
+    src_dim = 64
+    rows = _fake_rows(n, dim=src_dim)
+    monkeypatch.setattr(db_mod, "get_embeddings_with_metadata", lambda **kw: rows)
+
+    pca_calls = []
+
+    def _spy_pca(v, n_components):
+        pca_calls.append((v.shape, n_components))
+        # Return reduced shape so downstream UMAP receives the lower-dim matrix.
+        import numpy as _np
+        return _np.zeros((v.shape[0], n_components), dtype=_np.float32)
+
+    monkeypatch.setattr(proj_mod, "_project_pca", _spy_pca)
+    monkeypatch.setattr(proj_mod, "_project_umap", lambda v, n_n, m_d: _fake_coords(len(v)))
+    monkeypatch.setattr(proj_mod, "_load_cache", lambda key: None)
+    monkeypatch.setattr(proj_mod, "_save_cache", lambda key, data: None)
+
+    with _build_client() as client:
+        resp = client.get("/api/embedding_map?pca_dim=16")
+
+    assert resp.status_code == 200
+    assert len(pca_calls) == 1
+    assert pca_calls[0][1] == 16  # n_components forwarded
+    assert resp.json()["data"]["meta"]["pca_dim"] == 16
+
+
+def test_resolve_pca_dim_auto_thresholds():
+    """Auto mode (pca_dim=None): on for source_dim>=1280, off below."""
+    import modules.projections as proj_mod
+
+    # Auto: high-dim source -> 50.
+    assert proj_mod._resolve_pca_dim(None, 1280) == 50
+    # Auto: low-dim source -> 0 (off).
+    assert proj_mod._resolve_pca_dim(None, 512) == 0
+    # Explicit 0 always off.
+    assert proj_mod._resolve_pca_dim(0, 1280) == 0
+    # Explicit value >= source_dim is a no-op.
+    assert proj_mod._resolve_pca_dim(2048, 1280) == 0
+    # Explicit value < source_dim passes through.
+    assert proj_mod._resolve_pca_dim(50, 768) == 50
+
+
+def test_image_similar_endpoint_404_for_missing_image(monkeypatch):
+    """GET /api/images/{id}/similar must 404 when the image does not exist."""
+    import modules.db as db_mod
+
+    class _FakeCursor:
+        def __init__(self):
+            self._row = None
+
+        def execute(self, sql, params):
+            self._row = None  # always "not found"
+
+        def fetchone(self):
+            return self._row
+
+    class _FakeConn:
+        def cursor(self):
+            return _FakeCursor()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(db_mod, "get_db", lambda: _FakeConn())
+
+    with _build_client() as client:
+        resp = client.get("/api/images/9999/similar")
+
+    assert resp.status_code == 404
+
+
+def test_image_similar_endpoint_returns_results(monkeypatch):
+    """Happy-path: returns query_image_id + results from search_similar_images."""
+    import modules.db as db_mod
+    import modules.similar_search as sim_mod
+
+    class _FakeCursor:
+        def execute(self, sql, params):
+            self._row = (1,)
+
+        def fetchone(self):
+            return self._row
+
+    class _FakeConn:
+        def cursor(self):
+            return _FakeCursor()
+
+        def close(self):
+            pass
+
+    captured = {}
+
+    def _fake_search(**kw):
+        captured.update(kw)
+        return [{"image_id": 2, "file_path": "/p/2.jpg", "similarity": 0.95}]
+
+    monkeypatch.setattr(db_mod, "get_db", lambda: _FakeConn())
+    monkeypatch.setattr(sim_mod, "search_similar_images", _fake_search)
+
+    with _build_client() as client:
+        resp = client.get(
+            "/api/images/1/similar?limit=5&embedding_space=clip_vit_b32_image"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["query_image_id"] == 1
+    assert body["count"] == 1
+    assert body["embedding_space"] == "clip_vit_b32_image"
+    assert captured["example_image_id"] == 1
+    assert captured["limit"] == 5
+    assert captured["embedding_space"] == "clip_vit_b32_image"
 
 
 def test_embedding_map_cache_separated_by_sample_limit(monkeypatch):

@@ -13,6 +13,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.5.0] - 2026-04-25
+
+### Added
+
+- **Embedding map — multi-space + PCA pre-step (App 05 phase 1)**: `GET /api/embedding_map` now accepts `space_code` (e.g. `clip_vit_b32_image`, `blip_vit_b16_image`, `bioclip_2_image`) and `pca_dim`; both bake into the disk-cache key so per-space maps no longer collide. PCA pre-step (sklearn) is auto-on for source dim ≥ 1280, off below; pass `pca_dim=0` to disable explicitly. Non-default spaces are Postgres-only and read straight from the per-dim fact table via the new `modules/projections_db.get_embeddings_with_metadata_for_space()` helper. Default-space requests still go through `db.get_embeddings_with_metadata` so the legacy `images.image_embedding` COALESCE fallback is preserved. `meta` now exposes `embedding_space` and `pca_dim`; an unknown `space_code` returns `meta.error == "unknown_embedding_space"`. See `docs/plans/embedding/EMBEDDING_APP_05_2D_EMBEDDING_MAP.md` §Phase 1.
+- **Similarity REST parity**: `GET /api/similarity/search` (and the deprecated `/api/similarity/similar` alias) now accept an optional `embedding_space` query parameter, matching the existing MCP tool. The response only includes the `embedding_space` key when explicitly set, preserving backward compatibility for clients that compare exact response shapes.
+- **`GET /api/images/{image_id}/similar`**: New k-NN endpoint — RESTful path-parameter form of similarity search. Deliberately distinct from `/images/{image_id}/neighbors`, which remains prev/next gallery navigation.
+- **Maintenance — `deduplicate_images` action**: New `MaintenanceRunner` action that synchronizes split-brain duplicates by backfilling missing `image_hash` / `hash_version` from sibling rows that share the same `file_path`, and surfaces same-folder same-hash duplicate groups for follow-up. Supports `dry_run`. Triggered via the existing job dispatch with `action="deduplicate_images"`.
+- **Maintenance — `heal_folder_ids` action**: New `MaintenanceRunner` action that reconciles each image's `folder_id` against its `os.path.dirname(file_path)` (creating folder rows on demand via `db.get_or_create_folder`) and invalidates aggregates for both old and new folders. Supports `dry_run`.
+- **MCP `rebase_file_paths` — also reseats `folder_id`**: After rewriting `images.file_path` from `old_root` to `new_root`, the tool now resolves the new directory via `db.get_or_create_folder` and updates `folder_id` accordingly, then invalidates aggregates for every affected folder. Previously rebasing left rows pointing at stale folder rows under the old root.
+- **`Backup-Postgres.ps1` — Dropbox mirror & mirror retention**: New `-MirrorDir` and `-MirrorRetentionDays` parameters copy each finished `*.dump` to a secondary location (e.g. `D:\Dropbox\Photos\Scoring`) and prune old mirrored copies independently of the primary backup directory. The `/backup-db` Claude/Cursor command now invokes the script with `-MirrorDir "D:\Dropbox\Photos\Scoring" -MirrorRetentionDays 7` by default and verifies the mirror file exists before reporting success.
+
+### Fixed
+
+- **`IndexingRunner` — split-brain duplicate reconciliation**: When the indexer encounters a file whose `image_hash` already exists in the DB under a different `id` than the one tracked by `file_path`, it now backfills the missing hash onto the path-tracked row (instead of letting healers re-flag it forever) and updates the canonical `images.file_path` on the hash-matched row to the path currently being scanned. Folder aggregates for the affected row are invalidated. Previously this state required a manual cleanup pass.
+
+### Changed
+
+- **Test mocks for `search_similar_images`**: `tests/test_api_queue.py` and `tests/test_api_v2_reorg.py` mock signatures now accept an `embedding_space=None` keyword to match the production callee. Internal-only — does not affect runtime behavior.
+- **Documentation**: `TODO.md`, `docs/plans/embedding/NEXT_STEPS.md`, and `docs/plans/embedding/EMBEDDING_APP_05_2D_EMBEDDING_MAP.md` updated to reflect Phase 1 of the 2D embedding map shipped (multi-space + PCA on the existing endpoint). Phase 2 (persistent projections + HDBSCAN) and phase 3 (React atlas UI) remain pending.
+
 ## [7.4.10] - 2026-04-25
 
 ### Fixed

@@ -11,19 +11,22 @@ Use when the operator wants a **local dump** of the `image_scoring` PostgreSQL d
 
 ## Action (agent)
 
-1. From **this repo root** (`image-scoring-backend`), run:
+1. From **this repo root** (`image-scoring-backend`), run **with Dropbox mirror and 7-day mirror rotation** (see skill **`.cursor/skills/backup-db/SKILL.md`**):
 
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\powershell\Backup-Postgres.ps1
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\powershell\Backup-Postgres.ps1 `
+     -MirrorDir "D:\Dropbox\Photos\Scoring" `
+     -MirrorRetentionDays 7
    ```
 
 2. Optional parameters (only if the user asked):
 
    - `-BackupDir <path>` — override output folder (default: `backups\postgres` under repo root).
-   - `-RetentionDays 0` — skip pruning old `*.dump` files.
+   - `-RetentionDays <n>` — prune **primary** folder only (`0` skips); default **30**.
+   - `-MirrorDir` / `-MirrorRetentionDays` — omit mirror step or change mirror retention (defaults when mirror omitted: no copy).
    - `-ConfigPath <path>` — non-default `config.json`.
 
-3. **Report** the final dump path, file size, and any errors. Do not claim success without a non-empty `.dump` on disk.
+3. **Report** the primary dump path, mirror path (when used), file sizes, prune summary, and any errors. Do not claim success without a non-empty `.dump` on disk (primary and mirror when mirroring).
 
 ## Fallback (no Windows / no PowerShell)
 
@@ -38,4 +41,4 @@ If restoring into a DB that already has data, operators may need `scripts/python
 
 ## Done when
 
-- A timestamped `image_scoring_*.dump` exists under the chosen backup directory and the run exited successfully.
+- A timestamped `image_scoring_*.dump` exists under the chosen backup directory, the run exited successfully, and when using the default workflow above the same filename exists under `D:\Dropbox\Photos\Scoring`.

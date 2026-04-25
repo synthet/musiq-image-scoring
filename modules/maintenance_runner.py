@@ -107,6 +107,10 @@ class MaintenanceRunner:
                 self._action_reconcile(job_id, payload)
             elif action == "backfill_index_meta":
                 self._action_backfill_index_meta(job_id, payload)
+            elif action == "deduplicate_images":
+                self._action_deduplicate_images(job_id, payload)
+            elif action == "heal_folder_ids":
+                self._action_heal_folder_ids(job_id, payload)
             else:
                 runner_emit(self.log_history, job_id, f"Unknown maintenance action: {action}", "ERROR", phase="maintenance")
                 db.update_job_status(job_id, "failed", log=f"Unknown action: {action}")
@@ -236,4 +240,122 @@ class MaintenanceRunner:
         runner_emit(self.log_history, job_id, f"Global Index/Meta backfill (limit={limit})...", phase="maintenance")
         updated = db.backfill_index_meta_global(limit=limit)
         runner_emit(self.log_history, job_id, f"Updated {updated} image(s).", phase="maintenance")
+        db.update_job_progress(job_id, 100)
+
+    def _action_deduplicate_images(self, job_id: int, payload: Dict[str, Any]):
+        limit = payload.get("limit", 1000)
+        dry_run = payload.get("dry_run", False)
+        logger.info("Maintenance deduplicate_images: job_id=%s limit=%s dry_run=%s", job_id, limit, dry_run)
+        runner_emit(self.log_history, job_id, f"Deduplicating images (limit={limit}, dry_run={dry_run})...", phase="maintenance")
+        
+        merged_count = 0
+        
+        # Phase 1: Duplicate paths (same file_path, different IDs)
+        with db.connection() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT file_path FROM images 
+                WHERE file_path IS NOT NULL AND file_path != ''
+                GROUP BY file_path HAVING COUNT(*) > 1
+                FETCH FIRST ? ROWS ONLY
+            """, (limit,))
+            dupe_paths = [r[0] for r in cur.fetchall()]
+        
+        for path in dupe_paths:
+            if self._cancel_requested: break
+            rows = db.get_connector().query("SELECT id, image_hash, hash_version FROM images WHERE file_path = ? ORDER BY id", (path,))
+            if len(rows) < 2: continue
+            
+            # Find the best hash to backfill
+            best_hash_row = next((r for r in rows if (r.get("image_hash") or "").strip()), None)
+            if not best_hash_row:
+                continue
+                
+            h, v = best_hash_row["image_hash"], best_hash_row["hash_version"]
+            others = [r for r in rows if r["id"] != best_hash_row["id"] and not (r.get("image_hash") or "").strip()]
+            
+            for other in others:
+                if not dry_run:
+                    db.get_connector().execute("UPDATE images SET image_hash = ?, hash_version = ? WHERE id = ?", (h, v, other["id"]))
+                merged_count += 1
+                if merged_count % 50 == 0:
+                    runner_emit(self.log_history, job_id, f"Synced {merged_count} path duplicates...", phase="maintenance")
+
+        # Phase 2: Duplicate content in same folder (same hash + folder_id)
+        # This is the "split-brain" case caused by rebasing or re-indexing.
+        # Since we can't delete, we just log these for now or ensure they all have hashes.
+        with db.connection() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT folder_id, image_hash, hash_version FROM images 
+                WHERE image_hash IS NOT NULL AND folder_id IS NOT NULL
+                GROUP BY folder_id, image_hash, hash_version HAVING COUNT(*) > 1
+                FETCH FIRST ? ROWS ONLY
+            """, (limit,))
+            dupe_groups = cur.fetchall()
+            
+        for fid, h, v in dupe_groups:
+            if self._cancel_requested: break
+            rows = db.get_connector().query(
+                "SELECT id, file_path FROM images WHERE folder_id = ? AND image_hash = ? AND hash_version = ? ORDER BY id", 
+                (fid, h, v)
+            )
+            if len(rows) < 2: continue
+            
+            # Since we can't delete, we just log that these are confirmed duplicates.
+            # In a future pass, we could 'deactivate' them by setting a flag.
+            runner_emit(self.log_history, job_id, f"Found {len(rows)} duplicates for hash {h[:8]}... in folder {fid}", phase="maintenance")
+            merged_count += (len(rows) - 1)
+
+        runner_emit(self.log_history, job_id, f"Deduplication (sync mode) completed. {merged_count} records identified/synced.", phase="maintenance")
+        db.update_job_progress(job_id, 100)
+
+    def _action_heal_folder_ids(self, job_id: int, payload: Dict[str, Any]):
+        limit = payload.get("limit", 10000)
+        dry_run = payload.get("dry_run", False)
+        logger.info("Maintenance heal_folder_ids: job_id=%s limit=%s dry_run=%s", job_id, limit, dry_run)
+        runner_emit(self.log_history, job_id, f"Healing folder IDs based on file paths (limit={limit}, dry_run={dry_run})...", phase="maintenance")
+        
+        import os
+        folder_cache = {}
+        updated_count = 0
+        scanned = 0
+        
+        with db.connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT id, file_path, folder_id FROM images FETCH FIRST ? ROWS ONLY", (limit,))
+            rows = cur.fetchall()
+            
+            total = len(rows)
+            for i, row in enumerate(rows):
+                if self._cancel_requested: break
+                scanned += 1
+                
+                img_id = row["id"] if hasattr(row, "keys") or isinstance(row, dict) else row[0]
+                file_path = row["file_path"] if hasattr(row, "keys") or isinstance(row, dict) else row[1]
+                old_fid = row["folder_id"] if hasattr(row, "keys") or isinstance(row, dict) else row[2]
+                
+                if not file_path: continue
+                
+                parent = os.path.normpath(os.path.dirname(file_path))
+                if parent not in folder_cache:
+                    folder_cache[parent] = db.get_or_create_folder(parent)
+                new_fid = folder_cache[parent]
+                
+                if new_fid != old_fid:
+                    if not dry_run:
+                        db.get_connector().execute("UPDATE images SET folder_id = ? WHERE id = ?", (new_fid, img_id))
+                        if old_fid:
+                            db.invalidate_folder_phase_aggregates(folder_id=old_fid)
+                        if new_fid:
+                            db.invalidate_folder_phase_aggregates(folder_id=new_fid)
+                    
+                    updated_count += 1
+                    if updated_count % 100 == 0:
+                        runner_emit(self.log_history, job_id, f"Healed {updated_count} folder IDs...", phase="maintenance")
+                
+                if i % 500 == 0:
+                    db.update_job_progress(job_id, int((i/total)*100))
+
+        runner_emit(self.log_history, job_id, f"Heal folder IDs completed. {updated_count} IDs updated, {scanned} scanned.", phase="maintenance")
         db.update_job_progress(job_id, 100)

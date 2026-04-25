@@ -1,6 +1,6 @@
 # Image Scoring — Project TODO
 
-**Last evaluated:** 2026-04-10
+**Last evaluated:** 2026-04-25
 
 Consolidated backlog (Python backend). **Quick filter:** **[Electron]** = image-scoring-gallery (sibling repo); **[Python]** / **[Gradio]** / **[DB]** = this repo.
 
@@ -19,11 +19,12 @@ Consolidated backlog (Python backend). **Quick filter:** **[Electron]** = image-
 - **Gallery-dependent:** any open line tagged `[Electron]` (cross-repo or gallery-side work).
 - **Backend scope:** open items with **no** `[Electron]` tag (this repository only).
 
-#### Current status snapshot (2026-04-10)
+#### Current status snapshot (2026-04-25)
 
 - **Total open items:** 35
 - **Gallery-dependent (`[Electron]`):** 6  
-- **Backend scope (no `[Electron]`):** 29
+- **Backend scope (no `[Electron]`):** 29  
+- **Recent:** Embedding map multi-space + PCA (App 05 phase 1) shipped — `space_code` & `pca_dim` on `GET /api/embedding_map`, `embedding_space` on `GET /api/similarity/search`, new `GET /api/images/{id}/similar`. See [EMBEDDING_APP_05](docs/plans/embedding/EMBEDDING_APP_05_2D_EMBEDDING_MAP.md) §Phase 1.
 
 ### Highest-Impact Next Steps (recommended sequence)
 

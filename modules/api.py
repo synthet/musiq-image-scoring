@@ -3460,13 +3460,16 @@ def create_api_router() -> APIRouter:
         summary="Find similar images",
         description="""
         Find images visually similar to a given image using embedding-based cosine similarity.
-        
+
         **Query Parameters:**
         - image_id: Required. Integer ID of the query image.
         - limit: Maximum number of results (default: 20).
         - folder_path: Optional. Scope search to a specific folder path.
         - min_similarity: Minimum similarity threshold 0.0-1.0 (default: 0.80).
-        
+        - embedding_space: Optional embedding-space code. Defaults to the
+          1280-d MobileNet space. Non-default codes (e.g.
+          `clip_vit_b32_image`) require PostgreSQL.
+
         **Returns:**
         - query_image_id: ID of the query image
         - results: List of {image_id, file_path, similarity}
@@ -3479,6 +3482,10 @@ def create_api_router() -> APIRouter:
         limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),
         folder_path: Optional[str] = Query(None, description="Scope search to folder"),
         min_similarity: Optional[float] = Query(0.80, ge=0.0, le=1.0, description="Minimum similarity threshold"),
+        embedding_space: Optional[str] = Query(
+            None,
+            description="Embedding-space code (default: mobilenet_v2_imagenet_gap)",
+        ),
     ):
         """Find images similar to the given image by ID (new similarity namespace)."""
         from modules import similar_search, db
@@ -3496,6 +3503,7 @@ def create_api_router() -> APIRouter:
             limit=limit,
             folder_path=folder_path,
             min_similarity=min_similarity,
+            embedding_space=embedding_space,
         )
         if isinstance(result, dict) and "error" in result:
             if "not found" in result["error"].lower():
@@ -3503,11 +3511,14 @@ def create_api_router() -> APIRouter:
             if "no embeddings" in result["error"].lower() or "clustering" in result["error"].lower():
                 raise HTTPException(status_code=400, detail=result["error"])
             raise HTTPException(status_code=400, detail=result["error"])
-        return {
+        payload = {
             "query_image_id": image_id,
             "results": result,
             "count": len(result),
         }
+        if embedding_space is not None:
+            payload["embedding_space"] = embedding_space
+        return payload
 
     # ========== Find Duplicates Endpoints ==========
 
@@ -3557,6 +3568,9 @@ def create_api_router() -> APIRouter:
         limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),
         folder_path: Optional[str] = Query(None, description="Scope search to folder"),
         min_similarity: Optional[float] = Query(0.80, ge=0.0, le=1.0, description="Minimum similarity threshold"),
+        embedding_space: Optional[str] = Query(
+            None, description="Embedding-space code (default: mobilenet_v2_imagenet_gap)"
+        ),
     ):
         """Deprecated alias for similarity search."""
         return get_similar_images_similarity_namespace(
@@ -3564,6 +3578,7 @@ def create_api_router() -> APIRouter:
             limit=limit,
             folder_path=folder_path,
             min_similarity=min_similarity,
+            embedding_space=embedding_space,
         )
 
     @router.get(
@@ -3673,9 +3688,12 @@ def create_api_router() -> APIRouter:
         description="""
         Project image embeddings to 2D coordinates for spatial visualisation.
 
-        Uses UMAP (default) or t-SNE to reduce 1280-d MobileNetV2 embeddings to
-        two dimensions.  Results are cached on disk; pass `refresh=true` to force
-        recomputation.
+        Uses UMAP (default) or t-SNE to reduce embeddings to two dimensions.
+        Defaults to the 1280-d MobileNetV2 space; pass `space_code` to project
+        a non-default space (e.g. `clip_vit_b32_image`, `blip_vit_b16_image`,
+        `bioclip_2_image`). Results are cached on disk per
+        `(folder_path, method, sample_limit, n_neighbors, min_dist, space_code, pca_dim)`;
+        pass `refresh=true` to force recomputation.
 
         **Query Parameters:**
         - folder_path: Optional.  Scope projection to one folder; omit for all images.
@@ -3684,12 +3702,17 @@ def create_api_router() -> APIRouter:
         - sample_limit: Cap the number of images projected (default: config `embedding_map.max_points`).
         - n_neighbors: UMAP/t-SNE neighbourhood size (default: 30).
         - min_dist: UMAP min_dist (default: 0.1, ignored for t-SNE).
+        - space_code: Embedding-space code (default: `mobilenet_v2_imagenet_gap`).
+          Non-default spaces require PostgreSQL.
+        - pca_dim: Optional PCA pre-step target dimension. Omit for auto
+          (50 when source dim >= 1280, off otherwise). `0` disables PCA.
 
         **Returns:**
         - points: List of `{image_id, x, y, file_path, thumbnail_path, label, rating, score_general}`.
-        - meta: `{count, method, computed_at, cache_key}`.
+        - meta: `{count, method, computed_at, cache_key, embedding_space, pca_dim}`.
           When too few images are available `meta.error == "too_few_points"` and
-          `points` is empty.
+          `points` is empty. Unknown `space_code` returns
+          `meta.error == "unknown_embedding_space"`.
         """,
         tags=["Similarity"],
     )
@@ -3700,6 +3723,16 @@ def create_api_router() -> APIRouter:
         sample_limit: Optional[int] = Query(None, ge=1, le=50000, description="Max images to project"),
         n_neighbors: int = Query(30, ge=2, le=200, description="UMAP/t-SNE neighbourhood size"),
         min_dist: float = Query(0.1, ge=0.0, le=1.0, description="UMAP min_dist parameter"),
+        space_code: Optional[str] = Query(
+            None,
+            description="Embedding-space code (default: mobilenet_v2_imagenet_gap)",
+        ),
+        pca_dim: Optional[int] = Query(
+            None,
+            ge=0,
+            le=512,
+            description="PCA target dim before UMAP/t-SNE; omit=auto, 0=off",
+        ),
     ):
         """Return 2D projection of image embeddings."""
         if method not in ("umap", "tsne"):
@@ -3713,6 +3746,8 @@ def create_api_router() -> APIRouter:
                 sample_limit=sample_limit,
                 n_neighbors=n_neighbors,
                 min_dist=min_dist,
+                embedding_space=space_code,
+                pca_dim=pca_dim,
             )
             return ApiResponse(success=True, message="OK", data=result)
         except Exception as exc:
@@ -3969,6 +4004,70 @@ def create_api_router() -> APIRouter:
             folder_path=folder_path,
             stack_id=stack_id,
         )
+
+    @router.get(
+        "/images/{image_id}/similar",
+        summary="k-NN visually-similar images for a single image",
+        description="""
+        Returns the top-k visually similar images to ``{image_id}`` using
+        embedding cosine similarity. RESTful path-parameter form of
+        `GET /api/similarity/search?image_id=...`.
+
+        Note: do **not** confuse with `/images/{image_id}/neighbors`, which
+        returns prev/next IDs for sorted-list navigation.
+
+        **Path parameters:**
+        - image_id: ID of the query image.
+
+        **Query parameters:**
+        - limit: Max results (default 20).
+        - folder_path: Restrict to a folder.
+        - min_similarity: Minimum cosine-similarity threshold (default 0.80).
+        - embedding_space: Optional embedding-space code (default
+          `mobilenet_v2_imagenet_gap`). Non-default codes require PostgreSQL.
+        """,
+        tags=["Similarity"],
+    )
+    async def get_image_similar(
+        image_id: int,
+        limit: int = Query(20, ge=1, le=100, description="Max results"),
+        folder_path: Optional[str] = Query(None, description="Scope search to folder"),
+        min_similarity: Optional[float] = Query(
+            0.80, ge=0.0, le=1.0, description="Minimum similarity threshold"
+        ),
+        embedding_space: Optional[str] = Query(
+            None, description="Embedding-space code (default: mobilenet_v2_imagenet_gap)"
+        ),
+    ):
+        from modules import similar_search, db
+
+        conn = db.get_db()
+        try:
+            c = conn.cursor()
+            c.execute("SELECT id FROM images WHERE id = ?", (image_id,))
+            if c.fetchone() is None:
+                raise HTTPException(status_code=404, detail=f"Image not found: id={image_id}")
+        finally:
+            conn.close()
+
+        result = similar_search.search_similar_images(
+            example_image_id=image_id,
+            limit=limit,
+            folder_path=folder_path,
+            min_similarity=min_similarity,
+            embedding_space=embedding_space,
+        )
+        if isinstance(result, dict) and "error" in result:
+            err = result["error"].lower()
+            if "not found" in err:
+                raise HTTPException(status_code=404, detail=result["error"])
+            raise HTTPException(status_code=400, detail=result["error"])
+        return {
+            "query_image_id": image_id,
+            "results": result,
+            "count": len(result),
+            "embedding_space": embedding_space,
+        }
 
     @router.get(
         "/folders",

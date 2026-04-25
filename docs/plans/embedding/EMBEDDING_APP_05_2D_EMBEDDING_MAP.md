@@ -106,13 +106,13 @@ Response:
 
 The original v1 above shipped for the default 1280-d MobileNet space only. With Alembic `0012` adding 512-d (CLIP, BioCLIP) and 768-d (BLIP) per-dim fact tables (see [DB_VECTORS_REFACTOR.md](../database/DB_VECTORS_REFACTOR.md)), the natural next steps are:
 
-### Phase 1 — multi-space + PCA on the existing endpoint (low risk)
+### Phase 1 — multi-space + PCA on the existing endpoint (✅ shipped 2026-04-25)
 
-- **`modules/projections.compute_embedding_map`** gains `embedding_space: str = DEFAULT_EMBEDDING_SPACE_CODE` and `pca_dim: int | None = 50`. PCA pre-step (sklearn) defaults on for ≥1280-d, off below; speeds and stabilizes UMAP without changing the visual story.
-- **New helper `modules/projections_db.get_embeddings_with_metadata_for_space(space_code, …)`** — mirrors `db.get_embeddings_with_metadata` but reads from the per-dim table chosen by `_pg_embedding_table_for_dim`. Lives in its own module per CLAUDE.md guidance to avoid growing `db_legacy.py`.
-- **`GET /api/embedding_map`** gains `space_code` (default `mobilenet_v2_imagenet_gap`) and `pca_dim`; both bake into the disk-cache key so a CLIP map and a MobileNet map don't clobber each other.
-- **REST parity for similarity:** `GET /api/similarity/search` gains `embedding_space`, forwarded to `search_similar_images`. New endpoint `GET /api/images/{id}/similar` (k-NN; **not** `/{id}/neighbors`, which is already taken by prev/next gallery navigation).
-- Tests follow the `tests/test_api_embedding_map.py` pattern with `space_code=clip_vit_b32_image` cases and PCA shape/determinism assertions. No schema changes; no new dependency.
+- **`modules/projections.compute_embedding_map`** accepts `embedding_space=None` (defaults to `DEFAULT_EMBEDDING_SPACE_CODE`) and `pca_dim=None` (auto: 50 for source dim ≥ 1280, off below; pass `0` to disable explicitly).
+- **New helper `modules/projections_db.get_embeddings_with_metadata_for_space(space_code, …)`** — delegates to `db.get_embeddings_with_metadata` for the default space (so the legacy-column fallback still applies) and reads straight from the per-dim fact table chosen by `_pg_embedding_table_for_dim` for non-default spaces. Lives in its own module per CLAUDE.md guidance to avoid growing `db_legacy.py`. Postgres-only for non-default spaces.
+- **`GET /api/embedding_map`** accepts `space_code` and `pca_dim`; both bake into the disk-cache key so a CLIP map and a MobileNet map don't clobber each other. Unknown `space_code` returns `meta.error == "unknown_embedding_space"`.
+- **REST parity for similarity:** `GET /api/similarity/search` accepts `embedding_space`, forwarded to `search_similar_images`. New endpoint `GET /api/images/{image_id}/similar` (k-NN; deliberately distinct from `/{id}/neighbors`, which is prev/next gallery navigation).
+- Tests in `tests/test_api_embedding_map.py` cover non-default routing through `projections_db`, PCA on/off/explicit, unknown space, the new `/similar` endpoint (happy + 404), and cache-key separation.
 
 ### Phase 2 — persistent projections + HDBSCAN (opt-in)
 

@@ -10,7 +10,7 @@ This document summarizes the current implementation status and the **true remain
 | 02 | Near-Duplicate Detection | **Implemented** | `similar_search.py` (`find_near_duplicates`). |
 | 03 | Tag Propagation | **Implemented** | `tagging.py` (`propagate_tags`). |
 | 04 | Outlier Detection | **Implemented** | `similar_search.py` (`find_outliers`). |
-| 05 | 2D Embedding Map | **Backend v1 Implemented / Multi-space + UI roadmapped** | Projection service exists in `modules/projections.py`; API exposed at `GET /api/embedding_map`; coverage in `tests/test_api_embedding_map.py`. v1 covers the default 1280-d MobileNet space only. Multi-space (CLIP-512 / BLIP-768), optional PCA pre-step, HDBSCAN clustering, persistent projections table, and the React atlas UI are phased follow-ups — see [EMBEDDING_APP_05_2D_EMBEDDING_MAP.md](EMBEDDING_APP_05_2D_EMBEDDING_MAP.md) §Roadmap. |
+| 05 | 2D Embedding Map | **Backend v1 + Phase 1 multi-space shipped / Persistent + UI pending** | Projection service in `modules/projections.py`; `GET /api/embedding_map` accepts `space_code` and `pca_dim`. Multi-space reads via `modules/projections_db.get_embeddings_with_metadata_for_space`. Coverage in `tests/test_api_embedding_map.py`. Persistent projections table + HDBSCAN (phase 2) and React atlas UI (phase 3) remain — see [EMBEDDING_APP_05_2D_EMBEDDING_MAP.md](EMBEDDING_APP_05_2D_EMBEDDING_MAP.md) §Roadmap. |
 | 06 | Smart Stack Representative | **Implemented** | Centroid representative selection is implemented in `modules/clustering.py` (`_select_best_image`, `stack_representative_strategy`). |
 | 07 | "More Like This" UI | **Partial** | Search logic and REST API exist; UI wiring is still needed. |
 | 08 | Gradio Integration | **Partial** | Backend APIs exist, but bidirectional control and orchestration work remain. |
@@ -31,12 +31,13 @@ Similarity REST routes (search, duplicates, outliers) are listed in the root [TO
 
 ## Remaining Work (True Gaps Only)
 
-### 1) Embedding-map multi-space (App 05, phase 1 — low risk, no schema)
-- Add `embedding_space` + optional `pca_dim` parameters to `compute_embedding_map` and `GET /api/embedding_map`; bake both into the disk-cache key.
-- New helper `modules/projections_db.get_embeddings_with_metadata_for_space(space_code, …)` reading from `image_embeddings_512` / `_768` via `_pg_embedding_table_for_dim`.
-- Add `embedding_space` to `GET /api/similarity/search` (REST parity with the MCP tool).
-- New `GET /api/images/{id}/similar` k-NN endpoint (do **not** use `/{id}/neighbors` — taken by prev/next nav).
-- Tests extend `tests/test_api_embedding_map.py` with `space_code=clip_vit_b32_image` and PCA shape/determinism cases. No new dependencies.
+### 1) Embedding-map multi-space (App 05, phase 1 — ✅ shipped)
+- `compute_embedding_map(embedding_space=…, pca_dim=…)` and `GET /api/embedding_map?space_code=&pca_dim=` route through new helper `modules/projections_db.get_embeddings_with_metadata_for_space`. Both params bake into the disk-cache key.
+- PCA pre-step (sklearn) is auto-on for source dim ≥ 1280, off below; `pca_dim=0` disables explicitly.
+- `GET /api/similarity/search` now accepts `embedding_space` (REST parity with the MCP tool).
+- New `GET /api/images/{image_id}/similar` k-NN endpoint (separate from `/{id}/neighbors`, which stays prev/next nav).
+- Coverage in `tests/test_api_embedding_map.py` (multi-space routing, PCA on/off/explicit, unknown space, `/similar` happy + 404).
+- Out of scope here (phase 2): persistent projections + HDBSCAN; phase 3: React atlas UI.
 
 ### 2) Persistent projections + HDBSCAN (App 05, phase 2 — opt-in)
 - Alembic `0013` introduces `image_embedding_projections (image_id, embedding_space_id, projection_method, projection_version, x, y, z, cluster_id, updated_at)` with a deterministic `projection_version` hash. Mirror DDL in `db_postgres._init_db_transaction()`.

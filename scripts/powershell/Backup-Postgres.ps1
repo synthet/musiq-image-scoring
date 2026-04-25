@@ -16,19 +16,29 @@
     Defaults to <project root>\backups\postgres.
 
 .PARAMETER RetentionDays
-    Delete dumps older than this many days. Set to 0 to skip cleanup.
+    Delete dumps older than this many days in -BackupDir. Set to 0 to skip cleanup.
     Default: 30.
+
+.PARAMETER MirrorDir
+    If set, copy the finished .dump here (e.g. Dropbox). Empty skips mirror.
+
+.PARAMETER MirrorRetentionDays
+    When -MirrorDir is set, delete mirror copies of ${dbname}_*.dump older than this many days.
+    Set to 0 to skip mirror cleanup. Default: 7.
 
 .EXAMPLE
     .\Backup-Postgres.ps1
     .\Backup-Postgres.ps1 -RetentionDays 7
     .\Backup-Postgres.ps1 -BackupDir D:\Backups\postgres -RetentionDays 0
+    .\Backup-Postgres.ps1 -MirrorDir "D:\Dropbox\Photos\Scoring" -MirrorRetentionDays 7
 #>
 [CmdletBinding()]
 param(
     [string]$ConfigPath   = $null,
     [string]$BackupDir    = $null,
-    [int]   $RetentionDays = 30
+    [int]   $RetentionDays = 30,
+    [string]$MirrorDir    = $null,
+    [int]   $MirrorRetentionDays = 7
 )
 
 if ([string]::IsNullOrEmpty($PSScriptRoot)) {
@@ -227,6 +237,47 @@ if (-not (Test-Path $DumpFile) -or (Get-Item $DumpFile).Length -eq 0) {
 
 $sizeMB = [math]::Round((Get-Item $DumpFile).Length / 1MB, 2)
 Write-OK ('Dump complete: {0} ({1} MB)' -f $DumpFile, $sizeMB)
+
+# ---------------------------------------------------------------------------
+# Optional mirror copy (e.g. Dropbox) + mirror retention
+# ---------------------------------------------------------------------------
+
+if (-not [string]::IsNullOrWhiteSpace($MirrorDir)) {
+    $MirrorDir = [System.IO.Path]::GetFullPath($MirrorDir.Trim())
+    if (-not (Test-Path $MirrorDir)) {
+        Write-Step "Creating mirror directory: $MirrorDir"
+        New-Item -ItemType Directory -Path $MirrorDir -Force | Out-Null
+    }
+    $mirrorFile = Join-Path $MirrorDir ([System.IO.Path]::GetFileName($DumpFile))
+    Write-Step "Copying dump to mirror: $mirrorFile"
+    Copy-Item -LiteralPath $DumpFile -Destination $mirrorFile -Force
+    if (-not (Test-Path $mirrorFile) -or (Get-Item $mirrorFile).Length -eq 0) {
+        Write-Fail "Mirror copy missing or empty: $mirrorFile"
+        exit 1
+    }
+    $mMB = [math]::Round((Get-Item $mirrorFile).Length / 1MB, 2)
+    Write-OK ('Mirror copy complete: {0} ({1} MB)' -f $mirrorFile, $mMB)
+
+    if ($MirrorRetentionDays -gt 0) {
+        Write-Step "Pruning mirror dumps older than $MirrorRetentionDays days..."
+        $mCutoff = (Get-Date).AddDays(-$MirrorRetentionDays)
+        $mPruned = 0
+        Get-ChildItem -Path $MirrorDir -Filter "${PgDb}_*.dump" -File |
+            Where-Object { $_.LastWriteTime -lt $mCutoff } |
+            ForEach-Object {
+                Write-Host "    Removing (mirror): $($_.Name)"
+                Remove-Item $_.FullName -Force
+                $mPruned++
+            }
+        if ($mPruned -eq 0) {
+            Write-Host "    Nothing to prune in mirror."
+        } else {
+            Write-OK "Pruned $mPruned old dump(s) from mirror."
+        }
+    } else {
+        Write-Host "    Mirror retention cleanup skipped (MirrorRetentionDays=0)."
+    }
+}
 
 # ---------------------------------------------------------------------------
 # Retention cleanup

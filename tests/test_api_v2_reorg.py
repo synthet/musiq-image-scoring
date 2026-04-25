@@ -34,15 +34,15 @@ def _mock_db_image_exists(monkeypatch):
     monkeypatch.setattr(db, "get_db", lambda: mock_conn)
 
 def test_similarity_search_new_endpoint(monkeypatch):
-    def mock_search(example_image_id, limit, folder_path, min_similarity):
+    def mock_search(example_image_id, limit, folder_path, min_similarity, embedding_space=None):
         return [{"id": 123, "similarity": 0.95}]
-    
+
     monkeypatch.setattr(similar_search, "search_similar_images", mock_search)
     _mock_db_image_exists(monkeypatch)
-    
+
     with _build_client() as client:
         response = client.get("/api/similarity/search?image_id=1")
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["query_image_id"] == 1
@@ -50,7 +50,7 @@ def test_similarity_search_new_endpoint(monkeypatch):
     assert data["count"] == 1
 
 def test_similarity_search_alias(monkeypatch):
-    def mock_search(example_image_id, limit, folder_path, min_similarity):
+    def mock_search(example_image_id, limit, folder_path, min_similarity, embedding_space=None):
         return [{"id": 123, "similarity": 0.95}]
     
     monkeypatch.setattr(similar_search, "search_similar_images", mock_search)

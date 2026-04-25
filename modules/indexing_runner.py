@@ -474,10 +474,34 @@ class IndexingRunner:
                 existing = db.get_image_by_hash(image_hash, hash_version)
                 if existing:
                     image_id = existing.get("id")
+                    
+                    # Handle split-brain duplicates: if we were tracking by path (track_id)
+                    # but found a match by hash (image_id), we should sync them.
+                    if track_id and track_id != image_id:
+                        try:
+                            # Instead of deleting (per user request), we backfill the hash 
+                            # into the path-based record so it stops triggering the healer.
+                            t_row = db.get_connector().query_one("SELECT image_hash FROM images WHERE id = ?", (track_id,))
+                            if t_row and not (t_row.get("image_hash") or "").strip():
+                                db.get_connector().execute(
+                                    "UPDATE images SET image_hash = ?, hash_version = ? WHERE id = ?", 
+                                    (image_hash, hash_version, track_id)
+                                )
+                                log("INFO", f"Synced duplicate path-only record id={track_id} with hash from id={image_id}")
+                                # Invalidate aggregates for the folder
+                                tid_fid = (existing_by_path or {}).get("folder_id")
+                                if tid_fid:
+                                    db.invalidate_folder_phase_aggregates(folder_id=tid_fid)
+                        except Exception as e:
+                            log("WARNING", f"Failed to sync duplicate record {track_id}: {e}")
+
                     db.register_image_path(image_id, file_path)
+                    # Update primary path to the one we are currently scanning
+                    db.update_image_field(image_id, "file_path", file_path)
+                    
                     _assign_indexing_folder_id(image_id, file_path, scan_stop, nef_cache)
                     _persist_indexing_content_fp(int(image_id), file_path, cfg_mode)
-                    log("DEBUG", f"Registered path for existing hash image_id={image_id}: {file_path}")
+                    log("DEBUG", f"Registered path and updated record image_id={image_id}: {file_path}")
                 else:
                     resolved_folder = _resolve_nef_folder_path(file_path, scan_stop, nef_cache)
                     folder_id = db.get_or_create_folder(resolved_folder) if resolved_folder else None
