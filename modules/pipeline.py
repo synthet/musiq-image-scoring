@@ -19,9 +19,8 @@ from modules import config as app_config
 from modules.phases import PhaseCode, PhaseStatus
 from modules.version import APP_VERSION
 from modules.run_log import emit_run_log
-# Lazy imports — these pull in TensorFlow/PyTorch and are deferred to avoid
-# slow top-level loads (and to let tests that don't need GPU models collect).
-# Actual imports happen in ScoringWorker.__init__ where they are used.
+# Lazy imports — TensorFlow/PyTorch live behind ScoringWorker._get_liqe_scorer()
+# so tests that only exercise phase gating or prep paths need not import LIQE.
 
 # Setup logging
 logging.basicConfig(
@@ -312,13 +311,19 @@ class ScoringWorker(PipelineWorker):
     def __init__(self, input_queue, output_queue, stop_event, scorer_instance, liqe_scorer=None):
         super().__init__("ScoringWorker", input_queue, output_queue, stop_event)
         self.scorer = scorer_instance # The actual loaded heavy model
-        if liqe_scorer is not None:
-            self.liqe_scorer = liqe_scorer
-        else:
-            from modules.liqe import LiqeScorer
-            self.liqe_scorer = LiqeScorer()
+        # None => lazily construct LiqeScorer on first LIQE use (keeps ml imports out of __init__).
+        self._liqe_scorer_explicit = liqe_scorer
+        self._liqe_scorer_lazy = None
 
-        
+    def _get_liqe_scorer(self):
+        if self._liqe_scorer_explicit is not None:
+            return self._liqe_scorer_explicit
+        if self._liqe_scorer_lazy is None:
+            from modules.liqe import LiqeScorer
+
+            self._liqe_scorer_lazy = LiqeScorer()
+        return self._liqe_scorer_lazy
+
     def process(self, job: ImageJob):
         if job.status in ["skipped", "failed"]:
             self.output_queue.put(job)
@@ -385,7 +390,7 @@ class ScoringWorker(PipelineWorker):
         if "liqe" not in external:
             try:
                 path = external.get("_liqe_preprocess_path") or job.process_path
-                liqe_result = self.liqe_scorer.predict(path)
+                liqe_result = self._get_liqe_scorer().predict(path)
                 external["liqe"] = liqe_result
             except Exception as e:
                 logger.error(f"LIQE failed for {job.image_path}: {e}")

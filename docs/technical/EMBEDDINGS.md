@@ -105,6 +105,14 @@ The `embeddings` section in `config.json` gates per-model persistence and pins t
 }
 ```
 
+### Operational notes (gotchas)
+
+- **`get_embedding_space_id` caches positive hits only.** A miss (Postgres engine not active, registry row not yet seeded by Alembic, or transient DB error) does *not* poison the cache; the next call performs a fresh DB lookup. A long-running webui/runner started before a `0012`-style migration runs will recover automatically once the migration completes.
+- **`BLIP_768` only fills when captions are generated.** `CaptionGenerator.generate(extract_embedding=True)` is the producer, and the runner only sets `extract_embedding=True` when `generate_captions=True`. Tagging-only jobs leave `image_embeddings_768` empty by design — BLIP's vision tower is only worth running when a caption is already needed.
+- **`BIOCLIP_512` only fills during bird-species jobs.** `BirdSpeciesRunner` is the only writer. Empty rows for `bioclip_2_image` are usually "no bird-species job ran", not a defect.
+- **Shared `tagging_engine` path does not extract embeddings yet.** `TaggingRunner(tagging_engine=...)` skips the `_persist_tagging_embeddings` call (the engine doesn't surface `last_image_embedding`). Production call sites use `TaggingRunner()` with no engine and persist correctly; the runner emits a one-time `WARNING` per instance if persist flags are enabled on the engine path so the gap is discoverable.
+- **Persist failures log at `WARNING`.** Earlier code logged at `DEBUG`, hiding real upsert errors at default log levels. If an `image_embeddings_*` table is mysteriously empty, `grep "embedding upsert failed\|embedding persist failed" webui.log` first.
+
 ## Related code
 
 - [`modules/embedding_spaces.py`](../../modules/embedding_spaces.py) — default space code, `get_default_embedding_space_id()`

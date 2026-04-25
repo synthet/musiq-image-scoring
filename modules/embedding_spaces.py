@@ -37,6 +37,13 @@ _space_id_by_code_cache: dict[str, int | None] = {}
 
 
 def get_default_embedding_space_id() -> int | None:
+    """Return embedding_spaces.id for the default 1280-d space (Postgres only).
+
+    Only positive results are cached. A miss (engine != postgres, registry row
+    not found, or unexpected error) falls through to a fresh DB lookup on the
+    next call so a process started before the relevant Alembic migration ran
+    will recover automatically as soon as the registry catches up.
+    """
     global _space_id_cache
     if _space_id_cache is not None:
         return _space_id_cache
@@ -50,8 +57,10 @@ def get_default_embedding_space_id() -> int | None:
             "SELECT id FROM embedding_spaces WHERE code = %s AND COALESCE(active, 1) = 1 LIMIT 1",
             (DEFAULT_EMBEDDING_SPACE_CODE,),
         )
-        _space_id_cache = int(row["id"]) if row else None
-        return _space_id_cache
+        if row:
+            _space_id_cache = int(row["id"])
+            return _space_id_cache
+        return None
     except (AttributeError, TypeError, ValueError) as e:
         logger.warning(f"Failed to load default embedding space: {e}")
         return None
@@ -61,28 +70,34 @@ def get_default_embedding_space_id() -> int | None:
 
 
 def get_embedding_space_id(code: str) -> int | None:
-    """Return embedding_spaces.id for ``code`` (Postgres only), cached by code."""
+    """Return embedding_spaces.id for ``code`` (Postgres only).
+
+    Only positive hits are cached — see ``get_default_embedding_space_id`` for
+    the rationale. Lookup is a PK read on a tiny table so retrying on misses
+    is essentially free.
+    """
     if code == DEFAULT_EMBEDDING_SPACE_CODE:
         return get_default_embedding_space_id()
-    if code in _space_id_by_code_cache:
-        return _space_id_by_code_cache[code]
+    cached = _space_id_by_code_cache.get(code)
+    if cached is not None:
+        return cached
     try:
         from modules import db
         from modules import db_postgres
 
         if db._get_db_engine() != "postgres":
-            _space_id_by_code_cache[code] = None
             return None
         row = db_postgres.execute_select_one(
             "SELECT id FROM embedding_spaces WHERE code = %s AND COALESCE(active, 1) = 1 LIMIT 1",
             (code,),
         )
-        sid = int(row["id"]) if row else None
-        _space_id_by_code_cache[code] = sid
-        return sid
+        if row:
+            sid = int(row["id"])
+            _space_id_by_code_cache[code] = sid
+            return sid
+        return None
     except Exception as e:
         logger.error(f"Unexpected error loading embedding space {code!r}: {e}")
-        _space_id_by_code_cache[code] = None
         return None
 
 

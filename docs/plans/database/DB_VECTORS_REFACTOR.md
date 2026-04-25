@@ -93,21 +93,24 @@ The `image-scoring-gallery` (Electron) application is a major consumer of the `i
 
 ---
 
-## As implemented (PostgreSQL) — registry + `image_embeddings`
+## As implemented (PostgreSQL) — registry + per-dimension fact tables
 
-Physical storage follows a **registry + keyed fact table** (closest to plan **Pattern B** for a single 1280-d family), not separate physical tables per model:
+Physical storage is a **hybrid of plan Pattern B (per dim family)** plus a Pattern A-style legacy column. One central registry governs valid space codes; each dimension family lives in its own fact table so `vector(N)` can stay fixed per-table:
 
 | Object | Role |
 |--------|------|
-| `embedding_spaces` | Registry: `code`, `dim`, `description`, `active`; seeded with `mobilenet_v2_imagenet_gap` (1280). |
-| `image_embeddings` | `(image_id, embedding_space_id)` unique; `embedding vector(1280)`; optional `model_version`, `updated_at`; HNSW on `embedding`. |
-| `images.image_embedding` | **Legacy / dual-write** column; readers use `COALESCE(ie.embedding, i.image_embedding)` where applicable. |
+| `embedding_spaces` | Registry: `code`, `dim`, `description`, `active`. Seeded with `mobilenet_v2_imagenet_gap` (1280), `clip_vit_b32_image` (512), `bioclip_2_image` (512), `blip_vit_b16_image` (768). |
+| `image_embeddings` | 1280-d fact table (legacy name kept for the original family). `(image_id, embedding_space_id)` unique; `embedding vector(1280)`; HNSW cosine. |
+| `image_embeddings_512` | 512-d fact table for CLIP / BioCLIP. Same shape; `embedding vector(512)`; HNSW cosine; `UNIQUE(image_id, embedding_space_id)`. |
+| `image_embeddings_768` | 768-d fact table for BLIP. Same shape; `embedding vector(768)`; HNSW cosine. |
+| `images.image_embedding` | **Legacy / dual-write** column for the 1280-d space; readers use `COALESCE(ie.embedding, i.image_embedding)` where applicable. |
 
-- **DDL / greenfield:** [`modules/db_postgres.py`](../../modules/db_postgres.py) `init_db()`.
-- **Upgrade path:** Alembic [`migrations/versions/0004_embedding_spaces_image_embeddings.py`](../../migrations/versions/0004_embedding_spaces_image_embeddings.py) (creates tables, index, seed, backfill from `images.image_embedding`).
-- **Constants / space id cache:** [`modules/embedding_spaces.py`](../../modules/embedding_spaces.py).
+- **DDL / greenfield:** [`modules/db_postgres.py`](../../../modules/db_postgres.py) `_init_db_transaction()` — creates all four embedding tables, HNSW indexes, and seeds the four registry rows; mirrored in `POSTGRES_APP_TABLES` for truncate order.
+- **Upgrade path:** Alembic [`0004_embedding_spaces_image_embeddings.py`](../../../migrations/versions/0004_embedding_spaces_image_embeddings.py) created the 1280-d table + backfill from `images.image_embedding`. [`0012_multi_dim_image_embeddings.py`](../../../migrations/versions/0012_multi_dim_image_embeddings.py) added the 512-d and 768-d fact tables and seeded the three new registry rows.
+- **Constants / space id cache:** [`modules/embedding_spaces.py`](../../../modules/embedding_spaces.py) — `SPACE_DIMS`, `get_embedding_space_id` (caches positive hits only; misses fall through to a fresh DB lookup, so a process started before its registry row was seeded recovers automatically).
+- **Dim → table routing:** [`modules/db_legacy.py`](../../../modules/db_legacy.py) `_pg_embedding_table_for_dim(dim)` — `1280 → image_embeddings`, `512 → image_embeddings_512`, `768 → image_embeddings_768`.
 
-**Adding a second dimension (e.g. 512-d CLIP)** still requires a **new `vector(N)` column or new table** (pgvector rule); the current `image_embeddings.embedding` is fixed at 1280.
+**Adding a fourth dimension family (e.g. 1024-d)** requires touching four places — see *Adding a new dim family* in the operational notes below.
 
 ---
 
@@ -125,6 +128,9 @@ Physical storage follows a **registry + keyed fact table** (closest to plan **Pa
 | 2026-04-23 | Piggyback | New `modules/embeddings_extract.py` with pure L2-normalizing helpers for CLIP (`image_embeds`), BLIP (`vision_model.pooler_output`), and BioCLIP (`encode_image`). `KeywordScorer.predict`, `CaptionGenerator.generate(extract_embedding=...)`, and `BioCLIPClassifier.classify` now capture `last_image_embedding`; `TaggingRunner` and `BirdSpeciesRunner` flush via `update_image_embeddings_batch_for_space` in best-effort try/except gated by the new `embeddings.persist_*` config flags. `model_version` is read from `embeddings.model_versions.*`. |
 | 2026-04-23 | Consumers | `modules/similar_search.search_similar_images(..., embedding_space=None)` dispatches to a Postgres-only helper that reads from the per-dim table. MCP `search_similar_images` forwards the new param; MCP `get_embedding_stats` accepts `embedding_space` and, when unset, also returns a `per_space` coverage breakdown. |
 | 2026-04-23 | Tests | `tests/test_postgres_integration.py` asserts the two new tables, seeded registry rows, HNSW indexes, unique constraints, and upsert + dim-validation semantics. New `tests/test_embeddings_multi_space.py` covers the pure extractors, `_pg_embedding_table_for_dim` routing, registry-mismatch `ValueError`, non-Postgres no-op, and the `TaggingRunner._persist_tagging_embeddings` flag gating with mocks. |
+| 2026-04-24 | Diagnostics | Investigated empty `image_embeddings_512` / `_768` tables on a live DB after v7.4.8: registry has all four spaces (migration `0012` ran), keywords jobs ran post-release (last on 2026-04-24, 53,728 `image_phase_status` rows `done`), but `webui.log` showed zero embedding-persist lines. Root cause: silent failure path — webui process started before migration `0012` seeded the new spaces, `get_embedding_space_id` cached `None` for the three codes, and every persist call no-oped at the registry-miss guard in `update_image_embeddings_batch_for_space`. |
+| 2026-04-24 | `embedding_spaces.py` | `get_default_embedding_space_id` and `get_embedding_space_id` now cache *positive* hits only — misses fall through to a fresh DB lookup on the next call. A long-running process started before its registry rows were seeded recovers automatically once the migration completes; no restart required. The unused `invalidate_default_embedding_space_cache()` helper was retained but is no longer load-bearing. |
+| 2026-04-24 | `tagging.py` | `_persist_tagging_embeddings` and the outer best-effort wrapper in `_run_batch_internal` now log persist failures at `WARNING` instead of `DEBUG`, so real upsert errors (dim mismatch, connection, schema drift) appear in `webui.log` at default log levels. Added a one-time `WARNING` per `TaggingRunner` instance when the shared-engine path is taken with `embeddings.persist_clip_image` / `persist_blip_image` enabled — production paths use `TaggingRunner()` with no engine arg and are unaffected; tests / agent integrations now discover the gap visibly. |
 
 ### Follow-ups (completed)
 
@@ -136,9 +142,32 @@ Physical storage follows a **registry + keyed fact table** (closest to plan **Pa
 
 ### Remaining optional work
 
-- **Tests:** `tests/test_postgres_integration.py` — optionally assert presence of `embedding_spaces` / `image_embeddings` alongside core tables.
-- **Scripts:** `populate_missing_embeddings.py` — optional CLI `--embedding-space` for future non-default spaces.
+- **Scripts:** `populate_missing_embeddings.py` — optional CLI `--embedding-space` for backfilling the 512-d / 768-d spaces. Today only piggyback writes populate them; new spaces have no offline backfill helper.
 - **Cleanup:** Remove any leftover one-off patch scripts under `tools/` used during bring-up (e.g. `run_vec.py`, `vec_apply.py`) if still present.
+
+---
+
+## Operational notes (gotchas for the next implementer)
+
+**Cache staleness on long-running processes.** `get_embedding_space_id(code)` only caches *positive* hits. A miss (engine wasn't Postgres at first call, registry row not yet seeded, transient DB error) falls through to a real DB lookup next time, so a webui / runner started before an Alembic migration adds new spaces will recover automatically once the migration completes — no restart strictly required. If you ever change this to negative-cache, also wire `invalidate_default_embedding_space_cache()` (currently unreferenced) into a post-migration hook.
+
+**Shared-engine code path doesn't persist embeddings yet.** `TaggingRunner` only calls `_persist_tagging_embeddings` on the non-`tagging_engine` branch (separate `KeywordScorer` + `CaptionGenerator`). The shared-engine path (`engines/base.py`) currently doesn't expose `last_image_embedding`, so CLIP/BLIP rows never get written through it. Production call sites (`cli.py`, `modules/ui/app.py`, `scripts/python/heal_folders.py`) all use the non-engine path and persist correctly. A WARNING is emitted once per runner instance if the engine path is taken with persist flags enabled, so the gap is discoverable.
+
+**BLIP-768 only fills when captions are generated.** `CaptionGenerator.generate(extract_embedding=True)` is what populates `last_image_embedding`. If a tagging job runs with `generate_captions=False` (the default in some flows), `image_embeddings_768` will not grow even when CLIP embeddings are landing in `image_embeddings_512`. This is by design — BLIP's vision tower is only worth running when we already need a caption.
+
+**BioCLIP-512 only fills during bird-species jobs.** `BirdSpeciesRunner` is the only writer. Empty `image_embeddings_512` rows for `bioclip_2_image` are usually "no bird-species job has run", not a defect.
+
+**Firebird parity stance.** Multi-vector storage is **Postgres-only**. Firebird retains the single-BLOB `IMAGES.IMAGE_EMBEDDING` column (1280-d MobileNet only) until the gallery (`image-scoring-gallery`) migrates to Postgres. New per-model embeddings will not be visible to Electron until that cutover.
+
+### Adding a new dim family (e.g. 1024-d)
+
+Five touch-points must agree — `_pg_embedding_table_for_dim` raises `ValueError` and registers a no-op upsert if any one is missed:
+
+1. `modules/embedding_spaces.py` — add the `*_SPACE_CODE` / `*_DIM` constants and an entry in `SPACE_DIMS`.
+2. New Alembic revision under `migrations/versions/` — `CREATE TABLE image_embeddings_1024 (…)`, HNSW cosine index, `UNIQUE(image_id, embedding_space_id)`, seed an `embedding_spaces` row.
+3. `modules/db_postgres.py` — mirror the new DDL + seed in `_init_db_transaction()`; add `image_embeddings_1024` to `POSTGRES_APP_TABLES` (truncate order).
+4. `modules/db_legacy.py` `_pg_embedding_table_for_dim(dim)` — extend the dim → table map.
+5. Tests — extend `tests/test_postgres_integration.py` to assert the new table + registry row.
 
 ---
 

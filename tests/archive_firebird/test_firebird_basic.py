@@ -1,6 +1,5 @@
 
 import os
-import sys
 import subprocess
 import pytest
 from firebird.driver import connect
@@ -13,12 +12,17 @@ def basic_db_path():
     """Fixture that creates and cleans up a basic Firebird database."""
     import time
     import gc
+
+    if not os.path.isfile(FB_DLL):
+        pytest.skip("Firebird fbclient.dll not found under Firebird/")
+    ISQL_EXE = os.path.join(FB_DIR, "isql.exe")
+    if not os.path.isfile(ISQL_EXE):
+        pytest.skip(f"Firebird isql.exe not found at {ISQL_EXE}")
+
     timestamp = int(time.time())
     db_path = os.path.abspath(f"TEST_basic_{timestamp}.fdb")
     
     print(f"Creating DB at: {db_path}")
-
-    ISQL_EXE = os.path.join(FB_DIR, "isql.exe")
     cmd = f"CREATE DATABASE '{db_path}' user 'SYSDBA' password 'masterkey'; EXIT;"
     
     env = os.environ.copy()
@@ -54,6 +58,7 @@ def basic_db_path():
             else:
                 print(f"Cleanup failed after 5 attempts: {e}")
 
+@pytest.mark.firebird
 def test_create_db_basic(basic_db_path):
     print(f"FB_DLL: {FB_DLL}")
     print(f"FB_DIR: {FB_DIR}")

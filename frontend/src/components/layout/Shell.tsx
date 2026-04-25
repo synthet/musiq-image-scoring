@@ -8,7 +8,6 @@ import {
   Workflow,
   Stethoscope,
   ScrollText,
-  AlertTriangle,
   Database,
 } from 'lucide-react'
 import { Sidebar } from './Sidebar'
@@ -61,7 +60,6 @@ export function Shell() {
         <nav className="flex items-center gap-1">
           <NavItem to="/runs" icon={<Workflow size={14} />} label="Runs" />
           <NavItem to="/images" icon={<Database size={14} />} label="Images" />
-          <NavItem to="/issues" icon={<AlertTriangle size={14} />} label="Issues" />
           <NavItem to="/diagnostics" icon={<Stethoscope size={14} />} label="Diagnostics" />
           <NavItem to="/logs" icon={<ScrollText size={14} />} label="Logs" />
           <NavItem to="/settings" icon={<Settings size={14} />} label="Settings" />

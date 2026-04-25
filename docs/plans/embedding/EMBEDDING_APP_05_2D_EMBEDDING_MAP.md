@@ -2,6 +2,12 @@
 
 *Part of [Possible Applications of image_embedding](EMBEDDING_APPLICATIONS.md).*
 
+## Status (2026-04-24)
+
+**Phase 0 — done.** `modules/projections.py::compute_embedding_map` (UMAP / t-SNE, L2-normalize, min-max scale) and `GET /api/embedding_map` (folder, method, sample_limit, n_neighbors, min_dist, refresh, disk-cached) are implemented and live for the 1280-d MobileNet space.
+
+**Open work — see "Roadmap" below.** Multi-space support, optional PCA pre-step, HDBSCAN clustering, persistent projection storage, and a similar-image side panel are all phased follow-ups, not part of the original v1 scope.
+
 ## Goal
 
 Provide an interactive 2D map of the image library where spatial proximity reflects visual similarity.
@@ -93,3 +99,59 @@ Response:
 - Acceptable load time for folder-scale views.
 - Increased discovery of related images (measured via click-through to detail/similar actions).
 - Positive usability feedback compared to baseline gallery browsing.
+
+---
+
+## Roadmap — multi-space + clustering (post-v1)
+
+The original v1 above shipped for the default 1280-d MobileNet space only. With Alembic `0012` adding 512-d (CLIP, BioCLIP) and 768-d (BLIP) per-dim fact tables (see [DB_VECTORS_REFACTOR.md](../database/DB_VECTORS_REFACTOR.md)), the natural next steps are:
+
+### Phase 1 — multi-space + PCA on the existing endpoint (low risk)
+
+- **`modules/projections.compute_embedding_map`** gains `embedding_space: str = DEFAULT_EMBEDDING_SPACE_CODE` and `pca_dim: int | None = 50`. PCA pre-step (sklearn) defaults on for ≥1280-d, off below; speeds and stabilizes UMAP without changing the visual story.
+- **New helper `modules/projections_db.get_embeddings_with_metadata_for_space(space_code, …)`** — mirrors `db.get_embeddings_with_metadata` but reads from the per-dim table chosen by `_pg_embedding_table_for_dim`. Lives in its own module per CLAUDE.md guidance to avoid growing `db_legacy.py`.
+- **`GET /api/embedding_map`** gains `space_code` (default `mobilenet_v2_imagenet_gap`) and `pca_dim`; both bake into the disk-cache key so a CLIP map and a MobileNet map don't clobber each other.
+- **REST parity for similarity:** `GET /api/similarity/search` gains `embedding_space`, forwarded to `search_similar_images`. New endpoint `GET /api/images/{id}/similar` (k-NN; **not** `/{id}/neighbors`, which is already taken by prev/next gallery navigation).
+- Tests follow the `tests/test_api_embedding_map.py` pattern with `space_code=clip_vit_b32_image` cases and PCA shape/determinism assertions. No schema changes; no new dependency.
+
+### Phase 2 — persistent projections + HDBSCAN (opt-in)
+
+Only ship if disk cache + recompute proves to be the bottleneck under real usage — disk cache already prevents per-request recompute.
+
+- **Alembic `0013_image_embedding_projections.py`** — `image_embedding_projections (image_id, embedding_space_id, projection_method, projection_version, x, y, z, cluster_id, updated_at)` with `UNIQUE(image_id, embedding_space_id, projection_method, projection_version)`. Mirror DDL in `db_postgres._init_db_transaction()`.
+- **`projection_version` is a deterministic hash** of `(method, n_neighbors, min_dist, pca_dim, metric, source_count_bucket)`. Never write rows under the same version with different inputs.
+- **HDBSCAN** (`min_cluster_size=10`, configurable) computed over the **PCA-50 representation** (more robust than 2D coords). Add `hdbscan` to `requirements.txt`; verify install in `~/.venvs/tf` before merge.
+- **`modules/projection_runner.py`** — one-shot job (not a pipeline phase) enqueued via `job_dispatcher`. Memory ceiling, batched fit/transform for >10k vectors, resume-safe via `job_phases`.
+- **Endpoint behavior:** `GET /api/embedding_map` reads from the table when `(space_code, method, version)` matches; falls back to compute-on-demand and writes back when `?persist=true`.
+
+### Phase 3 — UI atlas (frontend project)
+
+Belongs in [image-scoring-gallery](https://github.com/synthet/image-scoring-gallery) or as a new tab in the backend's React SPA at `/ui/`.
+
+- Deck.gl ScatterplotLayer for ≥10k points; Plotly for smaller views as a fallback.
+- Color-by selector wired to `score_general / score_aesthetic / cluster_id / embedding_space / model_version / camera`.
+- Side panel: selected image preview + metadata + thumbnail grid of `GET /api/images/{id}/similar`.
+- Filters: folder, score range, date, camera, model version, "show only cluster N", "hide noise (-1)".
+- Space selector sourced from a small new `GET /api/embedding_spaces` endpoint that surfaces the registry rows.
+
+### Decisions called out (don't defer to implementation time)
+
+1. **PCA on by default for ≥1280-d**, off below. Override via `pca_dim=0`.
+2. **`space_code` is the wire identifier**, not `embedding_space_id`. IDs are local to the DB; codes are stable strings the frontend can hard-code.
+3. **`projection_version` includes a hash of all inputs.** Ship a `version_for(method, params, source_count)` helper so callers never construct version strings by hand.
+4. **HDBSCAN over PCA-50, not 2D UMAP.** Higher-D representation gives more meaningful clusters (per upstream research and consensus in the literature).
+5. **DB-backed projections are opt-in via `?persist=true`.** Default stays disk-cached.
+6. **Phase 1 ships standalone.** It is genuinely useful by itself; do not gate on phase 2.
+
+### Out of scope (call out to avoid creep)
+
+- 3D projections (`z` column) — reserve in schema, don't compute.
+- Cross-space projections (CLIP and MobileNet on the same atlas) — mathematically incoherent.
+- Streaming / incremental UMAP — only if a real product need surfaces.
+- Firebird parity — multi-vector remains Postgres-only until the gallery migrates.
+
+### Naming collisions to avoid
+
+- `GET /api/images/{id}/neighbors` is taken (prev/next nav). Use `/similar` or `/knn`.
+- `db.get_image_neighbors` returns `(prev_id, next_id)`. Don't repurpose for k-NN helpers.
+- `GET /api/embedding_map` is the existing path. Don't introduce `/api/embeddings/map`.

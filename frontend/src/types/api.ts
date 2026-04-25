@@ -10,28 +10,6 @@ export type RunStatus =
   | 'canceled'
   | 'interrupted'
 
-// ─── Image incident (image_incidents table) ──────────────────────────────
-
-export interface ImageIncident {
-  id: number
-  image_id: number
-  folder_id: number | null
-  job_id: number | null
-  phase_id: number | null
-  kind: string
-  source: string | null
-  message: string
-  detail: Record<string, unknown> | null
-  created_at: string
-  file_path: string | null
-  phase_code: string | null
-}
-
-export interface ImageIncidentsListResponse {
-  items: ImageIncident[]
-  total: number
-}
-
 export interface Run {
   id: number
   scope_type: 'file' | 'folder' | 'folder_recursive' | 'path_list'

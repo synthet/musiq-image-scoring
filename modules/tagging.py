@@ -652,11 +652,21 @@ class TaggingRunner:
                     try:
                         self._persist_tagging_embeddings(row['id'], _persist_clip, _persist_blip)
                     except Exception:
-                        logger.debug(
+                        logger.warning(
                             "tagging: embedding persist failed for image_id=%s",
                             row.get('id'),
                             exc_info=True,
                         )
+                elif (_persist_clip or _persist_blip) and not getattr(self, "_warned_engine_persist_gap", False):
+                    logger.warning(
+                        "tagging: shared tagging_engine path does not yet extract "
+                        "CLIP/BLIP image embeddings; image_embeddings_512 / "
+                        "image_embeddings_768 will not populate via this runner. "
+                        "Set embeddings.persist_clip_image / persist_blip_image to "
+                        "false to silence this warning, or use TaggingRunner() with "
+                        "no engine arg."
+                    )
+                    self._warned_engine_persist_gap = True
 
                 tags = [t.strip() for t in (tags or []) if t and t.strip()]
                 caption = (caption or "").strip()
@@ -798,7 +808,7 @@ class TaggingRunner:
                         [(image_id, vec, versions.get(CLIP_IMAGE_SPACE_CODE) or getattr(self.scorer, "model_name", None))],
                     )
                 except Exception as exc:  # noqa: BLE001 — best-effort
-                    logger.debug(
+                    logger.warning(
                         "tagging: CLIP embedding upsert failed for image_id=%s: %s",
                         image_id,
                         exc,
@@ -813,7 +823,7 @@ class TaggingRunner:
                         [(image_id, vec, versions.get(BLIP_IMAGE_SPACE_CODE) or getattr(self.captioner, "model_name", None))],
                     )
                 except Exception as exc:  # noqa: BLE001 — best-effort
-                    logger.debug(
+                    logger.warning(
                         "tagging: BLIP embedding upsert failed for image_id=%s: %s",
                         image_id,
                         exc,

@@ -13,6 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.4.10] - 2026-04-25
+
+### Fixed
+
+- **`embedding_spaces` registry — negative-result cache poisoning**: `modules/embedding_spaces.py::get_embedding_space_id(code)` and `get_default_embedding_space_id()` now only cache *positive* hits. Previously a miss (Postgres engine not yet active, registry row not yet seeded by Alembic, or transient DB error) wrote `None` into `_space_id_by_code_cache[code]` and every subsequent call short-circuited on it, so a webui / runner started before migration `0012` ran would *silently* skip CLIP/BioCLIP/BLIP embedding persistence forever. With this change, misses fall through to a fresh DB lookup on the next call — recovery is automatic once the registry catches up, no process restart required. See operational notes in `docs/plans/database/DB_VECTORS_REFACTOR.md`.
+- **Multi-dim embedding persist failures now surface at WARNING**: `TaggingRunner._persist_tagging_embeddings` logged at `DEBUG` on `update_image_embeddings_batch_for_space` failure (and on outer wrapper exceptions). With default log levels this means real DB / dim-mismatch errors were invisible while `image_embeddings_512` / `image_embeddings_768` tables stayed empty. Bumped to `WARNING` so the next run with persistence trouble is observable in `webui.log`.
+- **Tagging shared-engine path now warns about persistence gap**: when `TaggingRunner(tagging_engine=...)` is used with `embeddings.persist_clip_image` / `persist_blip_image` enabled, the runner now emits a one-time `WARNING` per instance noting that the shared-engine code path does not extract image embeddings and the per-dim tables will not populate via this runner. Production call sites (`cli.py`, `modules/ui/app.py`, `scripts/python/heal_folders.py`) use `TaggingRunner()` with no engine and persist correctly; the warning targets test/agent integrations that currently silently bypass persistence.
+- **`ScoringWorker` defers `LiqeScorer` construction**: default LIQE scorer is created on first use instead of in `__init__`, so unit tests and tooling that only exercise phase gating no longer import the full torch/torchvision stack at worker construction. Call sites that pass `liqe_scorer=` are unchanged.
+- **Firebird archive smoke test**: `tests/archive_firebird/test_firebird_basic.py` skips cleanly when `fbclient.dll` / `isql.exe` are absent instead of failing setup; marked `@pytest.mark.firebird`.
+
+### Removed
+
+- **Web UI `/ui/issues`**: Removed the non-functional Issues page (route, shell nav, `IssuesPage`, incidents API client, and related TypeScript types). The HTTP incidents API remains available for agents and scripts.
+
+### Changed
+
+- **Documentation**: Updates to `docs/technical/EMBEDDINGS.md`, `docs/plans/database/DB_VECTORS_REFACTOR.md`, and embedding app plan notes (`EMBEDDING_APP_05_2D_EMBEDDING_MAP.md`, `NEXT_STEPS.md`) for multi-space embeddings and roadmap clarity.
+
 ## [7.4.9] - 2026-04-24
 
 ### Changed
