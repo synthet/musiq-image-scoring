@@ -11,7 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Roadmap (not yet released)
 
-Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`):
+Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
+
+## [7.5.2] - 2026-04-25
+
+### Added
+
+- **Docs — status vocabulary inventory (Phase 5 D1)**: New `docs/planning/database/STATUS_VOCABULARY.md` catalogs every status-style column in the PostgreSQL schema (`jobs.status`, `job_phases.state`, `job_steps.status`, `image_phase_status.status`, `culling_sessions.status`) along with the `PhaseStatus` and `FolderPhaseStatus` enums in `modules/phases.py`. Each entry lists current vocabulary, the call sites that write it, current DB guard rails (none), and a concrete recommendation for D2 (CHECK constraints / ENUMs). Highlights:
+  - `image_phase_status.status` is the only column whose vocabulary is already enforced in code (`PhaseStatus` enum + `ALLOWED_TRANSITIONS`); safe to add a `CHECK` immediately.
+  - `jobs.status` has redundant terminal values (`error` vs `failed`) written from different call sites; reconcile before adding a constraint.
+  - `job_phases.state` uses a different column name than its siblings — document in `DB_SCHEMA` rather than rename.
+  - `job_steps.status` and `culling_sessions.status` are dormant (no active writers); defer constraint work until a writer is wired up.
 
 ## [7.5.1] - 2026-04-25
 
@@ -27,7 +37,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 
 ### Added
 
-- **Embedding map — multi-space + PCA pre-step (App 05 phase 1)**: `GET /api/embedding_map` now accepts `space_code` (e.g. `clip_vit_b32_image`, `blip_vit_b16_image`, `bioclip_2_image`) and `pca_dim`; both bake into the disk-cache key so per-space maps no longer collide. PCA pre-step (sklearn) is auto-on for source dim ≥ 1280, off below; pass `pca_dim=0` to disable explicitly. Non-default spaces are Postgres-only and read straight from the per-dim fact table via the new `modules/projections_db.get_embeddings_with_metadata_for_space()` helper. Default-space requests still go through `db.get_embeddings_with_metadata` so the legacy `images.image_embedding` COALESCE fallback is preserved. `meta` now exposes `embedding_space` and `pca_dim`; an unknown `space_code` returns `meta.error == "unknown_embedding_space"`. See `docs/plans/embedding/EMBEDDING_APP_05_2D_EMBEDDING_MAP.md` §Phase 1.
+- **Embedding map — multi-space + PCA pre-step (App 05 phase 1)**: `GET /api/embedding_map` now accepts `space_code` (e.g. `clip_vit_b32_image`, `blip_vit_b16_image`, `bioclip_2_image`) and `pca_dim`; both bake into the disk-cache key so per-space maps no longer collide. PCA pre-step (sklearn) is auto-on for source dim ≥ 1280, off below; pass `pca_dim=0` to disable explicitly. Non-default spaces are Postgres-only and read straight from the per-dim fact table via the new `modules/projections_db.get_embeddings_with_metadata_for_space()` helper. Default-space requests still go through `db.get_embeddings_with_metadata` so the legacy `images.image_embedding` COALESCE fallback is preserved. `meta` now exposes `embedding_space` and `pca_dim`; an unknown `space_code` returns `meta.error == "unknown_embedding_space"`. See `docs/features/planned/embeddings/EMBEDDING_APP_05_2D_EMBEDDING_MAP.md` §Phase 1.
 - **Similarity REST parity**: `GET /api/similarity/search` (and the deprecated `/api/similarity/similar` alias) now accept an optional `embedding_space` query parameter, matching the existing MCP tool. The response only includes the `embedding_space` key when explicitly set, preserving backward compatibility for clients that compare exact response shapes.
 - **`GET /api/images/{image_id}/similar`**: New k-NN endpoint — RESTful path-parameter form of similarity search. Deliberately distinct from `/images/{image_id}/neighbors`, which remains prev/next gallery navigation.
 - **Maintenance — `deduplicate_images` action**: New `MaintenanceRunner` action that synchronizes split-brain duplicates by backfilling missing `image_hash` / `hash_version` from sibling rows that share the same `file_path`, and surfaces same-folder same-hash duplicate groups for follow-up. Supports `dry_run`. Triggered via the existing job dispatch with `action="deduplicate_images"`.
@@ -42,13 +52,13 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 ### Changed
 
 - **Test mocks for `search_similar_images`**: `tests/test_api_queue.py` and `tests/test_api_v2_reorg.py` mock signatures now accept an `embedding_space=None` keyword to match the production callee. Internal-only — does not affect runtime behavior.
-- **Documentation**: `TODO.md`, `docs/plans/embedding/NEXT_STEPS.md`, and `docs/plans/embedding/EMBEDDING_APP_05_2D_EMBEDDING_MAP.md` updated to reflect Phase 1 of the 2D embedding map shipped (multi-space + PCA on the existing endpoint). Phase 2 (persistent projections + HDBSCAN) and phase 3 (React atlas UI) remain pending.
+- **Documentation**: `TODO.md`, `docs/features/planned/embeddings/NEXT_STEPS.md`, and `docs/features/planned/embeddings/EMBEDDING_APP_05_2D_EMBEDDING_MAP.md` updated to reflect Phase 1 of the 2D embedding map shipped (multi-space + PCA on the existing endpoint). Phase 2 (persistent projections + HDBSCAN) and phase 3 (React atlas UI) remain pending.
 
 ## [7.4.10] - 2026-04-25
 
 ### Fixed
 
-- **`embedding_spaces` registry — negative-result cache poisoning**: `modules/embedding_spaces.py::get_embedding_space_id(code)` and `get_default_embedding_space_id()` now only cache *positive* hits. Previously a miss (Postgres engine not yet active, registry row not yet seeded by Alembic, or transient DB error) wrote `None` into `_space_id_by_code_cache[code]` and every subsequent call short-circuited on it, so a webui / runner started before migration `0012` ran would *silently* skip CLIP/BioCLIP/BLIP embedding persistence forever. With this change, misses fall through to a fresh DB lookup on the next call — recovery is automatic once the registry catches up, no process restart required. See operational notes in `docs/plans/database/DB_VECTORS_REFACTOR.md`.
+- **`embedding_spaces` registry — negative-result cache poisoning**: `modules/embedding_spaces.py::get_embedding_space_id(code)` and `get_default_embedding_space_id()` now only cache *positive* hits. Previously a miss (Postgres engine not yet active, registry row not yet seeded by Alembic, or transient DB error) wrote `None` into `_space_id_by_code_cache[code]` and every subsequent call short-circuited on it, so a webui / runner started before migration `0012` ran would *silently* skip CLIP/BioCLIP/BLIP embedding persistence forever. With this change, misses fall through to a fresh DB lookup on the next call — recovery is automatic once the registry catches up, no process restart required. See operational notes in `docs/planning/database/DB_VECTORS_REFACTOR.md`.
 - **Multi-dim embedding persist failures now surface at WARNING**: `TaggingRunner._persist_tagging_embeddings` logged at `DEBUG` on `update_image_embeddings_batch_for_space` failure (and on outer wrapper exceptions). With default log levels this means real DB / dim-mismatch errors were invisible while `image_embeddings_512` / `image_embeddings_768` tables stayed empty. Bumped to `WARNING` so the next run with persistence trouble is observable in `webui.log`.
 - **Tagging shared-engine path now warns about persistence gap**: when `TaggingRunner(tagging_engine=...)` is used with `embeddings.persist_clip_image` / `persist_blip_image` enabled, the runner now emits a one-time `WARNING` per instance noting that the shared-engine code path does not extract image embeddings and the per-dim tables will not populate via this runner. Production call sites (`cli.py`, `modules/ui/app.py`, `scripts/python/heal_folders.py`) use `TaggingRunner()` with no engine and persist correctly; the warning targets test/agent integrations that currently silently bypass persistence.
 - **`ScoringWorker` defers `LiqeScorer` construction**: default LIQE scorer is created on first use instead of in `__init__`, so unit tests and tooling that only exercise phase gating no longer import the full torch/torchvision stack at worker construction. Call sites that pass `liqe_scorer=` are unchanged.
@@ -60,7 +70,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 
 ### Changed
 
-- **Documentation**: Updates to `docs/technical/EMBEDDINGS.md`, `docs/plans/database/DB_VECTORS_REFACTOR.md`, and embedding app plan notes (`EMBEDDING_APP_05_2D_EMBEDDING_MAP.md`, `NEXT_STEPS.md`) for multi-space embeddings and roadmap clarity.
+- **Documentation**: Updates to `docs/technical/EMBEDDINGS.md`, `docs/planning/database/DB_VECTORS_REFACTOR.md`, and embedding app plan notes (`EMBEDDING_APP_05_2D_EMBEDDING_MAP.md`, `NEXT_STEPS.md`) for multi-space embeddings and roadmap clarity.
 
 ## [7.4.9] - 2026-04-24
 
@@ -79,7 +89,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
   - Alembic revision `0012_multi_dim_image_embeddings.py`; greenfield installs pick the same DDL up from `modules.db_postgres._init_db_transaction()`.
   - `modules.similar_search.search_similar_images(..., embedding_space=...)` and MCP tools `search_similar_images` + `get_embedding_stats` accept an optional `embedding_space` to query or report on a specific space; `get_embedding_stats` also returns a `per_space` coverage breakdown when no space is specified.
   - New config section `embeddings.persist_clip_image` / `persist_blip_image` / `persist_bioclip_image` gates each writer; `embeddings.model_versions.*` pins the `model_version` string stored on every row for future invalidation.
-  - Docs: `docs/technical/EMBEDDINGS.md` now lists the registered spaces, their tables, producers, and a recipe for adding new ones; worklog entry appended to `docs/plans/database/DB_VECTORS_REFACTOR.md`.
+  - Docs: `docs/technical/EMBEDDINGS.md` now lists the registered spaces, their tables, producers, and a recipe for adding new ones; worklog entry appended to `docs/planning/database/DB_VECTORS_REFACTOR.md`.
 
 ### Fixed
 
@@ -258,7 +268,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 
 - **`POST /api/maintenance/schedule-folder-quality-runs`**: capacity-aware batch queue of validate-and-repair pipeline runs for leaf folders with data-quality issues (same rollups as `folder_data_quality_report.py`); **`modules/folder_quality_schedule.py`** implements scheduling and stage selection.
 - **React `/ui` — Pipeline Tools**: `pipelineTools.ts` + `usePipelineToolAction` replace scattered copy; refactored **`RunsToolsTab`** and API client updates (**`gallery.ts`**, **`tools.ts`**).
-- **Docs**: wiki schema and navigation updates ([`WIKI_SCHEMA.md`](docs/WIKI_SCHEMA.md)), Phase 4 keyword [hub](docs/plans/database/PHASE4_KEYWORDS_HUB.md), archived plans/debugging indexes, reports ([Gradio serving](docs/reports/GRADIO_SERVING_DECISION.md), [culling investigation](docs/reports/CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md), [release handoff](docs/reports/RELEASE_HANDOFF_2026-04-10_2026-04-11.md)); raw sources under `docs/raw/`; plan stub [`FIX_THUMBNAIL_GENERATION_SPEC.md`](docs/plans/FIX_THUMBNAIL_GENERATION_SPEC.md).
+- **Docs**: wiki schema and navigation updates ([`WIKI_SCHEMA.md`](docs/WIKI_SCHEMA.md)), Phase 4 keyword [hub](docs/planning/database/PHASE4_KEYWORDS_HUB.md), archived plans/debugging indexes, reports ([Gradio serving](docs/reports/GRADIO_SERVING_DECISION.md), [culling investigation](docs/reports/CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md), [release handoff](docs/reports/RELEASE_HANDOFF_2026-04-10_2026-04-11.md)); raw sources under `docs/raw/`; plan stub [`FIX_THUMBNAIL_GENERATION_SPEC.md`](docs/features/planned/fix-thumbnail-generation-spec.md).
 - **Tests**: `tests/test_folder_quality_schedule.py`; culling/DB tests aligned with PostgreSQL fixtures (`@pytest.mark.ml` on heavy culling cases, `clean_postgres` / `postgres_test_session` where applicable).
 
 ### Changed
@@ -280,7 +290,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 - **Maintenance run labels** (`modules/maintenance_job_display.py`): human-readable `jobs.input_path` values for Tools/maintenance runs (scope/dry_run/limit hints) instead of opaque placeholders.
 - **React `/ui`**: `RunQueuePayloadPanel` — shows `queue_payload` / run flags on run detail; related Runs/Tools and API client updates.
 - **Scripts**: `scripts/python/backfill_hashes.py` extended for hash modes; `scripts/maintenance/folder_data_quality_report.py`, `schedule_folder_quality_fix_runs.py`.
-- **Docs**: `docs/technical/NEF_FORMAT_REFERENCE.md`, `NEF_IMPLEMENTATION_REVIEW.md`; plan `docs/plans/IMAGE_IDENTITY_AND_HASHING_IMPROVEMENTS_PLAN.md`.
+- **Docs**: `docs/technical/NEF_FORMAT_REFERENCE.md`, `NEF_IMPLEMENTATION_REVIEW.md`; plan `docs/features/planned/image-identity-and-hashing-improvements.md`.
 - **Tests**: `tests/test_image_identity_hash.py`, `tests/test_indexing_hash_reuse.py`, `tests/test_maintenance_job_display.py`; updates to `test_db_core`, `test_job_dispatcher`, `test_translate_fb_to_pg`; XMP fixture touch-ups under `tests/fixtures/testing_samples/`.
 
 ### Changed
@@ -397,7 +407,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 - **Run pause** (`POST /runs/{run_id}/pause`): now stops the runner thread, waits for it to finish, and reconciles in-flight phase rows — previously only set a flag.
 - **Frontend Tools tab**: consolidated thumbnail actions (heal replaces separate regen + repair); added Full Pipeline button; mutual exclusion prevents concurrent tool actions.
 - **Frontend `StagePanel`**: shows a warning banner when the API returns 0 work items but the stage total is nonzero.
-- **Docs**: updated `TODO.md`, `docs/plans/INDEX.md`, `DB_STATUS_REPORT.md`, `NEXT_STEPS.md`, `PHASE4_STATUS_SUMMARY.md` with Phase 5 roadmap and current status.
+- **Docs**: updated `TODO.md`, `docs/planning/INDEX.md`, `DB_STATUS_REPORT.md`, `NEXT_STEPS.md`, `PHASE4_STATUS_SUMMARY.md` with Phase 5 roadmap and current status.
 
 ## [6.8.0] - 2026-04-10
 
@@ -578,7 +588,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 - **`webui.py`**: Writes **`webui.log`** under project **`BASE_DIR`** (stable cwd); **`_ensure_webui_file_handler`** adds a file handler if import-time `basicConfig` skipped it; **`WEBUI_HOST` / `WEBUI_PORT`** override merged config **`webui_host` / `webui_port`** when set.
 - **Operator `/app` log panel** (`modules/ui/status_gradio.py`): Separate collapsible sections for **webui.log** and **debug.log** tails with line colorization.
 - **LIQE** (`modules/liqe.py`) and **score normalization** (`modules/score_normalization.py`): Read limits/settings via **`modules.config`** (merged `config.json` + `environment.json`) instead of parsing only `config.json`.
-- **Docker** (`docker-compose.yml`, `scripts/docker_entrypoint.sh`, `docs/setup/DOCKER_SETUP.md`): Default **`PHOTOS_BIND_SOURCE`** bind to **`/mnt/d/Photos`**; Firebird wait in entrypoint is opt-in via **`WAIT_FOR_FIREBIRD=1`** (Postgres-first compose flow).
+- **Docker** (`docker-compose.yml`, `scripts/docker_entrypoint.sh`, `docs/guides/setup/DOCKER_SETUP.md`): Default **`PHOTOS_BIND_SOURCE`** bind to **`/mnt/d/Photos`**; Firebird wait in entrypoint is opt-in via **`WAIT_FOR_FIREBIRD=1`** (Postgres-first compose flow).
 - **`scripts/powershell/Backup-Postgres.ps1`**: Loads merged config via Python when available; **`pg_dump` inside Docker** uses configured **`host`** (not hard-coded `127.0.0.1`).
 - **React shell / scope** (`frontend/src`): Nav link to Logs; API client/types for log payload and scope stage counts.
 
@@ -599,7 +609,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 
 - **Alembic** (`migrations/versions/0004_embedding_spaces_image_embeddings.py`): `embedding_spaces` registry, `image_embeddings` with `vector(1280)`, HNSW cosine index, seed row `mobilenet_v2_imagenet_gap`, and backfill from `images.image_embedding`. Run `alembic upgrade head` on existing PostgreSQL databases.
 - **`modules/embedding_spaces.py`**: Default embedding space code and `get_default_embedding_space_id()` for Postgres.
-- **Docs** (`docs/plans/database/DB_VECTORS_REFACTOR.md`): Plan for vector storage refactor and multi-space direction.
+- **Docs** (`docs/planning/database/DB_VECTORS_REFACTOR.md`): Plan for vector storage refactor and multi-space direction.
 
 ### Changed
 
@@ -669,7 +679,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 
 - **`modules/db.py`**, **`modules/mcp_server.py`**, **`modules/db_connector/*`**: Postgres-first paths, factory behavior, and MCP tooling aligned with Firebird decommission.
 - **`modules/similar_search.py`**: Adjustments for current connector / DB usage.
-- **Docs and agent metadata** (`AGENTS.md`, `CLAUDE.md`, `docs/plans/database/FIREBIRD_POSTGRES_MIGRATION.md`, `docs/technical/INDEX.md`, `.agent/*`, `mcp_config.json`, `config.example.json`): Reflect PostgreSQL-primary operation and updated MCP guidance.
+- **Docs and agent metadata** (`AGENTS.md`, `CLAUDE.md`, `docs/planning/database/FIREBIRD_POSTGRES_MIGRATION.md`, `docs/technical/INDEX.md`, `.agent/*`, `mcp_config.json`, `config.example.json`): Reflect PostgreSQL-primary operation and updated MCP guidance.
 
 ### Fixed
 
@@ -695,7 +705,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 - **Firebird → Postgres migration** (`scripts/python/migrate_firebird_to_postgres.py`): `keywords_dim` / `image_keywords` in table order; Windows `fbclient.dll` discovery under `Firebird/`; column listing compatible with dict cursors.
 - **Example config** (`config.example.json`): Example `database.engine` and Postgres credentials aligned with a typical compose stack.
 - **Docker refresh** (`docker_refresh_webui.bat`): Readiness probe uses `/api/health`; `WEBUI_READY_TIMEOUT_SEC` (default 360); help text for Postgres-first workflow.
-- **Docs** (`docs/plans/database/FIREBIRD_POSTGRES_MIGRATION.md`, `docs/technical/MCP_DEBUGGING_TOOLS.md`): Updates.
+- **Docs** (`docs/planning/database/FIREBIRD_POSTGRES_MIGRATION.md`, `docs/technical/MCP_DEBUGGING_TOOLS.md`): Updates.
 - **Tests** (`tests/test_db_connector.py`): Factory unknown-engine expectation and Postgres connector patch style.
 - **TODO** (`TODO.md`): Phase 2 activation and Phase 3 Python cutover items marked complete.
 - **Git** (`.gitignore`): Ignore `dumps/`.
@@ -760,7 +770,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 - **Postgres** (`modules/db_postgres.py`): Extensions for connector-aligned usage.
 - **Docker** (`Dockerfile`, `.dockerignore`): Image and ignore rules updated for current build layout.
 - **Frontend / static** (`frontend/`, `static/app/`, `scripts/python/generate_favicon.py`): Favicon and SPA asset refresh; `frontend/vite.config.ts` tweaks.
-- **Docs** (`docs/INDEX.md`, `docs/plans/database/*`, `docs/testing/TEST_STATUS.md`): Index and migration/test planning updates.
+- **Docs** (`docs/INDEX.md`, `docs/planning/database/*`, `docs/testing/TEST_STATUS.md`): Index and migration/test planning updates.
 - **Misc** (`cli.py`, `pytest.ini`, `requirements/requirements_exif.txt`, `modules/mcp_server_firebird.py`, `modules/ui/app.py`, `docker_rebuild.bat`, `RunWebUI.exe`, `TODO.md`): Small tooling and dependency adjustments.
 
 ### Fixed
@@ -808,7 +818,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 - **Launcher** (`launch.py`): Skips Windows Firebird process detection and auto-start when `DOCKER_CONTAINER` is set.
 
 ### Fixed
-- **Docs** (`docs/setup/DOCKER_SETUP.md`): Rewritten for the Windows Firebird + volume-mount architecture, FDB path customization, env reference, and troubleshooting.
+- **Docs** (`docs/guides/setup/DOCKER_SETUP.md`): Rewritten for the Windows Firebird + volume-mount architecture, FDB path customization, env reference, and troubleshooting.
 
 ## [4.18.0] - 2026-03-24
 
@@ -974,7 +984,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 ## [4.11.0] - 2026-03-15
 
 ### Added
-- **Pipeline architecture docs**: `docs/technical/PIPELINE_ARCHITECTURE.md`.
+- **Pipeline architecture docs**: `docs/architecture/pipeline-architecture.md`.
 - **Cross-app audit**: `docs/testing/CROSS_APP_INTEGRATION_AUDIT.md` and `scripts/powershell/Run-CrossAppAudit.ps1`.
 
 ### Changed
@@ -1082,7 +1092,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 ### Added
 - **Agent Coordination Standards** ([docs/technical/AGENT_COORDINATION.md](docs/technical/AGENT_COORDINATION.md)): New integration protocols for backend/frontend AI agent collaboration.
 - **Optimized Data Queries** (`modules/db.py`): New `get_images_paginated_with_count` for faster image/count retrieval in a single DB trip.
-- **Project Roadmaps**: Added tracking for `docs/plans/database/` and `docs/plans/embedding/` refactors.
+- **Project Roadmaps**: Added tracking for `docs/planning/database/` and `docs/features/planned/embeddings/` refactors.
 
 ### Changed
 - **MCP Reliability**: Handled `POST`/`DELETE` methods on `/mcp/sse` endpoint for better Cursor compatibility.
@@ -1106,7 +1116,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 - **Standalone Migration Runner** (`scripts/run_migration.py`): Run Phase 1 DB schema migration independently of the WebUI. Supports `--db-path` and `--skip-backup` for CI, scheduled runs, or when Electron holds DB locks.
 
 ### Changed
-- **DB Schema Phase 1** (`modules/db.py`): Integrity + index hardening on startup. Orphan `STACKS.BEST_IMAGE_ID` repair, unique index on `IMAGES.FILE_PATH`, composite indexes for folder/stack score queries, FK cleanup on `CULLING_PICKS`, and `FK_STACKS_BEST_IMAGE` constraint. Ref: `docs/plans/database/DB_SCHEMA_REFACTOR_PLAN.md`.
+- **DB Schema Phase 1** (`modules/db.py`): Integrity + index hardening on startup. Orphan `STACKS.BEST_IMAGE_ID` repair, unique index on `IMAGES.FILE_PATH`, composite indexes for folder/stack score queries, FK cleanup on `CULLING_PICKS`, and `FK_STACKS_BEST_IMAGE` constraint. Ref: `docs/planning/database/DB_SCHEMA_REFACTOR_PLAN.md`.
 - **Favicon**: Updated `static/favicon.ico`.
 
 ## [4.3.1] - 2026-03-09
@@ -1141,13 +1151,13 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 ## [4.1.0] - 2026-03-07
 
 ### Added
-- **Windows Native WebUI**: New `run_webui_windows.bat` and `scripts/setup/setup_windows_native.bat` for running the Gradio WebUI natively on Windows (no WSL). CPU-only, no VILA. Documented in README Option 3b and `docs/plans/setup/WINDOWS_NATIVE_WEBUI_PLAN.md`.
+- **Windows Native WebUI**: New `run_webui_windows.bat` and `scripts/setup/setup_windows_native.bat` for running the Gradio WebUI natively on Windows (no WSL). CPU-only, no VILA. Documented in README Option 3b and `docs/planning/setup/WINDOWS_NATIVE_WEBUI_PLAN.md`.
 - **API Expansion** (`modules/api.py`): New clustering endpoints (start, stop, status), data query endpoints (images, folders, stacks, stats), pipeline submit, raw-preview utility. Clustering status added to `/api/status` and `/api/health`.
 - **API Documentation**: Added `docs/reference/api/openapi.yaml` (standalone OpenAPI 3.0 schema) and `docs/technical/API_CONTRACT.md` (concise endpoint and model reference).
 
 ### Changed
 - **API Reference**: Updated `docs/reference/api/API.md` with full endpoint documentation for clustering, data queries, pipeline, and utilities.
-- **Environments**: Updated `docs/setup/ENVIRONMENTS.md` with Windows native setup details.
+- **Environments**: Updated `docs/guides/setup/ENVIRONMENTS.md` with Windows native setup details.
 - **Backfill Scripts**: Enhanced `scripts/maintenance/backfill_exif_xmp.py` and `run_backfill_exif_xmp.bat` with improved argument handling and feedback.
 
 ## [4.0.1] - 2026-03-07
@@ -1170,7 +1180,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
 - **Pipeline Tab**: New unified Pipeline tab replacing Folder Tree, Scoring, Keywords, Selection, Stacks, and Culling tabs. Single workflow view with folder tree, phase stepper, action bar, and job monitor (`modules/ui/tabs/pipeline.py`).
 - **Pipeline Orchestrator**: New `modules/pipeline_orchestrator.py` to coordinate pipeline phases and runner integration.
 - **Embedding Population Scripts**: Added `scripts/maintenance/populate_missing_embeddings.py` and `run_populate_embeddings.bat` for backfilling embeddings (see script docstring for the canonical launcher name).
-- **Design Documentation**: Added `docs/plans/UI_PIPELINE_REDESIGN.md` and mockups for the pipeline-centric UI.
+- **Design Documentation**: Added `docs/features/planned/ui-pipeline-redesign.md` and mockups for the pipeline-centric UI.
 - **Tag Propagation Tests**: Added `tests/test_tag_propagation.py`.
 
 ### Changed
