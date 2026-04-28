@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Image Scoring project are documented in this file.
+All notable changes to **Vexlum Scoring** (`image-scoring-backend`) are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -9,9 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
 ### Roadmap (not yet released)
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
+
+## [7.6.0] - 2026-04-27
+
+### Added
+
+- **DB — CHECK constraint on `image_phase_status.status` (Phase 5 D2, partial)**: New Alembic revision `0014_status_check_constraints.py` adds `ck_image_phase_status_status` enforcing the nine `PhaseStatus` enum values (`not_started`, `queued`, `running`, `paused`, `cancel_requested`, `restarting`, `done`, `skipped`, `failed`). Production rows verified non-violating prior to constraint addition (only `done`/`skipped`/`not_started`/`running` observed). The same constraint is now declared inline in `modules/db_postgres.py` so fresh installs get it via `_init_db_transaction()`. `jobs.status` and `job_phases.state` constraints deferred — see `docs/planning/database/STATUS_VOCABULARY.md` for the empirical inventory and the `canceled`/`cancelled` normalization step required first.
 
 ## [7.5.2] - 2026-04-25
 
@@ -1537,7 +1545,7 @@ Phase 4c keyword legacy column soft deprecation (target a future release; see `d
   - PyIQA model listing (`scripts/utils/list_pyiqa_models.py`)
   - Script helpers (`scripts/python/check_topiq_range.py`, `scripts/unmark_folder.py`)
 - **Workflows**:
-  - `/run_docker` - Launch Image Scoring application using Docker Compose (GPU-accelerated)
+  - `/run_docker` - Launch Vexlum Scoring application using Docker Compose (GPU-accelerated)
   - `/run_tests` - Run the image scoring test suite (Pytest)
 - **Portability**:
   - Created `config.example.json` as a template for new installations.

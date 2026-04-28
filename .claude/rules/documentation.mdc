@@ -1,0 +1,9 @@
+---
+description: Backend docs/ wiki — same conventions as .cursor/rules/documentation.mdc
+globs: "docs/**"
+alwaysApply: false
+---
+
+# Documentation wiki (image-scoring-backend)
+
+When editing under `docs/`, read `docs/WIKI_SCHEMA.md` and `docs/CANONICAL_SOURCES.md`. Keep indexes and `docs/log.md` aligned after renames or new pages. Mirror of `.cursor/rules/documentation.mdc`.
