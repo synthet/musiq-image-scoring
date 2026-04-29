@@ -1,5 +1,7 @@
-# Backlog governance (alias)
+# Backlog governance (retired alias)
 
-The full operating guide — **hierarchy, sync order, picking tasks, count rules** — is **[`00-backlog-workflow.md`](00-backlog-workflow.md)**.
+The canonical task queue is the **GitHub Project board**:
 
-**image-scoring-gallery** uses the same habits in **[`docs/project/00-backlog-workflow.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/project/00-backlog-workflow.md)** ([`BACKLOG_GOVERNANCE.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/project/BACKLOG_GOVERNANCE.md) is an alias; [`docs/planning/00-backlog-workflow.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/planning/00-backlog-workflow.md) redirects). In this repo, `00-backlog-workflow.md` is canonical; this file remains for older links.
+**→ https://github.com/users/synthet/projects/1**
+
+Workflow / Stage contract: [`00-backlog-workflow.md`](00-backlog-workflow.md). This filename is kept so older links keep working.

@@ -11,6 +11,26 @@ AI-powered image scoring, tagging, and clustering engine using MUSIQ, LIQE, BLIP
 
 This project is the **schema authority** — DDL is managed via `modules/db_postgres.py` (PostgreSQL) and Alembic migrations.
 
+## Backlog & queue (read this before picking work)
+
+The canonical queue is the **GitHub Project board**, not `TODO.md`:
+
+**→ https://github.com/users/synthet/projects/1**
+
+It spans both repos. The `TODO.md` files are pointers only.
+
+**Mandatory contract for every agent (human or AI). Do all five steps:**
+
+1. **Pick from `Stage = Ready`** on the board, sorted by `priority:p0..p3`. If `Ready` is empty, ask the maintainer — do not invent work.
+2. **Claim** the issue: `/task-claim <N>` (preferred) or the manual `gh` flow in [`docs/project/00-backlog-workflow.md`](docs/project/00-backlog-workflow.md). Claiming assigns you and moves the card to `Stage = Claimed`.
+3. **Flip to `Stage = In Progress`** on your first commit.
+4. **If blocked**, move the card to `Stage = Blocked` *and* comment on the issue with the blocker + what would unblock it. Do not silently abandon a claimed card.
+5. **Reference the issue in the PR** with `Closes #<N>` (the PR template requires it). Move the card to `Stage = Review` while the PR is open; merging closes the issue and flips `Status = Done`.
+
+**Project ID quick-reference** (for scripts): project node `PVT_kwHOAFXgIs4BWC3c`, Stage field `PVTSSF_lAHOAFXgIs4BWC3czhRaNZ0`. Full Stage option IDs and command examples in [`docs/project/00-backlog-workflow.md`](docs/project/00-backlog-workflow.md) §5.
+
+**Do not** add tasks to `TODO.md`, do not work without an issue, and do not skip the Stage transitions — agents that don't update Stage make the queue lie about what's actually being worked on.
+
 ## Architecture
 
 ### Pipeline Phases
@@ -176,16 +196,16 @@ Backward compatibility is maintained via a facade layer in `modules/db.py`. See 
 
 **Current state:** Keywords are stored in two places:
 - **Primary (Postgres):** `IMAGE_KEYWORDS` junction table + `KEYWORDS_DIM` catalog
-- **Legacy (Firebird):** `IMAGES.KEYWORDS` text field
+- **Deprecated:** `IMAGES.KEYWORDS` text column — still dual-written on Postgres by default for backward compatibility; set `database.write_legacy_keywords_column` to `false` in `config.json` to stop writing it once all readers use the normalized tables. Firebird-only deployments still use the column until migrated.
 
 **For new code:**
 1. Always **read** keywords via `IMAGE_KEYWORDS` / `KEYWORDS_DIM` (normalized schema)
    - Use `_add_keyword_filter()` helper for filtering by keyword
    - Use `keyword_discovery.py` helpers for cloud/autocomplete features
 
-2. Always **write** keywords via `db.update_image_metadata()` (dual-write to both schemas)
+2. Always **write** keywords via `db.update_image_metadata()` (updates normalized tables; optional legacy column per config above)
    - Or call `db._sync_image_keywords()` directly to sync to normalized schema
-   - Do NOT write directly to `IMAGES.KEYWORDS` legacy column
+   - Do NOT write directly to `IMAGES.KEYWORDS` from new code
 
 3. Understand the **deprecation timeline:**
    - **v6.3 (Apr 2026):** Normalized schema becomes primary source

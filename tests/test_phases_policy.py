@@ -158,3 +158,34 @@ def test_policy_skips_valid_unrated_metadata(monkeypatch):
     decision = phases_policy.explain_phase_run_decision(1, PhaseCode.METADATA)
     assert decision["should_run"] is False
     assert decision["reason"] == "already_done_current_executor"
+
+
+def test_policy_skips_bird_species_when_done_same_version(monkeypatch):
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_phase_statuses",
+        lambda image_id: {"bird_species": {"status": "done", "executor_version": "1.0.0"}},
+    )
+    monkeypatch.setattr(
+        phases_policy.db,
+        "is_image_bird_species_complete",
+        lambda image_id: True,
+    )
+    PhaseRegistry.register(PhaseExecutor(code=PhaseCode.BIRD_SPECIES, executor_version="1.0.0"))
+
+    decision = phases_policy.explain_phase_run_decision(1, PhaseCode.BIRD_SPECIES)
+    assert decision["should_run"] is False
+    assert decision["reason"] == "already_done_current_executor"
+
+
+def test_policy_runs_bird_species_when_version_changed(monkeypatch):
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_phase_statuses",
+        lambda image_id: {"bird_species": {"status": "done", "executor_version": "1.0.0"}},
+    )
+    PhaseRegistry.register(PhaseExecutor(code=PhaseCode.BIRD_SPECIES, executor_version="2.0.0"))
+
+    decision = phases_policy.explain_phase_run_decision(1, PhaseCode.BIRD_SPECIES)
+    assert decision["should_run"] is True
+    assert decision["reason"] == "executor_version_changed"

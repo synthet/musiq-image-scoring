@@ -306,6 +306,20 @@ def _exif_row_has_camera_and_lens(ex_row: dict | None) -> bool:
     return bool(cam and lens)
 
 
+def _exif_row_has_gps_coords(ex_row: dict | None) -> bool:
+    if not ex_row:
+        return False
+    lat, lon = ex_row.get("gps_latitude"), ex_row.get("gps_longitude")
+    if lat is None or lon is None:
+        return False
+    try:
+        float(lat)
+        float(lon)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def backfill_exif_camera_lens(
     limit: int | None = None,
     *,
@@ -402,6 +416,98 @@ def backfill_exif_camera_lens(
             stats["errors"] += 1
 
     logger.info("backfill_exif_camera_lens: %s", stats)
+    return stats
+
+
+def backfill_exif_gps(
+    limit: int | None = None,
+    *,
+    path_like: str | None = None,
+) -> dict:
+    """
+    Re-extract EXIF from disk for rows missing ``gps_latitude`` / ``gps_longitude`` in ``image_exif``.
+
+    Fills GPS from embedded/sidecar metadata where present. Requires ``exiftool`` on PATH.
+    Merges with existing ``image_exif`` so reverse-geocode fields are not wiped when fresh EXIF lacks them.
+
+    Args:
+        limit: Optional max rows per call.
+        path_like: Optional SQL ``LIKE`` pattern on ``images.file_path``.
+    """
+    from modules import db
+
+    path_clause = ""
+    sql_params: tuple | None = None
+    if path_like:
+        path_clause = " AND i.file_path LIKE ?"
+        sql_params = (path_like,)
+
+    limit_clause = f" LIMIT {int(limit)}" if limit else ""
+    rows = db.get_connector().query(
+        f"""SELECT i.id AS image_id, i.file_path
+            FROM images i
+            LEFT JOIN image_exif ex ON ex.image_id = i.id
+            WHERE (
+                ex.image_id IS NULL
+                OR ex.gps_latitude IS NULL
+                OR ex.gps_longitude IS NULL
+            ){path_clause}
+            ORDER BY i.id{limit_clause}""",
+        sql_params,
+    )
+
+    stats = {
+        "checked": 0,
+        "updated": 0,
+        "skipped_no_file": 0,
+        "skipped_no_exif": 0,
+        "skipped_still_missing": 0,
+        "errors": 0,
+    }
+    for row in rows:
+        stats["checked"] += 1
+        image_id = row["image_id"]
+        file_path = row["file_path"]
+        try:
+            resolved = utils.resolve_file_path(file_path, image_id)
+            if not resolved:
+                resolved = utils.convert_path_to_local(file_path)
+            if not resolved or not os.path.exists(resolved):
+                stats["skipped_no_file"] += 1
+                logger.debug("backfill_exif_gps skip image_id=%s: file not found (%s)", image_id, file_path)
+                continue
+
+            existing = db.get_image_exif(image_id)
+            fresh = extract_exif(resolved, image_id)
+            if not fresh:
+                stats["skipped_no_exif"] += 1
+                logger.debug(
+                    "backfill_exif_gps skip image_id=%s: no EXIF from exiftool (%s)",
+                    image_id,
+                    file_path,
+                )
+                continue
+
+            merged = _merge_exif_for_upsert(existing, fresh)
+            if not db.upsert_image_exif(image_id, merged):
+                stats["errors"] += 1
+                continue
+
+            exif_row = db.get_image_exif(image_id) or {}
+            if _exif_row_has_gps_coords(exif_row):
+                stats["updated"] += 1
+            else:
+                stats["skipped_still_missing"] += 1
+                logger.debug(
+                    "backfill_exif_gps still no GPS after upsert image_id=%s (%s)",
+                    image_id,
+                    file_path,
+                )
+        except Exception as e:
+            logger.warning("backfill_exif_gps failed for image_id %s: %s", image_id, e)
+            stats["errors"] += 1
+
+    logger.info("backfill_exif_gps: %s", stats)
     return stats
 
 

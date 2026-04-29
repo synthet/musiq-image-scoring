@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { clsx } from 'clsx'
@@ -26,6 +26,18 @@ const EXAMPLE_QUERIES = [
   'close-up of flower petals',
   'snow-covered landscape',
 ]
+
+const EXAMPLE_ROTATE_MS = 10_000
+
+/** Pick up to six random suggestions from `pool`. */
+function pickExampleSubset(pool: string[], count = 6): string[] {
+  if (!pool.length) return []
+  if (pool.length <= count) {
+    return [...pool].sort(() => Math.random() - 0.5)
+  }
+  const shuffled = [...pool].sort(() => Math.random() - 0.5)
+  return shuffled.slice(0, count)
+}
 
 function thumbnailSrc(filePath: string): string {
   return `/source-image?path=${encodeURIComponent(filePath)}&thumb=1`
@@ -129,11 +141,13 @@ function SimilarityBar({ similarity }: { similarity: number }) {
   )
 }
 
-function EmptyState({ onExampleClick }: { onExampleClick: (q: string) => void }) {
-  const shuffled = useRef(
-    [...EXAMPLE_QUERIES].sort(() => Math.random() - 0.5).slice(0, 6),
-  ).current
-
+function EmptyState({
+  exampleQueries,
+  onExampleClick,
+}: {
+  exampleQueries: string[]
+  onExampleClick: (q: string) => void
+}) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-6 px-4 py-12">
       <div className="relative">
@@ -154,9 +168,9 @@ function EmptyState({ onExampleClick }: { onExampleClick: (q: string) => void })
           Try a query
         </span>
         <div className="flex flex-wrap gap-2 justify-center">
-          {shuffled.map((q) => (
+          {exampleQueries.map((q, i) => (
             <button
-              key={q}
+              key={`${q}-${i}`}
               type="button"
               onClick={() => onExampleClick(q)}
               className={clsx(
@@ -184,6 +198,59 @@ export function SearchPage() {
   const [minSim, setMinSim] = useState<number | undefined>(undefined)
   const [showFilters, setShowFilters] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const { data: exampleData } = useQuery({
+    queryKey: ['search-example-queries', selectedScopePath ?? null],
+    queryFn: () =>
+      searchApi.exampleQueries({
+        limit: 48,
+        folder_path: selectedScopePath ?? undefined,
+      }),
+    staleTime: 600_000,
+    retry: 1,
+  })
+
+  const examplePool = useMemo(() => {
+    const qs = exampleData?.queries
+    return qs?.length ? qs : EXAMPLE_QUERIES
+  }, [exampleData])
+
+  const examplePoolRef = useRef(examplePool)
+  examplePoolRef.current = examplePool
+
+  const [rotatingChips, setRotatingChips] = useState(() => pickExampleSubset(EXAMPLE_QUERIES))
+  const [placeholderIdx, setPlaceholderIdx] = useState(0)
+
+  useEffect(() => {
+    setRotatingChips(pickExampleSubset(examplePool))
+    setPlaceholderIdx(0)
+  }, [examplePool])
+
+  useEffect(() => {
+    const rotate = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      const pool = examplePoolRef.current
+      if (!pool.length) return
+      setRotatingChips(pickExampleSubset(pool))
+      setPlaceholderIdx((i) => (i + 1) % pool.length)
+    }
+    const id = window.setInterval(rotate, EXAMPLE_ROTATE_MS)
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        rotate()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [])
+
+  const searchPlaceholder =
+    examplePool.length > 0
+      ? `Describe what you're looking for… (e.g. ${examplePool[placeholderIdx % examplePool.length]})`
+      : "Describe what you're looking for…"
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -254,7 +321,7 @@ export function SearchPage() {
                 type="text"
                 value={queryText}
                 onChange={(e) => setQueryText(e.target.value)}
-                placeholder="Describe what you're looking for…"
+                placeholder={searchPlaceholder}
                 className={clsx(
                   'flex-1 bg-transparent text-sm text-[#cccccc] placeholder-[#6d6d6d]',
                   'outline-none min-w-0',
@@ -350,7 +417,9 @@ export function SearchPage() {
 
       {/* Results area */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {!hasSearched && <EmptyState onExampleClick={handleSubmit} />}
+        {!hasSearched && (
+          <EmptyState exampleQueries={rotatingChips} onExampleClick={handleSubmit} />
+        )}
 
         {hasSearched && isLoading && (
           <div className="flex flex-col items-center justify-center gap-3 py-20">

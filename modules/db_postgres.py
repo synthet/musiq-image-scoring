@@ -968,6 +968,7 @@ def _init_db_transaction():
                 keyword_id  INTEGER NOT NULL REFERENCES keywords_dim(keyword_id) ON DELETE CASCADE,
                 source      VARCHAR(128) DEFAULT 'auto',
                 confidence  DOUBLE PRECISION,
+                relevance_weight DOUBLE PRECISION NOT NULL DEFAULT 1.0,
                 created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (image_id, keyword_id)
             );
@@ -980,6 +981,13 @@ def _init_db_transaction():
                 )
             except Exception as e:
                 logger.debug("image_keywords.source widen (optional): %s", e)
+            try:
+                cur.execute(
+                    "ALTER TABLE image_keywords ADD COLUMN IF NOT EXISTS relevance_weight "
+                    "DOUBLE PRECISION NOT NULL DEFAULT 1.0"
+                )
+            except Exception as e:
+                logger.debug("image_keywords.relevance_weight add (optional): %s", e)
 
             # ------------------------------------------------------------------
             # DELETED_IMAGES — tombstone rows when an images row is removed (Sync/Import/Backup)

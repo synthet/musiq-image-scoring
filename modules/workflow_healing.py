@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 
 from modules import db
 from modules.phases import PhaseCode
+from modules.phases_policy import get_phase_executor_version
 from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
 from modules.run_modes import resolve_run_mode_flags
 
@@ -89,6 +90,18 @@ def heal_phase_data(
     phase_code = phase_code.lower().strip()
     root_path = normalize_heal_root(root_path)
 
+    # Resolve active executor version for version-aware phases.
+    current_executor_version: Optional[str] = None
+    if phase_code == PhaseCode.BIRD_SPECIES.value:
+        current_executor_version = get_phase_executor_version(PhaseCode.BIRD_SPECIES.value)
+        if not current_executor_version:
+            try:
+                from modules.bird_species import BIRD_SPECIES_RUNNER_VERSION
+
+                current_executor_version = str(BIRD_SPECIES_RUNNER_VERSION)
+            except Exception:
+                current_executor_version = None
+
     # 1. Identify "False Positives" (Done but missing data)
     # -----------------------------------------------------------------------
     incomplete_sql = db.get_phase_incomplete_sql(phase_code, table_alias="i")
@@ -103,10 +116,15 @@ def heal_phase_data(
           AND (ips.updated_at IS NULL OR ips.updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute'))
     """
     
-    with db.connection() as conn:
-        c = conn.cursor()
-        c.execute(reset_query, (phase_code,))
-        false_positive_ids = [row[0] for row in c.fetchall()]
+    if phase_code == PhaseCode.BIRD_SPECIES.value:
+        # For bird_species, "done with no species predictions" is terminal for the
+        # current executor version, so these are not false positives to reset.
+        false_positive_ids: List[int] = []
+    else:
+        with db.connection() as conn:
+            c = conn.cursor()
+            c.execute(reset_query, (phase_code,))
+            false_positive_ids = [row[0] for row in c.fetchall()]
     
     resets_performed = 0
     if not dry_run and false_positive_ids:
@@ -129,6 +147,24 @@ def heal_phase_data(
           AND ({incomplete_sql})
     """
     params: List[Any] = [phase_code]
+    if phase_code == PhaseCode.BIRD_SPECIES.value:
+        folder_query = f"""
+            SELECT f.path, COUNT(*) as image_count
+            FROM images i
+            JOIN folders f ON f.id = i.folder_id
+            JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
+            LEFT JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
+            WHERE ({incomplete_sql})
+              AND (
+                  ips.status IS NULL
+                  OR LOWER(TRIM(ips.status)) IN ('not_started', 'failed', 'partial', 'running')
+                  OR (
+                      LOWER(TRIM(ips.status)) IN ('done', 'skipped')
+                      AND (? IS NULL OR COALESCE(TRIM(ips.executor_version), '') <> ?)
+                  )
+              )
+        """
+        params.extend([current_executor_version, current_executor_version])
     
     if root_path:
         rp = root_path.rstrip("/\\")

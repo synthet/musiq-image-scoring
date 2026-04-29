@@ -1,11 +1,7 @@
-# API layer — task index
+# API layer — task index (retired)
 
-**Canonical backlog:** repository root [`TODO.md`](../../../TODO.md) (sections **API & Embedding**, **API & Contract**).
+The canonical task queue is the **GitHub Project board** (filter by `area:api`):
 
-**Plans priority context:** [`docs/planning/INDEX.md`](../../planning/INDEX.md) — contract hygiene is **P0** in the plans index.
+**→ https://github.com/users/synthet/projects/1**
 
-**Workflow:** [`docs/project/00-backlog-workflow.md`](../../project/00-backlog-workflow.md) — sync order after any status change (aligned with [gallery `docs/project/00-backlog-workflow.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/project/00-backlog-workflow.md)).
-
-**Contract reference:** [API.md](API.md), [API_CONTRACT.md](../../technical/API_CONTRACT.md), [openapi.yaml](openapi.yaml).
-
-Do not add duplicate checkbox lists here; update root `TODO.md` when tasks change.
+Workflow / Stage contract: [`docs/project/00-backlog-workflow.md`](../../project/00-backlog-workflow.md). Contract reference: [API.md](API.md), [API_CONTRACT.md](../../technical/API_CONTRACT.md), [openapi.yaml](openapi.yaml).

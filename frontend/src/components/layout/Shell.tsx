@@ -8,7 +8,6 @@ import {
   Stethoscope,
   ScrollText,
   Database,
-  DatabaseZap,
   Search,
   MapPin,
 } from 'lucide-react'
@@ -62,7 +61,6 @@ export function Shell() {
         <nav className="flex items-center gap-1">
           <NavItem to="/runs" icon={<Workflow size={14} />} label="Runs" />
           <NavItem to="/images" icon={<Database size={14} />} label="Images" />
-          <NavItem to="/embeddings" icon={<DatabaseZap size={14} />} label="Vector DB" />
           <NavItem to="/search" icon={<Search size={14} />} label="Search" />
           <NavItem to="/map" icon={<MapPin size={14} />} label="Map" />
           <NavItem to="/diagnostics" icon={<Stethoscope size={14} />} label="Health" />

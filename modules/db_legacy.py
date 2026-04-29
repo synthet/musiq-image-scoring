@@ -711,6 +711,26 @@ def _log_legacy_keyword_access(image_id, context=""):
     )
 
 
+def _write_legacy_keywords_column() -> bool:
+    """Whether to persist keyword CSV strings into ``images.keywords`` alongside normalized tables.
+
+    For PostgreSQL, set ``database.write_legacy_keywords_column`` to ``false`` in ``config.json`` to stop
+    dual-writing the deprecated column once all tooling reads ``IMAGE_KEYWORDS`` / ``KEYWORDS_DIM``.
+    Normalized writes via :func:`_sync_image_keywords` still run regardless.
+
+    Firebird / legacy engines always return ``True`` (column remains the canonical store there until migrated).
+
+    See ``docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`` (planned column drop v7.0).
+    """
+    try:
+        eng = config.get_database_engine()
+    except Exception:
+        eng = "postgres"
+    if eng != "postgres":
+        return True
+    return bool(config.get_config_value("database.write_legacy_keywords_column", True))
+
+
 DB_CONFIG = config.get_config_section('database')
 DB_FILE = DB_CONFIG.get('filename', "scoring_history.fdb")
 DB_USER = str(DB_CONFIG.get('user', "sysdba") or "sysdba")
@@ -3124,6 +3144,7 @@ def _init_db_impl():
                     keyword_id  INTEGER NOT NULL,
                     source      VARCHAR(128) DEFAULT 'auto',
                     confidence  DOUBLE PRECISION,
+                    relevance_weight DOUBLE PRECISION DEFAULT 1 NOT NULL,
                     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY (image_id, keyword_id)
                 )''')
@@ -3166,6 +3187,21 @@ def _init_db_impl():
                 c = conn.cursor()
             except Exception as e:
                 logger.debug("image_keywords.source widen (may already apply): %s", e)
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                c = conn.cursor()
+
+        if _table_exists(c, "IMAGE_KEYWORDS"):
+            try:
+                c.execute(
+                    "ALTER TABLE image_keywords ADD relevance_weight DOUBLE PRECISION DEFAULT 1 NOT NULL"
+                )
+                conn.commit()
+                c = conn.cursor()
+            except Exception as e:
+                logger.debug("image_keywords.relevance_weight add (may already apply): %s", e)
                 try:
                     conn.rollback()
                 except Exception:
@@ -3257,9 +3293,12 @@ def update_image_field(image_id: int, field_name: str, value) -> bool:
     
     try:
         # field_name is safe: validated against whitelist above
-        get_connector().execute(
-            f"UPDATE images SET {field_name} = ? WHERE id = ?", (value, image_id)
-        )
+        if field_name == "keywords" and not _write_legacy_keywords_column():
+            pass  # Keywords: only normalized path (see _sync_image_keywords below)
+        else:
+            get_connector().execute(
+                f"UPDATE images SET {field_name} = ? WHERE id = ?", (value, image_id)
+            )
 
         # Dual-write: sync normalized keyword tables
         if field_name == 'keywords':
@@ -6826,6 +6865,7 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
     if isinstance(metadata, dict):
         metadata = json.dumps(metadata)
 
+    _legacy_kw_write = _write_legacy_keywords_column()
 
     image_hash = result.get("image_hash", None)
     try:
@@ -6878,20 +6918,36 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
             if existing_path != image_path:
                 logger.info("Duplicate by UUID %s: updating existing id=%s path %s -> %s",
                             image_uuid_val[:16], existing_id, existing_path, image_path)
-                get_connector().execute(
-                    '''UPDATE images SET
-                       job_id=?, file_path=?, file_name=?, file_type=?,
-                       score=?, score_spaq=?, score_ava=?, score_koniq=?, score_paq2piq=?, score_liqe=?,
-                       score_technical=?, score_aesthetic=?, score_general=?, model_version=?,
-                       rating=?, label=?, keywords=?, title=?, description=?, metadata=?, scores_json=?,
-                       thumbnail_path=?, thumbnail_path_win=?, image_hash=?, hash_version=?, folder_id=?
-                       WHERE id=?''',
-                    (job_id, image_path, file_name, file_type,
-                     score, score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
-                     score_technical, score_aesthetic, score_general, model_version,
-                     rating, label, keywords, title, description, metadata, json.dumps(result),
-                     thumbnail_path, thumbnail_path_win, image_hash, hash_version, folder_id, existing_id)
+                dup_params = (
+                    job_id, image_path, file_name, file_type,
+                    score, score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
+                    score_technical, score_aesthetic, score_general, model_version,
+                    rating, label, keywords, title, description, metadata, json.dumps(result),
+                    thumbnail_path, thumbnail_path_win, image_hash, hash_version, folder_id,
+                    existing_id,
                 )
+                if _legacy_kw_write:
+                    get_connector().execute(
+                        '''UPDATE images SET
+                           job_id=?, file_path=?, file_name=?, file_type=?,
+                           score=?, score_spaq=?, score_ava=?, score_koniq=?, score_paq2piq=?, score_liqe=?,
+                           score_technical=?, score_aesthetic=?, score_general=?, model_version=?,
+                           rating=?, label=?, keywords=?, title=?, description=?, metadata=?, scores_json=?,
+                           thumbnail_path=?, thumbnail_path_win=?, image_hash=?, hash_version=?, folder_id=?
+                           WHERE id=?''',
+                        dup_params,
+                    )
+                else:
+                    get_connector().execute(
+                        '''UPDATE images SET
+                           job_id=?, file_path=?, file_name=?, file_type=?,
+                           score=?, score_spaq=?, score_ava=?, score_koniq=?, score_paq2piq=?, score_liqe=?,
+                           score_technical=?, score_aesthetic=?, score_general=?, model_version=?,
+                           rating=?, label=?, title=?, description=?, metadata=?, scores_json=?,
+                           thumbnail_path=?, thumbnail_path_win=?, image_hash=?, hash_version=?, folder_id=?
+                           WHERE id=?''',
+                        dup_params[:16] + dup_params[17:],
+                    )
                 _sync_image_keywords(existing_id, keywords)
                 _write_image_model_scores(existing_id, result, model_version)
                 register_image_path(existing_id, image_path)
@@ -6925,22 +6981,48 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
         thumbnail_path, thumbnail_path_win,
         image_hash, hash_version, folder_id, utils.get_image_creation_time(image_path)
     )
+    _upsert_params_no_legacy_kw = (
+        job_id, image_path, file_name, file_type,
+        score,
+        score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
+        score_technical, score_aesthetic, score_general, model_version,
+        rating, label,
+        title, description, metadata, json.dumps(result),
+        thumbnail_path, thumbnail_path_win,
+        image_hash, hash_version, folder_id, utils.get_image_creation_time(image_path)
+    )
 
     def _tx(tx):
-        ret = tx.execute_returning(
-            '''UPDATE OR INSERT INTO images
-                  (job_id, file_path, file_name, file_type,
-                   score,
-                   score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
-                   score_technical, score_aesthetic, score_general, model_version,
-                   rating, label,
-                   keywords, title, description, metadata, scores_json,
-                   thumbnail_path, thumbnail_path_win,
-                   image_hash, hash_version, folder_id, created_at)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                  MATCHING (file_path) RETURNING id''',
-            _upsert_params,
-        )
+        if _legacy_kw_write:
+            ret = tx.execute_returning(
+                '''UPDATE OR INSERT INTO images
+                      (job_id, file_path, file_name, file_type,
+                       score,
+                       score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
+                       score_technical, score_aesthetic, score_general, model_version,
+                       rating, label,
+                       keywords, title, description, metadata, scores_json,
+                       thumbnail_path, thumbnail_path_win,
+                       image_hash, hash_version, folder_id, created_at)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      MATCHING (file_path) RETURNING id''',
+                _upsert_params,
+            )
+        else:
+            ret = tx.execute_returning(
+                '''UPDATE OR INSERT INTO images
+                      (job_id, file_path, file_name, file_type,
+                       score,
+                       score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
+                       score_technical, score_aesthetic, score_general, model_version,
+                       rating, label,
+                       title, description, metadata, scores_json,
+                       thumbnail_path, thumbnail_path_win,
+                       image_hash, hash_version, folder_id, created_at)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      MATCHING (file_path) RETURNING id''',
+                _upsert_params_no_legacy_kw,
+            )
         img_id = ret[0]["id"] if ret else None
         if img_id:
             try:
@@ -7527,10 +7609,16 @@ def update_image_metadata(file_path, keywords, title, description, rating, label
     Updates the metadata fields for a given image path.
     """
     try:
-        get_connector().execute(
-            "UPDATE images SET keywords = ?, title = ?, description = ?, rating = ?, label = ? WHERE file_path = ?",
-            (keywords, title, description, rating, label, file_path),
-        )
+        if _write_legacy_keywords_column():
+            get_connector().execute(
+                "UPDATE images SET keywords = ?, title = ?, description = ?, rating = ?, label = ? WHERE file_path = ?",
+                (keywords, title, description, rating, label, file_path),
+            )
+        else:
+            get_connector().execute(
+                "UPDATE images SET title = ?, description = ?, rating = ?, label = ? WHERE file_path = ?",
+                (title, description, rating, label, file_path),
+            )
         row = get_connector().query_one("SELECT id FROM images WHERE file_path = ?", (file_path,))
         if row:
             _sync_image_keywords(row["id"], keywords)
@@ -8462,6 +8550,8 @@ def update_image_fields_batch(updates):
                     continue
                 for fname, val in fields.items():
                     if fname not in valid_fields:
+                        continue
+                    if fname == "keywords" and not _write_legacy_keywords_column():
                         continue
                     tx.execute(f"UPDATE images SET {fname} = ? WHERE id = ?", (val, image_id))
         get_connector().run_transaction(_tx)
@@ -11302,15 +11392,28 @@ def _launch_firebird_server_wsl(fb_exe_path):
         print(f"Failed to launch Firebird Server: {e}")
 
 
-def _sync_image_keywords(image_id, keywords_str, source="auto", confidence=1.0):
+def _sync_image_keywords(
+    image_id,
+    keywords_str,
+    source="auto",
+    confidence=1.0,
+    relevance_weight=1.0,
+):
     """
     Dual-write sync: Parses the legacy keywords CSV string and updates the normalized
     IMAGE_KEYWORDS and KEYWORDS_DIM tables.
+
+    ``confidence`` reflects model/source confidence; ``relevance_weight`` is relative
+    keyword importance for the image (ranking, propagation, filtering). Defaults to 1.0.
     """
     if not image_id:
         return
 
     source = (source or "auto")[:128]
+    try:
+        relevance_weight = float(relevance_weight)
+    except (TypeError, ValueError):
+        relevance_weight = 1.0
 
     try:
         def _tx(tx):
@@ -11335,8 +11438,8 @@ def _sync_image_keywords(image_id, keywords_str, source="auto", confidence=1.0):
                     kw_id = ins[0]["keyword_id"]
 
                 tx.execute(
-                    "UPDATE OR INSERT INTO image_keywords (image_id, keyword_id, source, confidence) VALUES (?, ?, ?, ?) MATCHING (image_id, keyword_id)",
-                    (image_id, kw_id, source, confidence))
+                    "UPDATE OR INSERT INTO image_keywords (image_id, keyword_id, source, confidence, relevance_weight) VALUES (?, ?, ?, ?, ?) MATCHING (image_id, keyword_id)",
+                    (image_id, kw_id, source, confidence, relevance_weight))
 
         get_connector().run_transaction(_tx)
     except Exception as e:

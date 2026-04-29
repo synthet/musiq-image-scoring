@@ -17,6 +17,7 @@ Central list of **first-party** `SKILL.md` files in this repository for governan
 
 | Skill `name` | Path | Purpose (short) | Risk | Mirror under `.claude/skills/` | Last reviewed |
 |--------------|------|-----------------|------|-------------------------------|---------------|
+| backlog-queue | `.cursor/skills/backlog-queue/SKILL.md` | Cross-repo GitHub Project board contract (claim, transition, file) | L1 | Yes | 2026-04-28 |
 | backup-db | `.cursor/skills/backup-db/SKILL.md` | Postgres backup workflow | L2 | — (Cursor only) | 2026-04-25 |
 | commit-conventions | `.cursor/skills/commit-conventions/SKILL.md` | Conventional Commits / PR titles | L1 | Yes | 2026-04-25 |
 | critical-commit-audit | `.cursor/skills/critical-commit-audit/SKILL.md` | High-severity post-commit review; trace paths, PR bar | L2 | Yes | 2026-04-26 |
@@ -34,6 +35,7 @@ Skills listed with **Mirror = Yes** must stay in sync with **`.cursor/skills/<na
 
 | Skill `name` | Path | Purpose (short) | Risk | Last reviewed |
 |--------------|------|-----------------|------|---------------|
+| backlog-queue | `.agent/skills/backlog-queue/SKILL.md` | Project board contract (Antigravity / generic agent mirror of canonical Cursor skill) | L1 | 2026-04-28 |
 | git-changelog | `.agent/skills/git-changelog/SKILL.md` | Git / changelog conventions | L1 | 2026-04-25 |
 | image-scoring-mcp | `.agent/skills/image-scoring-mcp/SKILL.md` | MCP tools reference | L2 | 2026-04-25 |
 | scoring-pipeline | `.agent/skills/scoring-pipeline/SKILL.md` | Pipeline architecture | L1 | 2026-04-25 |

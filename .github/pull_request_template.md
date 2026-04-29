@@ -1,9 +1,18 @@
-## Backlog / docs checklist
+## Issue
 
-- [ ] Root [`TODO.md`](TODO.md) updated if open items changed (checkboxes, **Last evaluated**, counts, **Highest-Impact Next Steps** if order changed)
-- [ ] Related plan docs skimmed: [`docs/planning/database/NEXT_STEPS.md`](docs/planning/database/NEXT_STEPS.md), [`docs/features/planned/embeddings/NEXT_STEPS.md`](docs/features/planned/embeddings/NEXT_STEPS.md) when track status changed
+<!-- REQUIRED. Link the backlog issue this PR closes. Format must trigger PR-close automation: -->
+Closes #
+
+> If this PR has no associated issue, stop and open one first — the canonical queue is the
+> [Project board](https://github.com/users/synthet/projects/1). See
+> [`docs/project/00-backlog-workflow.md`](../docs/project/00-backlog-workflow.md).
+
+## Backlog hygiene
+
+- [ ] Card moved to `Stage = Review` on the [Project board](https://github.com/users/synthet/projects/1)
+- [ ] If cross-repo, the counterpart issue in `image-scoring-gallery` is linked above
 - [ ] API contract / OpenAPI / `API.md` updated when REST behavior or paths changed
-- [ ] If **image-scoring-gallery** is affected: note in PR body + sync per [`docs/project/00-backlog-workflow.md`](docs/project/00-backlog-workflow.md) sync order
+- [ ] Plan docs skimmed when track status changed: [`docs/planning/database/NEXT_STEPS.md`](../docs/planning/database/NEXT_STEPS.md), [`docs/features/planned/embeddings/NEXT_STEPS.md`](../docs/features/planned/embeddings/NEXT_STEPS.md)
 
 ## Summary
 

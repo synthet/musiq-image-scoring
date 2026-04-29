@@ -15,6 +15,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.8.0] - 2026-04-28
+
+### Added
+
+- **PostgreSQL — `image_keywords.relevance_weight`**: Alembic **`0017_image_keywords_relevance_weight.py`** adds **`relevance_weight`** (default `1.0`) beside **`confidence`** for per-tag relevance in ranking/filtering.
+- **`GET /api/similarity/example-queries`**: Keyword-catalog suggestions (`keywords_dim` / `image_keywords`), optional **`folder_path`** scope — powers rotating example chips on the **`/ui/` Semantic Search page**.
+- **Tests**: New **`tests/test_workflow_healing_bird_species.py`** workflow coverage for bird-species healing.
+
+### Changed
+
+- **React `/ui/` Semantic Search**: Standalone embeddings atlas (**`EmbeddingsPage`**, **`ScatterCanvas`**, **`HoverTooltip`**, **`SidePanel`**, **`ControlsBar`**) and **`frontend/src/api/embeddings.ts`** removed; **`SearchPage`**, **`api/search`**, and **`frontend/src/types/api.ts`** expanded for semantic search flows.
+- **Pipeline & metadata**: **`exif_extractor`**, **`workflow_healing`**, **`bird_species`**, **`db_legacy`**, **`db_postgres`**, **`phase_executors`**, **`modules/ui/app.py`** — EXIF/metadata robustness, split-brain and Firebird ↔ Postgres parity extensions.
+- **Static `/app` bundle**: Rebuilt **`static/app`** assets (**`index.html`**, hashed JS/CSS).
+
+### Removed
+
+- **Standalone `/ui/embeddings` route**: Embeddings atlas page and related frontend components deferred; **`GET /api/embedding_map`** and similarity APIs unchanged for clients.
+
+### Fixed
+
+- **Phases policy & translation**: Updates in **`tests/test_phases_policy.py`** and **`tests/test_translate_fb_to_pg.py`**.
+
 ## [7.7.0] - 2026-04-28
 
 ### Added

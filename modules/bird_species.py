@@ -429,7 +429,13 @@ class BirdSpeciesRunner:
             inference_path = _resolve_inference_path(row, file_path)
 
             if not inference_path or not os.path.exists(inference_path):
-                db.set_image_phase_status(row["id"], phase_code, "failed", error="File not found")
+                db.set_image_phase_status(
+                    row["id"],
+                    phase_code,
+                    "failed",
+                    error="File not found",
+                    executor_version=BIRD_SPECIES_RUNNER_VERSION,
+                )
                 log(f"Skipped (file not found): {os.path.basename(file_path)}", "WARNING")
                 skipped += 1
                 self.current_count += 1
@@ -461,16 +467,32 @@ class BirdSpeciesRunner:
                     merged_str = ",".join(merged)
 
                     db.update_image_fields_batch([(row["id"], {"keywords": merged_str})])
-                    db.set_image_phase_status(row["id"], phase_code, "done")
+                    db.set_image_phase_status(
+                        row["id"],
+                        phase_code,
+                        "done",
+                        executor_version=BIRD_SPECIES_RUNNER_VERSION,
+                    )
                     log(f"{os.path.basename(file_path)}: {', '.join(new_species_kws)}")
                     processed += 1
                 else:
-                    db.set_image_phase_status(row["id"], phase_code, "done")
+                    db.set_image_phase_status(
+                        row["id"],
+                        phase_code,
+                        "done",
+                        executor_version=BIRD_SPECIES_RUNNER_VERSION,
+                    )
                     log(f"{os.path.basename(file_path)}: no species above threshold")
                     skipped += 1
 
             except Exception as exc:
-                db.set_image_phase_status(row["id"], phase_code, "failed", error=str(exc))
+                db.set_image_phase_status(
+                    row["id"],
+                    phase_code,
+                    "failed",
+                    error=str(exc),
+                    executor_version=BIRD_SPECIES_RUNNER_VERSION,
+                )
                 log(f"Error classifying {os.path.basename(file_path)}: {exc}", "ERROR")
                 logger.exception("BirdSpeciesRunner error on %s", file_path)
                 skipped += 1

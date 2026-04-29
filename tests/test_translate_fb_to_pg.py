@@ -124,13 +124,14 @@ class TestUpsertTranslation:
     def test_upsert_image_keywords(self):
         fb = (
             "UPDATE OR INSERT INTO image_keywords "
-            "(image_id, keyword_id, source, confidence) "
-            "VALUES (?, ?, ?, ?) MATCHING (image_id, keyword_id)"
+            "(image_id, keyword_id, source, confidence, relevance_weight) "
+            "VALUES (?, ?, ?, ?, ?) MATCHING (image_id, keyword_id)"
         )
         pg = _translate_fb_to_pg(fb)
         assert "ON CONFLICT (image_id, keyword_id) DO UPDATE SET" in pg
         assert "source = EXCLUDED.source" in pg
         assert "confidence = EXCLUDED.confidence" in pg
+        assert "relevance_weight = EXCLUDED.relevance_weight" in pg
 
     def test_upsert_xmp_with_current_timestamp(self):
         fb = (

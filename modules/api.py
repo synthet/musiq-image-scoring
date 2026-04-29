@@ -3786,6 +3786,52 @@ def create_api_router() -> APIRouter:
             "embedding_space": "clip_vit_b32_image",
         }
 
+    @router.get(
+        "/similarity/example-queries",
+        summary="Suggested text-search queries from library keywords",
+        description="""
+        Returns up to ``limit`` display strings derived from ranked keywords in the catalog
+        (``keywords_dim`` / ``image_keywords``), optionally scoped to a folder path.
+        Used by the Semantic Search UI for rotating example chips.
+
+        Always returns HTTP 200; on failure or empty catalog, ``queries`` is an empty list.
+        """,
+        tags=["Similarity"],
+    )
+    def get_similarity_example_queries(
+        limit: int = Query(48, ge=1, le=100, description="Maximum keyword phrases to return"),
+        folder_path: Optional[str] = Query(None, description="Scope keywords to images under this folder path"),
+    ):
+        """Top keywords from the catalog as suggestion strings for text search."""
+        from modules.keyword_discovery import get_top_keywords
+
+        def _min_display_len(val: Optional[str]) -> bool:
+            s = (val or "").strip()
+            return len(s) >= 2
+
+        try:
+            rows = get_top_keywords(limit=limit, folder_path=folder_path) or []
+        except Exception as e:
+            logger.warning("example-queries failed: %s", e)
+            return {"queries": [], "source": "keywords"}
+
+        out: List[str] = []
+        seen = set()
+        for r in rows:
+            disp = r.get("keyword_display")
+            norm = r.get("keyword_norm")
+            text = (disp if (disp and str(disp).strip()) else norm) or ""
+            text = str(text).strip()
+            if not _min_display_len(text):
+                continue
+            key = text.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(text)
+
+        return {"queries": out, "source": "keywords"}
+
     # ========== Find Duplicates Endpoints ==========
 
     @router.post(

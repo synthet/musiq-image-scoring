@@ -62,6 +62,7 @@ def _init_webui_engines(clustering_runner=None):
         scoring_runner=runner,
         tagging_runner=tagging_runner,
         selection_runner=selection_runner,
+        bird_species_runner=_bird_species_runner,
         indexing_runner=indexing_runner,
         metadata_runner=metadata_runner,
     )

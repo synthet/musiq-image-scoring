@@ -1,84 +1,164 @@
-# Backlog workflow — picking tasks, tracking status, and keeping docs aligned
+# Backlog workflow — claiming work, tracking status, keeping the queue truthful
 
-This document is the **operating guide** for the Python backend backlog. The gallery repo uses the same structure: **[`docs/project/00-backlog-workflow.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/project/00-backlog-workflow.md)** is canonical there; [`BACKLOG_GOVERNANCE.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/project/BACKLOG_GOVERNANCE.md) is an alias. Here **`00-backlog-workflow.md`** is canonical; [`BACKLOG_GOVERNANCE.md`](BACKLOG_GOVERNANCE.md) is an alias for backward links.
+The canonical task queue is the **GitHub Project board**:
 
-It complements the task lists (`TODO.md`, mirrors below) by describing *how* to choose work, record progress, and avoid documentation drift.
+**→ https://github.com/users/synthet/projects/1**
 
----
+It surfaces issues from both repos:
+- `synthet/image-scoring-backend` (this repo) — backend, FastAPI, DB schema
+- `synthet/image-scoring-gallery` — Electron / React UI
 
-## 1. Where things live (single hierarchy)
-
-| Role | Location | Purpose |
-|------|----------|---------|
-| **Canonical backlog** | [`TODO.md`](../../TODO.md) (repo root) | Master checklist, counts, markers, **Highest-Impact Next Steps** |
-| **API slice** | [`../reference/api/TODO.md`](../reference/api/TODO.md) | Pointer to root backlog + contract links (no duplicate checkboxes) |
-| **Embedding slice** | [`../features/planned/embeddings/TODO.md`](../features/planned/embeddings/TODO.md) | Pointer to root backlog + embedding `NEXT_STEPS` |
-| **Archived pointer** | [`TODO.md`](TODO.md) | Historical index; do not add tasks here |
-| **Database track (status narrative)** | [`../planning/database/NEXT_STEPS.md`](../planning/database/NEXT_STEPS.md) | Phase 4 verification steps; not a second backlog |
-| **Embedding track (status narrative)** | [`../features/planned/embeddings/NEXT_STEPS.md`](../features/planned/embeddings/NEXT_STEPS.md) | Implementation vs UX gaps |
-| **Migration (historical + decisions)** | [`../planning/database/FIREBIRD_POSTGRES_MIGRATION.md`](../planning/database/FIREBIRD_POSTGRES_MIGRATION.md) | Postgres cutover narrative |
-
-**Rule:** Edit **[`TODO.md`](../../TODO.md) first**. Then propagate changes down the sync order (next section). Do not invent parallel sources of truth.
+This document is the **operating contract** every agent (human or AI) must follow
+when picking and tracking work. The gallery repo has the same doc — both must stay
+in sync.
 
 ---
 
-## 2. Sync order (after any status change)
+## 1. The board
 
-When you complete, reopen, split, or reprioritize a task:
+Two single-select fields drive the workflow:
 
-1. Update **[`TODO.md`](../../TODO.md)** — checkboxes, **Last evaluated** date, count snapshot, **Highest-Impact Next Steps** if order changed.
-2. Skim **[`docs/planning/database/NEXT_STEPS.md`](../planning/database/NEXT_STEPS.md)** and **[`docs/features/planned/embeddings/NEXT_STEPS.md`](../features/planned/embeddings/NEXT_STEPS.md)** — adjust only if the track’s true status changed (not every small fix).
-3. If REST/OpenAPI/contract rows moved, ensure **[`docs/technical/API_CONTRACT.md`](../technical/API_CONTRACT.md)** / [`openapi.yaml`](../reference/api/openapi.yaml) / [`API.md`](../reference/api/API.md) are updated in the same PR when behavior changes.
-4. If the Electron app is affected, follow **[`AGENT_COORDINATION.md`](../technical/AGENT_COORDINATION.md)** and sync with **image-scoring-gallery** [`TODO.md`](https://github.com/synthet/image-scoring-gallery/blob/main/TODO.md) and [`docs/project/00-backlog-workflow.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/project/00-backlog-workflow.md) (mirror sync order).
-5. If the PR touches open backlog items, complete **[`.github/pull_request_template.md`](../../.github/pull_request_template.md)** when that file exists (TODO sync, counts).
+| Field | Purpose |
+|-------|---------|
+| **`Stage`** *(primary, custom)* | `Backlog → Ready → Claimed → In Progress → Blocked → Review → Done` — the operator queue every agent reads from and writes to. |
+| **`Status`** *(built-in)* | `Todo / In Progress / Done` — required by GitHub PR-close automation; flips to `Done` when a PR with `Closes #N` merges. |
 
-**Cadence:** Reconcile `TODO.md` with plan docs **at least weekly** and **immediately** after merging work that changes open items.
+Labels are facets:
 
----
+| Family | Values |
+|--------|--------|
+| `area:*` | `python`, `db`, `gradio`, `electron`, `docs` |
+| `priority:*` | `p0`, `p1`, `p2`, `p3` |
+| `type:*` | `bug`, `feature`, `refactor`, `test`, `chore` |
+| (special) | `cross-repo` |
 
-## 3. How to pick the next task (step-by-step)
-
-### Step A — Check the recommended sequence
-
-Read **“Highest-Impact Next Steps”** in [`TODO.md`](../../TODO.md). That block is ordered for impact and cross-repo dependency (coordination with the gallery repo, schema work, verification debt).
-
-### Step B — Apply dependency gates
-
-- **`[Electron]`:** Requires changes in **image-scoring-gallery** (or coordinated contract). Confirm API/events exist in this repo or schedule a joint change per [Agent Coordination](../technical/AGENT_COORDINATION.md).
-- **`[Gradio]`:** WebUI / operator flows in this repo.
-- **`[Python]`:** Backend modules, FastAPI, tests.
-- **`[DB]`:** PostgreSQL schema, Alembic, `modules/db.py` / `db_postgres.py`.
-- **Blocked?** Prefer a **[Python]**/**[Gradio]**-only item or document the blocker on the relevant line.
-
-### Step C — Size the work
-
-- Large themes get a short design note or issue; keep **one** line in [`TODO.md`](../../TODO.md) as the anchor unless you split into sub-tasks with checkboxes.
-- Smaller fixes stay as single lines under the existing priority sections.
-
-### Step D — Track execution status
-
-- Use **checkboxes** in [`TODO.md`](../../TODO.md) (`- [ ]` / `- [x]`).
-- For multi-session work, optionally use **mcp-kanban** (see [`.cursor/skills/mcp-kanban-workflow`](../../.cursor/skills/mcp-kanban-workflow/SKILL.md)) — markdown remains authoritative.
+**Rule:** Edit issues, not files. The repo `TODO.md` is a pointer only.
 
 ---
 
-## 4. Count snapshot rules (brief)
+## 2. The agent contract
 
-When you update totals in [`TODO.md`](../../TODO.md):
+Every contributor — human or AI — follows the same five steps. Do **all** of them; skipping a step puts the queue out of sync.
 
-- **Open item:** each unchecked `- [ ]` line counts as one.
-- **Gallery-dependent:** any open line tagged **`[Electron]`** (work in image-scoring-gallery or coordinated across repos).
-- **Backend scope:** open items **without** `[Electron]` (this repo only, including `[Python]` / `[Gradio]` / `[DB]`).
+### Step 1 — Pick from `Ready`
 
-Full rules and the live snapshot live in the **Count Snapshot Rules** and **Current Status Snapshot** sections of [`TODO.md`](../../TODO.md).
+Open the [Project board](https://github.com/users/synthet/projects/1), filter to **Stage = Ready**, sort by `priority:p0..p3`. Pick the highest-priority unassigned card.
+
+> If `Ready` is empty, ask the maintainer to promote items from `Backlog`. Do not invent new work.
+
+### Step 2 — Claim it
+
+Either run the slash command (Claude Code):
+
+```
+/task-claim <issue-number>
+```
+
+Or run the equivalent `gh` commands manually:
+
+```bash
+# Replace <N> with the issue number, <repo> with image-scoring-backend or image-scoring-gallery
+gh issue edit <N> --repo synthet/<repo> --add-assignee @me
+
+# Move the card to Claimed
+ITEM_ID=$(gh project item-list 1 --owner synthet --format json \
+  --limit 200 \
+  | jq -r --argjson n <N> --arg repo "<repo>" \
+      '.items[] | select(.content.number==$n and (.content.repository|endswith($repo))) | .id')
+
+gh project item-edit \
+  --id "$ITEM_ID" \
+  --project-id PVT_kwHOAFXgIs4BWC3c \
+  --field-id PVTSSF_lAHOAFXgIs4BWC3czhRaNZ0 \
+  --single-select-option-id 1cc70f0b   # Claimed
+```
+
+### Step 3 — Flip to `In Progress` on first commit
+
+When you push your first commit on the work branch, move the card to `In Progress`:
+
+```bash
+gh project item-edit \
+  --id "$ITEM_ID" \
+  --project-id PVT_kwHOAFXgIs4BWC3c \
+  --field-id PVTSSF_lAHOAFXgIs4BWC3czhRaNZ0 \
+  --single-select-option-id 8b22e18e   # In Progress
+```
+
+### Step 4 — If blocked, say so
+
+If you hit an external dependency, missing decision, or upstream bug:
+
+1. Move the card to `Stage = Blocked` (option id `4bbe5dd0`).
+2. Comment on the issue describing **what** is blocking and **what would unblock it**.
+
+```bash
+gh issue comment <N> --repo synthet/<repo> --body "Blocked: <one-line reason + what would unblock>."
+```
+
+### Step 5 — Reference the issue in your PR
+
+Your PR description **must** contain a line of the form:
+
+```
+Closes #<N>
+```
+
+That triggers GitHub's PR-close automation: on merge, the issue closes and the
+card moves to `Status = Done`. Move the card to `Stage = Review` while the PR is
+open, then to `Stage = Done` after merge (the automation handles `Status` but
+the custom `Stage` field is manual).
+
+The PR template enforces an `Issue:` line — see
+[`.github/pull_request_template.md`](../../.github/pull_request_template.md).
 
 ---
 
-## 5. Related reading
+## 3. Cross-repo work
 
-- [Documentation index](../INDEX.md)
-- [Database NEXT_STEPS](../planning/database/NEXT_STEPS.md) · [Embedding NEXT_STEPS](../features/planned/embeddings/NEXT_STEPS.md)
-- [Periodic backlog review notes](../reports/project-reviews/UNFINISHED_BUSINESS_EVALUATION_2026-03-14.md)
-- Gallery sibling workflow: [**image-scoring-gallery** — `docs/project/00-backlog-workflow.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/project/00-backlog-workflow.md) ([`BACKLOG_GOVERNANCE.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/project/BACKLOG_GOVERNANCE.md) is an alias)
+When work touches both repos:
 
-[← Project planning index](INDEX.md)
+1. File one issue in **each** repo (or use existing pair).
+2. Apply the `cross-repo` label to both.
+3. In each issue body, link to the counterpart with the full URL.
+4. The Project board shows both — group/filter by `cross-repo` to see the pair.
+
+See [`docs/technical/AGENT_COORDINATION.md`](../technical/AGENT_COORDINATION.md)
+for cross-repo sync protocol details (API contract changes, schema renames, etc.).
+
+---
+
+## 4. Where things live
+
+| Role | Location |
+|------|----------|
+| **Canonical queue** | [Project board](https://github.com/users/synthet/projects/1) |
+| **Issue trackers** | [backend issues](https://github.com/synthet/image-scoring-backend/issues), [gallery issues](https://github.com/synthet/image-scoring-gallery/issues) |
+| **Pointer (this repo)** | [`TODO.md`](../../TODO.md) |
+| **Pointer (gallery)** | [gallery `TODO.md`](https://github.com/synthet/image-scoring-gallery/blob/main/TODO.md) |
+| **This contract** | here, plus [gallery sibling](https://github.com/synthet/image-scoring-gallery/blob/main/docs/project/00-backlog-workflow.md) |
+| **Status narratives** | [`docs/planning/database/NEXT_STEPS.md`](../planning/database/NEXT_STEPS.md), [`docs/features/planned/embeddings/NEXT_STEPS.md`](../features/planned/embeddings/NEXT_STEPS.md) — narrative, not a backlog |
+
+---
+
+## 5. Reference: project + field IDs
+
+For automation/scripts:
+
+| Thing | ID |
+|-------|----|
+| Project node id | `PVT_kwHOAFXgIs4BWC3c` |
+| Project number | `1` |
+| Owner | `synthet` (user) |
+| `Stage` field id | `PVTSSF_lAHOAFXgIs4BWC3czhRaNZ0` |
+| `Backlog` option | `83b7a780` |
+| `Ready` option | `ddaf7773` |
+| `Claimed` option | `1cc70f0b` |
+| `In Progress` option | `8b22e18e` |
+| `Blocked` option | `4bbe5dd0` |
+| `Review` option | `cb723acb` |
+| `Done` option | `73062c96` |
+
+Bootstrap scripts:
+- [`scripts/bootstrap_labels.sh`](../../scripts/bootstrap_labels.sh) — re-create the label taxonomy in both repos.
+- [`scripts/bootstrap_issues.py`](../../scripts/bootstrap_issues.py) — original migration from legacy `TODO.md`; idempotent (skips by title).

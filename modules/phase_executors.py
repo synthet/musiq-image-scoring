@@ -20,6 +20,7 @@ def register_all(
     tagging_runner=None,
     clustering_runner=None,
     selection_runner=None,
+    bird_species_runner=None,
     indexing_runner=None,
     metadata_runner=None,
 ):
@@ -94,6 +95,17 @@ def register_all(
             executor_version="1.0.0",
             run_folder=tagging_runner.start_batch,
             depends_on=[PhaseCode.SCORING],
+        ))
+
+    # Phase F — Bird Species
+    if bird_species_runner:
+        from modules.bird_species import BIRD_SPECIES_RUNNER_VERSION
+
+        PhaseRegistry.register(PhaseExecutor(
+            code=PhaseCode.BIRD_SPECIES,
+            executor_version=BIRD_SPECIES_RUNNER_VERSION,
+            run_folder=bird_species_runner.start_batch,
+            depends_on=[PhaseCode.KEYWORDS],
         ))
 
     registered = [e.code for e in PhaseRegistry.get_all()]
