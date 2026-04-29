@@ -239,6 +239,7 @@ exports/debug-bundles/
 _db_methods.txt
 analyze_dump.py
 fix_all_backups_state.json
+heal_test_results.json
 
 # ML feature cache (regenerated at runtime)
 thumbnails/feature_cache/
