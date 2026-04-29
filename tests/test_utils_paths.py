@@ -60,6 +60,55 @@ def test_convert_path_to_local_native_linux_path_unchanged(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Docker host→container project root remap
+# ---------------------------------------------------------------------------
+
+def _patch_host_project_env(monkeypatch, base_dir: str):
+    monkeypatch.setenv("IMAGE_SCORING_HOST_PROJECT_WSL", "/mnt/d/Projects/image-scoring-backend")
+    monkeypatch.setenv("IMAGE_SCORING_HOST_PROJECT_WIN", "D:\\Projects\\image-scoring-backend")
+    from modules import config
+    monkeypatch.setattr(config, "BASE_DIR", base_dir)
+
+
+def test_convert_path_to_local_remaps_wsl_host_project_to_container_root(monkeypatch):
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    _patch_host_project_env(monkeypatch, "/app")
+    result = utils.convert_path_to_local(
+        "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/abc.jpg"
+    )
+    assert result.replace("\\", "/") == "/app/thumbnails/b6/abc.jpg"
+
+
+def test_convert_path_to_local_remaps_windows_host_project_to_container_root(monkeypatch):
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    _patch_host_project_env(monkeypatch, "/app")
+    result = utils.convert_path_to_local(
+        "D:\\Projects\\image-scoring-backend\\thumbnails\\b6\\abc.jpg"
+    )
+    assert result.replace("\\", "/") == "/app/thumbnails/b6/abc.jpg"
+
+
+def test_convert_path_to_local_no_remap_outside_project(monkeypatch):
+    """Paths outside the host project root are not touched by the Docker remap."""
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    _patch_host_project_env(monkeypatch, "/app")
+    result = utils.convert_path_to_local("/mnt/d/Photos/Z8/DSC_4093.NEF")
+    # No remap → falls through to existing Linux behavior (no Windows-drive prefix).
+    assert result == "/mnt/d/Photos/Z8/DSC_4093.NEF"
+
+
+def test_convert_path_to_local_remap_disabled_when_env_unset(monkeypatch):
+    monkeypatch.delenv("IMAGE_SCORING_HOST_PROJECT_WSL", raising=False)
+    monkeypatch.delenv("IMAGE_SCORING_HOST_PROJECT_WIN", raising=False)
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    result = utils.convert_path_to_local(
+        "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/abc.jpg"
+    )
+    # Without env vars, no remap. Linux pass-through.
+    assert result == "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/abc.jpg"
+
+
+# ---------------------------------------------------------------------------
 # resolve_scope_input_path
 # ---------------------------------------------------------------------------
 

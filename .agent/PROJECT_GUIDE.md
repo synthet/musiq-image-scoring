@@ -1,6 +1,10 @@
-# Agent Project Guide: Image Scoring
+# Agent Project Guide: Vexlum Scoring
 
-This guide provides instructions for AI agents on how to navigate, maintain, and execute the Image Scoring project.
+This guide provides instructions for AI agents on how to navigate, maintain, and execute the **Vexlum Scoring** backend (`image-scoring-backend`).
+
+## Documentation authority
+
+Before changing API contracts, phase names, or schema: read **[`docs/CANONICAL_SOURCES.md`](../docs/CANONICAL_SOURCES.md)**. When editing or moving wiki pages under `docs/`, follow **[`docs/WIKI_SCHEMA.md`](../docs/WIKI_SCHEMA.md)** and append to **`docs/log.md`**.
 
 ## Project Context
 `image-scoring` is a multi-model quality assessment tool with a hybrid architecture (Windows + WSL 2). It uses TensorFlow and PyTorch for scoring, and PostgreSQL for storage.

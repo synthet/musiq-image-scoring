@@ -20,9 +20,9 @@ status: in-progress
 | Consistency check script | `scripts/db/phase4_consistency_check.py` | ✅ Ready |
 | Performance benchmark | `scripts/db/phase4_performance_benchmark.py` | ✅ Ready |
 | Keyword discovery module | `modules/keyword_discovery.py` | ✅ Ready |
-| Deprecation roadmap | `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md` | ✅ Ready |
-| Code audit | `docs/plans/database/PHASE4_CODE_AUDIT.md` | ✅ Ready |
-| Implementation summary | `docs/plans/database/PHASE4_SUMMARY.md` | ✅ Ready |
+| Deprecation roadmap | `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md` | ✅ Ready |
+| Code audit | `docs/archive/plans/database/PHASE4_CODE_AUDIT.md` | ✅ Ready |
+| Implementation summary | `docs/archive/plans/database/PHASE4_SUMMARY.md` | ✅ Ready |
 | CLAUDE.md guidelines | `CLAUDE.md` (section added) | ✅ Ready |
 
 ### Code Fixes Implemented
@@ -160,9 +160,9 @@ python scripts/db/phase4_performance_benchmark.py
 ### Documentation
 
 - `CLAUDE.md` — Updated with keyword guidelines
-- `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md` — Full deprecation roadmap
-- `docs/plans/database/PHASE4_CODE_AUDIT.md` — Code audit & issues found
-- `docs/plans/database/PHASE4_SUMMARY.md` — Implementation summary
+- `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md` — Full deprecation roadmap
+- `docs/archive/plans/database/PHASE4_CODE_AUDIT.md` — Code audit & issues found
+- `docs/archive/plans/database/PHASE4_SUMMARY.md` — Implementation summary
 
 ### Code Paths
 
@@ -242,6 +242,6 @@ By end of Phase 4d (v7.0):
 ## Contact & References
 
 - **Plan authority:** This document
-- **Code audit:** `docs/plans/database/PHASE4_CODE_AUDIT.md`
-- **Full deprecation plan:** `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`
-- **Embedding parallel work:** `docs/plans/database/DB_VECTORS_REFACTOR.md` (already complete)
+- **Code audit:** `docs/archive/plans/database/PHASE4_CODE_AUDIT.md`
+- **Full deprecation plan:** `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`
+- **Embedding parallel work:** `docs/planning/database/DB_VECTORS_REFACTOR.md` (already complete)

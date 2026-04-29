@@ -429,8 +429,8 @@ class TaggingRunner:
         """
         from modules.run_log import runner_emit
 
-        def log(msg: str, level: str = "INFO") -> None:
-            runner_emit(self.log_history, job_id, msg, level, phase="keywords")
+        def log(msg: str, level: str = "INFO", image_id: Optional[int] = None) -> None:
+            runner_emit(self.log_history, job_id, msg, level, phase="keywords", image_id=image_id)
 
         # Convert Windows path to WSL path if running in WSL
         if input_path and ":" in input_path and len(input_path) > 1 and input_path[1] == ":":
@@ -609,7 +609,7 @@ class TaggingRunner:
             )
 
             try:
-                log(f"Tagging image_id={row['id']}: {path}", "DEBUG")
+                log(f"Tagging image_id={row['id']}: {path}", "DEBUG", image_id=row["id"])
                 # Determine inference path (NEF vs Thumbnail)
                 inference_path = path
                 ext = os.path.splitext(path)[1].lower()
@@ -703,7 +703,7 @@ class TaggingRunner:
                         skipped_by="tagging",
                     )
             except Exception as e:
-                log(f"Error processing {path}: {e}", "ERROR")
+                log(f"Error processing {path}: {e}", "ERROR", image_id=row["id"])
                 skipped_count += 1
                 try:
                     db.set_image_phase_status(

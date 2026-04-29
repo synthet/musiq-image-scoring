@@ -1,4 +1,4 @@
-# Image Scoring — Python Backend
+# Vexlum Scoring — Python backend
 
 AI-powered image scoring, tagging, and clustering engine using MUSIQ, LIQE, BLIP, and CLIP models. Serves a FastAPI REST API and Gradio web UI.
 
@@ -165,7 +165,7 @@ modules/db/
 └── backup.py      (backup/restore, disaster recovery)
 ```
 
-Backward compatibility is maintained via a facade layer in `modules/db.py`. See `docs/plans/DB_REFACTOR_DECOMPOSITION.md` for the full 11-week plan.
+Backward compatibility is maintained via a facade layer in `modules/db.py`. See `docs/planning/db-refactor-decomposition.md` for the full 11-week plan.
 
 **For now:** Use `modules/db.py` as before. New code should follow these patterns for future-proofing:
 - Import from domain-specific modules when available (post-refactor)
@@ -205,8 +205,8 @@ db._sync_image_keywords(image_id, "nature,wildlife")  # → writes to IMAGE_KEYW
 ```
 
 **Related docs:**
-- `docs/plans/database/PHASE4_KEYWORDS_HUB.md` — Index of Phase 4 keyword docs (current vs archived)
-- `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md` — Full deprecation roadmap
+- `docs/planning/database/PHASE4_KEYWORDS_HUB.md` — Index of Phase 4 keyword docs (current vs archived)
+- `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md` — Full deprecation roadmap
 - `docs/archive/plans/database/PHASE4_CODE_AUDIT.md` — Archived code audit (pre–Phase 4b snapshot)
 
 ## Configuration
@@ -219,12 +219,15 @@ val = get_config_value("scoring.force_rescore_default", default=False)
 
 ## Documentation
 
-- `docs/README.md` — Full documentation index
+Start with **[`docs/CANONICAL_SOURCES.md`](docs/CANONICAL_SOURCES.md)** (contract and schema authority), then **[`docs/WIKI_SCHEMA.md`](docs/WIKI_SCHEMA.md)** when adding or moving wiki pages.
+
+- `docs/README.md` — Documentation hub and quick links
 - `docs/technical/DB_SCHEMA.md` — Database schema reference
-- `docs/technical/DB_SCHEMA_REFACTOR_PLAN.md` — Schema refactor spec
-- `docs/plans/database/FIREBIRD_POSTGRES_MIGRATION.md` — Migration plan and status
-- `docs/technical/ARCHITECTURE.md` — Architecture overview
+- `docs/planning/database/DB_SCHEMA_REFACTOR_PLAN.md` — Schema refactor spec
+- `docs/planning/database/FIREBIRD_POSTGRES_MIGRATION.md` — Migration plan and status
+- `docs/architecture/system-overview.md` — Architecture overview
 - `docs/technical/API_CONTRACT.md` — REST API contract
+- `docs/technical/AGENT_COORDINATION.md` — Cross-repo integration (canonical)
 - `.agent/PROJECT_GUIDE.md` — Agent workflow guide
 - `.agent/mcp_tools_reference.md` — MCP tools quick reference
 - `AGENTS.md` — MCP server configuration for Cursor/AI agents

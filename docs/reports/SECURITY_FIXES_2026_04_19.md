@@ -52,7 +52,7 @@ Based on comprehensive code review (`docs/reports/CODE_DESIGN_REVIEW_2026-04-18.
 | File | Changes | Impact |
 |------|---------|--------|
 | `CLAUDE.md` | Added DB refactoring section with link to plan | Developer guidance |
-| `docs/plans/DB_REFACTOR_DECOMPOSITION.md` | Comprehensive 11-week decomposition plan | Future architecture |
+| `docs/planning/db-refactor-decomposition.md` | Comprehensive 11-week decomposition plan | Future architecture |
 
 ---
 
@@ -226,7 +226,7 @@ for rec in collector.get_pending_records():
 **Status:** Planning phase (not yet implemented)  
 **Priority:** Medium (Post-MVP)  
 **Timeline:** 11 weeks  
-**Document:** `docs/plans/DB_REFACTOR_DECOMPOSITION.md`
+**Document:** `docs/planning/db-refactor-decomposition.md`
 
 **Current state:** 414 KB, 10,565 lines, 60+ public methods  
 **Target state:** 9 modules (200–2,000 LOC each), single-responsibility  
@@ -337,7 +337,7 @@ modules/db/
 ## References
 
 - **Code Review:** `docs/reports/CODE_DESIGN_REVIEW_2026-04-18.md`
-- **DB Refactoring Plan:** `docs/plans/DB_REFACTOR_DECOMPOSITION.md`
+- **DB Refactoring Plan:** `docs/planning/db-refactor-decomposition.md`
 - **Project Guidance:** `CLAUDE.md`
 - **Authentication Framework:** `modules/ui/security.py`
 - **API Documentation:** `docs/technical/API_CONTRACT.md`

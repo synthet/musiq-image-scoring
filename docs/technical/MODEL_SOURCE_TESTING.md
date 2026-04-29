@@ -342,7 +342,7 @@ fi
 - [Docs index](../README.md)
 - [MODEL_FALLBACK_MECHANISM.md](MODEL_FALLBACK_MECHANISM.md) - Fallback system details
 - [README_VILA.md](../archive/vila/README_VILA.md) - Kaggle authentication setup (VILA deprecated)
-- [WSL_WRAPPER_VERIFICATION.md](../setup/WSL_WRAPPER_VERIFICATION.md) - Environment verification
+- [WSL_WRAPPER_VERIFICATION.md](../guides/setup/WSL_WRAPPER_VERIFICATION.md) - Environment verification
 - [CHANGELOG.md](../../CHANGELOG.md) - Version history
 
 ---

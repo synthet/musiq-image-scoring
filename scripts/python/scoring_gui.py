@@ -35,14 +35,14 @@ def select_folder():
 
 def main():
     root = tk.Tk()
-    root.title("Image Scoring Runner")
+    root.title("Vexlum Runner")
     root.geometry("400x300")
     
     # Style
     bg_color = "#f0f0f0"
     root.configure(bg=bg_color)
     
-    lbl = tk.Label(root, text="Image Scoring System", font=("Arial", 16, "bold"), bg=bg_color)
+    lbl = tk.Label(root, text="Vexlum Scoring", font=("Arial", 16, "bold"), bg=bg_color)
     lbl.pack(pady=20)
     
     lbl_desc = tk.Label(root, text="Select a File or Folder to process:\n(Runs Hybrid Pipeline)", font=("Arial", 10), bg=bg_color)

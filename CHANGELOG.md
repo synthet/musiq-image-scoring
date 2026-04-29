@@ -15,6 +15,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.7.0] - 2026-04-28
+
+### Added
+
+- **Scoring engine registry (MUSIQ / LIQE hosts)**: Model hosts and registry under **`modules/engines/`** (**`host.py`**, **`musiq_model.py`**, **`liqe_model.py`**, **`registry.py`**) with fusion-oriented score plumbing; **`score_normalization`** and config hooks updated for multi-model fusion.
+- **Per-model score storage**: Alembic **`0016_image_model_scores.py`** introduces **`image_model_scores`** dual-write helpers and tests (**`tests/test_image_model_scores_dual_write.py`**).
+- **Jobs status normalization**: Alembic **`0015_normalize_canceled_status.py`** consolidates **`canceled`** / **`cancelled`** job terminal states; guarded by **`tests/test_0015_normalize_canceled_status.py`**.
+- **Similarity & embeddings API**: Expanded **`modules/similar_search.py`** and **`modules/api.py`** routes (including embedding-space-aware search); **`openapi.json`** and **`docs/reference/api/openapi.yaml`** refreshed.
+- **React `/ui/` — embeddings atlas & similarity**: Embedding scatter canvas (**`ScatterCanvas`**, **`HoverTooltip`**, controls), **geo map** (**`GeoMapPage`**, **`api/geo`**), and **semantic search** page (**`SearchPage`**, **`api/search`**) wired to backend APIs.
+- **Operator diagnostics**: Expanded **`doctor`** CLI coverage (**`tests/test_doctor_cli.py`**) plus selective **HTTP geocoding** tests (**`tests/test_geocoding_nominatim.py`**).
+- **MCP & safety**: SQL helper coverage (**`tests/test_mcp_sql_helpers.py`**), redaction tests (**`tests/test_redact_sensitive.py`**), and a large internal refresh of **`modules/mcp_server.py`** (broader FastMCP catalog and HTTP fallbacks aligned with **`AGENTS.md`**).
+- **Engine & pipeline tests**: Registry / shadow-mode / wrapper suites (**`tests/test_engines_*.py`**), **`tests/test_indexing_split_brain.py`**, **`tests/test_score_normalization_fusion_config.py`**, plus extensions to embedding-map, source-image, hashing, and **VILA** skips.
+
+### Changed
+
+- **React Web UI (`frontend/`)**: Runs/detail and diagnostics flows (**LogPanel**, **ReportPanel**, **RunCard**, **StagePanel**, **ScopeSelector**, **PhaseStatusIcon**, **StatusLogFilePanel**, **badge** / **button** primitives), **`index.css`** token layout, **`vite.config.ts`** chunk splitting — tightened operator surfaces for logs and phases.
+- **Pipeline & metadata**: **`indexing_runner`**, **`metadata_runner`**, **`exif_extractor`**, **`xmp`**, **`pipeline`**, **`workflow_healing`**, **`db_legacy`**, **`db_postgres`** — indexing/metadata robustness, split-brain cleanup, and path handling.
+- **Static `/app` bundle**: Rebuilt **`static/app`** assets (**`index.html`**, hashed JS/CSS chunks including **React** vendor split, favicon).
+- **Documentation**: New top-level wiki hub pages (**`ARCHITECTURE`**, **`DATABASE`**, **`DEVELOPMENT`**, **`DIAGNOSTICS`**, **`EMBEDDINGS`**, **`EXPORT_PIPELINE`**, **`IMAGE_PIPELINE`**, **`TROUBLESHOOTING`**, **`TESTING`**, feature **`implemented`** notes) plus index churn; archived or removed superseded **`docs/plans/*`**, **`docs/setup/*`**, and duplicate technical summaries in favor of the consolidated layout.
+- **`.gitignore`**: Ignores **`exports/debug-bundles/`** (local debug bundle exports).
+
+### Removed
+
+- **Web UI `/ui` settings shell**: **`frontend/src/pages/SettingsPage.tsx`** and **`frontend/src/components/ui/phaseStatus.tsx`** removed — settings live elsewhere / phase status consolidated under **`PhaseStatusIcon`**.
+- **Operator Gradio shim**: Deleted standalone **`frontend/src/App.css`** in the minimal app shell (styles folded into **`index.css`**).
+- **Legacy MCP shim**: **`modules/mcp_server_firebird.py`** removed (Firebird-only MCP path retired from tree).
+
 ## [7.6.0] - 2026-04-27
 
 ### Added

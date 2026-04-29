@@ -18,6 +18,12 @@ pytestmark = [pytest.mark.wsl]
 if sys.platform.startswith("win"):
     pytest.skip("WSL-only (TensorFlow/kagglehub environment expected in WSL)", allow_module_level=True)
 
+# VILA scaffolding (run_vila.py, run_all_musiq_models.py) was removed from the
+# repo; this test references modules that no longer exist. Kept as a placeholder
+# until VILA is either restored or the file is deleted outright.
+pytest.skip("VILA scaffolding removed — run_vila / run_all_musiq_models no longer in repo", allow_module_level=True)
+
+
 def test_vila_integration():
     print("=" * 60)
     print("VILA Model Integration Test")

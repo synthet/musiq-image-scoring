@@ -3,11 +3,11 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
-import { imageInspectorPath } from '@/utils/routes'
+import { imageInspectorPath, embeddingsPathFor } from '@/utils/routes'
 import { useUiStore } from '@/stores/uiStore'
 import { CollapsibleInspectorSection, KeyValueTable, formatInspectorValue } from '@/components/images/InspectorPrimitives'
 import { statusLabel } from '@/components/ui/badge'
-import { PhaseStatusIcon, normalizePhaseStatus } from '@/components/ui/phaseStatus'
+import { PhaseStatusIcon, normalizeLegacyPhaseStatus } from '@/components/status/PhaseStatusIcon'
 import type { ImageDetail, ImagePhaseStatusRow } from '@/types/api'
 
 function detailPreviewSrc(image: ImageDetail): string | null {
@@ -115,26 +115,28 @@ function PhaseStatusTable({ phases }: { phases: NonNullable<ImageDetail['phase_s
             const isString = typeof row === 'string'
             const r = isString ? null : (row as ImagePhaseStatusRow)
             const rawStatus = isString ? row : r?.status
-            const normalizedStatus = normalizePhaseStatus(rawStatus)
+            const legacyKey = normalizeLegacyPhaseStatus(
+              typeof rawStatus === 'string' ? rawStatus : '',
+            )
             const statusText = isString
               ? row
               : rawStatus
-                ? statusLabel(normalizedStatus)
+                ? statusLabel(legacyKey)
                 : '—'
             return (
-              <tr key={code} className="border-b border-[#2d2d2d] hover:bg-[#2a2a2a]">
-                <td className="px-2 py-1 font-mono text-[#4fc1ff]">{code}</td>
+              <tr key={code} className="border-b border-[var(--color-border-muted)] hover:bg-[var(--color-bg-tertiary)]">
+                <td className="px-2 py-1 font-mono text-[var(--color-accent-bright)]">{code}</td>
                 <td className="px-2 py-1">
                   <div className="flex items-center gap-1.5">
-                    <PhaseStatusIcon status={normalizedStatus} />
+                    <PhaseStatusIcon status={typeof rawStatus === 'string' ? rawStatus : ''} />
                     <span>{statusText}</span>
                   </div>
                 </td>
-                <td className="px-2 py-1 text-[#6d6d6d] font-mono">
+                <td className="px-2 py-1 text-[var(--color-text-muted)] font-mono">
                   {isString ? '—' : r?.updated_at ? String(r.updated_at).slice(0, 19) : '—'}
                 </td>
                 <td className="px-2 py-1">{isString ? '—' : (r?.attempt_count ?? '—')}</td>
-                <td className="px-2 py-1 text-[#f44747] max-w-xs truncate" title={isString ? '' : r?.last_error ?? ''}>
+                <td className="px-2 py-1 text-[var(--color-danger)] max-w-xs truncate" title={isString ? '' : r?.last_error ?? ''}>
                   {isString ? '—' : r?.last_error || '—'}
                 </td>
               </tr>
@@ -281,15 +283,24 @@ export function ImageInspectorPage() {
           <ArrowLeft size={12} /> Images
         </Link>
         <span className="text-sm font-medium text-[#cccccc] truncate">{data.file_name}</span>
-        <span className="text-[10px] text-[#6d6d6d] font-mono ml-auto shrink-0">
-          id{' '}
+        <div className="ml-auto shrink-0 flex items-center gap-2">
           <Link
-            to={imageInspectorPath(data.id)}
-            className="text-[#4fc1ff] hover:underline cursor-pointer"
+            to={embeddingsPathFor(data.id)}
+            className="text-[10px] text-[#9d9d9d] hover:text-[#4fc1ff] transition-colors"
+            title="Open this image in Vector DB"
           >
-            {data.id}
+            Vector DB
           </Link>
-        </span>
+          <span className="text-[10px] text-[#6d6d6d] font-mono">
+            id{' '}
+            <Link
+              to={imageInspectorPath(data.id)}
+              className="text-[#4fc1ff] hover:underline cursor-pointer"
+            >
+              {data.id}
+            </Link>
+          </span>
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">

@@ -114,12 +114,13 @@ ORDER BY p.code, action_count DESC, jia.action;
 
 | Tool | Description |
 |------|-------------|
-| **`get_error_summary`** | Failed jobs, missing scores, orphans |
+| **`get_error_summary`** | Failed jobs, missing scores, orphans, `stale_running_count` |
 | **`check_database_health`** | Integrity issues (orphans, duplicates, …) |
 | **`get_model_status`** | GPU / CUDA / model load |
 | **`diagnose_phase_consistency`** | `image_id` (+ optional `folder_path`): folder vs image phase mismatch |
 | **`get_stale_running_phase_status`** | Long-`running` `image_phase_status` rows (`min_age_seconds`, `limit`) |
 | **`verify_environment`** | Host / venv / key deps sanity check |
+| **`get_system_resources`** | CPU / RAM / optional `nvidia-smi` snapshot |
 
 ### Data query
 
@@ -129,17 +130,16 @@ ORDER BY p.code, action_count DESC, jia.action;
 | **`query_images`** | Filters, sort, pagination |
 | **`get_image_details`** | By `file_path` |
 | **`search_images_by_hash`** | By `image_hash` |
-| **`execute_sql`** | `SELECT` only |
+| **`get_db_schema`** | PostgreSQL `information_schema` columns (optional `table_name_prefix`) |
+| **`execute_sql`** | Read-only `SELECT` / `WITH … SELECT` (`?` placeholders); pair with **`get_db_schema`** |
 
 ### Errors, paths, files
 
 | Tool | Description |
 |------|-------------|
-| **`get_failed_images`** | Missing key scores (`limit` default 50) |
+| **`get_failed_images`** | Missing key scores (`limit` default 50, `offset` optional) |
 | **`get_incomplete_images`** | Broader incomplete rows (`limit` default 100) |
-| **`validate_file_paths`** | Filesystem check (`limit` default 100) |
-| **`summarize_directory`** | File counts / sizes under a folder path |
-| **`search_missing_sidecars`** | NEF without matching XMP in a directory |
+| **`validate_file_paths`** | Filesystem check; optional `folder_path`, `missing_only` |
 
 ### Jobs, runs, performance
 
@@ -150,16 +150,20 @@ ORDER BY p.code, action_count DESC, jia.action;
 | **`get_job_phases`** | Phase rows for a job |
 | **`get_job_stage_images`** | Per-image phase status for a job+`phase_code`; optional `include_steps` |
 | **`get_run_diagnostics`** | `post_run_audit` from queue_payload + per-phase `image_phase_status` counts for `run_id` |
+| **`get_job_execution_report`** | `report_json` + paginated `job_image_actions` + `summary.action_counts` |
+| **`get_image_pipeline_failures`** | `job_image_actions` with `failed` for one image (`image_id` or `file_path`) |
+| **`get_location_stats`** | GPS / geocode coverage on `image_exif` |
+| **`export_debug_bundle`** | Redacted zip (config, env, doctor, log tails); optional `output_path` ending in `.zip` |
 | **`get_performance_metrics`** | Recent job stats (`days` default 7) |
 | **`get_runner_status`** | Runner progress/logs |
 | **`get_pipeline_stats`** | Runners + dispatcher + queue sizes |
-| **`run_processing_job`** | `job_type`: scoring \| tagging \| clustering; `input_path`; optional `args` |
+| **`run_processing_job`** | `job_type`: scoring \| tagging \| clustering \| bird_species; creates `jobs` row; returns integer `job_id` / `jobs_id` |
+| **`manage_runners`** | `stop` \| `status` on in-process runners (WebUI); not for starting jobs |
 
-### HTTP, DB engine, embeddings, stacks
+### DB engine, embeddings, stacks
 
 | Tool | Description |
 |------|-------------|
-| **`probe_backend_http`** | GET a relative path on the WebUI base URL (e.g. `/api/scope/tree`); timing + body preview |
 | **`get_database_engine_info`** | `database.engine`, connector type, safe targets, DB ping |
 | **`get_embedding_stats`** | Counts with/without `image_embedding`; optional `folder_path` |
 | **`check_stack_invariants`** | Singleton stacks, orphan `stack_id`, empty stacks (+ samples) |
@@ -169,18 +173,18 @@ ORDER BY p.code, action_count DESC, jia.action;
 | Tool | Description |
 |------|-------------|
 | **`validate_config`** | Structural checks (`ok`, `issues`, `warnings`); adds `database_reachable` when DB init succeeded |
-| **`get_config`** | Full config dict |
+| **`get_config`** | Config dict with sensitive keys redacted |
 | **`set_config_value`** | Dot-key update |
 | **`read_debug_log`** | `lines` default 100; JSON lines from `debug.log` |
 | **`get_server_log_tail`** | `sources` default `all` (`all` \| `webui` \| `debug`); `lines` default 100 — same tails as `GET /api/status/log-tails` |
+| **`search_logs`** | Regex over recent log tails (`pattern`, `sources`, `context_lines`, …) |
 
-### Folders, stacks, similarity, gallery
+### Folders, stacks, similarity
 
 | Tool | Description |
 |------|-------------|
 | **`get_folder_tree`** | Optional `root_path` |
 | **`get_stacks_summary`** | Optional `folder_path` |
-| **`get_gallery_status`** | Gradio/React gallery wiring when WebUI exposes it |
 | **`search_similar_images`** | `example_path` or `example_image_id` |
 | **`find_near_duplicates`** | Optional `threshold`, `folder_path`, `limit` |
 | **`propagate_tags`** | Keyword propagation (`dry_run` default true) |
@@ -217,9 +221,9 @@ check_database_health → get_model_status → validate_config → validate_file
 get_performance_metrics → get_recent_jobs → get_pipeline_stats → get_runner_status
 ```
 
-### Slow HTTP / scope tree
+### HTTP / scope issues
 ```
-probe_backend_http("/api/scope/tree", timeout_ms) → read_debug_log
+search_logs("scope|/api/scope", sources="webui") → read_debug_log
 ```
 
 ### Run / workflow debugging
@@ -235,7 +239,7 @@ get_database_stats → check_database_health → get_incomplete_images → valid
 ## Important notes
 
 - Most tools need a working DB (`prepare_mcp_embedded` / `db.init_db`).  
-- **`get_model_status`**, **`probe_backend_http`**, **`get_database_engine_info`**, **`verify_environment`** do not require DB for their primary output (DB-dependent fields may be partial).  
+- **`get_model_status`**, **`get_database_engine_info`**, **`verify_environment`**, **`get_system_resources`**, **`search_logs`** do not require DB for their primary output (DB-dependent fields may be partial).  
 - **`validate_config`** structural checks work without DB; MCP adds DB reachability when available.  
 - **`execute_sql`**: SELECT only; dangerous patterns blocked.  
 - **`validate_file_paths`** / **`get_incomplete_images`** can be heavy — use `limit`.  

@@ -1,4 +1,5 @@
-/** GET /api/status/log-tails — matches modules/ui/log_views.build_log_tails_payload */
+/** GET /api/status/log-tails — matches modules/ui/log_views.build_log_tails_payload.
+ *  The React `/ui/logs` route requests `sources=webui` only (application log). */
 
 export type LogTailSourceId = 'webui' | 'debug'
 

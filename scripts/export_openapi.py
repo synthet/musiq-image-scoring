@@ -27,11 +27,11 @@ from modules.ui.source_image_api import router as source_image_router
 def build_app() -> FastAPI:
     """Build a minimal FastAPI app with API and source-image routes for schema extraction."""
     app = FastAPI(
-        title="Image Scoring WebUI API",
-        description="REST API for the Image Scoring WebUI application.",
+        title="Vexlum Scoring WebUI API",
+        description="REST API for the Vexlum Scoring WebUI application.",
         version="1.0.0",
         openapi_tags=[
-            {"name": "Image Scoring API", "description": "Endpoints for image quality assessment and scoring operations."},
+            {"name": "Vexlum Scoring API", "description": "Endpoints for image quality assessment and scoring operations."},
             {"name": "Public Image API", "description": "Read-only JSON endpoints for image records (/public/api)."},
             {"name": "Tagging API", "description": "Endpoints for image tagging and keyword extraction."},
             {"name": "General API", "description": "General endpoints for health checks, status, and job management."},

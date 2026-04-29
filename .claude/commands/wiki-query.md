@@ -15,7 +15,7 @@ Read `docs/WIKI_SCHEMA.md` for conventions.
 
 1. **Read `docs/INDEX.md`** to identify relevant pages. Scan folder-level INDEX.md files if needed.
 2. **Read the relevant pages** (typically 3-10 pages depending on scope).
-3. **Synthesize an answer** with inline citations linking to source pages: `[ARCHITECTURE.md](technical/ARCHITECTURE.md)`.
+3. **Synthesize an answer** with inline citations linking to source pages: `[ARCHITECTURE.md](architecture/system-overview.md)`.
 4. **Present the answer** to the user in the chat.
 5. **Ask if the answer should be filed** as a wiki page (or file automatically if `--file` was specified).
 6. If filing:

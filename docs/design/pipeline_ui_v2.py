@@ -476,7 +476,7 @@ JS_STOP = "(inputs, outputs) => { window._stopTick  && window._stopTick();  retu
 def _topbar_html() -> str:
     return """
 <div id="topbar">
-  <div class="brand">Image Scoring WebUI</div>
+  <div class="brand">Vexlum WebUI</div>
   <div class="fmeta">/Photos/D300/28-70mm/2015 — 48 images</div>
   <div class="conn">● Connected</div>
 </div>"""
@@ -575,7 +575,7 @@ def _console_html() -> str:
 
 
 # ── Layout ────────────────────────────────────────────────────────────────────
-with gr.Blocks(title="Image Scoring WebUI", css=CSS, head=HEAD, js=JS_INIT) as demo:
+with gr.Blocks(title="Vexlum WebUI", css=CSS, head=HEAD, js=JS_INIT) as demo:
     # Hidden textbox for tree → Python state (guide pattern: elem_id targeting from JS)
     selected_path = gr.Textbox(value="2015", elem_id="selected-path", visible=False)
 

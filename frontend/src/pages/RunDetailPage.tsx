@@ -103,7 +103,7 @@ export function RunDetailPage() {
   if (runLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={20} className="text-[#4fc1ff] animate-spin" />
+        <Loader2 size={20} className="text-[var(--color-accent-bright)] animate-spin" />
       </div>
     )
   }
@@ -111,7 +111,7 @@ export function RunDetailPage() {
   if (!run) {
     return (
       <div className="p-6">
-        <p className="text-sm text-[#f44747]">Run #{id} not found</p>
+        <p className="text-sm text-[var(--color-danger)]">Run #{id} not found</p>
       </div>
     )
   }
@@ -121,23 +121,23 @@ export function RunDetailPage() {
       {/* Header */}
       <div className="flex items-start gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate('/runs')} className="shrink-0 mt-0.5">
-          <ArrowLeft size={13} />
+          <ArrowLeft size={14} />
         </Button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-base font-semibold text-[#cccccc]">
-              Run <span className="text-[#6d6d6d]">#{run.id}</span>
+            <h1 className="text-base font-semibold text-[var(--color-text-primary)]">
+              Run <span className="text-[var(--color-text-muted)]">#{run.id}</span>
             </h1>
             <RunBadge status={run.status} />
           </div>
-          <div className="flex items-center gap-2 text-sm text-[#9d9d9d]">
-            <FolderOpen size={13} />
+          <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+            <FolderOpen size={14} />
             <span className="truncate">{scopePaths.join(', ')}</span>
           </div>
           {run.description?.trim() && (
-            <p className="text-xs text-[#b8b8b8] mt-2 leading-relaxed max-w-3xl">{run.description.trim()}</p>
+            <p className="text-xs text-[var(--color-text-secondary)] mt-2 leading-relaxed max-w-3xl">{run.description.trim()}</p>
           )}
-          <div className="flex gap-3 text-xs text-[#6d6d6d] mt-1">
+          <div className="flex gap-3 text-xs text-[var(--color-text-muted)] mt-1">
             {run.created_at && <span>Created {new Date(run.created_at).toLocaleString()}</span>}
             {run.started_at && <span>Started {new Date(run.started_at).toLocaleString()}</span>}
             {run.started_at && run.finished_at && (
@@ -150,19 +150,19 @@ export function RunDetailPage() {
         <div className="flex items-center gap-2 shrink-0">
           {run.status === 'running' && (
             <Button size="sm" variant="secondary" onClick={() => pauseMut.mutate()} loading={pauseMut.isPending}>
-              <Pause size={12} />
+              <Pause size={14} />
               Pause
             </Button>
           )}
           {run.status === 'paused' && (
             <Button size="sm" variant="primary" onClick={() => resumeMut.mutate()} loading={resumeMut.isPending}>
-              <Play size={12} />
+              <Play size={14} />
               Resume
             </Button>
           )}
           {(run.status === 'failed' || run.status === 'interrupted') && (
             <Button size="sm" variant="secondary" onClick={() => retryMut.mutate()} loading={retryMut.isPending}>
-              <RotateCcw size={12} />
+              <RotateCcw size={14} />
               Retry
             </Button>
           )}
@@ -173,7 +173,7 @@ export function RunDetailPage() {
               onClick={() => cancelMut.mutate()}
               loading={cancelMut.isPending}
             >
-              <XCircle size={12} />
+              <XCircle size={14} />
               Cancel
             </Button>
           )}
@@ -181,12 +181,12 @@ export function RunDetailPage() {
       </div>
 
       {/* Workflow graph */}
-      <div className="rounded-md border border-[#474747] bg-[#1e1e1e] p-4">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6d6d6d] mb-3">
+      <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-3">
           Workflow
         </div>
         {stagesLoading ? (
-          <div className="flex items-center gap-2 text-sm text-[#6d6d6d]">
+          <div className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
             <Loader2 size={14} className="animate-spin" />
             Loading stages…
           </div>
@@ -198,14 +198,14 @@ export function RunDetailPage() {
             onSelectStage={(code) => setSelectedStage(code)}
           />
         ) : (
-          <p className="text-xs text-[#6d6d6d]">No stages recorded for this run</p>
+          <p className="text-xs text-[var(--color-text-muted)]">No stages recorded for this run</p>
         )}
       </div>
 
       {/* Selected stage detail */}
       {selectedStageData && (
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6d6d6d] mb-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
             {STAGE_DISPLAY[selectedStageData.phase_code as StageCode]?.name ?? selectedStageData.phase_code}
           </div>
           <StagePanel runId={id} stage={selectedStageData} />
@@ -217,8 +217,8 @@ export function RunDetailPage() {
 
       {/* Post-run data quality audit (queue_payload.post_run_audit) */}
       {run.queue_payload && typeof run.queue_payload.post_run_audit === 'object' && run.queue_payload.post_run_audit != null && (
-        <div className="rounded-md border border-[#474747] bg-[#1e1e1e] p-4">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6d6d6d] mb-2">
+        <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
             Data quality (post-run)
           </div>
           <PostRunAuditSummary audit={run.queue_payload.post_run_audit as Record<string, unknown>} runId={id} />
@@ -232,7 +232,7 @@ export function RunDetailPage() {
 
       {/* Log panel */}
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6d6d6d] mb-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
           Run Log
         </div>
         <LogPanel
@@ -267,25 +267,25 @@ function PostRunAuditSummary({ audit, runId }: { audit: Record<string, unknown>;
   const counts = audit.issue_counts
   const note = typeof audit.notes === 'string' ? audit.notes : null
   return (
-    <div className="space-y-2 text-xs text-[#cccccc]">
+    <div className="space-y-2 text-xs text-[var(--color-text-primary)]">
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         <span>
-          Status: <span className="text-[#9d9d9d]">{status}</span>
+          Status: <span className="text-[var(--color-text-secondary)]">{status}</span>
         </span>
         {severity ? (
           <span>
-            Severity: <span className="text-[#9d9d9d]">{severity}</span>
+            Severity: <span className="text-[var(--color-text-secondary)]">{severity}</span>
           </span>
         ) : null}
       </div>
       {counts != null && typeof counts === 'object' ? (
-        <pre className="text-[10px] text-[#9d9d9d] whitespace-pre-wrap break-words max-h-32 overflow-auto rounded bg-[#252526] p-2 border border-[#3c3c3c]">
+        <pre className="text-[10px] text-[var(--color-text-secondary)] whitespace-pre-wrap break-words max-h-32 overflow-auto rounded bg-[var(--color-bg-secondary)] p-2 border border-[var(--color-border-muted)]">
           {JSON.stringify(counts, null, 2)}
         </pre>
       ) : null}
-      {note ? <p className="text-[#6d6d6d] leading-relaxed">{note}</p> : null}
-      <p className="text-[#6d6d6d]">
-        Full JSON: <code className="text-[#4fc1ff]">GET /api/runs/{runId}/diagnostics</code>
+      {note ? <p className="text-[var(--color-text-muted)] leading-relaxed">{note}</p> : null}
+      <p className="text-[var(--color-text-muted)]">
+        Full JSON: <code className="text-[var(--color-accent-bright)]">GET /api/runs/{runId}/diagnostics</code>
       </p>
     </div>
   )

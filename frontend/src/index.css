@@ -1,34 +1,51 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+@import "react-leaflet-markercluster/styles";
 
 /*
   VS Code Dark+ color system — aligned with electron-image-scoring
   Background: #1e1e1e  │  Accent: #007acc  │  Font: Segoe UI
 */
 @theme {
+  /* Surfaces */
   --color-bg-primary:    #1e1e1e;
   --color-bg-secondary:  #252526;
   --color-bg-tertiary:   #2d2d30;
   --color-bg-elevated:   #3c3c3c;
   --color-border:        #474747;
   --color-border-muted:  #3c3c3c;
+
+  /* Text */
   --color-text-primary:  #cccccc;
   --color-text-secondary: #9d9d9d;
   --color-text-muted:    #6d6d6d;
+
+  /* Accent (interactive blue) */
   --color-accent:        #007acc;
   --color-accent-hover:  #1e8ad6;
   --color-accent-dim:    #003f6e;
+  --color-accent-bright: #4fc1ff; /* icons/text on dim accent backgrounds; links */
+  --color-accent-border: #0d419d; /* outline used by running/info badges */
+
+  /* Status (semantic) */
   --color-success:       #89d185;
   --color-success-bg:    #1a3320;
   --color-success-border: #2d6a2d;
   --color-warning:       #cca700;
   --color-warning-bg:    #332900;
+  --color-warning-border: #665200;
   --color-danger:        #f44747;
   --color-danger-bg:     #3a1515;
   --color-danger-border: #7a2a2a;
   --color-info:          #9cdcfe;
   --color-info-bg:       #003a5c;
-  --color-running:       #007acc;
-  --color-pending:       #6d6d6d;
+
+  /* Pipeline state aliases (kept for code that still references them) */
+  --color-running:       var(--color-accent-bright);
+  --color-pending:       var(--color-text-muted);
+
+  /* Score / rating */
+  --color-score-gold:    #ffd700;
 }
 
 * {
@@ -55,3 +72,206 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #424242; border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+
+
+/* ─── Leaflet Dark Theme Overrides ─── */
+
+/* Map background */
+.leaflet-container {
+  background: #141414;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* Attribution */
+.leaflet-control-attribution {
+  background: #252526cc !important;
+  color: #6d6d6d !important;
+  font-size: 10px !important;
+  backdrop-filter: blur(4px);
+}
+.leaflet-control-attribution a {
+  color: #4fc1ff !important;
+}
+
+/* Zoom controls */
+.leaflet-control-zoom a {
+  background: #252526 !important;
+  color: #cccccc !important;
+  border-color: #3c3c3c !important;
+  transition: background 0.15s, color 0.15s;
+}
+.leaflet-control-zoom a:hover {
+  background: #3c3c3c !important;
+  color: #ffffff !important;
+}
+
+/* Custom cluster markers */
+.vx-cluster-wrapper {
+  background: transparent !important;
+  border: none !important;
+}
+.vx-cluster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 600;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 12px rgba(0, 122, 204, 0.35), 0 0 0 2px rgba(0, 122, 204, 0.15);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.vx-cluster:hover {
+  transform: scale(1.12);
+  box-shadow: 0 4px 20px rgba(0, 122, 204, 0.5), 0 0 0 3px rgba(0, 122, 204, 0.25);
+}
+
+/* Custom marker dots */
+.vx-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Popup styling — dark theme */
+.vx-map-popup .leaflet-popup-content-wrapper {
+  background: #252526;
+  color: #cccccc;
+  border: 1px solid #3c3c3c;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  padding: 0;
+  overflow: hidden;
+}
+.vx-map-popup .leaflet-popup-content {
+  margin: 0;
+  width: auto !important;
+}
+.vx-map-popup .leaflet-popup-tip {
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  box-shadow: none;
+}
+.vx-map-popup .leaflet-popup-close-button {
+  color: #6d6d6d !important;
+  font-size: 18px !important;
+  top: 4px !important;
+  right: 6px !important;
+  z-index: 10;
+}
+.vx-map-popup .leaflet-popup-close-button:hover {
+  color: #cccccc !important;
+}
+
+/* Popup content layout */
+.vx-popup-content {
+  display: flex;
+  flex-direction: column;
+  width: 220px;
+}
+.vx-popup-thumb-wrap {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #141414;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  position: relative;
+}
+.vx-popup-thumb-wrap:hover .vx-popup-thumb.loaded {
+  transform: scale(1.05);
+}
+.vx-popup-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+}
+.vx-popup-thumb.loaded {
+  opacity: 1;
+}
+.vx-popup-thumb-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6d6d6d;
+}
+.vx-popup-thumb-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #141414;
+}
+.vx-spinner-sm {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #3c3c3c;
+  border-top-color: #4fc1ff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.vx-popup-meta {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vx-popup-filename {
+  font-size: 11px;
+  font-weight: 600;
+  color: #cccccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vx-popup-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.vx-popup-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: #9d9d9d;
+}
+.vx-popup-score {
+  background: #003f6e;
+  color: #4fc1ff;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-weight: 600;
+  font-family: 'Segoe UI Mono', 'Cascadia Code', monospace;
+}
+.vx-popup-label {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 8px;
+  border-radius: 3px;
+  font-weight: 500;
+  width: fit-content;
+}
+
+/* Override default Leaflet markercluster styles */
+.marker-cluster-small,
+.marker-cluster-medium,
+.marker-cluster-large {
+  background: transparent !important;
+}
+.marker-cluster-small div,
+.marker-cluster-medium div,
+.marker-cluster-large div {
+  background: transparent !important;
+}
+

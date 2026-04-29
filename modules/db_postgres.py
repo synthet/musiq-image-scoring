@@ -634,6 +634,38 @@ def _init_db_transaction():
             for extra_sql in _SEED_EXTRA_EMBEDDING_SPACES_SQL:
                 cur.execute(extra_sql)
 
+            # ------------------------------------------------------------------
+            # IMAGE_MODEL_SCORES — generic per-(image, model) score storage.
+            # Mirrors migration 0016. Coexists with score_spaq / score_ava /
+            # score_koniq / score_paq2piq / score_liqe columns on images for
+            # Electron back-compat; new models live only here.
+            # ------------------------------------------------------------------
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS image_model_scores (
+                image_id        INTEGER     NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                model_name      VARCHAR(64) NOT NULL,
+                raw_score       DOUBLE PRECISION,
+                normalized      DOUBLE PRECISION,
+                status          VARCHAR(16) NOT NULL,
+                is_shadow       BOOLEAN     NOT NULL DEFAULT FALSE,
+                model_version   VARCHAR(64),
+                scored_at       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (image_id, model_name)
+            );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ims_model_name ON image_model_scores(model_name);")
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_ims_shadow ON image_model_scores(is_shadow) "
+                "WHERE is_shadow;"
+            )
+            cur.execute(
+                "ALTER TABLE image_model_scores DROP CONSTRAINT IF EXISTS image_model_scores_status_check;"
+            )
+            cur.execute(
+                "ALTER TABLE image_model_scores ADD CONSTRAINT image_model_scores_status_check "
+                "CHECK (status IN ('success', 'failed', 'not_loaded'));"
+            )
+
             # Back-fill FK on stacks.best_image_id now that images exists
             # (Firebird adds this as a separate alter; we declare it inline above for stacks
             #  but stacks was created before images — add it as a constraint now)
@@ -756,6 +788,13 @@ def _init_db_transaction():
                 image_unique_id         VARCHAR(64),
                 shutter_count           INTEGER,
                 sub_sec_time_original   VARCHAR(10),
+                gps_latitude            DOUBLE PRECISION,
+                gps_longitude           DOUBLE PRECISION,
+                gps_altitude            DOUBLE PRECISION,
+                gps_position_source       VARCHAR(20),
+                location_resolved       JSONB,
+                geocoded_at             TIMESTAMP,
+                geocode_provider        VARCHAR(50),
                 extracted_at            TIMESTAMP
             );
             """)
@@ -764,6 +803,23 @@ def _init_db_transaction():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_image_exif_model ON image_exif(model);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_image_exif_lens ON image_exif(lens_model);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_image_exif_iso ON image_exif(iso);")
+            cur.execute(
+                "ALTER TABLE image_exif ADD COLUMN IF NOT EXISTS gps_latitude DOUBLE PRECISION;"
+            )
+            cur.execute(
+                "ALTER TABLE image_exif ADD COLUMN IF NOT EXISTS gps_longitude DOUBLE PRECISION;"
+            )
+            cur.execute(
+                "ALTER TABLE image_exif ADD COLUMN IF NOT EXISTS gps_altitude DOUBLE PRECISION;"
+            )
+            cur.execute(
+                "ALTER TABLE image_exif ADD COLUMN IF NOT EXISTS gps_position_source VARCHAR(20);"
+            )
+            cur.execute("ALTER TABLE image_exif ADD COLUMN IF NOT EXISTS location_resolved JSONB;")
+            cur.execute("ALTER TABLE image_exif ADD COLUMN IF NOT EXISTS geocoded_at TIMESTAMP;")
+            cur.execute(
+                "ALTER TABLE image_exif ADD COLUMN IF NOT EXISTS geocode_provider VARCHAR(50);"
+            )
 
             # ------------------------------------------------------------------
             # IMAGE_XMP — cached XMP sidecar metadata (one row per image)
@@ -822,7 +878,12 @@ def _init_db_transaction():
                 finished_at         TIMESTAMP,
                 updated_at          TIMESTAMP,
                 skip_reason         TEXT,
-                skipped_by          VARCHAR(255)
+                skipped_by          VARCHAR(255),
+                CONSTRAINT ck_image_phase_status_status CHECK (status IN (
+                    'not_started', 'queued', 'running', 'paused',
+                    'cancel_requested', 'restarting',
+                    'done', 'skipped', 'failed'
+                ))
             );
             """)
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_image_phase ON image_phase_status(image_id, phase_id);")

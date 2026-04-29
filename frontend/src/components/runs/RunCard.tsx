@@ -63,27 +63,27 @@ export function RunCard({ run, compact = false }: RunCardProps) {
   return (
     <div
       className={clsx(
-        'rounded-md border border-[#474747] bg-[#252526] transition-colors',
-        'hover:border-[#4fc1ff] cursor-pointer',
+        'rounded-md border border-[var(--color-border)] bg-[var(--color-bg-secondary)] transition-colors',
+        'hover:border-[var(--color-accent-bright)] cursor-pointer',
         compact ? 'p-3' : 'p-4',
       )}
       onClick={() => navigate(`/runs/${run.id}`)}
     >
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[#6d6d6d] text-xs font-mono shrink-0">#{run.id}</span>
-          <FolderOpen size={13} className="text-[#9d9d9d] shrink-0" />
-          <span className="text-sm font-medium text-[#cccccc] truncate" title={scopeLabel}>
+          <span className="text-[var(--color-text-muted)] text-xs font-mono shrink-0">#{run.id}</span>
+          <FolderOpen size={14} className="text-[var(--color-text-secondary)] shrink-0" />
+          <span className="text-sm font-medium text-[var(--color-text-primary)] truncate" title={scopeLabel}>
             {scopeLabel}
           </span>
           {extraPaths > 0 && (
-            <span className="text-xs text-[#6d6d6d] shrink-0">+{extraPaths} more</span>
+            <span className="text-xs text-[var(--color-text-muted)] shrink-0">+{extraPaths} more</span>
           )}
         </div>
         <RunBadge status={run.status} />
       </div>
       {run.description?.trim() && (
-        <p className="text-[11px] text-[#8d8d8d] mb-2 line-clamp-2" title={run.description.trim()}>
+        <p className="text-[11px] text-[var(--color-text-secondary)] mb-2 line-clamp-2" title={run.description.trim()}>
           {run.description.trim()}
         </p>
       )}
@@ -91,10 +91,10 @@ export function RunCard({ run, compact = false }: RunCardProps) {
       {run.status === 'running' && (
         <div className="mb-2 space-y-1">
           {currentStageDisplay && (
-            <div className="text-xs text-[#9d9d9d]">
-              Stage: <span className="text-[#4fc1ff]">{currentStageDisplay}</span>
+            <div className="text-xs text-[var(--color-text-secondary)]">
+              Stage: <span className="text-[var(--color-accent-bright)]">{currentStageDisplay}</span>
               {progress && progress.items_total > 0 && (
-                <span className="ml-2 text-[#6d6d6d]">
+                <span className="ml-2 text-[var(--color-text-muted)]">
                   {progress.items_done.toLocaleString()} / {progress.items_total.toLocaleString()}
                   {progress.throughput > 0 && ` · ${progress.throughput.toFixed(1)} img/s`}
                   {progress.eta_seconds > 0 && ` · ETA ${formatEta(progress.eta_seconds)}`}
@@ -107,7 +107,7 @@ export function RunCard({ run, compact = false }: RunCardProps) {
       )}
 
       <div className="flex items-center justify-between">
-        <span className="text-xs text-[#6d6d6d]">
+        <span className="text-xs text-[var(--color-text-muted)]">
           {formatRelative(run.created_at)}
           {run.started_at && run.finished_at && (
             <> · {formatDuration(run.started_at, run.finished_at)}</>
@@ -126,7 +126,7 @@ export function RunCard({ run, compact = false }: RunCardProps) {
               loading={pauseMut.isPending}
               title="Soft pause (finish current image)"
             >
-              <Pause size={11} />
+              <Pause size={14} />
             </Button>
           )}
           {run.status === 'paused' && (
@@ -136,7 +136,7 @@ export function RunCard({ run, compact = false }: RunCardProps) {
               onClick={() => resumeMut.mutate()}
               loading={resumeMut.isPending}
             >
-              <Play size={11} />
+              <Play size={14} />
               Resume
             </Button>
           )}
@@ -147,7 +147,7 @@ export function RunCard({ run, compact = false }: RunCardProps) {
               onClick={() => retryMut.mutate()}
               loading={retryMut.isPending}
             >
-              <RotateCcw size={11} />
+              <RotateCcw size={14} />
               Retry
             </Button>
           )}
@@ -157,10 +157,10 @@ export function RunCard({ run, compact = false }: RunCardProps) {
               variant="ghost"
               onClick={() => forceMut.mutate()}
               loading={forceMut.isPending}
-              className="text-[#cca700] hover:text-[#cca700]"
+              className="text-[var(--color-warning)] hover:text-[var(--color-warning)]"
               title="Force-unstick this run"
             >
-              <Zap size={11} />
+              <Zap size={14} />
             </Button>
           )}
           {(run.status === 'pending' || run.status === 'running' || run.status === 'queued' || run.status === 'paused') && (
@@ -169,9 +169,9 @@ export function RunCard({ run, compact = false }: RunCardProps) {
               variant="ghost"
               onClick={() => cancelMut.mutate()}
               loading={cancelMut.isPending}
-              className="text-[#f44747] hover:text-[#f44747]"
+              className="text-[var(--color-danger)] hover:text-[var(--color-danger)]"
             >
-              <XCircle size={11} />
+              <XCircle size={14} />
             </Button>
           )}
         </div>

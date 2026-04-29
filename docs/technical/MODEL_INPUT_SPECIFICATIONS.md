@@ -1,6 +1,6 @@
 # Model Input Specifications
 
-This document describes the input format, score ranges, and constraints for the neural network models used in the Image Scoring project.
+This document describes the input format, score ranges, and constraints for the neural network models used in the Vexlum Scoring project.
 
 ## Overview
 

@@ -12,6 +12,21 @@ from typing import List, Optional
 
 RUN_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR"})
 
+# UI + persisted job logs: optional suffix for clickable image refs (parsed in React/Electron).
+IMAGE_LOG_LINK_SUFFIX_RE = r"\[\[img:\d+\]\]"
+
+
+def attach_image_log_suffix(body: str, image_id: Optional[int]) -> str:
+    if image_id is None:
+        return body
+    try:
+        iid = int(image_id)
+    except (TypeError, ValueError):
+        return body
+    if iid <= 0:
+        return body
+    return f"{body} [[img:{iid}]]"
+
 
 def normalize_run_log_level(level: str) -> str:
     u = (level or "INFO").strip().upper()
@@ -43,13 +58,14 @@ def emit_run_log(
     *,
     phase: Optional[str] = None,
     step: Optional[str] = None,
+    image_id: Optional[int] = None,
 ) -> str:
     """
     Push one line to WebSocket clients when run_id is set.
     Returns the normalized level string.
     """
     norm = normalize_run_log_level(level)
-    body = format_run_log_message(message, phase=phase, step=step)
+    body = attach_image_log_suffix(format_run_log_message(message, phase=phase, step=step), image_id)
     if run_id is not None:
         from modules.events import broadcast_run_log_line
 
@@ -76,13 +92,14 @@ def runner_emit(
     *,
     phase: Optional[str] = None,
     step: Optional[str] = None,
+    image_id: Optional[int] = None,
 ) -> str:
     """
     Format one line, optionally persist to log_history (omits DEBUG), and broadcast when job_id is set.
     Returns normalized level.
     """
     norm = normalize_run_log_level(level)
-    body = format_run_log_message(message, phase=phase, step=step)
+    body = attach_image_log_suffix(format_run_log_message(message, phase=phase, step=step), image_id)
     if should_persist_run_log_line(norm):
         log_history.append(body)
     if job_id is not None:

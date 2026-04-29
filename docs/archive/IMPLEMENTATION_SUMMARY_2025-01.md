@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document summarizes the implementation work completed on the Image Scoring project TODO items in January 2025.
+This document summarizes the implementation work completed on the Vexlum Scoring project TODO items in January 2025.
 
 ## Completed Features
 

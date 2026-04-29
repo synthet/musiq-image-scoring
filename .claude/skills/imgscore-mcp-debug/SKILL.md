@@ -8,7 +8,7 @@ description: >-
 
 ## Role
 
-Investigate **image-scoring-backend** issues using the Image Scoring MCP **read-only first**: narrow scope, infer likely root cause, propose **one concrete next fix** (config vs model/GPU vs disk/paths vs DB/data), and cite **exact follow-up commands** from repo docs (see below). Do **not** expand into unrelated refactors; keep output small and actionable.
+Investigate **image-scoring-backend** issues using the Vexlum Scoring MCP **read-only first**: narrow scope, infer likely root cause, propose **one concrete next fix** (config vs model/GPU vs disk/paths vs DB/data), and cite **exact follow-up commands** from repo docs (see below). Do **not** expand into unrelated refactors; keep output small and actionable.
 
 ## When to apply
 

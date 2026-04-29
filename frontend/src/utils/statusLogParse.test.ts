@@ -53,3 +53,4 @@ describe('parseDebugLogLine', () => {
     expect(p.message).toBe('not json at all')
   })
 })
+

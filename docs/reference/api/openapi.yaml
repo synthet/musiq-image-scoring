@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Image Scoring WebUI API
+  title: Vexlum Scoring WebUI API
   description: REST API for image quality assessment, tagging, clustering, and data queries.
   version: 7.5.0
 servers:
@@ -3016,7 +3016,7 @@ paths:
   /api/raw-preview:
     get:
       tags:
-      - Image Scoring API
+      - Vexlum Scoring API
       summary: Get RAW file preview
       description: "Extracts or generates a JPEG preview for a RAW image file.\n        \n        This endpoint is optimized\
         \ for performance:\n        - Tries to extract embedded JPEG preview first (fastest)\n        - Falls back to full\

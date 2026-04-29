@@ -1,5 +1,5 @@
 """
-REST API layer for the Image Scoring WebUI.
+REST API layer for the Vexlum Scoring WebUI.
 
 Provides endpoints to trigger actions (start/stop/refresh/fetch) and retrieve
 the status of running actions for scoring, tagging, and clustering operations.
@@ -31,6 +31,8 @@ Endpoints:
         GET /api/images/{image_id} - Get single image details
         GET /api/images/{image_id}/exif - Cached EXIF row (image_exif)
         GET /api/images/{image_id}/xmp - Cached XMP row (image_xmp)
+        POST /api/images/{image_id}/geocode/reverse - Reverse geocoding (GPS → address; Nominatim)
+        POST /api/images/{image_id}/geocode/forward - Forward geocoding (address → GPS + image_exif)
 
     Public (read-only image JSON, same payloads as above where applicable):
         GET /public/api/images - Paginated list (page_size max 200)
@@ -1282,6 +1284,36 @@ class HealPhaseRequest(BaseModel):
     )
 
 
+class GeocodeReverseRequest(BaseModel):
+    """Reverse geocoding: GPS in EXIF → human-readable location (Nominatim by default)."""
+
+    force: bool = Field(False, description="Re-resolve even if location_resolved is already set.")
+    dry_run: bool = Field(False, description="Return provider result without writing to DB or files.")
+    write_embedded: bool = Field(
+        False,
+        description="If true, also write City/State/Country/GPS to embedded metadata via exiftool.",
+    )
+    write_sidecar: bool = Field(
+        False,
+        description="If true and a .xmp sidecar exists, also write the same tags to it.",
+    )
+
+
+class GeocodeForwardRequest(BaseModel):
+    """Forward geocoding: address string → coordinates; updates image_exif and optional file tags."""
+
+    query: str = Field(..., min_length=1, description="Address or place name.")
+    dry_run: bool = Field(False, description="Return coordinates without writing to DB or files.")
+    write_embedded: bool = Field(
+        True,
+        description="If true, write GPS and location text to embedded metadata via exiftool.",
+    )
+    write_sidecar: bool = Field(
+        True,
+        description="If true and a .xmp sidecar exists, write the same tags to it.",
+    )
+
+
 class ApiResponse(BaseModel):
     """Standard API response model for operation results.
     
@@ -1591,7 +1623,7 @@ def create_api_router() -> APIRouter:
     """
     router = APIRouter(
         prefix="/api",
-        tags=["Image Scoring API"],
+        tags=["Vexlum Scoring API"],
         responses={
             400: {"description": "Bad Request - Invalid input parameters"},
             404: {"description": "Not Found - Resource not found"},
@@ -1670,7 +1702,7 @@ def create_api_router() -> APIRouter:
         # This will be populated when the router is included in the main app
         # For now, return a structured description
         return {
-            "api_name": "Image Scoring WebUI API",
+            "api_name": "Vexlum Scoring WebUI API",
             "version": "1.0.0",
             "base_url": "/api",
             "description": "REST API for image quality assessment and tagging operations",
@@ -3433,6 +3465,168 @@ def create_api_router() -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+    # ========== Geo Map Endpoint ==========
+
+    @router.get(
+        "/geo/images",
+        summary="Get geotagged images for map display",
+        description="""
+        Return images that have GPS coordinates stored in image_exif,
+        suitable for rendering on an interactive map.
+
+        **Query Parameters:**
+        - folder_path: Optional. Restrict to images under this folder.
+        - keyword: Optional. Filter by keyword (substring match on image_keywords).
+        - min_score: Optional. Minimum score_general threshold.
+        - label: Optional. Filter by label (e.g. 'Green', 'Yellow', 'Red').
+        - rating: Optional. Filter by star rating (1-5).
+        - limit: Maximum number of results (default: 5000, max: 10000).
+
+        **Returns:**
+        - images: List of geotagged image objects with lat/lng and metadata.
+        - count: Number of results.
+        - bounds: Bounding box {sw: [lat, lng], ne: [lat, lng]} or null.
+        """,
+        tags=["Geo"],
+    )
+    async def get_geo_images(
+        folder_path: Optional[str] = Query(None, description="Restrict to folder path"),
+        keyword: Optional[str] = Query(None, description="Filter by keyword substring"),
+        min_score: Optional[float] = Query(None, ge=0.0, le=100.0, description="Minimum score_general"),
+        label: Optional[str] = Query(None, description="Filter by label"),
+        rating: Optional[int] = Query(None, ge=1, le=5, description="Filter by star rating"),
+        limit: int = Query(5000, ge=1, le=10000, description="Maximum results"),
+    ):
+        """Return images with GPS coordinates for map display."""
+        def _fetch():
+            conn = db.get_db()
+            try:
+                c = conn.cursor()
+                clauses = [
+                    "e.gps_latitude IS NOT NULL",
+                    "e.gps_longitude IS NOT NULL",
+                ]
+                params: list = []
+
+                if folder_path:
+                    clauses.append("f.path = ?")
+                    params.append(folder_path)
+                if keyword:
+                    clauses.append(
+                        "EXISTS ("
+                        " SELECT 1"
+                        " FROM image_keywords ik"
+                        " JOIN keywords_dim kd ON kd.keyword_id = ik.keyword_id"
+                        " WHERE ik.image_id = i.id AND COALESCE(kd.keyword_display, kd.keyword_norm) ILIKE ?"
+                        ")"
+                    )
+                    params.append(f"%{keyword}%")
+                if min_score is not None:
+                    clauses.append("i.score_general >= ?")
+                    params.append(min_score)
+                if label:
+                    clauses.append("i.label = ?")
+                    params.append(label)
+                if rating is not None:
+                    clauses.append("i.rating = ?")
+                    params.append(rating)
+
+                where = " AND ".join(clauses)
+                sql = f"""
+                    SELECT
+                        i.id AS image_id,
+                        i.file_path,
+                        e.gps_latitude AS latitude,
+                        e.gps_longitude AS longitude,
+                        e.date_time_original AS date_taken,
+                        i.label,
+                        i.rating,
+                        COALESCE(e.make, '') || ' ' || COALESCE(e.model, '') AS camera,
+                        i.score_general
+                    FROM images i
+                    JOIN image_exif e ON e.image_id = i.id
+                    LEFT JOIN folders f ON f.id = i.folder_id
+                    WHERE {where}
+                    ORDER BY e.date_time_original DESC NULLS LAST
+                    LIMIT ?
+                """
+                params.append(limit)
+                c.execute(sql, params)
+                cols = [d[0] for d in c.description]
+                res = c.fetchall()
+                if res and isinstance(res[0], dict):
+                    rows = res
+                else:
+                    rows = []
+                    for row in res:
+                        seq = list(row)
+                        # Some DB adapters return rows as sequences of (key, value) pairs.
+                        if (
+                            seq
+                            and isinstance(seq[0], (list, tuple))
+                            and len(seq[0]) == 2
+                            and isinstance(seq[0][0], str)
+                        ):
+                            rows.append(dict(seq))
+                        else:
+                            rows.append(dict(zip(cols, seq)))
+
+                # Normalize adapters that return dict values like (key, value).
+                norm_rows = []
+                for r in rows:
+                    if not isinstance(r, dict):
+                        norm_rows.append(r)
+                        continue
+                    r2 = {}
+                    for k, v in r.items():
+                        if isinstance(v, (list, tuple)) and len(v) == 2 and v[0] == k:
+                            r2[k] = v[1]
+                        else:
+                            r2[k] = v
+                    norm_rows.append(r2)
+                rows = norm_rows
+                return rows
+            finally:
+                conn.close()
+
+        try:
+            rows = await asyncio.wait_for(asyncio.to_thread(_fetch), timeout=30.0)
+        except asyncio.TimeoutError:
+            raise HTTPException(status_code=504, detail="Geo query timed out.")
+
+        # Build response with computed bounds
+        images = []
+        lats, lngs = [], []
+        for r in rows:
+            lat, lng = r["latitude"], r["longitude"]
+            lats.append(lat)
+            lngs.append(lng)
+            dt = r.get("date_taken")
+            if isinstance(dt, datetime):
+                dt = dt.isoformat()
+            elif dt is not None:
+                dt = str(dt)
+            images.append({
+                "image_id": r["image_id"],
+                "file_path": r["file_path"],
+                "latitude": lat,
+                "longitude": lng,
+                "date_taken": dt,
+                "label": r.get("label"),
+                "rating": r.get("rating"),
+                "camera": str(r.get("camera") or "").strip(),
+                "score_general": r.get("score_general"),
+            })
+
+        bounds = None
+        if lats:
+            bounds = {
+                "sw": [min(lats), min(lngs)],
+                "ne": [max(lats), max(lngs)],
+            }
+
+        return {"images": images, "count": len(images), "bounds": bounds}
+
     # ========== Similar Images Endpoint ==========
 
     @router.get(
@@ -3519,6 +3713,78 @@ def create_api_router() -> APIRouter:
         if embedding_space is not None:
             payload["embedding_space"] = embedding_space
         return payload
+
+    @router.get(
+        "/similarity/text-search",
+        summary="Search images by text query",
+        description="""
+        Find images semantically matching a free-text query using CLIP text-to-image
+        similarity.
+
+        Encodes the query with the CLIP ViT-B/32 text tower and searches against
+        stored `clip_vit_b32_image` embeddings via pgvector cosine distance.
+        Requires PostgreSQL and at least some images with CLIP embeddings
+        (produced during tagging).
+
+        **Query Parameters:**
+        - query: Required. Free-text search query (e.g. "sunset over mountains").
+        - limit: Maximum number of results (default: 20, max: 100).
+        - folder_path: Optional. Scope search to a specific folder path.
+        - min_similarity: Minimum similarity threshold 0.0-1.0 (default: none).
+
+        **Returns:**
+        - query: The original query string
+        - results: List of {image_id, file_path, similarity}
+        - count: Number of results returned
+        - embedding_space: Always "clip_vit_b32_image"
+        """,
+        tags=["Similarity"],
+    )
+    async def search_images_by_text(
+        query: str = Query(..., min_length=1, max_length=500, description="Free-text search query"),
+        limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),
+        folder_path: Optional[str] = Query(None, description="Scope search to folder"),
+        min_similarity: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum similarity threshold"),
+    ):
+        """Search images by free-text query using CLIP text-to-image similarity."""
+        from modules import similar_search
+
+        def _run():
+            return similar_search.search_by_text(
+                query=query,
+                limit=limit,
+                folder_path=folder_path,
+                min_similarity=min_similarity,
+            )
+
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(_run),
+                timeout=30.0,
+            )
+        except asyncio.TimeoutError:
+            raise HTTPException(
+                status_code=504,
+                detail="Text search timed out (model loading may take a while on first call).",
+            )
+        except Exception as e:
+            import traceback
+            logger.error(f"Unexpected error in text search endpoint: {str(e)}\n{traceback.format_exc()}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+        if isinstance(result, dict):
+            if "error" in result:
+                raise HTTPException(status_code=400, detail=result["error"])
+            raise HTTPException(status_code=500, detail="Unexpected text search result shape.")
+        if not isinstance(result, list):
+            raise HTTPException(status_code=500, detail="Unexpected text search result type.")
+
+        return {
+            "query": query,
+            "results": result,
+            "count": len(result),
+            "embedding_space": "clip_vit_b32_image",
+        }
 
     # ========== Find Duplicates Endpoints ==========
 
@@ -3754,6 +4020,60 @@ def create_api_router() -> APIRouter:
             logger.error("Error computing embedding map: %s", exc)
             raise HTTPException(status_code=500, detail=str(exc))
 
+    @router.get(
+        "/embedding_spaces",
+        response_model=ApiResponse,
+        summary="List embedding spaces",
+        description=(
+            "Return the registry of active embedding spaces (for UI dropdowns "
+            "and `space_code` selection on /embedding_map and /similarity/*). "
+            "On Postgres reads from `embedding_spaces`; on Firebird falls back "
+            "to the static registry in modules.embedding_spaces."
+        ),
+        tags=["Similarity"],
+    )
+    def list_embedding_spaces():
+        """Return active embedding-space registry rows."""
+        from modules import db
+        from modules.embedding_spaces import (
+            DEFAULT_EMBEDDING_SPACE_CODE,
+            SPACE_DIMS,
+        )
+
+        engine = db._get_db_engine()
+        spaces: list[dict] = []
+        if engine == "postgres":
+            from modules import db_postgres
+            rows = db_postgres.execute_select(
+                "SELECT code, dim, description, active "
+                "FROM embedding_spaces "
+                "WHERE COALESCE(active, 1) = 1 "
+                "ORDER BY id"
+            )
+            for r in rows:
+                spaces.append({
+                    "code": r["code"],
+                    "dim": int(r["dim"]),
+                    "description": r.get("description"),
+                    "active": bool(r.get("active", 1)),
+                    "is_default": r["code"] == DEFAULT_EMBEDDING_SPACE_CODE,
+                })
+        else:
+            for code, dim in SPACE_DIMS.items():
+                spaces.append({
+                    "code": code,
+                    "dim": dim,
+                    "description": None,
+                    "active": True,
+                    "is_default": code == DEFAULT_EMBEDDING_SPACE_CODE,
+                })
+
+        data = {
+            "spaces": spaces,
+            "meta": {"default_code": DEFAULT_EMBEDDING_SPACE_CODE, "engine": engine},
+        }
+        return ApiResponse(success=True, message="OK", data=data)
+
     # ========== Clustering Endpoints ==========
 
     @router.post(
@@ -3963,6 +4283,44 @@ def create_api_router() -> APIRouter:
     async def get_image_xmp_row(image_id: int):
         row = db.get_image_xmp(image_id)
         return _json_safe_metadata_row(row)
+
+    @router.post(
+        "/images/{image_id}/geocode/reverse",
+        summary="Reverse geocoding for an image (coordinates → address)",
+        description="Requires geocoding.enabled and geocoding.user_agent. Uses cached GPS in image_exif or reads from the file.",
+    )
+    async def post_geocode_reverse(
+        image_id: int,
+        request: Optional[GeocodeReverseRequest] = Body(default=None),
+    ):
+        from modules.geocoding import image_service
+
+        req = request or GeocodeReverseRequest()
+        return await asyncio.to_thread(
+            image_service.geocode_image_reverse,
+            image_id,
+            force=req.force,
+            dry_run=req.dry_run,
+            write_embedded=req.write_embedded,
+            write_sidecar=req.write_sidecar,
+        )
+
+    @router.post(
+        "/images/{image_id}/geocode/forward",
+        summary="Forward geocoding (address → coordinates) and update EXIF",
+        description="Resolves the query via the configured provider, updates image_exif, and optionally writes tags with exiftool.",
+    )
+    async def post_geocode_forward(image_id: int, request: GeocodeForwardRequest):
+        from modules.geocoding import image_service
+
+        return await asyncio.to_thread(
+            image_service.geocode_image_forward,
+            image_id,
+            request.query,
+            dry_run=request.dry_run,
+            write_embedded=request.write_embedded,
+            write_sidecar=request.write_sidecar,
+        )
 
     @router.get(
         "/images/{image_id}",
@@ -6331,11 +6689,18 @@ def create_api_router() -> APIRouter:
 
         n_scheduled = data.get("scheduled", [])
         n = len(n_scheduled) if isinstance(n_scheduled, list) else int(n_scheduled or 0)
-        rem = int(data.get("eligible_folders") or 0)
+        fnw = int(data.get("folders_needing_work") or 0)
+        eligible = int(data.get("eligible_folders") or 0)
         msg = (
-            f"Scheduled {n} folder run(s); {rem} folder(s) still need work after this round."
+            f"Scheduled {n} folder run(s). "
+            f"This scan found {fnw} folder(s) with incomplete images; "
+            f"{eligible} were eligible to schedule (capacity and in-flight runs)."
             if not request.dry_run
-            else f"Dry run: would schedule {n} folder run(s); {rem} folder(s) would remain after cap."
+            else (
+                f"Dry run: would schedule {n} folder run(s). "
+                f"Would detect {fnw} folder(s) with incomplete images; "
+                f"{eligible} eligible under capacity / in-flight rules."
+            )
         )
         return ApiResponse(success=True, message=msg, data=data)
 

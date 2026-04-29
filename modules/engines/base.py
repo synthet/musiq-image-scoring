@@ -6,6 +6,41 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 
+class IScoringModel(ABC):
+    """Single scoring model (e.g. SPAQ, AVA, LIQE, QPT V2).
+
+    Wrappers register one instance per model with `ModelRegistry`. The host
+    iterates registered models per image; production vs. shadow membership is
+    decided by config, not by the model itself.
+    """
+
+    name: str = ""
+    version: str = "0.0.0"
+    framework: str = ""
+    score_range: Tuple[float, float] = (0.0, 1.0)
+
+    @abstractmethod
+    def load(self) -> bool:
+        """Idempotent. Return True on success, False on failure (caller logs)."""
+        ...
+
+    @abstractmethod
+    def predict(self, image_path: str) -> Dict[str, Any]:
+        """Return {"score": float, "status": "success"|"failed", "error": str|None}.
+
+        `score` is in the model's native range (`score_range`). Fusion uses
+        `normalize(score)` to map into [0, 1].
+        """
+        ...
+
+    def normalize(self, raw_score: float) -> float:
+        """Map a raw score into [0, 1]. Default: linear over `score_range`."""
+        lo, hi = self.score_range
+        if hi <= lo:
+            return 0.0
+        return max(0.0, min(1.0, (raw_score - lo) / (hi - lo)))
+
+
 class IScoringEngine(ABC):
     """MUSIQ / multi-model scorer surface used by PrepWorker, ScoringWorker, ResultWorker."""
 

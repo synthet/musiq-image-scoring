@@ -2,7 +2,7 @@
 setlocal
 
 echo ============================================================
-echo  Image Scoring: Docker Environment Smoke Test (WSL)
+echo  Vexlum Scoring: Docker Environment Smoke Test (WSL)
 echo ============================================================
 
 REM 1. Check if WSL is available
@@ -31,6 +31,6 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo.
-echo [SUCCESS] Your environment is ready for Docker-based Image Scoring!
+echo [SUCCESS] Your environment is ready for Docker-based Vexlum Scoring!
 echo.
 pause

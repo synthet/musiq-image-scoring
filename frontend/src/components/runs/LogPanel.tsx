@@ -2,7 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { useWsStore } from '@/stores/wsStore'
 import type { RunStatus, WsLogLine } from '@/types/api'
+import {
+  DEFAULT_LOG_VIEWPORT_FILTER,
+  LOG_LEVEL_LABEL_COLORS,
+  LOG_VIEWPORT_FILTERS,
+  formatViewerLogTime,
+  matchLogViewportFilter,
+  type LogViewportFilter,
+} from '@/utils/logViewportFilter'
 import { parsePersistedRunLog } from '@/utils/runLog'
+import { LogMessageWithImageLinks } from '@/utils/logMessageLinks'
 
 /** Stable empty array so selector returns same reference when run has no logs (avoids getSnapshot infinite loop). */
 const EMPTY_LOG_LINES: WsLogLine[] = []
@@ -13,15 +22,6 @@ interface LogPanelProps {
   persistedLog?: string | null
   runStatus?: RunStatus
   startedAt?: string | null
-}
-
-type LogLevel = 'ALL' | 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR'
-
-const LEVEL_COLORS: Record<string, string> = {
-  DEBUG: 'text-[#6d6d6d]',
-  INFO: 'text-[#9d9d9d]',
-  WARNING: 'text-[#cca700]',
-  ERROR: 'text-[#f44747]',
 }
 
 export function LogPanel({ runId, persistedLog, runStatus, startedAt }: LogPanelProps) {
@@ -36,22 +36,13 @@ export function LogPanel({ runId, persistedLog, runStatus, startedAt }: LogPanel
     if (lines.length) return lines
     return persisted
   }, [persistedLog, terminal, runId, startedAt, lines])
-  const [filter, setFilter] = useState<LogLevel>('INFO')
+  const [filter, setFilter] = useState<LogViewportFilter>(DEFAULT_LOG_VIEWPORT_FILTER)
   const [autoScroll, setAutoScroll] = useState(true)
-  const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   /** Tracks last scroll position; used to detect user scrolling back to bottom without overriding an explicit "off" while already at bottom. */
   const wasAtBottomRef = useRef(true)
 
-  const filtered = displayLines.filter((l) => {
-    if (filter === 'ALL') return true
-    if (filter === 'DEBUG') return l.level === 'DEBUG'
-    if (filter === 'ERROR') return l.level === 'ERROR'
-    if (filter === 'WARNING') return l.level === 'WARNING' || l.level === 'ERROR'
-    // INFO: operational view — hide DEBUG noise
-    if (filter === 'INFO') return l.level !== 'DEBUG'
-    return true
-  })
+  const filtered = displayLines.filter((l) => matchLogViewportFilter(l.level, filter))
 
   useEffect(() => {
     if (!autoScroll) return
@@ -67,18 +58,19 @@ export function LogPanel({ runId, persistedLog, runStatus, startedAt }: LogPanel
         <span className="text-xs font-semibold text-[#cccccc]">Log</span>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
-            {(['ALL', 'DEBUG', 'INFO', 'WARNING', 'ERROR'] as LogLevel[]).map((l) => (
+            {LOG_VIEWPORT_FILTERS.map((f) => (
               <button
-                key={l}
-                onClick={() => setFilter(l)}
+                key={f}
+                type="button"
+                onClick={() => setFilter(f)}
                 className={clsx(
                   'px-2 py-0.5 rounded text-[10px] font-medium transition-colors',
-                  filter === l
+                  filter === f
                     ? 'bg-[#3c3c3c] text-[#cccccc]'
                     : 'text-[#6d6d6d] hover:text-[#9d9d9d]',
                 )}
               >
-                {l}
+                {f}
               </button>
             ))}
           </div>
@@ -120,27 +112,26 @@ export function LogPanel({ runId, persistedLog, runStatus, startedAt }: LogPanel
             <LogLine key={i} line={line} />
           ))
         )}
-        <div ref={bottomRef} />
       </div>
     </div>
   )
 }
 
 function LogLine({ line }: { line: WsLogLine }) {
-  let ts = '??:??:??'
-  try { ts = new Date(line.ts).toLocaleTimeString() } catch { /* ignore malformed ts */ }
   return (
     <div className="flex gap-2 leading-5 hover:bg-[#2d2d30] px-1 rounded">
-      <span className="text-[#6d6d6d] shrink-0">{ts}</span>
+      <span className="text-[#6d6d6d] shrink-0 w-[7.5rem] truncate">{formatViewerLogTime(line.ts)}</span>
       <span
         className={clsx(
           'shrink-0 w-14 font-semibold',
-          LEVEL_COLORS[line.level] ?? 'text-[#9d9d9d]',
+          LOG_LEVEL_LABEL_COLORS[line.level] ?? 'text-[#9d9d9d]',
         )}
       >
         {line.level}
       </span>
-      <span className="text-[#cccccc] whitespace-pre-wrap break-all">{line.message}</span>
+      <span className="text-[#cccccc] whitespace-pre-wrap break-all">
+        <LogMessageWithImageLinks message={line.message} />
+      </span>
     </div>
   )
 }

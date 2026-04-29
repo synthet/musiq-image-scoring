@@ -3,7 +3,7 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
 echo ========================================================
-echo   MUSIQ Image Scoring - Docker refresh (db)
+echo   Vexlum Scoring - Docker refresh (db)
 echo ========================================================
 echo   Recreates the Postgres db container to apply compose
 echo   changes (e.g. shm_size). Postgres data volume is kept.

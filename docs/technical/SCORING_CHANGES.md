@@ -1,4 +1,4 @@
-# Image Scoring Pipeline V2: Changes Summary
+# Vexlum pipeline V2: Changes Summary
 
 ## 1. Overview
 The image scoring pipeline has been updated based on comprehensive research into model performance, correlation, and resource efficiency. The new system prioritizes **LIQE** for technical quality and a weighted blend of **AVA** and **SPAQ** for aesthetic quality, while deprecating older, less efficient models.

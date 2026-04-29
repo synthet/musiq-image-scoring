@@ -2,7 +2,7 @@
 
 **Canonical backlog:** repository root [`TODO.md`](../../../TODO.md) (sections **API & Embedding**, **API & Contract**).
 
-**Plans priority context:** [`docs/plans/INDEX.md`](../../plans/INDEX.md) — contract hygiene is **P0** in the plans index.
+**Plans priority context:** [`docs/planning/INDEX.md`](../../planning/INDEX.md) — contract hygiene is **P0** in the plans index.
 
 **Workflow:** [`docs/project/00-backlog-workflow.md`](../../project/00-backlog-workflow.md) — sync order after any status change (aligned with [gallery `docs/project/00-backlog-workflow.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/project/00-backlog-workflow.md)).
 

@@ -5,6 +5,10 @@ Finds visually similar images using stored MobileNetV2 embeddings
 and cosine similarity ranking. Uses pgvector SQL operators for
 search_similar_images() and find_near_duplicates() for efficiency.
 find_outliers() remains in Python for complex statistical logic.
+
+search_by_text() encodes free-text queries with the CLIP ViT-B/32
+text tower and searches against stored CLIP image embeddings via
+pgvector cosine distance (Postgres-only).
 """
 
 import logging
@@ -263,6 +267,161 @@ def search_similar_images(example_path=None, example_image_id=None,
         results.append({
             "image_id": int(row['image_id']),
             "file_path": row['file_path'],
+            "similarity": round(sim, 6),
+        })
+
+    return results
+
+
+# ── Free-text (semantic) search via CLIP ───────────────────────────
+
+# Module-level cache for the CLIP model / processor (loaded lazily once).
+_clip_model_cache: dict = {}
+
+
+def _get_clip_text_embedding(query: str) -> np.ndarray:
+    """Encode *query* with the CLIP ViT-B/32 text tower → L2-normalized 512-d float32 vector.
+
+    The model is lazy-loaded on first call and cached for the process lifetime
+    (same ``openai/clip-vit-base-patch32`` weights used by ``KeywordScorer``).
+    """
+    import torch
+
+    if "model" not in _clip_model_cache:
+        from transformers import CLIPModel, CLIPProcessor
+        from modules import config
+
+        tagging_cfg = config.get_config_section("tagging")
+        model_name = tagging_cfg.get("clip_model", "openai/clip-vit-base-patch32")
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        _clip_model_cache["model"] = CLIPModel.from_pretrained(model_name).to(device)
+        _clip_model_cache["processor"] = CLIPProcessor.from_pretrained(model_name)
+        _clip_model_cache["device"] = device
+        logger.info("CLIP model loaded for text search (device=%s, model=%s)", device, model_name)
+
+    model = _clip_model_cache["model"]
+    processor = _clip_model_cache["processor"]
+    device = _clip_model_cache["device"]
+
+    inputs = processor(text=[query], return_tensors="pt", padding=True, truncation=True)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    with torch.no_grad():
+        outputs = model.get_text_features(**inputs)
+
+    # Handle different return types from get_text_features (tensor vs model output).
+    text_features = outputs
+    if not hasattr(text_features, "cpu"):
+        # Some transformers versions return a ModelOutput from get_text_features.
+        if hasattr(text_features, "text_embeds") and text_features.text_embeds is not None:
+            text_features = text_features.text_embeds
+        elif hasattr(text_features, "pooler_output") and text_features.pooler_output is not None:
+            text_features = text_features.pooler_output
+        elif hasattr(text_features, "last_hidden_state") and text_features.last_hidden_state is not None:
+            # [batch, seq, dim] -> CLS / SOS token embedding
+            text_features = text_features.last_hidden_state[:, 0, :]
+        elif isinstance(text_features, (list, tuple)) and text_features:
+            text_features = text_features[0]
+
+    if not hasattr(text_features, "cpu"):
+        raise TypeError(f"Unexpected CLIP text features type: {type(text_features)!r}")
+
+    vec = text_features.detach().cpu().numpy().astype(np.float32)
+    vec = np.asarray(vec, dtype=np.float32).reshape(-1)
+    if vec.ndim != 1:
+        raise ValueError(f"CLIP text embedding must be 1D, got shape={vec.shape!r}")
+
+    norm = float(np.linalg.norm(vec))
+    if norm > 0:
+        vec = vec / norm
+    return vec
+
+
+def search_by_text(
+    query: str,
+    limit: int = 20,
+    folder_path: str | None = None,
+    min_similarity: float | None = None,
+) -> dict | list:
+    return _search_by_text_impl(query, limit, folder_path, min_similarity)
+
+def _search_by_text_impl(
+    query: str,
+    limit: int = 20,
+    folder_path: str | None = None,
+    min_similarity: float | None = None,
+) -> dict | list:
+    """Find images semantically matching a free-text *query*.
+
+    Encodes the query with the CLIP ViT-B/32 text tower (512-d) and runs a
+    pgvector cosine-distance search against stored ``clip_vit_b32_image``
+    embeddings in ``image_embeddings_512``.
+
+    Requires PostgreSQL with pgvector; returns an error dict on other engines.
+
+    Returns a list of ``{image_id, file_path, similarity}`` dicts sorted by
+    descending similarity, or a dict with an ``error`` key on failure.
+    """
+    if not query or not query.strip():
+        return {"error": "query must be a non-empty string"}
+
+    if db._get_db_engine() != "postgres":
+        return {"error": "Text search requires PostgreSQL with pgvector."}
+
+    from modules.embedding_spaces import CLIP_IMAGE_SPACE_CODE, get_embedding_space_id
+
+    space_id = get_embedding_space_id(CLIP_IMAGE_SPACE_CODE)
+    if space_id is None:
+        return {"error": f"Embedding space not registered: {CLIP_IMAGE_SPACE_CODE}"}
+
+    table = db._pg_embedding_table_for_dim(512)
+
+    try:
+        query_vec = _get_clip_text_embedding(query.strip())
+    except Exception as e:
+        logger.error("Failed to encode text query: %s", e)
+        return {"error": f"Failed to encode text query: {e}"}
+
+    with db.connection() as conn:
+        c = conn.cursor()
+
+        params: list = [query_vec, space_id]
+        folder_clause = ""
+        if folder_path:
+            import os
+
+            norm = os.path.normpath(folder_path)
+            c.execute("SELECT id FROM folders WHERE path = %s", (norm,))
+            frow = c.fetchone()
+            if not frow:
+                return []
+            folder_clause = "AND i.folder_id = %s"
+            params.append(frow[0])
+
+        sql = f"""
+            SELECT i.id   AS image_id,
+                   i.file_path,
+                   1 - (e.embedding <=> %s::vector) AS similarity
+            FROM {table} e
+            JOIN images i ON i.id = e.image_id
+            WHERE e.embedding_space_id = %s
+              {folder_clause}
+            ORDER BY e.embedding <=> %s::vector
+            LIMIT %s
+        """
+        params.append(query_vec)
+        params.append(limit)
+        c.execute(sql, tuple(params))
+        rows = c.fetchall()
+
+    results = []
+    for row in rows:
+        sim = float(row["similarity"])
+        if min_similarity is not None and sim < min_similarity:
+            break
+        results.append({
+            "image_id": int(row["image_id"]),
+            "file_path": row["file_path"],
             "similarity": round(sim, 6),
         })
 

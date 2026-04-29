@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { clsx } from 'clsx'
 import {
-  AlertCircle, SkipForward, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
+  AlertTriangle, SkipForward, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   CheckCircle2, XCircle, Clock, Loader2, Circle, Square,
 } from 'lucide-react'
 import { runsApi } from '@/api/runs'
@@ -89,18 +89,18 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
   const eta = activeLive?.eta_seconds
 
   return (
-    <div className="rounded-md border border-[#474747] bg-[#252526]">
+    <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
       {/* Header */}
-      <div className="flex items-center gap-3 p-4 border-b border-[#3c3c3c]">
+      <div className="flex items-center gap-3 p-4 border-b border-[var(--color-border-muted)]">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-sm font-semibold text-[#cccccc]">
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">
               {display?.name ?? stage.phase_code}
             </span>
             <StageBadge state={stage.state} />
           </div>
           {display?.description && (
-            <p className="text-xs text-[#6d6d6d]">{display.description}</p>
+            <p className="text-xs text-[var(--color-text-muted)]">{display.description}</p>
           )}
         </div>
 
@@ -112,7 +112,7 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
               onClick={() => cancelMut.mutate()}
               loading={cancelMut.isPending}
             >
-              <Square size={11} />
+              <Square size={14} />
               Stop
             </Button>
           )}
@@ -123,7 +123,7 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
               onClick={() => retryMut.mutate()}
               loading={retryMut.isPending}
             >
-              <RefreshCw size={11} />
+              <RefreshCw size={14} />
               Re-run
             </Button>
           )}
@@ -134,7 +134,7 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
               onClick={() => skipMut.mutate()}
               loading={skipMut.isPending}
             >
-              <SkipForward size={11} />
+              <SkipForward size={14} />
               Skip
             </Button>
           )}
@@ -143,8 +143,8 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
 
       {/* Progress (running stage) */}
       {stage.state === 'running' && (
-        <div className="px-4 py-3 border-b border-[#3c3c3c]">
-          <div className="flex items-center justify-between mb-2 text-xs text-[#9d9d9d]">
+        <div className="px-4 py-3 border-b border-[var(--color-border-muted)]">
+          <div className="flex items-center justify-between mb-2 text-xs text-[var(--color-text-secondary)]">
             <span>
               {done.toLocaleString()} / {total.toLocaleString()} work items
             </span>
@@ -163,8 +163,8 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
 
       {/* Steps grid */}
       {steps && steps.length > 0 && (
-        <div className="px-4 py-3 border-b border-[#3c3c3c]">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6d6d6d] mb-2">Steps</div>
+        <div className="px-4 py-3 border-b border-[var(--color-border-muted)]">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-2">Steps</div>
           <div className="flex flex-wrap gap-2">
             {steps.map((step) => (
               <StepChip key={step.step_code} step={step} />
@@ -175,9 +175,9 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
 
       {/* Error */}
       {stage.state === 'failed' && stage.error_message && (
-        <div className="px-4 py-3 border-b border-[#3c3c3c]">
-          <div className="flex items-start gap-2 text-xs text-[#f44747]">
-            <AlertCircle size={13} className="shrink-0 mt-0.5" />
+        <div className="px-4 py-3 border-b border-[var(--color-border-muted)]">
+          <div className="flex items-start gap-2 text-xs text-[var(--color-danger)]">
+            <XCircle size={14} className="shrink-0 mt-0.5" />
             <pre className="whitespace-pre-wrap font-mono text-[11px] overflow-auto max-h-24">
               {stage.error_message}
             </pre>
@@ -185,9 +185,9 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
         </div>
       )}
       {stage.state === 'interrupted' && (
-        <div className="px-4 py-3 border-b border-[#3c3c3c]">
-          <div className="flex items-start gap-2 text-xs text-[#cca700]">
-            <AlertCircle size={13} className="shrink-0 mt-0.5" />
+        <div className="px-4 py-3 border-b border-[var(--color-border-muted)]">
+          <div className="flex items-start gap-2 text-xs text-[var(--color-warning)]">
+            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
             <span>This stage was in progress when the server stopped (e.g. restart or crash).</span>
           </div>
         </div>
@@ -195,7 +195,7 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
 
       {/* Work items toggle */}
       <button
-        className="w-full flex items-center justify-between px-4 py-2.5 text-xs text-[#9d9d9d] hover:text-[#cccccc] hover:bg-[#2d2d30] transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] transition-colors"
         onClick={() => {
           setShowItems((v) => {
             if (!v) setWorkItemsPage(0)
@@ -204,13 +204,13 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
         }}
       >
         <span>Work Items {total > 0 && `(${total.toLocaleString()})`}</span>
-        {showItems ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        {showItems ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
 
       {showItems && workItems && (
-        <div className="border-t border-[#3c3c3c]">
+        <div className="border-t border-[var(--color-border-muted)]">
           {(workItems.total ?? 0) === 0 && total > 0 && (
-            <div className="px-4 py-2 text-xs text-[#cca700] border-b border-[#3c3c3c]">
+            <div className="px-4 py-2 text-xs text-[var(--color-warning)] border-b border-[var(--color-border-muted)]">
               No per-file rows yet. The progress bar can advance from queued work before this table
               fills—that is normal. Use Run Log below for live file-by-file output; this list appears
               when per-image status is stored for this run.
@@ -237,11 +237,16 @@ function StepChip({ step }: { step: Step }) {
     <div
       className={clsx(
         'flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs border min-w-[120px]',
-        step.status === 'completed' && 'bg-[#1a3320] border-[#2d6a2d] text-[#89d185]',
-        step.status === 'running' && 'bg-[#003f6e] border-[#007acc] text-[#4fc1ff]',
-        step.status === 'failed' && 'bg-[#3a1515] border-[#7a2a2a] text-[#f44747]',
-        step.status === 'skipped' && 'bg-[#252526] border-[#3c3c3c] text-[#6d6d6d]',
-        step.status === 'pending' && 'bg-[#252526] border-[#3c3c3c] text-[#6d6d6d]',
+        step.status === 'completed' &&
+          'bg-[var(--color-success-bg)] border-[var(--color-success-border)] text-[var(--color-success)]',
+        step.status === 'running' &&
+          'bg-[var(--color-accent-dim)] border-[var(--color-accent)] text-[var(--color-accent-bright)]',
+        step.status === 'failed' &&
+          'bg-[var(--color-danger-bg)] border-[var(--color-danger-border)] text-[var(--color-danger)]',
+        step.status === 'skipped' &&
+          'bg-[var(--color-bg-secondary)] border-[var(--color-border-muted)] text-[var(--color-text-muted)]',
+        step.status === 'pending' &&
+          'bg-[var(--color-bg-secondary)] border-[var(--color-border-muted)] text-[var(--color-text-muted)]',
       )}
     >
       <StepIcon status={step.status} />
@@ -261,15 +266,15 @@ function StepChip({ step }: { step: Step }) {
 function StepIcon({ status }: { status: string }) {
   switch (status) {
     case 'completed':
-      return <CheckCircle2 size={11} />
+      return <CheckCircle2 size={14} />
     case 'running':
-      return <Loader2 size={11} className="animate-spin" />
+      return <Loader2 size={14} className="animate-spin" />
     case 'failed':
-      return <XCircle size={11} />
+      return <XCircle size={14} />
     case 'pending':
-      return <Clock size={11} />
+      return <Clock size={14} />
     default:
-      return <Circle size={11} />
+      return <Circle size={14} />
   }
 }
 
@@ -296,8 +301,8 @@ function WorkItemsTable({
     <div>
       <div className="overflow-auto max-h-64">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-[#252526]">
-            <tr className="text-[#6d6d6d] border-b border-[#3c3c3c]">
+          <thead className="sticky top-0 bg-[var(--color-bg-secondary)]">
+            <tr className="text-[var(--color-text-muted)] border-b border-[var(--color-border-muted)]">
               <th className="text-left px-4 py-2 font-medium">File</th>
               <th className="text-left px-4 py-2 font-medium">Status</th>
               <th className="text-left px-4 py-2 font-medium">Details</th>
@@ -308,12 +313,12 @@ function WorkItemsTable({
             {items.map((item) => (
               <tr
                 key={item.image_id}
-                className="border-b border-[#3c3c3c] hover:bg-[#2d2d30] transition-colors"
+                className="border-b border-[var(--color-border-muted)] hover:bg-[var(--color-bg-tertiary)] transition-colors"
               >
-                <td className="px-4 py-1.5 text-[#cccccc] truncate max-w-[300px]">
+                <td className="px-4 py-1.5 text-[var(--color-text-primary)] truncate max-w-[300px]">
                   <Link
                     to={imageInspectorPath(item.image_id)}
-                    className="hover:text-[#4fc1ff] hover:underline"
+                    className="hover:text-[var(--color-accent-bright)] hover:underline"
                   >
                     {item.filename}
                   </Link>
@@ -322,7 +327,7 @@ function WorkItemsTable({
                   <WorkItemStatus status={item.status} />
                 </td>
                 <td
-                  className="px-4 py-1.5 text-[#9d9d9d] max-w-[240px] truncate text-left"
+                  className="px-4 py-1.5 text-[var(--color-text-secondary)] max-w-[240px] truncate text-left"
                   title={
                     [item.error, item.skip_reason, item.skipped_by ? `by ${item.skipped_by}` : null]
                       .filter(Boolean)
@@ -331,7 +336,7 @@ function WorkItemsTable({
                 >
                   {item.error ?? item.skip_reason ?? (item.skipped_by ? `skipped by ${item.skipped_by}` : '—')}
                 </td>
-                <td className="px-4 py-1.5 text-[#9d9d9d] text-right">
+                <td className="px-4 py-1.5 text-[var(--color-text-secondary)] text-right">
                   {item.duration_ms != null ? `${(item.duration_ms / 1000).toFixed(2)}s` : '—'}
                 </td>
               </tr>
@@ -340,26 +345,26 @@ function WorkItemsTable({
         </table>
       </div>
       {total > 0 && (
-        <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-t border-[#3c3c3c] bg-[#252526] text-[11px] text-[#9d9d9d]">
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-t border-[var(--color-border-muted)] bg-[var(--color-bg-secondary)] text-[11px] text-[var(--color-text-secondary)]">
           <span className="min-w-0 truncate">
             {rangeStart.toLocaleString()}–{rangeEnd.toLocaleString()} of {total.toLocaleString()}
           </span>
           <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
-              className="inline-flex items-center justify-center rounded p-1 text-[#cccccc] hover:bg-[#3c3c3c] disabled:opacity-40 disabled:pointer-events-none"
+              className="inline-flex items-center justify-center rounded p-1 text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] disabled:opacity-40 disabled:pointer-events-none"
               disabled={!canPrev}
               onClick={() => onPageChange(page - 1)}
               aria-label="Previous page"
             >
               <ChevronLeft size={16} strokeWidth={2.25} />
             </button>
-            <span className="tabular-nums px-1 min-w-[5.5rem] text-center text-[#cccccc]">
+            <span className="tabular-nums px-1 min-w-[5.5rem] text-center text-[var(--color-text-primary)]">
               {page + 1} / {totalPages}
             </span>
             <button
               type="button"
-              className="inline-flex items-center justify-center rounded p-1 text-[#cccccc] hover:bg-[#3c3c3c] disabled:opacity-40 disabled:pointer-events-none"
+              className="inline-flex items-center justify-center rounded p-1 text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] disabled:opacity-40 disabled:pointer-events-none"
               disabled={!canNext}
               onClick={() => onPageChange(page + 1)}
               aria-label="Next page"
@@ -389,7 +394,7 @@ function WorkItemStatus({ status }: { status: string }) {
 
   return (
     <span className={clsx('inline-flex items-center gap-1 font-medium', colorClass)}>
-      <PhaseStatusIcon status={status} size={12} animated />
+      <PhaseStatusIcon status={status} size={14} animated />
       {label}
     </span>
   )

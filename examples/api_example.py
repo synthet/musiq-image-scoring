@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Example script demonstrating REST API usage for Image Scoring WebUI.
+Example script demonstrating REST API usage for Vexlum Scoring (Web UI).
 
 This script shows how to:
 - Start a scoring job

@@ -4,7 +4,7 @@ This document captures the **implemented** UX/UI behavior of the current Gradio 
 
 ## 1) Application Shell & Information Architecture
 
-- App root is a Gradio `Blocks` app titled **Image Scoring WebUI**, mounted by FastAPI at `/app` (root redirects to `/app`).
+- App root is a Gradio `Blocks` app titled **Vexlum Scoring WebUI**, mounted by FastAPI at `/app` (root redirects to `/app`).
 - Top-level IA is 3 tabs:
   - **Pipeline** (`id="pipeline"`)
   - **Gallery** (`id="gallery"`) — initially hidden, opened contextually by navigation.

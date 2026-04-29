@@ -31,8 +31,17 @@ Historical reports, research, reviews, and debugging sessions.
 | [project-reviews/UX_UI_REVIEW_2026-03-12.md](project-reviews/UX_UI_REVIEW_2026-03-12.md) | UX/UI heuristic review of current WebUI |
 | [CODE_DESIGN_REVIEW_2026-04-18.md](CODE_DESIGN_REVIEW_2026-04-18.md) | Comprehensive code & design review — 3 critical, 5 high, 7 medium findings (execute_code RCE, cancelled/canceled duality, connection leaks, stuck jobs, god object) |
 | [SECURITY_FIXES_2026_04_19.md](SECURITY_FIXES_2026_04_19.md) | Security & architecture fixes (RCE mitigation, connection leaks, thread safety, status normalization) |
-| [CODE_DESIGN_REVIEW.md](CODE_DESIGN_REVIEW.md) | Code and design review |
-| [2026_02_09_CODE_AND_DESIGN_REVIEW.md](2026_02_09_CODE_AND_DESIGN_REVIEW.md) | Code & design review |
+
+## Archived point-in-time audits
+
+Superseded or snapshot-only; kept under [`../archive/reports/`](../archive/reports/).
+
+| Document | Description |
+|----------|-------------|
+| [CODE_DESIGN_REVIEW_legacy.md](../archive/reports/CODE_DESIGN_REVIEW_legacy.md) | Older undated code & design review |
+| [2026_02_09_CODE_AND_DESIGN_REVIEW.md](../archive/reports/2026_02_09_CODE_AND_DESIGN_REVIEW.md) | February 2026 review snapshot |
+| [RCA_runs_audit_2026-04-22.md](../archive/reports/RCA_runs_audit_2026-04-22.md) | RCA — runs audit (April 2026) |
+| [FIX_PLAN_runs_audit_2026-04-22.md](../archive/reports/FIX_PLAN_runs_audit_2026-04-22.md) | Fix plan — runs audit (April 2026) |
 
 ## Debugging sessions (historical)
 
@@ -48,4 +57,4 @@ Historical reports, research, reviews, and debugging sessions.
 |----------|-------------|
 | [RELEASE_HANDOFF_2026-04-10_2026-04-11.md](RELEASE_HANDOFF_2026-04-10_2026-04-11.md) | Cross-repo release handoff (dated snapshot) |
 
-**See also:** [Main docs index](../INDEX.md) · [Plans & proposals](../plans/INDEX.md)
+**See also:** [Main docs index](../INDEX.md) · [Plans & proposals](../planning/INDEX.md)

@@ -5,7 +5,7 @@ cd /d "%~dp0"
 if not defined DOCKER_BUILDKIT set "DOCKER_BUILDKIT=1"
 
 echo ========================================================
-echo   MUSIQ Image Scoring - Docker full rebuild (no cache)
+echo   Vexlum Scoring - Docker full rebuild (no cache)
 echo ========================================================
 echo   Stops containers, rebuilds image from scratch, starts
 echo   stack in foreground. Postgres data volume is kept.

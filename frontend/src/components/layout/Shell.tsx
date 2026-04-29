@@ -4,11 +4,13 @@ import { clsx } from 'clsx'
 import {
   PanelLeft,
   Zap,
-  Settings,
   Workflow,
   Stethoscope,
   ScrollText,
   Database,
+  DatabaseZap,
+  Search,
+  MapPin,
 } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { useUiStore } from '@/stores/uiStore'
@@ -54,15 +56,17 @@ export function Shell() {
 
         <div className="flex items-center gap-2 mr-4">
           <Zap size={16} className="text-[#4fc1ff]" />
-          <span className="text-sm font-semibold text-[#cccccc]">Image Scoring</span>
+          <span className="text-sm font-semibold text-[#cccccc]">Vexlum Scoring</span>
         </div>
 
         <nav className="flex items-center gap-1">
           <NavItem to="/runs" icon={<Workflow size={14} />} label="Runs" />
           <NavItem to="/images" icon={<Database size={14} />} label="Images" />
-          <NavItem to="/diagnostics" icon={<Stethoscope size={14} />} label="Diagnostics" />
+          <NavItem to="/embeddings" icon={<DatabaseZap size={14} />} label="Vector DB" />
+          <NavItem to="/search" icon={<Search size={14} />} label="Search" />
+          <NavItem to="/map" icon={<MapPin size={14} />} label="Map" />
+          <NavItem to="/diagnostics" icon={<Stethoscope size={14} />} label="Health" />
           <NavItem to="/logs" icon={<ScrollText size={14} />} label="Logs" />
-          <NavItem to="/settings" icon={<Settings size={14} />} label="Settings" />
         </nav>
 
         <div className="ml-auto flex items-center gap-3">

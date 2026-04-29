@@ -6,7 +6,7 @@ REM RunWebUI.exe sets this; plain shortcut should open the browser unless you se
 if not defined WEBUI_OPEN_UI set "WEBUI_OPEN_UI=browser"
 
 echo ========================================================
-echo   MUSIQ Image Scoring - Docker Launcher
+echo   Vexlum Scoring - Docker Launcher
 echo ========================================================
 echo.
 

@@ -126,13 +126,57 @@ def add_border_to_image(image_path, color='gray', border=10):
         print(f"Error adding border to {image_path}: {e}")
         return None
 
+def _remap_host_project_path(path: str) -> str | None:
+    """Remap a host-side project path to the local project root.
+
+    When running inside Docker, paths stored in the database refer to the
+    host filesystem (e.g. `/mnt/d/Projects/image-scoring-backend/thumbnails/...`
+    or `D:\\Projects\\image-scoring-backend\\thumbnails\\...`) and do not exist
+    inside the container. The container project root (e.g. `/app`) is computed
+    from `BASE_DIR`, and the host-side equivalents come from environment
+    variables `IMAGE_SCORING_HOST_PROJECT_WSL` / `IMAGE_SCORING_HOST_PROJECT_WIN`.
+
+    Returns the remapped path, or None when no env vars are set or no prefix matches.
+    """
+    host_wsl = os.environ.get("IMAGE_SCORING_HOST_PROJECT_WSL", "").strip()
+    host_win = os.environ.get("IMAGE_SCORING_HOST_PROJECT_WIN", "").strip()
+    if not host_wsl and not host_win:
+        return None
+
+    from modules.config import BASE_DIR
+    local_root = str(BASE_DIR)
+
+    p_norm = path.replace("\\", "/").rstrip("/")
+    for prefix in (host_wsl, host_win):
+        if not prefix:
+            continue
+        prefix_norm = prefix.replace("\\", "/").rstrip("/")
+        if not prefix_norm:
+            continue
+        # Skip when the host root already matches the local root — nothing to remap.
+        if prefix_norm == local_root.replace("\\", "/").rstrip("/"):
+            continue
+        if p_norm == prefix_norm:
+            return local_root
+        prefix_with_sep = prefix_norm + "/"
+        if p_norm.startswith(prefix_with_sep):
+            tail = p_norm[len(prefix_with_sep):]
+            return os.path.join(local_root, *tail.split("/"))
+
+    return None
+
+
 def convert_path_to_local(path):
     """
     Converts a path to the local OS format.
     Specifically handles WSL paths (/mnt/c/...) when running on Windows.
     """
+    remapped = _remap_host_project_path(path)
+    if remapped is not None:
+        path = remapped
+
     system = platform.system()
-    
+
     if system == "Windows":
         # Handle WSL paths (forward and backslashes)
         # Normalize to forward slashes for checking

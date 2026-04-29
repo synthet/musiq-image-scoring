@@ -1,6 +1,6 @@
 # Scripts
 
-Utility scripts for the Image Scoring project. Most scripts that use the database or ML models should be run in **WSL** with the same environment as the WebUI (`~/.venvs/tf`).
+Utility scripts for the **Vexlum** backend (`image-scoring-backend`). Most scripts that use the database or ML models should be run in **WSL** with the same environment as the WebUI (`~/.venvs/tf`).
 
 ## Subfolders
 

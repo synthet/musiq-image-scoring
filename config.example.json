@@ -6,7 +6,12 @@
   "scoring": {
     "force_rescore_default": false,
     "default_sort_by": "score_general",
-    "default_sort_order": "desc"
+    "default_sort_order": "desc",
+    "fusion": {
+      "general":   { "liqe": 0.45, "ava": 0.30, "spaq": 0.25 },
+      "technical": { "liqe": 1.00 },
+      "aesthetic": { "ava": 0.55, "spaq": 0.45 }
+    }
   },
   "processing": {
     "prep_queue_size": 50,

@@ -1,5 +1,5 @@
 ---
-description: Launch the Image Scoring application using Docker Compose (GPU-accelerated)
+description: Launch the Vexlum application using Docker Compose (GPU-accelerated)
 ---
 
 // turbo

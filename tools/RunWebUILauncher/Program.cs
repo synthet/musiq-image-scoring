@@ -206,7 +206,7 @@ internal static class Program
     private static void PrintHelp()
     {
         var sb = new StringBuilder();
-        sb.AppendLine("RunWebUI - start the Image Scoring WebUI");
+        sb.AppendLine("RunWebUI - start the Vexlum WebUI");
         sb.AppendLine();
         sb.AppendLine("Usage: RunWebUI.exe [options] [--] [extra args for launch.py ...]");
         sb.AppendLine("       Use -- before launch.py flags that start with \"--\".");

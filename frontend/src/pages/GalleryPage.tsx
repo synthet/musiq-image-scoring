@@ -6,7 +6,7 @@ import { Star, Filter, X } from 'lucide-react'
 import { VirtuosoGrid } from 'react-virtuoso'
 import { galleryApi, type ImageFilters } from '@/api/gallery'
 import { Button } from '@/components/ui/button'
-import { LABEL_COLORS } from '@/components/images/InspectorPrimitives'
+import { LABEL_COLORS, LABEL_FALLBACK_COLOR } from '@/constants/labelColors'
 import type { Image } from '@/types/api'
 
 const LABELS = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Gray', 'Pick', 'Reject']
@@ -239,7 +239,7 @@ function ImageTile({
       {image.label && (
         <div 
           className="absolute top-1 left-1 w-2.5 h-2.5 rounded-full border border-black/50 shadow-sm"
-          style={{ backgroundColor: LABEL_COLORS[image.label.toLowerCase()] || '#808080' }}
+          style={{ backgroundColor: LABEL_COLORS[image.label.toLowerCase()] || LABEL_FALLBACK_COLOR }}
           title={image.label}
         />
       )}

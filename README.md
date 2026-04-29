@@ -1,16 +1,16 @@
-# MUSIQ Image Scoring - Digital Asset Management System
+# Vexlum Scoring — digital asset management & quality pipeline
 
 A comprehensive **AI-powered Digital Asset Management** tool for photographers and creative professionals, featuring:
 
 - 🎯 **Multi-Model Quality Scoring**: Technical and aesthetic assessment using Google's MUSIQ, LIQE, and other SOTA models
 - 🖼️ **Interactive Web Gallery**: Gradio-based UI for browsing, filtering, and managing your image library
-- 💻 **Standalone Desktop App**: High-performance **[Electron Gallery](https://github.com/synthet/image-scoring-gallery)** for native-feeling browsing
+- 💻 **Standalone Desktop App**: High-performance **[Driftara Gallery](https://github.com/synthet/image-scoring-gallery)** (Electron) for native-feeling browsing
 - 🏷️ **AI Keyword Extraction**: Automatic tagging using BLIP + CLIP vision-language models
 - 📸 **RAW File Support**: Native support for Nikon NEF (Z8/Z9 HE*), Canon CR2, Sony ARW, and other RAW formats
 - ⚡ **GPU Acceleration**: CUDA support for 10-15x faster batch processing
 - 🐳 **Multiple Deployment Options**: Docker, WSL2, or native Windows
 
-**📚 [Complete Documentation Index](docs/README.md)** | **🚀 [Quick Reference](docs/gallery/QUICK_REFERENCE.md)** | **📊 [Test Status](docs/testing/TEST_STATUS.md)**
+**📚 [Complete Documentation Index](docs/README.md)** | **🧭 [Shipped feature catalog](docs/features/implemented/INDEX.md)** | **🚀 [Quick Reference](docs/gallery/QUICK_REFERENCE.md)** | **📊 [Test Status](docs/testing/TEST_STATUS.md)** | **[Diagnostics / doctor](docs/DIAGNOSTICS.md)**
 
 ## Quick Setup
 
@@ -54,7 +54,7 @@ That's it! The default Compose flow uses **PostgreSQL (`db` service on `localhos
    docker compose logs -f webui
    ```
 
-📖 **See also:** [Docker Deployment Guide](docs/setup/WINDOWS_WSL_DEPLOYMENT.md#docker-option)
+📖 **See also:** [Docker Deployment Guide](docs/guides/setup/WINDOWS_WSL_DEPLOYMENT.md#docker-option)
 
 ---
 
@@ -99,7 +99,7 @@ That's it! The default Compose flow uses **PostgreSQL (`db` service on `localhos
    python launch.py
    ```
 
-📖 **Detailed guide:** [WSL2 TensorFlow GPU Setup](docs/setup/WSL2_TENSORFLOW_GPU_SETUP.md) | [Windows/WSL Deployment](docs/setup/WINDOWS_WSL_DEPLOYMENT.md) | [Python & Dependency Version Caveats](docs/setup/PYTHON_VERSION_CAVEATS.md)
+📖 **Detailed guide:** [WSL2 TensorFlow GPU Setup](docs/guides/setup/WSL2_TENSORFLOW_GPU_SETUP.md) | [Windows/WSL Deployment](docs/guides/setup/WINDOWS_WSL_DEPLOYMENT.md) | [Python & Dependency Version Caveats](docs/guides/setup/PYTHON_VERSION_CAVEATS.md)
 
 ---
 
@@ -130,7 +130,7 @@ pip install -r requirements.txt  # Canonical Windows-native requirements
 
 📖 **For production use, we strongly recommend Docker or WSL2.**
 
-📖 **Version caveats:** [Python & Dependency Version Caveats](docs/setup/PYTHON_VERSION_CAVEATS.md)
+📖 **Version caveats:** [Python & Dependency Version Caveats](docs/guides/setup/PYTHON_VERSION_CAVEATS.md)
 
 ---
 
@@ -138,7 +138,7 @@ pip install -r requirements.txt  # Canonical Windows-native requirements
 
 **Why?** Run the Gradio WebUI natively on Windows without WSL. CPU-only, no VILA.
 
-**Prerequisites:** Compatible Python (see [Python & Dependency Version Caveats](docs/setup/PYTHON_VERSION_CAVEATS.md)), Firebird binaries in `Firebird/` (firebird.exe, fbclient.dll — see [Firebird 5.0](https://firebirdsql.org/en/firebird-5-0/) Embedded package).
+**Prerequisites:** Compatible Python (see [Python & Dependency Version Caveats](docs/guides/setup/PYTHON_VERSION_CAVEATS.md)), Firebird binaries in `Firebird/` (firebird.exe, fbclient.dll — see [Firebird 5.0](https://firebirdsql.org/en/firebird-5-0/) Embedded package).
 
 **Setup:**
 
@@ -238,7 +238,7 @@ python scripts/python/keyword_extractor.py --input-dir "D:/Photos" --confidence-
 extract_keywords.bat "D:\Photos\NEF_Files"
 ```
 
-📖 **See:** [Scoring Guide](docs/getting-started/SCORING_GUIDE.md) | [Keyword Extraction Guide](docs/technical/KEYWORD_EXTRACTION_GUIDE.md)
+📖 **See:** [Scoring Guide](docs/guides/getting-started/SCORING_GUIDE.md) | [Keyword Extraction Guide](docs/technical/KEYWORD_EXTRACTION_GUIDE.md)
 
 ---
 
@@ -310,7 +310,7 @@ Hybrid scoring system combining technical and aesthetic evaluation:
 - Use this path only when you explicitly need legacy behavior or migration validation.
 
 📖 **Migration/status docs:**
-- [Firebird → PostgreSQL Migration Plan](docs/plans/database/FIREBIRD_POSTGRES_MIGRATION.md)
+- [Firebird → PostgreSQL Migration Plan](docs/planning/database/FIREBIRD_POSTGRES_MIGRATION.md)
 - [Database Schema Reference](docs/technical/DB_SCHEMA.md)
 - [Detailed Project Review (2026-01-31)](docs/reports/project-reviews/PROJECT_REVIEW_DETAILED_2026-01-31.md)
 
@@ -429,7 +429,7 @@ Use this only if you intentionally run legacy/Electron compatibility workflows.
    - Check host firewall/network rules for Firebird port (`3050`) when using TCP mode
 
 3. **Migration sanity checks**:
-   - Validate expected behavior against the migration tracker: [FIREBIRD_POSTGRES_MIGRATION.md](docs/plans/database/FIREBIRD_POSTGRES_MIGRATION.md)
+   - Validate expected behavior against the migration tracker: [FIREBIRD_POSTGRES_MIGRATION.md](docs/planning/database/FIREBIRD_POSTGRES_MIGRATION.md)
 
 ### WSL2 Issues
 
@@ -525,7 +525,7 @@ Dependency versions are maintained in platform-specific requirements files.
 - **Windows-native CPU workflow:** [`requirements.txt`](requirements.txt)
 - **Minimal CPU experiments:** [`requirements/requirements_simple.txt`](requirements/requirements_simple.txt)
 
-📖 **Version caveats and platform guidance:** [Python & Dependency Version Caveats](docs/setup/PYTHON_VERSION_CAVEATS.md)
+📖 **Version caveats and platform guidance:** [Python & Dependency Version Caveats](docs/guides/setup/PYTHON_VERSION_CAVEATS.md)
 
 ---
 
@@ -550,15 +550,15 @@ Dependency versions are maintained in platform-specific requirements files.
 📚 **[Complete Documentation Index](docs/README.md)** - Comprehensive guide to all documentation
 
 **Key Documents:**
-- [Quick Reference](docs/getting-started/QUICK_REFERENCE.md) - Command cheat sheet
-- [Scoring Guide](docs/getting-started/SCORING_GUIDE.md) - Detailed scoring guide
-- [WSL2 Setup Guide](docs/setup/WSL2_TENSORFLOW_GPU_SETUP.md) - GPU setup in WSL2
-- [Windows/WSL Deployment](docs/setup/WINDOWS_WSL_DEPLOYMENT.md) - Full deployment guide
+- [Quick Reference](docs/gallery/QUICK_REFERENCE.md) - Command cheat sheet
+- [Scoring Guide](docs/guides/getting-started/SCORING_GUIDE.md) - Detailed scoring guide
+- [WSL2 Setup Guide](docs/guides/setup/WSL2_TENSORFLOW_GPU_SETUP.md) - GPU setup in WSL2
+- [Windows/WSL Deployment](docs/guides/setup/WINDOWS_WSL_DEPLOYMENT.md) - Full deployment guide
 - [Gallery Creation](docs/gallery/GALLERY_CREATION.md) - Gallery creation guide
    - [Keyword Extraction](docs/technical/KEYWORD_EXTRACTION_GUIDE.md) - AI keyword extraction
 - [Triple Fallback System](docs/archive/TRIPLE_FALLBACK_SYSTEM.md) - Model loading reliability
 - [MCP Debugging Tools](docs/technical/MCP_DEBUGGING_TOOLS.md) - Advanced debugging
-- [Architecture Documentation](docs/technical/ARCHITECTURE.md) - System overview and design
+- [Architecture Documentation](docs/architecture/system-overview.md) - System overview and design
 
 
 ---

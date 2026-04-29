@@ -57,6 +57,34 @@ def test_source_image_serves_raw_preview_jpeg(monkeypatch, tmp_path):
     assert response.headers["content-type"].startswith("image/jpeg")
 
 
+def test_source_image_raw_large_embedded_preview_calls_exif_transpose(monkeypatch, tmp_path):
+    """Regression: RAW in-memory path must run ImageOps.exif_transpose before JPEG encode."""
+    import PIL.ImageOps
+
+    raw_path = tmp_path / "orient.nef"
+    raw_path.write_bytes(b"raw")
+    monkeypatch.setattr(source_image_api.utils, "resolve_file_path", lambda p: p)
+    monkeypatch.setattr(source_image_api.utils, "convert_path_to_local", lambda p: p)
+    monkeypatch.setattr(source_image_api, "_validate_file_path", lambda p: p)
+    monkeypatch.setattr(
+        source_image_api.thumbnails,
+        "extract_embedded_jpeg",
+        lambda *_a, **_kw: Image.new("RGB", (1201, 1000), color=(5, 5, 5)),
+    )
+    called: list[object] = []
+
+    def spy_transpose(im):
+        called.append(im)
+        return im
+
+    monkeypatch.setattr(PIL.ImageOps, "exif_transpose", spy_transpose)
+
+    with _build_client() as client:
+        response = client.get("/source-image", params={"path": str(raw_path)})
+    assert response.status_code == 200
+    assert len(called) == 1
+
+
 def test_source_image_returns_404_for_missing_file(monkeypatch, tmp_path):
     missing_path = tmp_path / "missing.jpg"
     monkeypatch.setattr(source_image_api.utils, "resolve_file_path", lambda p: p)

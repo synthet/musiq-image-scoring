@@ -4,7 +4,7 @@
 
 - **Primary (PostgreSQL):** Registry table **`embedding_spaces`** plus **`image_embeddings`** — one row per `(image_id, embedding_space_id)` with `embedding vector(1280)`, optional `model_version`, and an HNSW index for cosine search. The default space code is **`mobilenet_v2_imagenet_gap`** (see [`modules/embedding_spaces.py`](../../modules/embedding_spaces.py)).
 - **Legacy / dual-write column:** **`images.image_embedding`** — still updated on every write so older code paths keep working. Reads on Postgres typically use **`COALESCE(image_embeddings.embedding, images.image_embedding)`** for the default space (see [`modules/db.py`](../../modules/db.py)).
-- **Firebird (Electron gallery):** Single BLOB on **`images.image_embedding`** only; multi-space storage is **PostgreSQL-first** until the gallery migrates off Firebird (see [DB_VECTORS_REFACTOR.md](../plans/database/DB_VECTORS_REFACTOR.md)).
+- **Firebird (Electron gallery):** Single BLOB on **`images.image_embedding`** only; multi-space storage is **PostgreSQL-first** until the gallery migrates off Firebird (see [DB_VECTORS_REFACTOR.md](../planning/database/DB_VECTORS_REFACTOR.md)).
 - **Model:** TensorFlow Keras **MobileNetV2**, ImageNet weights, `include_top=False`, global average pooling → **1280** floats.
 - **Semantics:** Coarse **visual similarity** features for clustering, near-duplicate-style retrieval, tag propagation neighbors, and similar-image search. They are **not** CLIP text–image aligned embeddings.
 
@@ -50,7 +50,7 @@ On **PostgreSQL**, the app now uses:
 
 For a **single** embedding type, a column on `images` alone is enough; the project is in an **expand-contract** phase: both the column and `image_embeddings` are populated for the default MobileNet space.
 
-**pgvector rule (unchanged):** each `vector(N)` has a **fixed N**. A **512-d** CLIP space needs a **different** column or table — not another row in the current `image_embeddings.embedding` column (1280). See [DB_VECTORS_REFACTOR.md](../plans/database/DB_VECTORS_REFACTOR.md) worklog and follow-ups.
+**pgvector rule (unchanged):** each `vector(N)` has a **fixed N**. A **512-d** CLIP space needs a **different** column or table — not another row in the current `image_embeddings.embedding` column (1280). See [DB_VECTORS_REFACTOR.md](../planning/database/DB_VECTORS_REFACTOR.md) worklog and follow-ups.
 
 **Upgrade:** run Alembic revision **`0004`** (`migrations/versions/0004_embedding_spaces_image_embeddings.py`) on existing databases; `init_db()` on greenfield Postgres creates the same objects.
 
@@ -122,4 +122,4 @@ The `embeddings` section in `config.json` gates per-model persistence and pins t
 - [`modules/db_postgres.py`](../../modules/db_postgres.py) — DDL for `images`, `embedding_spaces`, `image_embeddings`, HNSW indexes
 - [`migrations/versions/0004_embedding_spaces_image_embeddings.py`](../../migrations/versions/0004_embedding_spaces_image_embeddings.py) — Alembic upgrade for registry + backfill
 - [`scripts/maintenance/populate_missing_embeddings.py`](../../scripts/maintenance/populate_missing_embeddings.py) — backfill CLI
-- [`docs/plans/database/DB_VECTORS_REFACTOR.md`](../plans/database/DB_VECTORS_REFACTOR.md) — plan, worklog, follow-ups
+- [`docs/planning/database/DB_VECTORS_REFACTOR.md`](../planning/database/DB_VECTORS_REFACTOR.md) — plan, worklog, follow-ups

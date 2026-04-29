@@ -57,7 +57,10 @@ def _fake_coords(n):
 def test_embedding_map_too_few_points(monkeypatch):
     """Fewer than 3 images → success=True but points=[] and error key present."""
     import modules.db as db_mod
+    import modules.projections as proj_mod
 
+    monkeypatch.setattr(proj_mod, "_load_cache", lambda key: None)
+    monkeypatch.setattr(proj_mod, "_save_cache", lambda key, data: None)
     monkeypatch.setattr(db_mod, "get_embeddings_with_metadata", lambda **kw: _fake_rows(1))
 
     with _build_client() as client:
@@ -508,3 +511,98 @@ def test_embedding_map_cache_separated_by_sample_limit(monkeypatch):
     assert len(second["points"]) == 5
     assert second["meta"]["cache_key"] != first["meta"]["cache_key"]
     assert project_call_count["count"] == 2
+
+
+# ---------------------------------------------------------------------------
+# /api/embedding_spaces
+# ---------------------------------------------------------------------------
+
+def test_embedding_spaces_postgres_returns_registry_rows(monkeypatch):
+    """On Postgres the endpoint surfaces rows from embedding_spaces."""
+    import modules.db as db_mod
+
+    monkeypatch.setattr(db_mod, "_get_db_engine", lambda: "postgres")
+
+    fake_rows = [
+        {"code": "mobilenet_v2_imagenet_gap", "dim": 1280, "description": "default", "active": 1},
+        {"code": "clip_vit_b32_image", "dim": 512, "description": "clip", "active": 1},
+        {"code": "bioclip_2_image", "dim": 512, "description": "bioclip", "active": 1},
+        {"code": "blip_vit_b16_image", "dim": 768, "description": "blip", "active": 1},
+    ]
+
+    captured = {}
+
+    def _fake_execute_select(sql, params=None):
+        captured["sql"] = sql
+        return fake_rows
+
+    import modules.db_postgres as db_pg_mod
+    monkeypatch.setattr(db_pg_mod, "execute_select", _fake_execute_select)
+
+    with _build_client() as client:
+        resp = client.get("/api/embedding_spaces")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["success"] is True
+    data = body["data"]
+    codes = [s["code"] for s in data["spaces"]]
+    assert codes == [
+        "mobilenet_v2_imagenet_gap",
+        "clip_vit_b32_image",
+        "bioclip_2_image",
+        "blip_vit_b16_image",
+    ]
+    default = next(s for s in data["spaces"] if s["is_default"])
+    assert default["code"] == "mobilenet_v2_imagenet_gap"
+    assert default["dim"] == 1280
+    assert all(s["active"] is True for s in data["spaces"])
+    assert data["meta"]["engine"] == "postgres"
+    assert data["meta"]["default_code"] == "mobilenet_v2_imagenet_gap"
+    # Active filter is part of the SQL the endpoint issues.
+    assert "active" in captured["sql"].lower()
+
+
+def test_embedding_spaces_firebird_falls_back_to_static_registry(monkeypatch):
+    """On Firebird the endpoint synthesises rows from SPACE_DIMS."""
+    import modules.db as db_mod
+    from modules.embedding_spaces import DEFAULT_EMBEDDING_SPACE_CODE, SPACE_DIMS
+
+    monkeypatch.setattr(db_mod, "_get_db_engine", lambda: "firebird")
+
+    with _build_client() as client:
+        resp = client.get("/api/embedding_spaces")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["success"] is True
+    data = body["data"]
+    codes = {s["code"] for s in data["spaces"]}
+    assert codes == set(SPACE_DIMS.keys())
+    for s in data["spaces"]:
+        assert s["dim"] == SPACE_DIMS[s["code"]]
+        assert s["description"] is None
+        assert s["active"] is True
+        assert s["is_default"] == (s["code"] == DEFAULT_EMBEDDING_SPACE_CODE)
+    assert data["meta"]["engine"] == "firebird"
+    assert data["meta"]["default_code"] == DEFAULT_EMBEDDING_SPACE_CODE
+
+
+def test_embedding_spaces_postgres_empty_registry(monkeypatch):
+    """An empty Postgres registry still returns a stable shape."""
+    import modules.db as db_mod
+    import modules.db_postgres as db_pg_mod
+
+    monkeypatch.setattr(db_mod, "_get_db_engine", lambda: "postgres")
+    monkeypatch.setattr(db_pg_mod, "execute_select", lambda sql, params=None: [])
+
+    with _build_client() as client:
+        resp = client.get("/api/embedding_spaces")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["success"] is True
+    data = body["data"]
+    assert data["spaces"] == []
+    assert data["meta"]["engine"] == "postgres"
+    assert data["meta"]["default_code"] == "mobilenet_v2_imagenet_gap"

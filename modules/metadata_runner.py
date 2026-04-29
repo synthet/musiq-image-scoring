@@ -66,8 +66,8 @@ class MetadataRunner:
     def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None, report_collector=None):
         PROGRESS_INTERVAL = 50
 
-        def log(msg: str, level: str = "INFO") -> None:
-            runner_emit(self.log_history, job_id, msg, level, phase="metadata")
+        def log(msg: str, level: str = "INFO", image_id: Optional[int] = None) -> None:
+            runner_emit(self.log_history, job_id, msg, level, phase="metadata", image_id=image_id)
 
         # Handle WSL path conversion if needed (e.g. running on Windows but path is /mnt/d/...)
         from modules import utils
@@ -195,7 +195,7 @@ class MetadataRunner:
                     skipped_count += 1
                     if report_collector:
                         report_collector.record_skip(image_id, "metadata_already_done")
-                    log(f"Skip (metadata done): {original_path}", "DEBUG")
+                    log(f"Skip (metadata done): {original_path}", "DEBUG", image_id=image_id)
                     if self.current_count % PROGRESS_INTERVAL == 0:
                         log(
                             f"Progress {self.current_count}/{self.total_count} "
@@ -228,7 +228,7 @@ class MetadataRunner:
                     f"Local path unavailable for metadata processing. "
                     f"original_path='{original_path}', local_path='{local_path}'"
                 )
-                log(path_error, "ERROR")
+                log(path_error, "ERROR", image_id=image_id)
                 skipped_count += 1
                 if report_collector:
                     report_collector.record_failure(image_id, path_error)
@@ -254,6 +254,7 @@ class MetadataRunner:
                     f"Metadata: EXIF/XMP/thumbnail for image_id={image_id}, "
                     f"original_path={original_path}, local_path={local_path}",
                     "DEBUG",
+                    image_id=image_id,
                 )
                 # 1. Image Identity (UUID)
                 image_uuid = row.get("uuid")
@@ -291,13 +292,14 @@ class MetadataRunner:
                 processed_count += 1
                 if report_collector:
                     report_collector.record_after(image_id, {}, action="processed")
-                log(f"Metadata done: {original_path}", "DEBUG")
+                log(f"Metadata done: {original_path}", "DEBUG", image_id=image_id)
 
             except Exception as e:
                 log(
                     f"Error processing original_path={original_path}, "
                     f"local_path={local_path}: {e}",
                     "ERROR",
+                    image_id=image_id,
                 )
                 skipped_count += 1
                 if report_collector:

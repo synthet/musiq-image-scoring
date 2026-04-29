@@ -18,7 +18,7 @@ Apply this skill when the user asks to:
 
 ### 1. Get Error Overview
 
-Call `get_error_summary` (Image Scoring MCP: **`imgscore-py-stdio`** in the Python workspace, **`imgscore-el-stdio`** in the Electron workspace) to identify scope of failures: failed jobs, missing scores, orphaned records.
+Call `get_error_summary` (Vexlum Scoring MCP: **`imgscore-py-stdio`** in the Python workspace, **`imgscore-el-stdio`** in the Electron workspace) to identify scope of failures: failed jobs, missing scores, orphaned records.
 
 ### 2. Check Database Health
 

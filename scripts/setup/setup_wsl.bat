@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-REM Setup WSL environment (~/.venvs/tf) for Image Scoring WebUI
+REM Setup WSL environment (~/.venvs/tf) for Vexlum WebUI
 REM Run from Windows; invokes WSL to create venv and install dependencies.
 
 REM Resolve project root (script is in scripts/setup/)

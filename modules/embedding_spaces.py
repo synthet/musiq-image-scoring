@@ -2,7 +2,7 @@
 Registry of embedding / vector spaces stored in PostgreSQL (pgvector).
 
 Each space has a fixed dimension; different dimensions use separate physical
-storage (see docs/plans/database/DB_VECTORS_REFACTOR.md). Firebird remains
+storage (see docs/planning/database/DB_VECTORS_REFACTOR.md). Firebird remains
 single-blob on ``images.image_embedding`` until gallery migrates to Postgres.
 """
 

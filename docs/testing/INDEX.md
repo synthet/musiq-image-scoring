@@ -8,4 +8,4 @@
 | [WSL_TESTS.md](WSL_TESTS.md) | WSL-only pytest markers |
 | [archive/testing/DOCUMENTATION_ISSUES.md](../archive/testing/DOCUMENTATION_ISSUES.md) | Archived pointer (content folded into WSL_TESTS / TEST_STATUS) |
 
-**See also:** [Main docs index](../INDEX.md) · [ENVIRONMENTS.md](../setup/ENVIRONMENTS.md)
+**See also:** [Main docs index](../INDEX.md) · [ENVIRONMENTS.md](../guides/setup/ENVIRONMENTS.md)

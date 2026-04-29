@@ -49,7 +49,7 @@ The final "Representative Score" is a weighted average of 5 models:
 
 - [Docs index](../README.md)
 - [Model weights](../reference/models/MODEL_WEIGHTS.md)
-- [Suggested scoring adjustments](../plans/models/SUGGESTED_SCORING_ADJUSTMENTS.md)
+- [Suggested scoring adjustments](../planning/models/SUGGESTED_SCORING_ADJUSTMENTS.md)
 - [Multi-model scoring](MULTI_MODEL_SCORING.md)
 - [Models summary](MODELS_SUMMARY.md)
 

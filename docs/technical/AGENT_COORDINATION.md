@@ -13,7 +13,7 @@ The integration relies on two primary shared components:
    * **Provider**: **image-scoring-backend** exposes endpoints for scoring, tagging, and clustering.
    * **Consumer**: **image-scoring-gallery** triggers jobs via this API.
 
-**Legacy:** Historical Firebird usage and migration decisions are documented in [FIREBIRD_POSTGRES_MIGRATION.md](../plans/database/FIREBIRD_POSTGRES_MIGRATION.md). Current production paths are PostgreSQL (backend schema + Alembic; gallery `pg` / `api` connectors).
+**Legacy:** Historical Firebird usage and migration decisions are documented in [FIREBIRD_POSTGRES_MIGRATION.md](../planning/database/FIREBIRD_POSTGRES_MIGRATION.md). Current production paths are PostgreSQL (backend schema + Alembic; gallery `pg` / `api` connectors).
 
 ## 🤝 Coordination Protocols
 
@@ -59,7 +59,7 @@ COALESCE(
 - **Writes:** Use backend API (`PATCH /api/images/{id}`) which dual-writes to both schemas
 - **Filtering:** Use `IMAGE_KEYWORDS` join (not `LIKE` on `IMAGES.KEYWORDS`)
 
-**Docs:** [`PHASE4_KEYWORDS_HUB.md`](../plans/database/PHASE4_KEYWORDS_HUB.md) (index), [`PHASE4_KEYWORDS_DEPRECATION.md`](../plans/database/PHASE4_KEYWORDS_DEPRECATION.md), archived completion summary [`PHASE4_COMPLETION_SUMMARY.md`](../archive/plans/database/PHASE4_COMPLETION_SUMMARY.md)
+**Docs:** [`PHASE4_KEYWORDS_HUB.md`](../planning/database/PHASE4_KEYWORDS_HUB.md) (index), [`PHASE4_KEYWORDS_DEPRECATION.md`](../planning/database/PHASE4_KEYWORDS_DEPRECATION.md), archived completion summary [`PHASE4_COMPLETION_SUMMARY.md`](../archive/plans/database/PHASE4_COMPLETION_SUMMARY.md)
 
 ## 🔍 Troubleshooting with MCP
 

@@ -17,6 +17,27 @@ export default defineConfig({
   build: {
     outDir: '../static/app',
     emptyOutDir: true,
+    // Vite warns at 500 kB; our UI can legitimately exceed this (e.g. Leaflet/map).
+    // Keep the warning, but reduce noise and split known heavy deps.
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+
+          if (id.includes('react') || id.includes('react-dom')) return 'react'
+          if (id.includes('react-router-dom')) return 'router'
+          if (id.includes('@tanstack/react-query')) return 'query'
+          if (
+            id.includes('leaflet') ||
+            id.includes('react-leaflet') ||
+            id.includes('react-leaflet-markercluster')
+          ) {
+            return 'maps'
+          }
+        },
+      },
+    },
   },
   server: {
     proxy: {

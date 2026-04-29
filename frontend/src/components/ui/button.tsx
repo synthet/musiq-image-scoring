@@ -28,11 +28,16 @@ export function Button({
         size === 'sm' && 'px-3 py-1 text-xs',
         size === 'md' && 'px-3.5 py-1.5 text-sm',
         size === 'lg' && 'px-4 py-2 text-sm',
-        variant === 'primary' && 'bg-[#007acc] text-white hover:bg-[#1e8ad6] border border-[#1e8ad6]',
-        variant === 'secondary' && 'bg-[#3c3c3c] text-[#cccccc] hover:bg-[#3c3c3c] border border-[#474747]',
-        variant === 'ghost' && 'text-[#9d9d9d] hover:text-[#cccccc] hover:bg-[#3c3c3c]',
-        variant === 'danger' && 'bg-[#da3633] text-white hover:bg-[#f44747] border border-[#f44747]',
-        variant === 'outline' && 'text-[#4fc1ff] border border-[#007acc] hover:bg-[#003f6e]',
+        variant === 'primary' &&
+          'bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] border border-[var(--color-accent-hover)]',
+        variant === 'secondary' &&
+          'bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] border border-[var(--color-border)]',
+        variant === 'ghost' &&
+          'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]',
+        variant === 'danger' &&
+          'bg-[var(--color-danger)] text-white hover:bg-[var(--color-danger)] border border-[var(--color-danger-border)]',
+        variant === 'outline' &&
+          'text-[var(--color-accent-bright)] border border-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]',
         className,
       )}
     >

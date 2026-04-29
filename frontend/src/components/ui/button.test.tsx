@@ -9,7 +9,8 @@ describe('Button', () => {
     render(<Button variant="primary">Save</Button>)
     const btn = screen.getByRole('button', { name: 'Save' })
     expect(btn).toBeInTheDocument()
-    expect(btn.className).toContain('bg-[#007acc]')
+    // Primary uses the accent token; we assert the variable name, not the literal hex.
+    expect(btn.className).toContain('bg-[var(--color-accent)]')
   })
 
   it('is disabled when loading and shows spinner', () => {

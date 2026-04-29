@@ -120,7 +120,7 @@ Snapshot of bugs, defects, and gaps in job/run orchestration derived from `webui
 
 ## Cross-references
 
-- Pipeline phases & statuses: [../technical/ARCHITECTURE.md](../technical/ARCHITECTURE.md)
+- Pipeline phases & statuses: [../architecture/system-overview.md](../architecture/system-overview.md)
 - DB schema: [../technical/DB_SCHEMA.md](../technical/DB_SCHEMA.md)
 - Prior phase/stack investigation: [CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md](CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md)
 - Backlog: [../../TODO.md](../../TODO.md)

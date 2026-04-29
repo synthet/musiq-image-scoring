@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Wrench, RefreshCcw, ExternalLink, Play, AlertCircle } from 'lucide-react'
+import { Wrench, RefreshCw, ExternalLink, Play, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   HEAL_STEPS,
@@ -10,7 +10,7 @@ import {
 import { usePipelineToolAction } from '@/hooks/usePipelineToolAction'
 import { useUiStore } from '@/stores/uiStore'
 
-const PANEL = 'p-3 rounded bg-[#1e1e1e] border border-[#3c3c3c]'
+const PANEL = 'p-3 rounded bg-[var(--color-bg-primary)] border border-[var(--color-border-muted)]'
 
 function ToolCard({
   title,
@@ -35,8 +35,8 @@ function ToolCard({
     <div className={`flex flex-col gap-2 ${PANEL}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
-          <h3 className="text-xs font-semibold text-[#cccccc]">{title}</h3>
-          <p className="text-[11px] text-[#9d9d9d] mt-1 leading-relaxed">{description}</p>
+          <h3 className="text-xs font-semibold text-[var(--color-text-primary)]">{title}</h3>
+          <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 leading-relaxed">{description}</p>
         </div>
         <Button
           variant={variant}
@@ -46,7 +46,7 @@ function ToolCard({
           loading={isPending}
           className="h-7 px-3 text-[11px] gap-1 shrink-0"
         >
-          <Icon size={12} />
+          <Icon size={14} />
           {buttonText}
         </Button>
       </div>
@@ -64,10 +64,10 @@ function TierSection({
   children: ReactNode
 }) {
   return (
-    <section className="rounded-lg border border-[#3c3c3c] bg-[#252526] p-4">
+    <section className="rounded-lg border border-[var(--color-border-muted)] bg-[var(--color-bg-secondary)] p-4">
       <div className="mb-4">
-        <h2 className="text-sm font-semibold text-[#cccccc]">{title}</h2>
-        <p className="text-xs text-[#9d9d9d] mt-0.5">{subtitle}</p>
+        <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">{title}</h2>
+        <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{subtitle}</p>
       </div>
       <div className="grid grid-cols-1 gap-3">{children}</div>
     </section>
@@ -79,11 +79,11 @@ function ResultBanner({ text, ok }: { text: string; ok: boolean }) {
     <div
       className={`flex items-start gap-2 text-xs rounded px-3 py-2 border ${
         ok
-          ? 'bg-[#1e3a1e]/30 text-[#89d185] border-[#89d185]/20'
-          : 'bg-[#3a1e1e]/30 text-[#f44747] border-[#f44747]/20'
+          ? 'bg-[var(--color-success-bg)] text-[var(--color-success)] border-[var(--color-success-border)]'
+          : 'bg-[var(--color-danger-bg)] text-[var(--color-danger)] border-[var(--color-danger-border)]'
       }`}
     >
-      <div className="mt-0.5">{ok ? <RefreshCcw size={14} /> : <AlertCircle size={14} />}</div>
+      <div className="mt-0.5">{ok ? <RefreshCw size={14} /> : <AlertTriangle size={14} />}</div>
       <p className="leading-relaxed">{text}</p>
     </div>
   )
@@ -113,18 +113,18 @@ export function RunsToolsTab() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2">
-          <Wrench className="text-[#4fc1ff]" size={20} />
+          <Wrench className="text-[var(--color-accent-bright)]" size={20} />
           <div>
-            <p className="text-sm font-medium text-[#cccccc]">{PIPELINE_TOOLS_HEADER.title}</p>
-            <p className="text-xs text-[#9d9d9d] mt-0.5">{PIPELINE_TOOLS_HEADER.subtitle}</p>
+            <p className="text-sm font-medium text-[var(--color-text-primary)]">{PIPELINE_TOOLS_HEADER.title}</p>
+            <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{PIPELINE_TOOLS_HEADER.subtitle}</p>
           </div>
         </div>
         <Link
           to="/diagnostics"
-          className="inline-flex items-center gap-1 text-xs text-[#4fc1ff] hover:underline shrink-0"
+          className="inline-flex items-center gap-1 text-xs text-[var(--color-accent-bright)] hover:underline shrink-0"
         >
-          Diagnostics
-          <ExternalLink size={12} />
+          Health
+          <ExternalLink size={14} />
         </Link>
       </div>
 
@@ -133,23 +133,23 @@ export function RunsToolsTab() {
       <TierSection title={SECTION.workflow_heal.title} subtitle={SECTION.workflow_heal.subtitle}>
         <div className={`${PANEL} flex flex-wrap items-end gap-4`}>
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-[#6d6d6d] uppercase font-bold">Max Folders (Budget)</label>
+            <label className="text-[10px] text-[var(--color-text-muted)] uppercase font-bold">Max Folders (Budget)</label>
             <input
               type="number"
               min={1}
               max={100}
               value={healBudget}
               onChange={(e) => setHealBudget(Number(e.target.value))}
-              className="h-7 w-20 bg-[#252526] border border-[#3c3c3c] text-[#cccccc] px-2 text-xs rounded"
+              className="h-7 w-20 bg-[var(--color-bg-secondary)] border border-[var(--color-border-muted)] text-[var(--color-text-primary)] px-2 text-xs rounded"
               disabled={toolsLocked}
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-[#6d6d6d] uppercase font-bold">Execution Mode</label>
+            <label className="text-[10px] text-[var(--color-text-muted)] uppercase font-bold">Execution Mode</label>
             <select
               value={healRunMode}
               onChange={(e) => setHealRunMode(e.target.value)}
-              className="h-7 bg-[#252526] border border-[#3c3c3c] text-[#cccccc] px-2 text-xs rounded"
+              className="h-7 bg-[var(--color-bg-secondary)] border border-[var(--color-border-muted)] text-[var(--color-text-primary)] px-2 text-xs rounded"
               disabled={toolsLocked}
             >
               <option value="validate_and_repair">Validate & Repair</option>
@@ -157,7 +157,7 @@ export function RunsToolsTab() {
               <option value="process_all_overwrite">Overwrite All</option>
             </select>
           </div>
-          <label className="flex items-center gap-2 text-xs text-[#9d9d9d] h-7 cursor-pointer">
+          <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] h-7 cursor-pointer">
             <input
               type="checkbox"
               checked={healDryRun}
@@ -194,21 +194,21 @@ export function RunsToolsTab() {
         </div>
 
         {healStats && (
-          <div className="mt-1 rounded border border-[#3c5c3c]/40 bg-[#1a2520]/40 px-3 py-2 text-[10px] text-[#8d8d8d] font-mono space-y-1">
-            <div className="flex justify-between border-b border-[#3c5c3c]/20 pb-1 mb-1">
-              <span className="text-[#89d185] font-bold uppercase">Heal Results: {healStats.phase_code}</span>
+          <div className="mt-1 rounded border border-[var(--color-success-border)]/40 bg-[var(--color-success-bg)]/40 px-3 py-2 text-[10px] text-[var(--color-text-secondary)] font-mono space-y-1">
+            <div className="flex justify-between border-b border-[var(--color-success-border)]/20 pb-1 mb-1">
+              <span className="text-[var(--color-success)] font-bold uppercase">Heal Results: {healStats.phase_code}</span>
               <span>{healStats.dry_run ? '[DRY RUN]' : '[LIVE]'}</span>
             </div>
             <div className="grid grid-cols-2 gap-x-4">
-              <div>Identified False Dones: <span className="text-[#cccccc]">{healStats.false_positives_found}</span></div>
-              <div>Resets Performed: <span className="text-[#f2cc60] font-bold">{healStats.resets_performed}</span></div>
-              <div>Eligible Folders: <span className="text-[#cccccc]">{healStats.eligible_folders}</span></div>
-              <div>Folders Needing Work: <span className="text-[#cccccc]">{healStats.folders_needing_work}</span></div>
-              <div>Scheduled Runs: <span className="text-[#4fc1ff] font-bold">{healStats.scheduled.length}</span></div>
-              <div>Used Budget: <span className="text-[#cccccc]">{healBudget}</span></div>
+              <div>Identified False Dones: <span className="text-[var(--color-text-primary)]">{healStats.false_positives_found}</span></div>
+              <div>Resets Performed: <span className="text-[var(--color-warning)] font-bold">{healStats.resets_performed}</span></div>
+              <div>Eligible Folders: <span className="text-[var(--color-text-primary)]">{healStats.eligible_folders}</span></div>
+              <div>Folders Needing Work: <span className="text-[var(--color-text-primary)]">{healStats.folders_needing_work}</span></div>
+              <div>Scheduled Runs: <span className="text-[var(--color-accent-bright)] font-bold">{healStats.scheduled.length}</span></div>
+              <div>Used Budget: <span className="text-[var(--color-text-primary)]">{healBudget}</span></div>
             </div>
             {healStats.scheduled.length > 0 && (
-              <div className="mt-2 text-[9px] text-[#6d6d6d]">
+              <div className="mt-2 text-[9px] text-[var(--color-text-muted)]">
                 <div className="uppercase font-bold mb-1 italic">Folders Processed:</div>
                 <ul className="list-disc pl-3">
                   {healStats.scheduled.map((s, idx) => (

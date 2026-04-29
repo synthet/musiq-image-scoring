@@ -1,25 +1,16 @@
 import { useState, type ReactNode } from 'react'
 import { clsx } from 'clsx'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-
-export const LABEL_COLORS: Record<string, string> = {
-  red: '#f44747',
-  orange: '#d7ba7d',
-  yellow: '#dcdcaa',
-  green: '#6a9955',
-  blue: '#4fc1ff',
-  purple: '#c586c0',
-  gray: '#808080',
-}
+import { LABEL_COLORS } from '@/constants/labelColors'
 
 export function LabelBadge({ label, className }: { label: string | null | undefined; className?: string }) {
-  if (!label) return <span className="text-[#6d6d6d]">None</span>
+  if (!label) return <span className="text-[var(--color-text-muted)]">None</span>
   const key = label.toLowerCase()
   const color = LABEL_COLORS[key]
 
   if (!color) {
     return (
-      <span className={clsx('px-1.5 py-0.5 rounded text-[10px] bg-[#3c3c3c] text-[#cccccc]', className)}>
+      <span className={clsx('px-1.5 py-0.5 rounded text-[10px] bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)]', className)}>
         {label}
       </span>
     )

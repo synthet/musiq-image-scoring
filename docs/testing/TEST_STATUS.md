@@ -63,7 +63,7 @@ The test suite is split into:
 ## Related Documents
 
 - [WSL_TESTS.md](WSL_TESTS.md) — WSL test setup and markers
-- [ENVIRONMENTS.md](../setup/ENVIRONMENTS.md) — Virtual environment overview
+- [ENVIRONMENTS.md](../guides/setup/ENVIRONMENTS.md) — Virtual environment overview
 
 ## CI Guard
 

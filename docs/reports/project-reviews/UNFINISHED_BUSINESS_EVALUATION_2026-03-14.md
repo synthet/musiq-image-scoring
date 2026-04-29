@@ -15,7 +15,7 @@
 
 - Root consolidated backlog: `TODO.md`
 - Historical project backlog: `docs/project/TODO.md`
-- Embedding backlog: `docs/plans/embedding/TODO.md`
+- Embedding backlog: `docs/features/planned/embeddings/TODO.md`
 - API backlog: `docs/reference/api/TODO.md`
 
 ## Executive Summary
@@ -33,7 +33,7 @@ Checkbox count from TODO files:
 
 - `TODO.md`: **46 open**, 2 done (total 48)
 - `docs/project/TODO.md`: **27 open**, 5 done (total 32)
-- `docs/plans/embedding/TODO.md`: **9 open**, 0 done (total 9)
+- `docs/features/planned/embeddings/TODO.md`: **9 open**, 0 done (total 9)
 - `docs/reference/api/TODO.md`: **6 open**, 0 done (total 6)
 
 Interpretation:
@@ -116,7 +116,7 @@ Repeated in multiple TODO files:
   - `docs/reference/api/TODO.md` → **Endpoints to Add**
     - `Similarity endpoints: /api/similarity/similar, /api/similarity/duplicates, /api/similarity/outliers`
     - `Streaming/progress for POST /api/import/register (currently single-request; no incremental progress)`
-  - `docs/plans/embedding/TODO.md` → **API REST Endpoints (Priority 1)**
+  - `docs/features/planned/embeddings/TODO.md` → **API REST Endpoints (Priority 1)**
     - `GET /api/similarity/similar?image_id=123 — Visually similar images across folders`
     - `GET /api/similarity/duplicates?folder_path=... — Near-duplicate pairs`
     - `GET /api/similarity/outliers?folder_path=... — Low neighborhood similarity images`

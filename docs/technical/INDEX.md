@@ -1,16 +1,20 @@
 # Technical — Index
 
-Existing features and implementation docs only. Plans and proposals → [plans/INDEX.md](../plans/INDEX.md)
+Existing features and implementation docs only. Plans and proposals → [planning/INDEX.md](../planning/INDEX.md)
 
 ## Architecture & Structure
 
+High-level overviews and diagrams live under [`../architecture/`](../architecture/). This folder keeps day-to-day technical reference and deep-dive feature docs.
+
 | Document | Description |
 |----------|-------------|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture (components, data flow, deployment) |
-| [PIPELINE_ARCHITECTURE.md](PIPELINE_ARCHITECTURE.md) | Pipeline sequence, flowchart, and Electron integration diagrams |
+| [system-overview.md](../architecture/system-overview.md) | System architecture (components, data flow, deployment) |
+| [pipeline-architecture.md](../architecture/pipeline-architecture.md) | Pipeline sequence, flowchart, and Electron integration diagrams |
 | [PIPELINE_PHASE_RUNNERS.md](PIPELINE_PHASE_RUNNERS.md) | Phase-by-phase runner ownership and step-by-step execution flow |
-| [TECHNICAL_SUMMARY.md](TECHNICAL_SUMMARY.md) | Technical summary with mermaid diagrams |
-| [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | Repository structure (merged, updated 2026-03-08) |
+| [technical-summary.md](../architecture/technical-summary.md) | Technical summary with mermaid diagrams |
+| [project-structure.md](../architecture/project-structure.md) | Repository structure (merged, updated 2026-03-08) |
+| [DB_CONNECTOR.md](../architecture/DB_CONNECTOR.md) | DB connector transport (IConnector, Postgres, Firebird, API) |
+| [microservices_proposal.md](../architecture/microservices_proposal.md) | Abstraction layers roadmap |
 
 ## Database
 
@@ -22,7 +26,7 @@ Existing features and implementation docs only. Plans and proposals → [plans/I
 | [FIREBIRD_WINDOWS_TEMPDIR.md](FIREBIRD_WINDOWS_TEMPDIR.md) | Windows `TempDirectories` / `fb_sort_*` sort errors (335544675) |
 | [migrate_thumbnail_paths_project_rename.py](../../scripts/maintenance/migrate_thumbnail_paths_project_rename.py) | After renaming the repo folder: fix `THUMBNAIL_PATH`, `THUMBNAIL_PATH_WIN`, `SCORES_JSON` in `IMAGES` |
 
-*Plans:* [DB refactor](../plans/database/) · [Firebird→Postgres](../plans/database/FIREBIRD_POSTGRES_MIGRATION.md)
+*Plans:* [DB refactor](../planning/database/) · [Firebird→Postgres](../planning/database/FIREBIRD_POSTGRES_MIGRATION.md)
 
 ## Models & Scoring
 
@@ -31,7 +35,7 @@ Existing features and implementation docs only. Plans and proposals → [plans/I
 | [MODELS_SUMMARY.md](MODELS_SUMMARY.md) | Overview of all models (MUSIQ, LIQE) |
 | [MODEL_INPUT_SPECIFICATIONS.md](MODEL_INPUT_SPECIFICATIONS.md) | Input formats, score ranges, constraints |
 | [WEIGHTED_SCORING_STRATEGY.md](WEIGHTED_SCORING_STRATEGY.md) | Hybrid pipeline scoring weights (v2.5.2) |
-| [SCORING_CHANGES.md](SCORING_CHANGES.md) | Image Scoring Pipeline V2 changes summary (LIQE, AVA, SPAQ) |
+| [SCORING_CHANGES.md](SCORING_CHANGES.md) | Vexlum pipeline V2 changes summary (LIQE, AVA, SPAQ) |
 | [MULTI_MODEL_SCORING.md](MULTI_MODEL_SCORING.md) | Multi-model MUSIQ assessment runner |
 | [MODEL_SOURCE_TESTING.md](MODEL_SOURCE_TESTING.md) | Model source URL verification guide |
 
@@ -43,7 +47,7 @@ Existing features and implementation docs only. Plans and proposals → [plans/I
 | [CULLING_REWORK_DESIGN_REVIEW.md](CULLING_REWORK_DESIGN_REVIEW.md) | Pick/Reject flag rework review |
 | [STACKS_MANUAL_MANAGEMENT.md](STACKS_MANUAL_MANAGEMENT.md) | Manual stack management design |
 
-*Plan:* [Stack/Culling refactor](../plans/refactoring/STACK_CULLING_REFACTOR_PLAN.md) · *Investigation:* [Culling done / no stacks](../reports/CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md)
+*Plan:* [Stack/Culling refactor](../planning/refactoring/STACK_CULLING_REFACTOR_PLAN.md) · *Investigation:* [Culling done / no stacks](../reports/CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md)
 
 ## Other Features
 
@@ -75,4 +79,4 @@ Existing features and implementation docs only. Plans and proposals → [plans/I
 | [AGENT_COORDINATION.md](AGENT_COORDINATION.md) | Integration protocols with **image-scoring-gallery** ([canonical on GitHub](https://github.com/synthet/image-scoring-backend/blob/main/docs/technical/AGENT_COORDINATION.md)) |
 | [CROSS_APP_INTEGRATION_AUDIT.md](../testing/CROSS_APP_INTEGRATION_AUDIT.md) | Automated integration coverage between backend and gallery |
 
-**See also:** [Main docs index](../INDEX.md) · [reference/models/](../reference/models/INDEX.md) · [reference/api/](../reference/api/INDEX.md) · [plans/](../plans/INDEX.md) · [image-scoring-gallery docs](https://github.com/synthet/image-scoring-gallery/blob/main/docs/README.md)
+**See also:** [Main docs index](../INDEX.md) · [reference/models/](../reference/models/INDEX.md) · [reference/api/](../reference/api/INDEX.md) · [planning/](../planning/INDEX.md) · [image-scoring-gallery docs](https://github.com/synthet/image-scoring-gallery/blob/main/docs/README.md)

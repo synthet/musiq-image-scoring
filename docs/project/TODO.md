@@ -8,5 +8,5 @@ This file previously held a detailed 2025 checklist. Historical content is prese
 
 - [`TODO.md`](../../TODO.md) — Open work items
 - [`00-backlog-workflow.md`](00-backlog-workflow.md) — Source of truth, workflow, sync order
-- [`../plans/database/NEXT_STEPS.md`](../plans/database/NEXT_STEPS.md) — DB Phase 4 next steps
-- [`../plans/embedding/NEXT_STEPS.md`](../plans/embedding/NEXT_STEPS.md) — Embedding status
+- [`../planning/database/NEXT_STEPS.md`](../planning/database/NEXT_STEPS.md) — DB Phase 4 next steps
+- [`../features/planned/embeddings/NEXT_STEPS.md`](../features/planned/embeddings/NEXT_STEPS.md) — Embedding status

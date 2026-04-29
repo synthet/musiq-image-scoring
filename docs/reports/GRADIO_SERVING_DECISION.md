@@ -20,5 +20,5 @@ Move inference behind a dedicated serving layer if external clients, strict API-
 
 ## See also
 
-- [ARCHITECTURE.md](../technical/ARCHITECTURE.md), [PIPELINE_ARCHITECTURE.md](../technical/PIPELINE_ARCHITECTURE.md)
+- [system-overview.md](../architecture/system-overview.md), [pipeline-architecture.md](../architecture/pipeline-architecture.md)
 - [GRADIO_UI_UX_SPEC_FOR_ELECTRON_MIGRATION.md](../technical/GRADIO_UI_UX_SPEC_FOR_ELECTRON_MIGRATION.md)

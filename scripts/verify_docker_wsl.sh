@@ -133,7 +133,7 @@ if [ $FAILED -eq 0 ]; then
     if [ $GPU_FAILED -eq 0 ]; then
         print_pass "All tests passed! Docker + GPU environment is fully functional."
         echo ""
-        echo "[SUCCESS] Your environment is ready for Docker-based Image Scoring with GPU acceleration!"
+        echo "[SUCCESS] Your environment is ready for Docker-based Vexlum with GPU acceleration!"
     else
         print_warn "Docker works, but GPU acceleration is not available."
         echo ""

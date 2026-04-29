@@ -34,30 +34,60 @@ type PhaseStatusMeta = {
   colorClass: string
 }
 
-const PHASE_STATUS_META: Record<NormalizedPhaseStatus, PhaseStatusMeta> = {
-  pending: { icon: Circle, colorClass: 'text-[#6d6d6d]' },
-  queued: { icon: Clock3, colorClass: 'text-[#9d9d9d]' },
-  running: { icon: Loader2, colorClass: 'text-[#4fc1ff]' },
-  paused: { icon: PauseCircle, colorClass: 'text-[#cca700]' },
-  completed: { icon: CheckCircle2, colorClass: 'text-[#89d185]' },
-  failed: { icon: XCircle, colorClass: 'text-[#f44747]' },
-  skipped: { icon: MinusCircle, colorClass: 'text-[#6d6d6d]' },
-  interrupted: { icon: AlertTriangle, colorClass: 'text-[#cca700]' },
-  cancel_requested: { icon: AlertTriangle, colorClass: 'text-[#cca700]' },
-  restarting: { icon: Loader2, colorClass: 'text-[#9d9d9d]' },
-  canceled: { icon: XCircle, colorClass: 'text-[#f44747]' },
-  partial: { icon: AlertTriangle, colorClass: 'text-[#cca700]' },
+/** Backend / API strings → stable snake_case before icon mapping (same as former ui/phaseStatus). */
+const LEGACY_PHASE_ALIASES: Record<string, string> = {
+  complete: 'done',
+  completed: 'done',
+  success: 'done',
+  succeeded: 'done',
+  in_progress: 'running',
+  processing: 'running',
+  error: 'failed',
+  cancelled: 'canceled',
+  cancel_requested: 'cancel_requested',
+  notstarted: 'not_started',
 }
 
-export function normalizePhaseStatus(status: string): NormalizedPhaseStatus {
-  if (status === 'done') return 'completed'
-  if (status === 'not_started') return 'pending'
-  if (status in PHASE_STATUS_META) return status as NormalizedPhaseStatus
+/**
+ * Stable vocabulary for `statusLabel()` and display text (e.g. inspector phase table).
+ */
+export function normalizeLegacyPhaseStatus(status: string | null | undefined): string {
+  if (typeof status !== 'string') return 'unknown'
+  const trimmed = status.trim()
+  if (!trimmed) return 'unknown'
+  const canonical = trimmed.toLowerCase().replace(/[\s-]+/g, '_')
+  return LEGACY_PHASE_ALIASES[canonical] ?? canonical
+}
+
+const PHASE_STATUS_META: Record<NormalizedPhaseStatus, PhaseStatusMeta> = {
+  pending: { icon: Circle, colorClass: 'text-[var(--color-text-muted)]' },
+  queued: { icon: Clock3, colorClass: 'text-[var(--color-text-secondary)]' },
+  running: { icon: Loader2, colorClass: 'text-[var(--color-accent-bright)]' },
+  paused: { icon: PauseCircle, colorClass: 'text-[var(--color-warning)]' },
+  completed: { icon: CheckCircle2, colorClass: 'text-[var(--color-success)]' },
+  failed: { icon: XCircle, colorClass: 'text-[var(--color-danger)]' },
+  skipped: { icon: MinusCircle, colorClass: 'text-[var(--color-text-muted)]' },
+  interrupted: { icon: AlertTriangle, colorClass: 'text-[var(--color-warning)]' },
+  cancel_requested: { icon: AlertTriangle, colorClass: 'text-[var(--color-warning)]' },
+  restarting: { icon: Loader2, colorClass: 'text-[var(--color-text-secondary)]' },
+  canceled: { icon: XCircle, colorClass: 'text-[var(--color-danger)]' },
+  partial: { icon: AlertTriangle, colorClass: 'text-[var(--color-warning)]' },
+}
+
+function legacyToNormalized(legacy: string): NormalizedPhaseStatus {
+  if (legacy === 'unknown') return 'pending'
+  if (legacy === 'done') return 'completed'
+  if (legacy === 'not_started') return 'pending'
+  if (legacy in PHASE_STATUS_META) return legacy as NormalizedPhaseStatus
   return 'pending'
 }
 
+export function normalizePhaseStatus(status: string): NormalizedPhaseStatus {
+  return legacyToNormalized(normalizeLegacyPhaseStatus(status))
+}
+
 export function getPhaseStatusMeta(status: string): PhaseStatusMeta & { normalizedStatus: NormalizedPhaseStatus } {
-  const normalizedStatus = normalizePhaseStatus(status)
+  const normalizedStatus = legacyToNormalized(normalizeLegacyPhaseStatus(status))
   return { ...PHASE_STATUS_META[normalizedStatus], normalizedStatus }
 }
 

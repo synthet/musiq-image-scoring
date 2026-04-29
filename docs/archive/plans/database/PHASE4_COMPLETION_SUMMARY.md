@@ -148,7 +148,7 @@ def _log_legacy_keyword_access(image_id, context=""):
         "⚠️  DEPRECATION: Reading IMAGES.KEYWORDS (legacy column). "
         "Migrate to IMAGE_KEYWORDS + KEYWORDS_DIM normalized schema. "
         "Legacy column will be removed in v7.0 (2026-07). "
-        "Image ID: %s | Context: %s | See docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md",
+        "Image ID: %s | Context: %s | See docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md",
         image_id, context or "unknown"
     )
 ```
@@ -182,7 +182,7 @@ When users access legacy keywords, they see:
 ⚠️  DEPRECATION: Reading IMAGES.KEYWORDS (legacy column).
 Migrate to IMAGE_KEYWORDS + KEYWORDS_DIM normalized schema.
 Legacy column will be removed in v7.0 (2026-07).
-Image ID: 42 | Context: get_image_details | See docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md
+Image ID: 42 | Context: get_image_details | See docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md
 ```
 
 ### Backward Compatibility
@@ -359,7 +359,7 @@ modules/db.py:
   + Instrumentation in get_images_by_folder() (19 lines)
   Total: +75 lines (non-functional code, backward compatible)
 
-docs/plans/database/:
+docs/planning/database/:
   + PHASE4B_TEST_CHECKLIST.md (NEW)
   + PHASE4C_SOFT_DEPRECATION_PLAN.md (NEW)
   + PHASE4_STATUS_SUMMARY.md (NEW)

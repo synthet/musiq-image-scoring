@@ -222,7 +222,7 @@ Right now, â€œboundariesâ€ are **mostly by convention**. For example:
 
 - [Docs index](../../README.md)
 - [Project review (detailed)](PROJECT_REVIEW_DETAILED_2026-01-31.md)
-- [Technical summary](../../technical/TECHNICAL_SUMMARY.md)
-- [Project structure](../../technical/PROJECT_STRUCTURE.md)
+- [Technical summary](../../architecture/technical-summary.md)
+- [Project structure](../../architecture/project-structure.md)
 - [TODO / roadmap](../../project/TODO.md)
 

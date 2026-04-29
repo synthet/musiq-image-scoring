@@ -102,7 +102,7 @@ status: complete
 | Location | Change | Status |
 |----------|--------|--------|
 | modules/tagging.py:735 | Add `_sync_image_keywords()` call | ✅ Applied |
-| docs/plans/database/DB_VECTORS_REFACTOR.md | Update vec-callers status | ✅ Completed |
+| docs/planning/database/DB_VECTORS_REFACTOR.md | Update vec-callers status | ✅ Completed |
 
 ---
 
@@ -234,7 +234,7 @@ python scripts/db/phase4_performance_benchmark.py
 
 ### Documentation Structure
 ```
-docs/plans/database/
+docs/planning/database/
 ├── PHASE4_KEYWORDS_DEPRECATION.md    ← Deprecation timeline
 ├── PHASE4_CODE_AUDIT.md              ← Code audit findings
 ├── PHASE4_IMPLEMENTATION_STATUS.md   ← Execution plan

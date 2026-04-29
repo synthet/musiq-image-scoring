@@ -658,7 +658,7 @@ button,
 def topbar_html():
     return """
     <div class="topbar">
-      <div class="brand">Image Scoring WebUI</div>
+      <div class="brand">Vexlum WebUI</div>
       <div class="folder-meta">/Photos/D300/28-70mm/2015 - 48 images</div>
       <div class="topbar-spacer"></div>
       <div class="connection-pill">Connected</div>
@@ -734,7 +734,7 @@ def phase_card_html(title, initial, status, processed, progress):
     """
 
 
-with gr.Blocks(title="Image Scoring WebUI") as demo:
+with gr.Blocks(title="Vexlum WebUI") as demo:
     gr.HTML(topbar_html())
 
     with gr.Tabs(elem_classes=["tabs"]):

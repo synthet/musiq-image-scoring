@@ -1,34 +1,35 @@
 # Documentation Index
 
-Complete index of all documentation files in the Image Scoring project.
+Complete index of all documentation files for **Vexlum Scoring** (`image-scoring-backend`).
 
 ---
 
 ## Getting Started
 
-Essential documentation for new users. → [getting-started/INDEX.md](getting-started/INDEX.md)
+Essential documentation for new users. → [guides/getting-started/INDEX.md](guides/getting-started/INDEX.md)
 
 | Document | Description |
 |----------|-------------|
 | [README.md](../README.md) | Main project overview and quick start guide |
-| [SIMPLE_CLI_GUIDE.md](getting-started/SIMPLE_CLI_GUIDE.md) | Simplified guide / educational CLI tool |
-| [SCORING_GUIDE.md](getting-started/SCORING_GUIDE.md) | Detailed NEF scoring instructions |
+| [SIMPLE_CLI_GUIDE.md](guides/getting-started/SIMPLE_CLI_GUIDE.md) | Simplified guide / educational CLI tool |
+| [SCORING_GUIDE.md](guides/getting-started/SCORING_GUIDE.md) | Detailed NEF scoring instructions |
 | [CHANGELOG.md](../CHANGELOG.md) | Version history and release notes |
 
 ---
 
 ## Architecture & Structure
 
-High-level system design and project layout. → [technical/INDEX.md](technical/INDEX.md)
+High-level system design and project layout. → [architecture/](architecture/) · [technical/INDEX.md](technical/INDEX.md)
 
 | Document | Description |
 |----------|-------------|
-| [ARCHITECTURE.md](technical/ARCHITECTURE.md) | System architecture (components, data flow, deployment) |
+| [system-overview.md](architecture/system-overview.md) | System architecture (components, data flow, deployment) |
+| [pipeline-architecture.md](architecture/pipeline-architecture.md) | Pipeline sequence, flowchart, and Electron integration |
 | [GRADIO_SERVING_DECISION.md](reports/GRADIO_SERVING_DECISION.md) | Gradio vs dedicated inference servers for this product shape |
-| [TECHNICAL_SUMMARY.md](technical/TECHNICAL_SUMMARY.md) | Technical summary with mermaid diagrams |
-| [PROJECT_STRUCTURE.md](technical/PROJECT_STRUCTURE.md) | Repository structure (merged, updated 2026-03-08) |
-| [architecture/DB_CONNECTOR.md](architecture/DB_CONNECTOR.md) | DB Connector transport layer — IConnector, FirebirdConnector, PostgresConnector, ApiConnector |
-| [architecture/microservices_proposal.md](architecture/microservices_proposal.md) | Abstraction layers roadmap (DbConnector ✅, DbClient ✅, API split, runner refactor) |
+| [technical-summary.md](architecture/technical-summary.md) | Technical summary with mermaid diagrams |
+| [project-structure.md](architecture/project-structure.md) | Repository structure (merged, updated 2026-03-08) |
+| [DB_CONNECTOR.md](architecture/DB_CONNECTOR.md) | DB Connector transport layer — IConnector, FirebirdConnector, PostgresConnector, ApiConnector |
+| [microservices_proposal.md](architecture/microservices_proposal.md) | Abstraction layers roadmap (DbConnector ✅, DbClient ✅, API split, runner refactor) |
 
 ---
 
@@ -39,7 +40,7 @@ High-level system design and project layout. → [technical/INDEX.md](technical/
 | [DB_SCHEMA.md](technical/DB_SCHEMA.md) | Firebird database schema (tables, columns, relationships) |
 | [DB_RECOVERY_FROM_CORRUPTION.md](technical/DB_RECOVERY_FROM_CORRUPTION.md) | Recovery procedures for database corruption |
 
-*Plans:* [Phase 4 keywords hub](plans/database/PHASE4_KEYWORDS_HUB.md) · [DB refactor](plans/database/DB_SCHEMA_REFACTOR_PLAN.md) · [Firebird→Postgres migration](plans/database/FIREBIRD_POSTGRES_MIGRATION.md) · [archived Phase 4 execution docs](archive/plans/database/INDEX.md)
+*Planning:* [Phase 4 keywords hub](planning/database/PHASE4_KEYWORDS_HUB.md) · [DB refactor](planning/database/DB_SCHEMA_REFACTOR_PLAN.md) · [Firebird→Postgres migration](planning/database/FIREBIRD_POSTGRES_MIGRATION.md) · [archived Phase 4 execution docs](archive/plans/database/INDEX.md)
 
 ---
 
@@ -56,11 +57,17 @@ Model specifications, scoring strategy, and fallback systems.
 | [MULTI_MODEL_SCORING.md](technical/MULTI_MODEL_SCORING.md) | Multi-model MUSIQ assessment runner |
 | [MODEL_SOURCE_TESTING.md](technical/MODEL_SOURCE_TESTING.md) | Model source URL verification guide |
 
-*Research:* [IAA paper analysis](reports/IAA_PAPER_ANALYSIS.md) · [IAA models](reports/IAA_MODELS_LOCAL_DEPLOYMENT.md) · [IAA survey 2024–25](reports/IAA_MODELS_SURVEY_2024_2025.md) · *Proposals:* [IQA model stack](plans/models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md) · [Suggested scoring](plans/models/SUGGESTED_SCORING_ADJUSTMENTS.md)
+*Research:* [IAA paper analysis](reports/IAA_PAPER_ANALYSIS.md) · [IAA models](reports/IAA_MODELS_LOCAL_DEPLOYMENT.md) · [IAA survey 2024–25](reports/IAA_MODELS_SURVEY_2024_2025.md) · *Proposals:* [IQA model stack](planning/models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md) · [Suggested scoring](planning/models/SUGGESTED_SCORING_ADJUSTMENTS.md)
 
 ---
 
 ## Features
+
+### Implemented (catalog)
+
+| Document | Description |
+|----------|-------------|
+| [features/implemented/INDEX.md](features/implemented/INDEX.md) | Hub: shipped behavior by area (pipeline, scoring, tagging, stacks, embeddings, RAW, WebUI, MCP, config) |
 
 ### Stacking & Culling
 
@@ -71,7 +78,7 @@ Model specifications, scoring strategy, and fallback systems.
 | [STACKS_MANUAL_MANAGEMENT.md](technical/STACKS_MANUAL_MANAGEMENT.md) | Manual stack management design |
 | [CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md](reports/CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md) | Investigation: culling done but no stacks (runner phase-order bug) |
 
-*Plan:* [Stack/Culling refactor](plans/refactoring/STACK_CULLING_REFACTOR_PLAN.md) · *Planned:* [Embedding applications](plans/embedding/EMBEDDING_APPLICATIONS.md)
+*Plan:* [Stack/Culling refactor](planning/refactoring/STACK_CULLING_REFACTOR_PLAN.md) · *Planned:* [Embedding applications](features/planned/embeddings/EMBEDDING_APPLICATIONS.md) · [Feature specs index](features/planned/INDEX.md)
 
 ### Keyword Extraction
 
@@ -127,39 +134,39 @@ Model specifications, scoring strategy, and fallback systems.
 
 ## Setup & Deployment
 
-→ [setup/INDEX.md](setup/INDEX.md)
+→ [guides/setup/INDEX.md](guides/setup/INDEX.md)
 
 ### Docker
 
 | Document | Description |
 |----------|-------------|
-| [DOCKER_SETUP.md](setup/DOCKER_SETUP.md) | Docker installation (WSL2) + running the app |
+| [DOCKER_SETUP.md](guides/setup/DOCKER_SETUP.md) | Docker installation (WSL2) + running the app |
 
 ### GPU & CUDA
 
 | Document | Description |
 |----------|-------------|
-| [GPU_SETUP.md](setup/GPU_SETUP.md) | GPU setup guide (merged) |
-| [INSTALL_CUDA.md](setup/INSTALL_CUDA.md) | CUDA installation (RTX 4060) |
-| [WSL2_TENSORFLOW_GPU_SETUP.md](setup/WSL2_TENSORFLOW_GPU_SETUP.md) | TensorFlow GPU in WSL2 |
+| [GPU_SETUP.md](guides/setup/GPU_SETUP.md) | GPU setup guide (merged) |
+| [INSTALL_CUDA.md](guides/setup/INSTALL_CUDA.md) | CUDA installation (RTX 4060) |
+| [WSL2_TENSORFLOW_GPU_SETUP.md](guides/setup/WSL2_TENSORFLOW_GPU_SETUP.md) | TensorFlow GPU in WSL2 |
 
 ### WSL Environment
 
 | Document | Description |
 |----------|-------------|
-| [ENVIRONMENTS.md](setup/ENVIRONMENTS.md) | Virtual environments (.venv, ~/.venvs/tf, tests) |
-| [WINDOWS_WSL_DEPLOYMENT.md](setup/WINDOWS_WSL_DEPLOYMENT.md) | Windows + WSL2 deployment guide |
-| [WSL_PYTHON_PACKAGES.md](setup/WSL_PYTHON_PACKAGES.md) | Python packages in WSL2 venv |
-| [WSL_UBUNTU_PACKAGES.md](setup/WSL_UBUNTU_PACKAGES.md) | Ubuntu packages in WSL2 |
-| [WSL_WRAPPER_VERIFICATION.md](setup/WSL_WRAPPER_VERIFICATION.md) | WSL wrapper script verification |
+| [ENVIRONMENTS.md](guides/setup/ENVIRONMENTS.md) | Virtual environments (.venv, ~/.venvs/tf, tests) |
+| [WINDOWS_WSL_DEPLOYMENT.md](guides/setup/WINDOWS_WSL_DEPLOYMENT.md) | Windows + WSL2 deployment guide |
+| [WSL_PYTHON_PACKAGES.md](guides/setup/WSL_PYTHON_PACKAGES.md) | Python packages in WSL2 venv |
+| [WSL_UBUNTU_PACKAGES.md](guides/setup/WSL_UBUNTU_PACKAGES.md) | Ubuntu packages in WSL2 |
+| [WSL_WRAPPER_VERIFICATION.md](guides/setup/WSL_WRAPPER_VERIFICATION.md) | WSL wrapper script verification |
 
 ### Windows Scripts
 
 | Document | Description |
 |----------|-------------|
-| [WINDOWS_SCRIPTS_README.md](setup/WINDOWS_SCRIPTS_README.md) | Windows batch/PS scripts for GPU runner |
+| [WINDOWS_SCRIPTS_README.md](guides/setup/WINDOWS_SCRIPTS_README.md) | Windows batch/PS scripts for GPU runner |
 
-*Plan:* [Windows native WebUI](plans/setup/WINDOWS_NATIVE_WEBUI_PLAN.md)
+*Plan:* [Windows native WebUI](planning/setup/WINDOWS_NATIVE_WEBUI_PLAN.md)
 
 ---
 
@@ -167,7 +174,7 @@ Model specifications, scoring strategy, and fallback systems.
 
 | Document | Description |
 |----------|-------------|
-| [UI_PIPELINE_REDESIGN.md](plans/UI_PIPELINE_REDESIGN.md) | Pipeline-centric UI redesign proposal |
+| [ui-pipeline-redesign.md](features/planned/ui-pipeline-redesign.md) | Pipeline-centric UI redesign proposal |
 | [design/](design/) | Mockups (HTML, Python) for pipeline UI |
 
 ---
@@ -182,6 +189,24 @@ Model specifications, scoring strategy, and fallback systems.
 | [TEST_STATUS.md](testing/TEST_STATUS.md) | Unit test status overview |
 | [WSL_TESTS.md](testing/WSL_TESTS.md) | WSL-only pytest markers |
 | [archive/testing/DOCUMENTATION_ISSUES.md](archive/testing/DOCUMENTATION_ISSUES.md) | Archived pointer (issues folded into WSL_TESTS / TEST_STATUS) |
+
+---
+
+## Infra and diagnostics (repo root hubs)
+
+Quick entry points at `docs/` root (doctor, bundles, env, troubleshooting). See also [.agent/INFRA_QUICKSTART.md](../.agent/INFRA_QUICKSTART.md).
+
+| Document | Description |
+|----------|-------------|
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Venvs, WSL, `scripts/doctor.py` |
+| [TESTING.md](TESTING.md) | Pytest markers and fast subsets |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Where to look when something fails |
+| [DIAGNOSTICS.md](DIAGNOSTICS.md) | Doctor CLI, redacted debug zip, MCP read-only profile notes |
+| [DATABASE.md](DATABASE.md) | Schema and migrations index |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System and pipeline overview index |
+| [IMAGE_PIPELINE.md](IMAGE_PIPELINE.md) | RAW/NEF, phases, scoring index |
+| [EXPORT_PIPELINE.md](EXPORT_PIPELINE.md) | API / integration outputs index |
+| [EMBEDDINGS.md](EMBEDDINGS.md) | Vector / pgvector entry → `technical/EMBEDDINGS.md` |
 
 ---
 
@@ -240,8 +265,8 @@ Protocol: [AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md).
 | [CODE_REVIEW_2026-04-15.md](reports/CODE_REVIEW_2026-04-15.md) | Code review of 2026-04-15 commits (job_type stability, MUSIQ imports, indexing logs, conflict-marker CI guard, `a6fdb34` junk/binary blockers) |
 | [PROJECT_REVIEW_2026-01-31.md](reports/project-reviews/PROJECT_REVIEW_2026-01-31.md) | Project review summary |
 | [PROJECT_REVIEW_DETAILED_2026-01-31.md](reports/project-reviews/PROJECT_REVIEW_DETAILED_2026-01-31.md) | Detailed project review |
-| [CODE_DESIGN_REVIEW.md](reports/CODE_DESIGN_REVIEW.md) | Code and design review |
-| [2026_02_09_CODE_AND_DESIGN_REVIEW.md](reports/2026_02_09_CODE_AND_DESIGN_REVIEW.md) | Code & design review |
+| [CODE_DESIGN_REVIEW_legacy.md](archive/reports/CODE_DESIGN_REVIEW_legacy.md) | Older code & design review (archived) |
+| [2026_02_09_CODE_AND_DESIGN_REVIEW.md](archive/reports/2026_02_09_CODE_AND_DESIGN_REVIEW.md) | February 2026 review snapshot (archived) |
 
 ---
 
@@ -256,18 +281,18 @@ Protocol: [AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md).
 
 ---
 
-## Plans & Proposals
+## Planning & planned features
 
-Plans, proposals, and specs for features not yet implemented. → [plans/INDEX.md](plans/INDEX.md)
+Migrations and schema work → [planning/INDEX.md](planning/INDEX.md). Product/UI specs not yet shipped → [features/planned/INDEX.md](features/planned/INDEX.md).
 
 | Category | Description |
 |----------|-------------|
-| [plans/database/](plans/database/) | DB refactor, Phase 4 keywords ([hub](plans/database/PHASE4_KEYWORDS_HUB.md)), Firebird→Postgres migration |
-| [plans/refactoring/](plans/refactoring/) | Stack/Culling refactor, webui refactor |
-| [plans/models/](plans/models/) | IQA model stack proposal, suggested scoring |
-| [plans/embedding/](plans/embedding/) | Embedding application specs (planned) |
-| [plans/setup/](plans/setup/) | Windows native WebUI plan |
-| [plans/UI_PIPELINE_REDESIGN.md](plans/UI_PIPELINE_REDESIGN.md) | Pipeline-centric UI redesign |
+| [planning/database/](planning/database/) | DB refactor, Phase 4 keywords ([hub](planning/database/PHASE4_KEYWORDS_HUB.md)), Firebird→Postgres migration |
+| [planning/refactoring/](planning/refactoring/) | Stack/Culling refactor, webui refactor |
+| [planning/models/](planning/models/) | IQA model stack proposal, suggested scoring |
+| [features/planned/embeddings/](features/planned/embeddings/) | Embedding application specs (planned) |
+| [planning/setup/](planning/setup/) | Windows native WebUI plan |
+| [features/planned/](features/planned/) | UI pipeline redesign, import/discovery alignment, UX plan, thumbnails, hashing |
 
 ---
 
@@ -304,6 +329,6 @@ This documentation is an LLM-maintained wiki. See [WIKI_SCHEMA.md](WIKI_SCHEMA.m
 
 ## Getting Help
 
-- **Where do I start?** [README.md](../README.md) for overview, then [SCORING_GUIDE.md](getting-started/SCORING_GUIDE.md) or [SIMPLE_CLI_GUIDE.md](getting-started/SIMPLE_CLI_GUIDE.md).
+- **Where do I start?** [README.md](../README.md) for overview, then [SCORING_GUIDE.md](guides/getting-started/SCORING_GUIDE.md) or [SIMPLE_CLI_GUIDE.md](guides/getting-started/SIMPLE_CLI_GUIDE.md).
 - **How do I create a gallery?** [GALLERY_CREATION.md](gallery/GALLERY_CREATION.md) or [QUICK_REFERENCE.md](gallery/QUICK_REFERENCE.md).
 - **What's new?** [CHANGELOG.md](../CHANGELOG.md) has all version changes.

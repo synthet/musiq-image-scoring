@@ -88,7 +88,7 @@ results = search_keywords("bird", limit=20)
 
 ### 4. **Deprecation Roadmap** ✅
 
-**File:** `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md`
+**File:** `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`
 
 Four-phase timeline for safely removing legacy `IMAGES.KEYWORDS`:
 
@@ -164,8 +164,8 @@ Four-phase timeline for safely removing legacy `IMAGES.KEYWORDS`:
 - ✅ `scripts/db/phase4_consistency_check.py` — Consistency check script
 - ✅ `scripts/db/phase4_performance_benchmark.py` — Performance benchmark script
 - ✅ `modules/keyword_discovery.py` — Optimized keyword queries
-- ✅ `docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md` — Deprecation roadmap
-- ✅ `docs/plans/database/PHASE4_SUMMARY.md` — This summary
+- ✅ `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md` — Deprecation roadmap
+- ✅ `docs/planning/database/PHASE4_SUMMARY.md` — This summary
 
 ### Updated files
 - (None yet; Phase 4b will update `CLAUDE.md`, `modules/db.py`, etc.)

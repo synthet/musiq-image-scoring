@@ -83,11 +83,15 @@ async def source_image_endpoint(
 
     if is_raw:
         img = thumbnails.extract_embedded_jpeg(file_path, min_size=1000)
-        if img and img.width > 1000:
-            jpeg_bytes = io.BytesIO()
-            img.save(jpeg_bytes, format="JPEG", quality=95)
-            jpeg_bytes.seek(0)
-            return Response(content=jpeg_bytes.read(), media_type="image/jpeg", headers=cache_headers)
+        if img:
+            from PIL import ImageOps
+            img = ImageOps.exif_transpose(img)
+            
+            if img.width > 1000:
+                jpeg_bytes = io.BytesIO()
+                img.save(jpeg_bytes, format="JPEG", quality=95)
+                jpeg_bytes.seek(0)
+                return Response(content=jpeg_bytes.read(), media_type="image/jpeg", headers=cache_headers)
 
         preview_path = thumbnails.generate_preview(file_path)
         if preview_path and os.path.exists(preview_path):

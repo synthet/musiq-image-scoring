@@ -72,9 +72,9 @@ The `wsl` marker runs WSL tests. Other markers in `pytest.ini` include: `network
 
 - [Docs index](../INDEX.md)
 - [Test status](TEST_STATUS.md) — Current pass/fail/skip counts and known issues
-- [WSL TensorFlow GPU setup](../setup/WSL2_TENSORFLOW_GPU_SETUP.md)
-- [WSL wrapper verification](../setup/WSL_WRAPPER_VERIFICATION.md)
-- [GPU setup guide](../setup/GPU_SETUP.md)
-- [Technical summary](../technical/TECHNICAL_SUMMARY.md)
-- [Docker setup](../setup/DOCKER_SETUP.md)
+- [WSL TensorFlow GPU setup](../guides/setup/WSL2_TENSORFLOW_GPU_SETUP.md)
+- [WSL wrapper verification](../guides/setup/WSL_WRAPPER_VERIFICATION.md)
+- [GPU setup guide](../guides/setup/GPU_SETUP.md)
+- [Technical summary](../architecture/technical-summary.md)
+- [Docker setup](../guides/setup/DOCKER_SETUP.md)
 

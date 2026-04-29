@@ -2,12 +2,38 @@ import { type ReactNode } from 'react'
 import { clsx } from 'clsx'
 import type { RunStatus, StageState } from '@/types/api'
 
-interface BadgeProps {
+export interface BadgeProps {
   children: ReactNode
   variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'muted' | 'running'
   size?: 'sm' | 'md'
   dot?: boolean
   className?: string
+}
+
+const VARIANT_CLASSES: Record<NonNullable<BadgeProps['variant']>, string> = {
+  default:
+    'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border border-[var(--color-border)]',
+  success:
+    'bg-[var(--color-success-bg)] text-[var(--color-success)] border border-[var(--color-success-border)]',
+  warning:
+    'bg-[var(--color-warning-bg)] text-[var(--color-warning)] border border-[var(--color-warning-border)]',
+  danger:
+    'bg-[var(--color-danger-bg)] text-[var(--color-danger)] border border-[var(--color-danger-border)]',
+  info: 'bg-[var(--color-info-bg)] text-[var(--color-info)] border border-[var(--color-accent-border)]',
+  running:
+    'bg-[var(--color-accent-dim)] text-[var(--color-accent-bright)] border border-[var(--color-accent)]',
+  muted:
+    'bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] border border-[var(--color-border-muted)]',
+}
+
+const DOT_CLASSES: Record<NonNullable<BadgeProps['variant']>, string> = {
+  default: 'bg-[var(--color-text-muted)]',
+  success: 'bg-[var(--color-success)]',
+  warning: 'bg-[var(--color-warning)]',
+  danger: 'bg-[var(--color-danger)]',
+  info: 'bg-[var(--color-info)]',
+  running: 'bg-[var(--color-accent-bright)] animate-pulse',
+  muted: 'bg-[var(--color-text-muted)]',
 }
 
 export function Badge({ children, variant = 'default', size = 'md', dot = false, className }: BadgeProps) {
@@ -16,29 +42,11 @@ export function Badge({ children, variant = 'default', size = 'md', dot = false,
       className={clsx(
         'inline-flex items-center gap-1.5 rounded-full font-medium',
         size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs',
-        variant === 'default' && 'bg-[#3c3c3c] text-[#9d9d9d] border border-[#474747]',
-        variant === 'success' && 'bg-[#1a3320] text-[#89d185] border border-[#2d6a2d]',
-        variant === 'warning' && 'bg-[#332900] text-[#cca700] border border-[#665200]',
-        variant === 'danger' && 'bg-[#3a1515] text-[#f44747] border border-[#7a2a2a]',
-        variant === 'info' && 'bg-[#003f6e] text-[#9cdcfe] border border-[#0d419d]',
-        variant === 'running' && 'bg-[#003f6e] text-[#4fc1ff] border border-[#007acc]',
-        variant === 'muted' && 'bg-[#252526] text-[#6d6d6d] border border-[#3c3c3c]',
+        VARIANT_CLASSES[variant],
         className,
       )}
     >
-      {dot && (
-        <span
-          className={clsx(
-            'w-1.5 h-1.5 rounded-full',
-            variant === 'running' && 'bg-[#4fc1ff] animate-pulse',
-            variant === 'success' && 'bg-[#89d185]',
-            variant === 'warning' && 'bg-[#cca700]',
-            variant === 'danger' && 'bg-[#f44747]',
-            variant === 'muted' && 'bg-[#6d6d6d]',
-            variant === 'info' && 'bg-[#9cdcfe]',
-          )}
-        />
-      )}
+      {dot && <span className={clsx('w-1.5 h-1.5 rounded-full', DOT_CLASSES[variant])} />}
       {children}
     </span>
   )
@@ -56,14 +64,14 @@ export function statusVariant(status: RunStatus | StageState | string): BadgePro
     case 'paused':
     case 'interrupted':
     case 'cancel_requested':
+    case 'partial':
       return 'warning'
     case 'skipped':
-      return 'muted'
     case 'pending':
     case 'queued':
-      return 'info'
     case 'canceled':
     case 'restarting':
+    case 'not_started':
       return 'muted'
     default:
       return 'default'

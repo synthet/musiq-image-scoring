@@ -4,7 +4,7 @@
 
 **Scope:** Full backend codebase (`modules/`) with focus on highest-risk files by size and coupling.  
 **Method:** Static analysis via code reading, grep pattern search, and MCP tool cross-referencing.  
-**Prior art:** [CODE_REVIEW_2026-04-15.md](CODE_REVIEW_2026-04-15.md), [CODE_DESIGN_REVIEW.md](CODE_DESIGN_REVIEW.md)
+**Prior art:** [CODE_REVIEW_2026-04-15.md](CODE_REVIEW_2026-04-15.md), [CODE_DESIGN_REVIEW_legacy.md](../archive/reports/CODE_DESIGN_REVIEW_legacy.md)
 
 ---
 

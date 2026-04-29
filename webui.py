@@ -217,15 +217,15 @@ def main():
     # Create Main FastAPI App with comprehensive OpenAPI documentation
     app = FastAPI(
         lifespan=lifespan,
-        title="Image Scoring WebUI API",
+        title="Vexlum Scoring WebUI API",
         description="""
-        REST API for the Image Scoring WebUI application.
+        REST API for the Vexlum Scoring WebUI application.
         
         This API provides programmatic access to image quality assessment and tagging operations.
         
         ## Features
         
-        - **Image Scoring**: Multi-model AI quality assessment (SPAQ, AVA, KonIQ, PaQ2PiQ, LIQE)
+        - **Quality analysis**: Multi-model AI quality assessment (SPAQ, AVA, KonIQ, PaQ2PiQ, LIQE)
         - **Image Tagging**: Automatic keyword extraction using CLIP
         - **Caption Generation**: BLIP-based image captioning
         - **Job Management**: Start, stop, and monitor batch operations
@@ -261,15 +261,15 @@ def main():
         """,
         version="1.0.0",
         contact={
-            "name": "Image Scoring WebUI",
-            "url": "https://github.com/your-repo/image-scoring"
+            "name": "Vexlum Scoring WebUI",
+            "url": "https://github.com/synthet/image-scoring-backend"
         },
         license_info={
             "name": "MIT",
         },
         openapi_tags=[
             {
-                "name": "Image Scoring API",
+                "name": "Vexlum Scoring API",
                 "description": "Endpoints for image quality assessment and scoring operations."
             },
             {
@@ -389,12 +389,6 @@ def main():
     from modules.ui.security import _init_api_auth
     _init_api_auth()
 
-    # Configure server endpoints using the FastAPI app directly
-    app_module.setup_server_endpoints(
-        app, runner, tagging_runner, clustering_runner, selection_runner, 
-        orchestrator, indexing_runner=indexing_runner, metadata_runner=metadata_runner,
-        maintenance_runner=maintenance_runner
-    )
     command_dispatcher.set_runners(
         scoring_runner=runner,
         tagging_runner=tagging_runner,
@@ -443,10 +437,10 @@ def main():
                     continue
                 await command_dispatcher.handle(websocket, message)
         except WebSocketDisconnect:
-            event_manager.disconnect(websocket)
+            await event_manager.disconnect(websocket)
         except Exception as e:
             logging.error(f"WebSocket error: {e}")
-            event_manager.disconnect(websocket)
+            await event_manager.disconnect(websocket)
 
     _webui_root = os.path.dirname(os.path.abspath(__file__))
     _favicon_png = os.path.join(_webui_root, "static", "favicon.png")
@@ -464,6 +458,23 @@ def main():
 
     # Mount Gradio App onto FastAPI at /app (legacy fallback)
     app = gr.mount_gradio_app(app, demo, path="/app", allowed_paths=allowed_paths, favicon_path="static/favicon.png")
+
+    # Configure server endpoints using the FINAL FastAPI instance.
+    #
+    # gr.mount_gradio_app() can wrap/replace the app object; registering routes before
+    # the mount may lead to "missing route" 404s (e.g. /source-image) depending on
+    # Gradio/FastAPI versions.
+    app_module.setup_server_endpoints(
+        app,
+        runner,
+        tagging_runner,
+        clustering_runner,
+        selection_runner,
+        orchestrator,
+        indexing_runner=indexing_runner,
+        metadata_runner=metadata_runner,
+        maintenance_runner=maintenance_runner,
+    )
 
     # Serve React SPA build (static/app/) — must be mounted AFTER /api routes
     # SPA files are built via: cd frontend && npm run build  (outputs to static/app/)

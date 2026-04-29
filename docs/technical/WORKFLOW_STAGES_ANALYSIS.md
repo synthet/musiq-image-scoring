@@ -1,4 +1,4 @@
-# Image Scoring Workflow Architecture
+# Vexlum Scoring — workflow architecture
 
 ## Overview
 The application processes image collections through a structured pipeline of sequential phases. This pipeline is managed by orchestrators, background runners, and queue-based workers.

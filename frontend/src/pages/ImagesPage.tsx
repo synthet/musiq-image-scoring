@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Database, Scan, FileText, Zap, Layers, Tag, 
 import { galleryApi } from '@/api/gallery'
 import { useUiStore } from '@/stores/uiStore'
 import { Button } from '@/components/ui/button'
-import { LABEL_COLORS } from '@/components/images/InspectorPrimitives'
+import { phaseStatusColor } from '@/constants/labelColors'
 import { imageInspectorPath } from '@/utils/routes'
 import type { Image, ImagePhaseStatusRow } from '@/types/api'
 
@@ -37,15 +37,7 @@ function PhaseIcon({
   error?: string | null; 
   icon: any 
 }) {
-  const color = useMemo(() => {
-    if (!status || status === 'not_started') return LABEL_COLORS.gray
-    if (status === 'done' || status === 'completed') return LABEL_COLORS.green
-    if (status === 'running') return LABEL_COLORS.blue
-    if (status === 'failed') return LABEL_COLORS.red
-    if (status === 'pending' || status === 'queued') return LABEL_COLORS.orange
-    if (status === 'skipped') return '#c5956c'
-    return LABEL_COLORS.gray
-  }, [status])
+  const color = useMemo(() => phaseStatusColor(status), [status])
 
   const title = useMemo(() => {
     let t = `${code.charAt(0).toUpperCase() + code.slice(1)}: ${status || 'not_started'}`

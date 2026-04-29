@@ -1,4 +1,4 @@
-# Run MCP Server for Image Scoring
+# Run MCP server for Vexlum
 # Provides debugging tools for Cursor IDE
 
 param(
@@ -7,7 +7,7 @@ param(
 
 if ($Help) {
   Write-Host @"
-Image Scoring MCP Server
+Vexlum MCP server
 ========================
 
 This script starts the MCP (Model Context Protocol) server that provides
@@ -46,7 +46,7 @@ $projectRoot = Join-Path $scriptDir "../.." -Resolve
 Set-Location $projectRoot
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Image Scoring MCP Server" -ForegroundColor Cyan
+Write-Host "Vexlum MCP server" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Debugging tools for Cursor IDE" -ForegroundColor Yellow

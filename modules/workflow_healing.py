@@ -142,6 +142,15 @@ def heal_phase_data(
         c.execute(folder_query, tuple(params))
         folders_needing_work = [{"folder_path": row[0], "image_count": row[1]} for row in c.fetchall()]
     
+    if folders_needing_work:
+        logger.info(
+            "Heal [%s]: Found %s folders needing work. Top candidate: %s (%s images)",
+            phase_code,
+            len(folders_needing_work),
+            folders_needing_work[0]["folder_path"],
+            folders_needing_work[0]["image_count"],
+        )
+    
     # Filter out folders already being processed (active/queued runs)
     active_jobs = _get_active_jobs_snapshot()
     active_paths = {str(j.get("input_path")).strip().lower() for j in active_jobs if j.get("input_path")}

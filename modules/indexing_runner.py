@@ -38,6 +38,18 @@ def _parse_metadata_dict(raw: Any) -> Dict[str, Any]:
     return {}
 
 
+def _image_row_has_identity_hash(row: Optional[Dict[str, Any]]) -> bool:
+    """True when ``images.image_hash`` is non-empty (matches ``get_phase_incomplete_sql('indexing')``)."""
+    if not row:
+        return False
+    h = row.get("image_hash")
+    if h is None:
+        return False
+    if isinstance(h, str):
+        return bool(h.strip())
+    return bool(str(h).strip())
+
+
 def _content_fp_matches_file(fp: Any, file_path: str) -> bool:
     if not isinstance(fp, dict):
         return False
@@ -171,6 +183,122 @@ def _assign_indexing_folder_id(image_id: int, file_path: str, scan_stop: Optiona
         logger.exception("Indexing: failed to update folder_id for image_id=%s path=%s", image_id, file_path)
 
 
+def _resolve_split_brain_collision(
+    *,
+    track_id: int,
+    hash_row_id: int,
+    file_path: str,
+    image_hash: str,
+    hash_version: int,
+    existing: Dict[str, Any],
+    existing_by_path: Optional[Dict[str, Any]],
+    log,
+) -> int:
+    """Resolve the case where lookup-by-path (track_id) and lookup-by-hash (hash_row_id)
+    return different image rows for the same physical file.
+
+    Postgres enforces both UNIQUE(file_path) and UNIQUE(image_hash, hash_version), so we
+    cannot keep both rows. Two cases:
+
+      (A) track_id has no hash → adopt hash_row_id as primary, drop track_id.
+      (B) track_id already has a hash (e.g. stale, or two indexings of the same content
+          via different mounts) → prefer track_id (its file_path matches the current scan),
+          merge metadata from hash_row_id, delete hash_row_id, then adopt the freshly
+          computed hash on track_id.
+
+    Without (B), the trailing UPDATE images SET file_path=? WHERE id=hash_row_id collides
+    with track_id's path and the job fails — workflow healing then respawns it forever.
+
+    Returns the resolved primary image_id (or hash_row_id if the merge errors out, since
+    the caller's downstream UPDATE assumes hash_row_id is primary by default).
+    """
+    t_row = db.get_connector().query_one(
+        "SELECT image_hash, file_path, rating, label, folder_id FROM images WHERE id = ?",
+        (track_id,),
+    )
+    t_hash = (t_row.get("image_hash") or "").strip() if t_row else ""
+
+    if t_row and not t_hash:
+        try:
+            update_existing = {}
+            t_rating = t_row.get("rating") or 0
+            e_rating = existing.get("rating") or 0
+            if t_rating > e_rating:
+                update_existing["rating"] = t_rating
+
+            t_label = (t_row.get("label") or "").strip()
+            e_label = (existing.get("label") or "").strip()
+            if t_label and not e_label:
+                update_existing["label"] = t_label
+
+            for field, val in update_existing.items():
+                db.update_image_field(hash_row_id, field, val)
+
+            db.delete_image(file_path, delete_related=True)
+
+            log(
+                "INFO",
+                f"Merged metadata from redundant row {track_id} into {hash_row_id} and deleted {track_id}",
+                image_id=hash_row_id,
+            )
+
+            tid_fid = (existing_by_path or {}).get("folder_id")
+            if tid_fid:
+                db.invalidate_folder_phase_aggregates(folder_id=tid_fid)
+            return hash_row_id
+        except Exception as e:
+            log("WARNING", f"Failed to merge split-brain record {track_id}: {e}", image_id=track_id)
+            return hash_row_id
+
+    if t_row:
+        try:
+            update_track = {}
+            e_rating = existing.get("rating") or 0
+            t_rating = t_row.get("rating") or 0
+            if e_rating > t_rating:
+                update_track["rating"] = e_rating
+
+            e_label = (existing.get("label") or "").strip()
+            t_label = (t_row.get("label") or "").strip()
+            if e_label and not t_label:
+                update_track["label"] = e_label
+
+            for field, val in update_track.items():
+                db.update_image_field(track_id, field, val)
+
+            redundant_path = (existing.get("file_path") or "").strip() or None
+            if redundant_path and redundant_path != file_path:
+                db.delete_image(redundant_path, delete_related=True)
+            else:
+                db.get_connector().execute(
+                    "DELETE FROM images WHERE id = ?", (hash_row_id,)
+                )
+
+            if t_hash != image_hash:
+                db.update_image_field(track_id, "image_hash", image_hash)
+                db.update_image_field(track_id, "hash_version", hash_version)
+
+            log(
+                "INFO",
+                f"Merged hash-collision row {hash_row_id} (path={redundant_path}) into {track_id}",
+                image_id=track_id,
+            )
+
+            hr_fid = existing.get("folder_id")
+            if hr_fid:
+                db.invalidate_folder_phase_aggregates(folder_id=hr_fid)
+            return track_id
+        except Exception as e:
+            log(
+                "WARNING",
+                f"Failed to merge hash-collision record {hash_row_id} into {track_id}: {e}",
+                image_id=track_id,
+            )
+            return hash_row_id
+
+    return hash_row_id
+
+
 class IndexingRunner:
     """
     Independent runner for the Indexing (Discovery) phase.
@@ -271,8 +399,8 @@ class IndexingRunner:
     def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None, report_collector=None):
         PROGRESS_INTERVAL = 50
 
-        def log(level: str, msg: str) -> None:
-            runner_emit(self.log_history, job_id, msg, level, phase="indexing")
+        def log(level: str, msg: str, image_id: Optional[int] = None) -> None:
+            runner_emit(self.log_history, job_id, msg, level, phase="indexing", image_id=image_id)
 
         # Handle WSL path conversion if needed
         if input_path and ":" in input_path and len(input_path) > 1 and input_path[1] == ":":
@@ -366,7 +494,13 @@ class IndexingRunner:
                 existing_by_path = db.get_image_details(file_path)
                 if existing_by_path and existing_by_path.get("id"):
                     phase_status = db.get_image_phase_status(existing_by_path["id"], PhaseCode.INDEXING)
-                    if phase_status and phase_status.get("status") == PhaseStatus.DONE:
+                    # Do not treat phase=done as complete if image_hash is still missing; otherwise
+                    # "Process unprocessed" / heal re-runs skip forever (matches workflow healing predicate).
+                    if (
+                        phase_status
+                        and phase_status.get("status") == PhaseStatus.DONE
+                        and _image_row_has_identity_hash(existing_by_path)
+                    ):
                         sid = int(existing_by_path["id"])
                         db.set_image_phase_status(
                             sid,
@@ -381,7 +515,7 @@ class IndexingRunner:
                         skipped_count += 1
                         if report_collector:
                             report_collector.record_skip(sid, "already_indexed")
-                        log("DEBUG", f"Skip (already indexed): {file_path}")
+                        log("DEBUG", f"Skip (already indexed): {file_path}", image_id=sid)
                         if self.current_count % PROGRESS_INTERVAL == 0:
                             log(
                                 "INFO",
@@ -432,7 +566,11 @@ class IndexingRunner:
                         hash_version = int((existing_by_path or {}).get("hash_version") or 1)
                     except (TypeError, ValueError):
                         hash_version = 1
-                    log("DEBUG", f"Reusing stored hash (content fingerprint unchanged): {file_path}")
+                    log(
+                        "DEBUG",
+                        f"Reusing stored hash (content fingerprint unchanged): {file_path}",
+                        image_id=int(existing_by_path["id"]) if existing_by_path and existing_by_path.get("id") else None,
+                    )
                 else:
                     # Try UUID-based shortcut: adopt hash from an existing record
                     # matched by image_uuid (helps moved/renamed files avoid rehashing).
@@ -455,15 +593,19 @@ class IndexingRunner:
                                         except (TypeError, ValueError):
                                             hash_version = 1
                                         uuid_adopted = True
-                                        log("DEBUG", f"Adopted hash from UUID match (id={uuid_record_id}): {file_path}")
+                                        log(
+                                            "DEBUG",
+                                            f"Adopted hash from UUID match (id={uuid_record_id}): {file_path}",
+                                            image_id=uuid_record_id,
+                                        )
                         except Exception:
                             logger.debug("UUID shortcut failed for %s", file_path, exc_info=True)
 
                     if not uuid_adopted:
-                        log("DEBUG", f"Hashing: {file_path}")
+                        log("DEBUG", f"Hashing: {file_path}", image_id=track_id)
                         ident = image_identity_hash.compute_image_identity_hash(file_path)
                         if not ident:
-                            log("ERROR", f"Could not compute identity hash for {file_path}")
+                            log("ERROR", f"Could not compute identity hash for {file_path}", image_id=track_id)
                             skipped_count += 1
                             continue
                         image_hash, hash_version = ident
@@ -473,35 +615,35 @@ class IndexingRunner:
 
                 existing = db.get_image_by_hash(image_hash, hash_version)
                 if existing:
-                    image_id = existing.get("id")
-                    
-                    # Handle split-brain duplicates: if we were tracking by path (track_id)
-                    # but found a match by hash (image_id), we should sync them.
-                    if track_id and track_id != image_id:
-                        try:
-                            # Instead of deleting (per user request), we backfill the hash 
-                            # into the path-based record so it stops triggering the healer.
-                            t_row = db.get_connector().query_one("SELECT image_hash FROM images WHERE id = ?", (track_id,))
-                            if t_row and not (t_row.get("image_hash") or "").strip():
-                                db.get_connector().execute(
-                                    "UPDATE images SET image_hash = ?, hash_version = ? WHERE id = ?", 
-                                    (image_hash, hash_version, track_id)
-                                )
-                                log("INFO", f"Synced duplicate path-only record id={track_id} with hash from id={image_id}")
-                                # Invalidate aggregates for the folder
-                                tid_fid = (existing_by_path or {}).get("folder_id")
-                                if tid_fid:
-                                    db.invalidate_folder_phase_aggregates(folder_id=tid_fid)
-                        except Exception as e:
-                            log("WARNING", f"Failed to sync duplicate record {track_id}: {e}")
+                    hash_row_id = int(existing.get("id"))
+                    image_id = hash_row_id
+
+                    if track_id and track_id != hash_row_id:
+                        image_id = _resolve_split_brain_collision(
+                            track_id=track_id,
+                            hash_row_id=hash_row_id,
+                            file_path=file_path,
+                            image_hash=image_hash,
+                            hash_version=hash_version,
+                            existing=existing,
+                            existing_by_path=existing_by_path,
+                            log=log,
+                        )
 
                     db.register_image_path(image_id, file_path)
-                    # Update primary path to the one we are currently scanning
-                    db.update_image_field(image_id, "file_path", file_path)
-                    
+                    _fname = os.path.basename(file_path)
+                    db.get_connector().execute(
+                        "UPDATE images SET file_path = ?, file_name = ? WHERE id = ?",
+                        (file_path, _fname, image_id),
+                    )
+
                     _assign_indexing_folder_id(image_id, file_path, scan_stop, nef_cache)
                     _persist_indexing_content_fp(int(image_id), file_path, cfg_mode)
-                    log("DEBUG", f"Registered path and updated record image_id={image_id}: {file_path}")
+                    log(
+                        "DEBUG",
+                        f"Registered path and updated record image_id={image_id}: {file_path}",
+                        image_id=int(image_id) if image_id else None,
+                    )
                 else:
                     resolved_folder = _resolve_nef_folder_path(file_path, scan_stop, nef_cache)
                     folder_id = db.get_or_create_folder(resolved_folder) if resolved_folder else None
@@ -518,7 +660,11 @@ class IndexingRunner:
                     if not image_id:
                         detail = db.get_image_details(file_path)
                         image_id = detail.get("id") if detail else None
-                    log("DEBUG", f"Upsert new row image_id={image_id}: {file_path}")
+                    log(
+                        "DEBUG",
+                        f"Upsert new row image_id={image_id}: {file_path}",
+                        image_id=int(image_id) if image_id else None,
+                    )
 
                 if job_id and image_id:
                     db.set_image_phase_status(
@@ -542,13 +688,13 @@ class IndexingRunner:
                     processed_count += 1
                     if report_collector:
                         report_collector.record_after(int(image_id), {}, action="processed")
-                    log("DEBUG", f"Indexed image_id={image_id}: {file_path}")
+                    log("DEBUG", f"Indexed image_id={image_id}: {file_path}", image_id=int(image_id))
                 else:
                     skipped_count += 1
                     log("WARNING", f"No image_id after upsert for {file_path}")
 
             except Exception as e:
-                log("ERROR", f"Error indexing {file_path}: {e}")
+                log("ERROR", f"Error indexing {file_path}: {e}", image_id=track_id or image_id)
                 skipped_count += 1
                 if report_collector and (track_id or image_id):
                     report_collector.record_failure(int(track_id or image_id), str(e))

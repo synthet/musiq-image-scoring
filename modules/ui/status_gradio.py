@@ -10,6 +10,7 @@ Architecture (no-blink):
 render_status_data() is called by the FastAPI endpoint to produce JSON sections.
 """
 import html
+import re
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -147,7 +148,7 @@ def _skeleton_html() -> str:
     top_bar = (
         f"<div style='height:40px;background:{_BG_LIGHT};border-bottom:1px solid {_BORDER};"
         f"display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0;'>"
-        f"<span style='font-weight:600;font-size:0.9em;color:{_TEXT}'>Image Scoring — Status</span>"
+        f"<span style='font-weight:600;font-size:0.9em;color:{_TEXT}'>Vexlum Scoring — Status</span>"
         f"<span id='s-timestamp' style='color:{_TEXT_FAINT};font-size:0.78em;margin-left:auto'>"
         f"Connecting…</span></div>"
     )
@@ -443,6 +444,31 @@ def _render_diagnostics() -> str:
 
 _LOG_SECTION_MAX = 40
 
+_IMG_LOG_LINK_RE = re.compile(r"\[\[img:(\d+)\]\]")
+
+
+def _escape_log_line_with_image_links(stripped: str) -> str:
+    """Escape HTML but turn ``[[img:id]]`` into links (same token as modules/run_log)."""
+    if "[[img:" not in stripped:
+        return html.escape(stripped)
+    parts: list[str] = []
+    last = 0
+    for m in _IMG_LOG_LINK_RE.finditer(stripped):
+        if m.start() > last:
+            parts.append(html.escape(stripped[last:m.start()]))
+        iid = m.group(1)
+        parts.append(
+            "<a href=\"/ui/images/"
+            f"{int(iid)}"
+            "\" target=\"_blank\" rel=\"noopener noreferrer\" "
+            "style=\"color:#4fc1ff;text-decoration:underline;font-weight:600\""
+            f">#{html.escape(iid)}</a>"
+        )
+        last = m.end()
+    if last < len(stripped):
+        parts.append(html.escape(stripped[last:]))
+    return "".join(parts) if parts else html.escape(stripped)
+
 
 def _colorize_log_line(stripped: str) -> str:
     low = stripped.lower()
@@ -452,9 +478,10 @@ def _colorize_log_line(stripped: str) -> str:
         color = _WARN
     else:
         color = "#cccccc"
+    inner = _escape_log_line_with_image_links(stripped)
     return (
         f"<div style='color:{color};margin-bottom:1px;line-height:1.4'>"
-        f"{html.escape(stripped)}</div>"
+        f"{inner}</div>"
     )
 
 
@@ -569,7 +596,7 @@ def build_status_demo(
     are handled client-side by the polling script injected via head=.
     """
     with gr.Blocks(
-        title="Image Scoring — Status",
+        title="Vexlum Scoring — Status",
         css=_DARK_CSS,
         head=_POLL_HEAD,
     ) as demo:

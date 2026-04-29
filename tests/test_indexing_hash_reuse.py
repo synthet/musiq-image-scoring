@@ -9,8 +9,18 @@ from modules.indexing_runner import (
     _INDEXING_CONTENT_FP_KEY,
     _attach_indexing_content_fp,
     _content_fp_matches_file,
+    _image_row_has_identity_hash,
     _parse_metadata_dict,
 )
+
+
+def test_image_row_has_identity_hash():
+    assert _image_row_has_identity_hash(None) is False
+    assert _image_row_has_identity_hash({}) is False
+    assert _image_row_has_identity_hash({"image_hash": None}) is False
+    assert _image_row_has_identity_hash({"image_hash": ""}) is False
+    assert _image_row_has_identity_hash({"image_hash": "   "}) is False
+    assert _image_row_has_identity_hash({"image_hash": "abc123"}) is True
 
 
 def test_parse_metadata_dict():

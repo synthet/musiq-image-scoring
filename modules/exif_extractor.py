@@ -24,6 +24,11 @@ def _get_exiftool_path():
     return _EXIFTOOL_PATH
 
 
+def get_exiftool_path():
+    """Return path to exiftool binary, or None if not on PATH."""
+    return _get_exiftool_path()
+
+
 def get_exiftool_timeout_seconds(*, write: bool = False) -> int:
     """
     Subprocess timeout for exiftool. Writes (especially large RAW on slow mounts)
@@ -65,6 +70,9 @@ _EXIF_TAG_MAP = {
     "ImageUniqueID": "image_unique_id",
     "ShutterCount": "shutter_count",
     "SubSecTimeOriginal": "sub_sec_time_original",
+    "GPSLatitude": "gps_latitude",
+    "GPSLongitude": "gps_longitude",
+    "GPSAltitude": "gps_altitude",
 }
 
 
@@ -99,10 +107,12 @@ def extract_exif(image_path: str, image_id: int = None) -> dict | None:
         "ExposureTime", "FNumber", "ISO", "ExposureCompensation",
         "ImageWidth", "ImageHeight", "Orientation", "Flash",
         "ImageUniqueID", "ShutterCount", "SubSecTimeOriginal",
+        "GPSLatitude", "GPSLongitude", "GPSAltitude",
     ]
 
     try:
-        cmd = [exiftool, "-j", "-s", "-ee"] + [f"-{t}" for t in tags_to_fetch] + [resolved]
+        # -n: print numeric values (e.g. decimal degrees for GPS)
+        cmd = [exiftool, "-j", "-s", "-n", "-ee"] + [f"-{t}" for t in tags_to_fetch] + [resolved]
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=get_exiftool_timeout_seconds(write=False)
         )
@@ -121,9 +131,24 @@ def extract_exif(image_path: str, image_id: int = None) -> dict | None:
             val = raw.get(exif_tag)
             if val is None or (isinstance(val, str) and val.strip() in ("-", "")):
                 continue
-            # Only set if not already set (first wins for lens fallbacks)
-            if our_col not in out:
-                out[our_col] = val
+            if our_col in ("gps_latitude", "gps_longitude", "gps_altitude"):
+                if isinstance(val, (int, float)):
+                    if our_col not in out:
+                        out[our_col] = float(val)
+                else:
+                    try:
+                        f = float(str(val).replace(",", ".").strip())
+                        if our_col not in out:
+                            out[our_col] = f
+                    except (ValueError, TypeError):
+                        pass
+            else:
+                # Only set if not already set (first wins for lens fallbacks)
+                if our_col not in out:
+                    out[our_col] = val
+
+        if any(k in out for k in ("gps_latitude", "gps_longitude")):
+            out["gps_position_source"] = "exif"
 
         # Lens fallback order: LensModel > Lens > LensID > LensType
         if "lens_model" not in out:
@@ -157,7 +182,9 @@ def extract_and_upsert_exif(image_path: str, image_id: int) -> bool:
     data = extract_exif(image_path, image_id)
     if not data:
         return False
-    return db.upsert_image_exif(image_id, data)
+    existing = db.get_image_exif(image_id) or {}
+    merged = _merge_exif_for_upsert(existing, data)
+    return db.upsert_image_exif(image_id, merged)
 
 
 def backfill_exif_dates(limit: int | None = None) -> dict:
@@ -202,7 +229,9 @@ def backfill_exif_dates(limit: int | None = None) -> dict:
             xmp_mod.extract_and_upsert_xmp(resolved, image_id)
             data = extract_exif(resolved, image_id)
             if data:
-                if not db.upsert_image_exif(image_id, data):
+                existing = db.get_image_exif(image_id) or {}
+                merged = _merge_exif_for_upsert(existing, data)
+                if not db.upsert_image_exif(image_id, merged):
                     stats["errors"] += 1
                     continue
             exif_row = db.get_image_exif(image_id) or {}
@@ -248,6 +277,13 @@ _IMAGE_EXIF_UPSERT_KEYS = (
     "image_unique_id",
     "shutter_count",
     "sub_sec_time_original",
+    "gps_latitude",
+    "gps_longitude",
+    "gps_altitude",
+    "gps_position_source",
+    "location_resolved",
+    "geocoded_at",
+    "geocode_provider",
 )
 
 

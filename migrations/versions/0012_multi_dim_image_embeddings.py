@@ -5,7 +5,7 @@ Adds per-dimension fact tables ``image_embeddings_512`` and
 with HNSW cosine indexes, and seeds three new ``embedding_spaces`` rows for
 CLIP, BioCLIP, and BLIP image-tower features.
 
-See ``docs/plans/database/DB_VECTORS_REFACTOR.md`` (Pattern B: registry +
+See ``docs/planning/database/DB_VECTORS_REFACTOR.md`` (Pattern B: registry +
 keyed fact table per dimension family) and the checklist in
 ``docs/technical/EMBEDDINGS.md``.
 

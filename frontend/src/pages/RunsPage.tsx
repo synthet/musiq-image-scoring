@@ -101,17 +101,17 @@ export function RunsPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-lg font-semibold text-[#cccccc]">Runs</h1>
+        <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Runs</h1>
         {tab !== 'tools' && (
           <Button variant="primary" size="sm" onClick={() => openNewRun()}>
-            <Plus size={13} />
+            <Plus size={14} />
             New Run
           </Button>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 mb-5 border-b border-[#3c3c3c]">
+      <div className="flex items-center gap-1 mb-5 border-b border-[var(--color-border-muted)]">
         <TabButton label="Active" count={active.length} active={tab === 'active'} onClick={() => setTab('active')} />
         <TabButton label="Queued" count={queued.length} active={tab === 'queue'} onClick={() => setTab('queue')} />
         <TabButton
@@ -126,7 +126,7 @@ export function RunsPage() {
       {tab === 'tools' && <RunsToolsTab />}
 
       {tab !== 'tools' && listLoading && (
-        <div className="text-sm text-[#6d6d6d]">Loading…</div>
+        <div className="text-sm text-[var(--color-text-muted)]">Loading…</div>
       )}
 
       {tab !== 'tools' && !listLoading && displayed.length === 0
@@ -143,8 +143,8 @@ export function RunsPage() {
       )}
 
       {tab === 'history' && !listLoading && historyPayload && 'total' in historyPayload && historyPayload.total > 0 && (
-        <div className="flex items-center justify-between mt-6 pt-4 border-t border-[#3c3c3c]">
-          <span className="text-xs text-[#9d9d9d]">
+        <div className="flex items-center justify-between mt-6 pt-4 border-t border-[var(--color-border-muted)]">
+          <span className="text-xs text-[var(--color-text-secondary)]">
             {rangeStart}–{rangeEnd} of {historyPayload.total}
           </span>
           <div className="flex items-center gap-2">
@@ -153,7 +153,7 @@ export function RunsPage() {
               size="sm"
               disabled={!historyHasPrev}
               onClick={() => setHistoryPage((p) => Math.max(0, p - 1))}
-              className="text-[#cccccc]"
+              className="text-[var(--color-text-primary)]"
             >
               <ChevronLeft size={16} />
               Previous
@@ -163,7 +163,7 @@ export function RunsPage() {
               size="sm"
               disabled={!historyHasNext}
               onClick={() => setHistoryPage((p) => p + 1)}
-              className="text-[#cccccc]"
+              className="text-[var(--color-text-primary)]"
             >
               Next
               <ChevronRight size={16} />
@@ -189,14 +189,14 @@ function TabButton({
       className={`
         flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px
         ${active
-          ? 'border-[#4fc1ff] text-[#cccccc]'
-          : 'border-transparent text-[#9d9d9d] hover:text-[#cccccc]'
+          ? 'border-[var(--color-accent-bright)] text-[var(--color-text-primary)]'
+          : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
         }
       `}
     >
       {label}
       {typeof count === 'number' && count > 0 && (
-        <span className="bg-[#474747] text-[#9d9d9d] text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
+        <span className="bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
           {count}
         </span>
       )}
@@ -212,11 +212,11 @@ function EmptyState({ tab, onNewRun }: { tab: Exclude<TabFilter, 'tools'>; onNew
   }
   return (
     <div className="flex flex-col items-center gap-3 py-16 text-center">
-      <Inbox size={32} className="text-[#474747]" />
-      <p className="text-sm text-[#6d6d6d]">{messages[tab]}</p>
+      <Inbox size={32} className="text-[var(--color-border)]" />
+      <p className="text-sm text-[var(--color-text-muted)]">{messages[tab]}</p>
       {tab === 'active' && (
         <Button variant="primary" size="sm" onClick={onNewRun}>
-          <Plus size={13} />
+          <Plus size={14} />
           New Run
         </Button>
       )}

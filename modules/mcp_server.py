@@ -1,5 +1,5 @@
 """
-MCP (Model Context Protocol) Server for Image Scoring WebUI
+MCP (Model Context Protocol) server for the Vexlum Scoring WebUI
 
 Provides debugging and management tools for Cursor IDE and AI agents.
 Uses FastMCP for automatic schema generation from type annotations.
@@ -16,7 +16,6 @@ import logging
 import os
 import re
 import sys
-import time
 from typing import Any, Optional
 
 # MCP SDK imports
@@ -28,16 +27,17 @@ except ImportError:
     MCP_AVAILABLE = False
 
 try:
-    from mcp.server.sse import SseServerTransport
-    MCP_SSE_AVAILABLE = True
-except ImportError:
+    import importlib.util
+
+    MCP_SSE_AVAILABLE = importlib.util.find_spec("mcp.server.sse") is not None
+except Exception:
     MCP_SSE_AVAILABLE = False
 
 # Add parent directory for imports when running standalone
 if __name__ == "__main__":
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from modules import db, config, utils, db_postgres
+from modules import db, config, db_postgres
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +107,38 @@ def _require_db(fn):
             return {"error": msg}
         return fn(*args, **kwargs)
     return wrapper
+
+
+def _strip_sql_comments_for_mcp(sql: str) -> str:
+    """Strip leading line comments and /* */ blocks so SELECT/WITH guards work."""
+    s = (sql or "").strip()
+    while True:
+        m = re.search(r"/\*.*?\*/", s, flags=re.DOTALL)
+        if not m:
+            break
+        s = (s[: m.start()] + " " + s[m.end() :]).strip()
+    lines_out: list[str] = []
+    for line in s.splitlines():
+        ls = line.strip()
+        if ls.startswith("--"):
+            continue
+        if "--" in line:
+            line = line.split("--", 1)[0].rstrip()
+        if line.strip():
+            lines_out.append(line)
+    return " ".join(lines_out).strip()
+
+
+def _is_mcp_read_only_sql(normalized: str) -> bool:
+    u = normalized.lstrip().upper()
+    return u.startswith("SELECT") or u.startswith("WITH")
+
+
+def _mcp_sql_single_statement(normalized: str) -> tuple[bool, str | None]:
+    core = normalized.rstrip().rstrip(";").strip()
+    if ";" in core:
+        return False, "Multiple SQL statements are not allowed"
+    return True, None
 
 
 def set_runners(
@@ -371,55 +403,149 @@ def search_images_by_hash(image_hash: str, hash_version: Optional[int] = None) -
 
 @mcp.tool(annotations=_RO)
 @_require_db
+def get_db_schema(
+    table_name_prefix: Optional[str] = None,
+    max_tables: int = 200,
+    max_column_rows: int = 8000,
+) -> dict:
+    """List ``public`` tables and columns (data type, nullability) for writing ``execute_sql`` queries. PostgreSQL only."""
+    if config.get_database_engine() != "postgres":
+        return {
+            "error": "get_db_schema is supported when database.engine is postgres.",
+            "database_engine": config.get_database_engine(),
+        }
+    prefix = (table_name_prefix or "").strip().lower()
+    max_tables = max(1, min(int(max_tables), 500))
+    max_column_rows = max(100, min(int(max_column_rows), 50_000))
+    conn = db.get_connector()
+    try:
+        if prefix:
+            rows = conn.query(
+                """
+                SELECT table_name, column_name, data_type, is_nullable
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND LOWER(table_name) LIKE LOWER(?)
+                ORDER BY table_name, ordinal_position
+                FETCH FIRST ? ROWS ONLY
+                """,
+                (f"{prefix}%", max_column_rows),
+            )
+        else:
+            rows = conn.query(
+                """
+                SELECT table_name, column_name, data_type, is_nullable
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                ORDER BY table_name, ordinal_position
+                FETCH FIRST ? ROWS ONLY
+                """,
+                (max_column_rows,),
+            )
+    except Exception as e:
+        return {"error": str(e)}
+
+    tables: dict[str, list[dict]] = {}
+    for r in rows or []:
+        tname = str(r.get("table_name") or "")
+        if not tname:
+            continue
+        tables.setdefault(tname, []).append(
+            {
+                "column": r.get("column_name"),
+                "data_type": r.get("data_type"),
+                "is_nullable": r.get("is_nullable"),
+            }
+        )
+
+    names_sorted = sorted(tables.keys())
+    truncated_tables = len(names_sorted) > max_tables
+    names_sorted = names_sorted[:max_tables]
+    out_tables = {n: tables[n] for n in names_sorted}
+
+    return _sanitize_for_mcp(
+        {
+            "database_engine": "postgres",
+            "table_count": len(out_tables),
+            "tables": out_tables,
+            "truncated_tables": truncated_tables,
+            "table_name_prefix": prefix or None,
+        }
+    )
+
+
+@mcp.tool(annotations=_RO)
+@_require_db
 def execute_sql(query: str, params: list = None) -> dict:
-    """Execute a read-only SQL SELECT query against the database. Only SELECT queries are allowed for safety."""
-    query = query.strip()
+    """Execute a read-only SQL SELECT (or WITH … SELECT) query. Uses the same ``?`` placeholder dialect as the app; translated on PostgreSQL. Discover tables/columns with ``get_db_schema`` first."""
+    normalized = _strip_sql_comments_for_mcp(query)
+    if not normalized:
+        return {"error": "Empty query"}
 
-    # Safety check - only allow SELECT queries
-    if not query.upper().startswith("SELECT"):
-        return {"error": "Only SELECT queries are allowed for safety reasons"}
+    if not _is_mcp_read_only_sql(normalized):
+        return {"error": "Only read-only SELECT queries are allowed (must start with SELECT or WITH after comments)."}
 
-    # Block dangerous SQL patterns (word-boundary check to avoid
-    # false positives on column names like "updated_at" or "created_at")
+    ok_stmt, stmt_err = _mcp_sql_single_statement(normalized)
+    if not ok_stmt:
+        return {"error": stmt_err}
+
     dangerous_patterns = [
-        r'\bDROP\b', r'\bDELETE\b', r'\bINSERT\b', r'\bUPDATE\b',
-        r'\bALTER\b', r'\bCREATE\b', r'--', r';--',
+        r"\bDROP\b",
+        r"\bDELETE\b",
+        r"\bINSERT\b",
+        r"\bUPDATE\b",
+        r"\bALTER\b",
+        r"\bCREATE\b",
+        r"\bTRUNCATE\b",
+        r"\bMERGE\b",
+        r"\bGRANT\b",
+        r"\bREVOKE\b",
     ]
-    upper_query = query.upper()
+    upper_query = normalized.upper()
     for pattern in dangerous_patterns:
         if re.search(pattern, upper_query):
             return {"error": f"Query contains forbidden pattern: {pattern}"}
 
-    with db.connection() as conn:
-        c = conn.cursor()
+    tparams = tuple(params) if params else None
 
-        try:
-            # Defense-in-depth: start a read-only transaction so even if
-            # SQL injection bypasses the regex, no writes can occur.
-            # For PostgreSQL, PGConnectionManager handles read-only mode if requested,
-            # or we rely on the DB role.
-            pass  # Standard read-only selective access is performed at the pool level or via SQL constraints.
+    try:
+        if config.get_database_engine() == "postgres":
+            from modules import db_postgres
+            from modules.db import _escape_pct_in_string_literals, _translate_fb_to_pg
 
-            if params:
-                c.execute(query, tuple(params))
+            pg_sql = _escape_pct_in_string_literals(_translate_fb_to_pg(normalized))
+            rows_raw = db_postgres.execute_select(pg_sql, tparams)
+            results = [_sanitize_for_mcp(dict(r)) for r in rows_raw[:100]]
+            columns = list(results[0].keys()) if results else []
+            return {
+                "columns": columns,
+                "row_count": len(rows_raw),
+                "rows": results,
+                "truncated": len(rows_raw) > 100,
+            }
+
+        with db.connection() as conn:
+            c = conn.cursor()
+            if tparams:
+                c.execute(normalized, tparams)
             else:
-                c.execute(query)
+                c.execute(normalized)
 
             rows = c.fetchall()
             columns = [description[0] for description in c.description] if c.description else []
-            # RowWrapper iterates as (key, value) pairs — do not use dict(zip(columns, row)).
             results = [
-                row.to_dict() if hasattr(row, "to_dict") else dict(zip(columns, row))
+                _sanitize_for_mcp(row.to_dict() if hasattr(row, "to_dict") else dict(zip(columns, row)))
                 for row in rows
             ]
 
             return {
                 "columns": columns,
-                "row_count": len(results),
-                "rows": results[:100]  # Limit to 100 rows
+                "row_count": len(rows),
+                "rows": results[:100],
+                "truncated": len(rows) > 100,
             }
-        except Exception as e:
-            return {"error": str(e)}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool(annotations=_RO)
@@ -453,6 +579,77 @@ def get_folder_tree(root_path: Optional[str] = None) -> list:
             ]
         except Exception as e:
             return [{"error": str(e)}]
+
+
+@mcp.tool(annotations=_RO)
+@_require_db
+def get_newly_imported_folders(days: int = 7, min_images: int = 1, path_pattern: Optional[str] = None) -> list[dict]:
+    """
+    Find folders created in the last N days with at least min_images.
+    Useful for identifying newly imported media that might need processing.
+    """
+    try:
+        rows = db.get_newly_imported_folders(days=days, min_images=min_images, path_pattern=path_pattern)
+        return [
+            {
+                "id": row["id"],
+                "path": row["path"],
+                "image_count": row["image_count"],
+                "created_at": row["created_at"].isoformat() if hasattr(row["created_at"], 'isoformat') else str(row["created_at"]),
+                "is_fully_scored": bool(row["is_fully_scored"]),
+                "is_keywords_processed": bool(row["is_keywords_processed"]),
+                "phase_agg_dirty": bool(row["phase_agg_dirty"]),
+                "needs_processing": not bool(row["is_fully_scored"]) or not bool(row["is_keywords_processed"])
+            }
+            for row in rows
+        ]
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+@mcp.tool(annotations=_RW)
+@_require_db
+def process_newly_imported_folders(days: int = 7, job_type: str = "scoring", path_pattern: Optional[str] = None) -> dict:
+    """
+    Trigger background processing jobs for newly imported folders that haven't been completed yet.
+    job_type can be 'scoring', 'tagging', 'clustering', or 'bird_species'.
+    """
+    try:
+        folders = db.get_newly_imported_folders(days=days, min_images=1, path_pattern=path_pattern)
+        triggered = []
+        skipped = []
+        errors = []
+        
+        for f in folders:
+            path = f["path"]
+            needs_work = False
+            if job_type == "scoring" and not f["is_fully_scored"]:
+                needs_work = True
+            elif job_type == "tagging" and not f["is_keywords_processed"]:
+                needs_work = True
+            elif job_type in ("clustering", "bird_species"):
+                needs_work = True # Always check these if requested for recent folders
+                
+            if needs_work:
+                # Reuse the run_processing_job logic or trigger directly if runners are available
+                res = run_processing_job(job_type, path)
+                if "error" in res:
+                    errors.append({"path": path, "error": res["error"]})
+                else:
+                    triggered.append(path)
+            else:
+                skipped.append(path)
+        
+        return {
+            "status": "success" if not errors else "partial_success",
+            "triggered_count": len(triggered),
+            "triggered_folders": triggered,
+            "skipped_count": len(skipped),
+            "skipped_folders": skipped,
+            "errors": errors
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool(annotations=_RO)
@@ -517,48 +714,6 @@ def get_stacks_summary(folder_path: Optional[str] = None) -> dict:
 
 @mcp.tool(annotations=_RO)
 @_require_db
-def get_failed_images(limit: int = 50) -> list:
-    """Get images that failed processing or have missing scores."""
-    with db.connection() as conn:
-        c = conn.cursor()
-
-        try:
-            c.execute("""
-                SELECT id, file_path, file_name, created_at,
-                       score_general, score_technical, score_aesthetic,
-                       score_spaq, score_koniq, score_liqe
-                FROM images
-                WHERE (score_general IS NULL OR score_general = 0)
-                   OR (score_technical IS NULL OR score_technical = 0)
-                   OR (score_spaq IS NULL OR score_spaq = 0)
-                   OR (score_koniq IS NULL OR score_koniq = 0)
-                ORDER BY created_at DESC
-                FETCH FIRST ? ROWS ONLY
-            """, (limit,))
-
-            rows = c.fetchall()
-            results = []
-            for row in rows:
-                item = dict(row)
-                missing = []
-                if not item.get('score_general') or item.get('score_general', 0) == 0:
-                    missing.append('general')
-                if not item.get('score_technical') or item.get('score_technical', 0) == 0:
-                    missing.append('technical')
-                if not item.get('score_spaq') or item.get('score_spaq', 0) == 0:
-                    missing.append('spaq')
-                if not item.get('score_koniq') or item.get('score_koniq', 0) == 0:
-                    missing.append('koniq')
-                item['missing_scores'] = missing
-                results.append(item)
-
-            return results
-        except Exception as e:
-            return [{"error": str(e)}]
-
-
-@mcp.tool(annotations=_RO)
-@_require_db
 def get_incomplete_images(limit: int = 100) -> list:
     """Images with missing composite scores, model scores, rating, or label (broader than get_failed_images)."""
     try:
@@ -566,6 +721,60 @@ def get_incomplete_images(limit: int = 100) -> list:
         return [_sanitize_for_mcp(dict(row)) for row in rows]
     except Exception as e:
         return [{"error": str(e)}]
+
+
+_SCORE_FAIL_COLUMNS = (
+    ("score_general", "general"),
+    ("score_technical", "technical"),
+    ("score_spaq", "spaq"),
+    ("score_koniq", "koniq"),
+    ("score_ava", "ava"),
+    ("score_paq2piq", "paq2piq"),
+    ("score_liqe", "liqe"),
+)
+
+
+@mcp.tool(annotations=_RO)
+@_require_db
+def get_failed_images(limit: int = 50, offset: int = 0) -> dict:
+    """Images missing key quality scores (NULL or <= 0): general, technical, spaq, koniq, ava, paq2piq, liqe.
+
+    Narrower than ``get_incomplete_images`` (no rating/label requirement). See also ``get_error_summary`` for counts.
+    """
+    lim = max(1, min(int(limit), 500))
+    off = max(0, int(offset))
+    or_parts = [f"(i.{col} IS NULL OR i.{col} <= 0)" for col, _ in _SCORE_FAIL_COLUMNS]
+    where_sql = "(" + " OR ".join(or_parts) + ")"
+    conn = db.get_connector()
+    try:
+        count_row = conn.query_one(f"SELECT COUNT(*) AS c FROM images i WHERE {where_sql}", ())
+        total = int((count_row or {}).get("c") or 0)
+        rows = conn.query(
+            f"""
+            SELECT i.id, i.file_path, i.score_general, i.score_technical, i.score_spaq, i.score_koniq,
+                   i.score_ava, i.score_paq2piq, i.score_liqe, i.created_at
+            FROM images i
+            WHERE {where_sql}
+            ORDER BY i.created_at DESC NULLS LAST, i.id DESC
+            OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
+            """,
+            (off, lim),
+        )
+    except Exception as e:
+        return {"error": str(e), "items": [], "total": 0}
+
+    items = []
+    for r in rows or []:
+        d = dict(r)
+        missing = []
+        for col, label in _SCORE_FAIL_COLUMNS:
+            v = d.get(col)
+            if v is None or (isinstance(v, (int, float)) and v <= 0):
+                missing.append(label)
+        d["missing_scores"] = missing
+        items.append(_sanitize_for_mcp(d))
+
+    return {"total": total, "offset": off, "limit": lim, "items": items}
 
 
 @mcp.tool(annotations=_RO)
@@ -620,6 +829,12 @@ def get_error_summary() -> dict:
 
         except Exception as e:
             summary["error"] = str(e)
+
+        try:
+            stale = db.list_stale_running_image_phase_rows(min_age_seconds=3600, limit=1)
+            summary["stale_running_count"] = int(stale.get("count_estimate") or 0)
+        except Exception:
+            summary["stale_running_count"] = None
 
         return summary
 
@@ -719,115 +934,76 @@ def check_database_health() -> dict:
 
 @mcp.tool(annotations=_RO)
 @_require_db
-def validate_file_paths(limit: int = 100) -> dict:
-    """Validate that file paths in database actually exist on the filesystem."""
-    with db.connection() as conn:
-        c = conn.cursor()
-        results = {
-            "checked": 0,
-            "exists": 0,
-            "missing": 0,
-            "missing_files": []
-        }
-
-        try:
-            c.execute("""
-                SELECT id, file_path FROM images
-                WHERE file_path IS NOT NULL AND file_path != ''
-                ORDER BY created_at DESC
-                FETCH FIRST ? ROWS ONLY
-            """, (limit,))
-
-            rows = c.fetchall()
-            results["checked"] = len(rows)
-
-            for row in rows:
-                file_path = row[1]
-                if os.path.exists(file_path):
-                    results["exists"] += 1
-                else:
-                    results["missing"] += 1
-                    results.get("missing_files").append({
-                        "id": row[0],
-                        "file_path": file_path
-                    })
-
-        except Exception as e:
-            results["error"] = str(e)
-
-        return results
-
-
-@mcp.tool(annotations=_RO)
-def summarize_directory(path: str) -> dict:
-    """Fast directory summary using os.scandir to avoid hangs on large folders.
-    Returns counts of common image types and total size."""
-    if not os.path.isdir(path):
-        return {"error": f"Path {path} is not a directory or is inaccessible"}
-
-    summary = {
-        "path": path,
-        "total_files": 0,
-        "jpg_count": 0,
-        "nef_count": 0,
-        "xmp_count": 0,
-        "other_count": 0,
-        "total_size_bytes": 0,
-        "subfolders": 0
+def validate_file_paths(
+    limit: int = 100,
+    folder_path: Optional[str] = None,
+    missing_only: bool = False,
+) -> dict:
+    """Validate that image ``file_path`` values exist on disk. Optional ``folder_path`` restricts to images under that folder path (exact ``folders.path`` match or descendants). When ``missing_only`` is true, only missing files are listed (scans up to ``limit`` missing rows, expanding the DB fetch window)."""
+    lim = max(1, min(int(limit), 5000))
+    fetch_cap = lim if not missing_only else min(20_000, max(lim * 20, lim))
+    conn = db.get_connector()
+    results: dict[str, Any] = {
+        "checked": 0,
+        "exists": 0,
+        "missing": 0,
+        "missing_files": [],
+        "folder_path": os.path.normpath(folder_path.strip()) if folder_path and str(folder_path).strip() else None,
+        "missing_only": bool(missing_only),
     }
 
     try:
-        with os.scandir(path) as it:
-            for entry in it:
-                if entry.is_file():
-                    summary["total_files"] += 1
-                    summary["total_size_bytes"] += entry.stat().st_size
-                    ext = os.path.splitext(entry.name)[1].lower()
-                    if ext == ".jpg" or ext == ".jpeg":
-                        summary["jpg_count"] += 1
-                    elif ext == ".nef":
-                        summary["nef_count"] += 1
-                    elif ext == ".xmp":
-                        summary["xmp_count"] += 1
-                    else:
-                        summary["other_count"] += 1
-                elif entry.is_dir():
-                    summary["subfolders"] += 1
+        if results["folder_path"]:
+            norm = results["folder_path"]
+            plike_u = norm + "/%"
+            plike_w = norm + "\\%"
+            rows = conn.query(
+                """
+                SELECT i.id, i.file_path FROM images i
+                INNER JOIN folders f ON f.id = i.folder_id
+                WHERE i.file_path IS NOT NULL AND TRIM(i.file_path) != ''
+                  AND (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+                ORDER BY i.created_at DESC NULLS LAST, i.id DESC
+                FETCH FIRST ? ROWS ONLY
+                """,
+                (norm, plike_u, plike_w, fetch_cap),
+            )
+        else:
+            rows = conn.query(
+                """
+                SELECT id, file_path FROM images
+                WHERE file_path IS NOT NULL AND TRIM(file_path) != ''
+                ORDER BY created_at DESC NULLS LAST, id DESC
+                FETCH FIRST ? ROWS ONLY
+                """,
+                (fetch_cap,),
+            )
     except Exception as e:
-        summary["error"] = str(e)
+        results["error"] = str(e)
+        return results
 
-    return summary
+    examined = 0
+    for row in rows or []:
+        rid = row.get("id")
+        file_path = row.get("file_path")
+        if not file_path:
+            continue
+        examined += 1
+        if os.path.exists(file_path):
+            results["exists"] += 1
+            if missing_only:
+                continue
+        else:
+            results["missing"] += 1
+            results["missing_files"].append({"id": rid, "file_path": file_path})
+        if missing_only:
+            if results["missing"] >= lim:
+                break
+        elif examined >= lim:
+            break
 
-
-@mcp.tool(annotations=_RO)
-def search_missing_sidecars(path: str) -> dict:
-    """Identify NEF images in a folder that are missing corresponding XMP sidecar files."""
-    if not os.path.isdir(path):
-        return {"error": f"Path {path} is not a directory"}
-
-    nefs = set()
-    xmps = set()
-
-    try:
-        for entry in os.scandir(path):
-            if entry.is_file():
-                name, ext = os.path.splitext(entry.name)
-                ext = ext.lower()
-                if ext == ".nef":
-                    nefs.add(name)
-                elif ext == ".xmp":
-                    xmps.add(name)
-
-        missing = list(nefs - xmps)
-        return {
-            "path": path,
-            "nef_total": len(nefs),
-            "xmp_total": len(xmps),
-            "missing_sidecars_count": len(missing),
-            "missing_sidecars": sorted(missing)[:50]  # Limit to first 50
-        }
-    except Exception as e:
-        return {"error": str(e)}
+    results["checked"] = examined
+    return results
 
 
 @mcp.tool(annotations=_RO)
@@ -1008,11 +1184,127 @@ def get_job_execution_report(run_id: int, phase_code: Optional[str] = None, acti
     jid = int(run_id)
     report = db.get_job_report(jid)
     actions = db.get_job_image_actions(jid, phase_code, action, offset, limit)
+    summary: dict[str, Any] = {"action_counts": {}}
+    try:
+        conn = db.get_connector()
+        act_rows = conn.query(
+            """
+            SELECT LOWER(TRIM(COALESCE(action, ''))) AS act, COUNT(*) AS c
+            FROM job_image_actions
+            WHERE job_id = ?
+            GROUP BY LOWER(TRIM(COALESCE(action, '')))
+            """,
+            (jid,),
+        )
+        for r in act_rows or []:
+            act = (r.get("act") or "").strip() or "unknown"
+            summary["action_counts"][act] = int(r.get("c") or 0)
+    except Exception as e:
+        summary["error"] = str(e)
+
     return _sanitize_for_mcp({
         "job_id": jid,
         "report": report,
         "image_actions": actions,
+        "summary": summary,
     })
+
+
+@mcp.tool(annotations=_RO)
+@_require_db
+def get_image_pipeline_failures(
+    image_id: Optional[int] = None,
+    file_path: Optional[str] = None,
+    limit: int = 50,
+) -> dict:
+    """Recent ``job_image_actions`` rows with action ``failed`` for one image (by ``image_id`` or ``file_path``).
+
+    Joins ``jobs`` for terminal status and log snippet. Use after locating an image via ``query_images`` / ``get_image_details``.
+    """
+    if not image_id and not (file_path and str(file_path).strip()):
+        return {"error": "Provide image_id or file_path", "items": []}
+
+    conn = db.get_connector()
+    iid: int | None = int(image_id) if image_id is not None else None
+    if iid is None and file_path:
+        fp = os.path.normpath(str(file_path).strip())
+        row = conn.query_one("SELECT id FROM images WHERE file_path = ?", (fp,))
+        if not row:
+            return {"error": "image_not_found", "file_path": fp, "items": []}
+        iid = int(row["id"])
+
+    lim = max(1, min(int(limit), 200))
+    try:
+        rows = conn.query(
+            """
+            SELECT jia.id, jia.job_id, jia.phase_code, jia.action, jia.reason,
+                   jia.before_snapshot, jia.after_snapshot, jia.created_at,
+                   j.status AS job_status, j.log AS job_log
+            FROM job_image_actions jia
+            LEFT JOIN jobs j ON j.id = jia.job_id
+            WHERE jia.image_id = ?
+              AND LOWER(TRIM(jia.action)) = 'failed'
+            ORDER BY jia.created_at DESC NULLS LAST, jia.id DESC
+            FETCH FIRST ? ROWS ONLY
+            """,
+            (iid, lim),
+        )
+    except Exception as e:
+        return {"error": str(e), "image_id": iid, "items": []}
+
+    items = []
+    for r in rows or []:
+        d = dict(r)
+        for k in ("before_snapshot", "after_snapshot", "job_log"):
+            v = d.get(k)
+            if isinstance(v, str) and len(v) > 2000:
+                d[k] = v[:2000] + "…"
+        items.append(_sanitize_for_mcp(d))
+
+    return {"image_id": iid, "items": items}
+
+
+@mcp.tool(annotations=_RO)
+@_require_db
+def get_location_stats() -> dict:
+    """Summarize GPS and geocode coverage in ``image_exif`` (PostgreSQL; requires migration 0013 columns)."""
+    if config.get_database_engine() != "postgres":
+        return {"error": "get_location_stats is supported on PostgreSQL only.", "database_engine": config.get_database_engine()}
+    conn = db.get_connector()
+    try:
+        row = conn.query_one(
+            """
+            SELECT
+                COUNT(*) AS total_rows,
+                COUNT(*) FILTER (WHERE gps_latitude IS NOT NULL AND gps_longitude IS NOT NULL) AS with_gps,
+                COUNT(*) FILTER (WHERE geocoded_at IS NOT NULL) AS geocoded,
+                COUNT(*) FILTER (
+                    WHERE gps_latitude IS NOT NULL AND gps_longitude IS NOT NULL AND geocoded_at IS NULL
+                ) AS gps_not_geocoded
+            FROM image_exif
+            """,
+            (),
+        )
+    except Exception as e:
+        return {"error": str(e), "note": "Ensure image_exif GPS/geocode columns exist (Alembic 0013)."}
+
+    return _sanitize_for_mcp(dict(row) if row else {})
+
+
+@mcp.tool(annotations=_RO)
+def export_debug_bundle(output_path: Optional[str] = None) -> dict:
+    """Write a redacted support zip (config, environment, doctor JSON, log tails). Same content as ``scripts/export_debug_bundle.py``."""
+    from pathlib import Path
+
+    from modules.debug_bundle_export import write_redacted_debug_bundle
+
+    op = Path(os.path.expanduser(output_path)).resolve() if output_path and str(output_path).strip() else None
+    if op is not None:
+        if op.suffix.lower() != ".zip":
+            return {"error": "output_path must end with .zip", "success": False}
+        op.parent.mkdir(parents=True, exist_ok=True)
+
+    return write_redacted_debug_bundle(output_zip=op)
 
 
 @mcp.tool(annotations=_RO)
@@ -1204,67 +1496,6 @@ def get_embedding_stats(
         "expected_embedding_dim": expected_dim,
         "per_space": _per_space_counts(is_postgres),
     }
-
-
-def _probe_path_allowed(path: str) -> tuple[bool, str]:
-    p = (path or "").strip()
-    if not p.startswith("/"):
-        return False, "path must start with /"
-    if "\n" in p or "\r" in p or "://" in p:
-        return False, "invalid path"
-    if ".." in p:
-        return False, "path must not contain .."
-    if len(p) > 512:
-        return False, "path too long"
-    return True, p
-
-
-@mcp.tool(annotations=_RO)
-def probe_backend_http(path: str, timeout_ms: int = 10000) -> dict:
-    """GET a path on the configured scoring WebUI base URL (e.g. /api/health, /api/scope/tree). Returns status, elapsed_ms, and a short body preview. Read-only; path is constrained to same-origin relative URLs."""
-    ok, msg = _probe_path_allowed(path)
-    if not ok:
-        return {"error": msg, "path": path}
-
-    db_sec = config.get_config_section("database") or {}
-    base = str(db_sec.get("api_url", "") or "").strip().rstrip("/")
-    if not base:
-        port = config.get_config_value("webui_port", default=7860)
-        try:
-            port = int(port)
-        except (TypeError, ValueError):
-            port = 7860
-        base = f"http://127.0.0.1:{port}"
-
-    url = base + msg
-    timeout_ms = max(100, min(int(timeout_ms), 120000))
-    try:
-        import httpx
-    except ImportError:
-        return {"error": "httpx not installed", "url": url}
-
-    t0 = time.perf_counter()
-    try:
-        with httpx.Client(timeout=timeout_ms / 1000.0) as client:
-            resp = client.get(url)
-        elapsed_ms = int((time.perf_counter() - t0) * 1000)
-        body = resp.text or ""
-        preview = body[:4000] + ("…" if len(body) > 4000 else "")
-        return {
-            "url": url,
-            "status_code": resp.status_code,
-            "elapsed_ms": elapsed_ms,
-            "content_length_header": resp.headers.get("content-length"),
-            "body_chars": len(body),
-            "body_preview": preview,
-        }
-    except Exception as e:
-        elapsed_ms = int((time.perf_counter() - t0) * 1000)
-        return {
-            "url": url,
-            "error": str(e),
-            "elapsed_ms": elapsed_ms,
-        }
 
 
 @mcp.tool(annotations=_RO)
@@ -1542,20 +1773,6 @@ def prune_missing_files(dry_run: bool = True) -> dict:
 
 
 @mcp.tool(annotations=_RO)
-def get_gallery_status() -> dict:
-    """Get the current state of the Gradio WebUI gallery and active runners."""
-    status = {
-        "webui_active": _gradio_context is not None,
-        "runners": {
-            "scoring": _scoring_runner is not None and not getattr(_scoring_runner, "_stop_event", None).is_set() if _scoring_runner else False,
-            "tagging": _tagging_runner is not None and not getattr(_tagging_runner, "_stop_event", None).is_set() if _tagging_runner else False,
-        },
-        "gradio_tabs": list(_gradio_context.get("components", {}).keys()) if _gradio_context else []
-    }
-    return status
-
-
-@mcp.tool(annotations=_RO)
 def verify_environment() -> dict:
     """Comprehensive environment check: GPU, DB, Python, and system stats."""
     import torch
@@ -1585,6 +1802,57 @@ def verify_environment() -> dict:
         }
     }
     return status
+
+
+@mcp.tool(annotations=_RO)
+def get_system_resources() -> dict:
+    """CPU and RAM snapshot plus optional ``nvidia-smi`` GPU rows. Does not require database access."""
+    out: dict[str, Any] = {"cpu_percent": None, "memory": {}, "gpu": {}}
+    try:
+        import psutil
+
+        out["cpu_percent"] = round(psutil.cpu_percent(interval=0.1), 2)
+        vm = psutil.virtual_memory()
+        out["memory"] = {
+            "total_gb": round(vm.total / (1024**3), 2),
+            "available_gb": round(vm.available / (1024**3), 2),
+            "percent_used": vm.percent,
+        }
+    except Exception as e:
+        out["memory_error"] = str(e)
+
+    try:
+        import subprocess
+
+        proc = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.used,memory.total,utilization.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        gpus: list[dict[str, str]] = []
+        if proc.returncode == 0 and proc.stdout.strip():
+            for line in proc.stdout.strip().splitlines():
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) >= 4:
+                    gpus.append(
+                        {
+                            "name": parts[0],
+                            "memory_used_mb": parts[1],
+                            "memory_total_mb": parts[2],
+                            "utilization_gpu_pct": parts[3],
+                        }
+                    )
+        out["gpu"]["nvidia_smi"] = gpus
+    except Exception as e:
+        out["gpu"]["error"] = str(e)
+
+    return out
 
 
 @mcp.tool(annotations=_RO)
@@ -1911,73 +2179,141 @@ def get_model_status() -> dict:
 @mcp.tool(annotations=_RW)
 @_require_db
 def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dict:
-    """Trigger a background processing job (scoring, tagging, clustering/stacks, or bird_species)."""
-    import uuid
+    """Trigger a background processing job (scoring, tagging, clustering/stacks, or bird_species).
 
+    Creates a ``jobs`` row and returns integer ``job_id`` / ``jobs_id`` (same value) for use with
+    ``get_job_details``, ``get_run_diagnostics``, and ``get_job_execution_report``.
+    """
     if args is None:
         args = {}
 
-    job_id = f"mcp_{job_type}_{uuid.uuid4().hex[:8]}"
-
     if not os.path.exists(input_path) and not (job_type == "clustering" and (not input_path or not input_path.strip())):
         return {"error": f"Input path not found: {input_path}"}
+
+    def _ok_payload(res: str, jid: int) -> dict:
+        return {"status": res, "job_id": jid, "jobs_id": jid}
 
     if job_type == "scoring":
         if not _scoring_runner:
             return {"error": "Scoring runner not available"}
         if _scoring_runner.is_running:
             return {"error": "Scoring job already running"}
+        jid = db.create_job(input_path, phase_code="scoring")
+        db.create_job_phases(jid, ["scoring"])
         res = _scoring_runner.start_batch(
             input_path,
-            job_id,
-            skip_existing=not args.get("rescore", False)
+            jid,
+            skip_existing=not args.get("rescore", False),
         )
-        return {"status": res, "job_id": job_id}
+        return _ok_payload(res, jid)
 
-    elif job_type == "tagging":
+    if job_type == "tagging":
         if not _tagging_runner:
             return {"error": "Tagging runner not available"}
         if _tagging_runner.is_running:
             return {"error": "Tagging job already running"}
+        jid = db.create_job(input_path, phase_code="keywords")
+        db.create_job_phases(jid, ["keywords"])
         custom_keywords = args.get("custom_keywords")
+        generate_captions = config.get_config_section("tagging").get("captions_default", True)
         res = _tagging_runner.start_batch(
             input_path,
+            jid,
+            custom_keywords=custom_keywords,
             overwrite=args.get("overwrite", False),
-            custom_keywords=custom_keywords
+            generate_captions=generate_captions,
         )
-        return {"status": res, "job_id": job_id}
+        return _ok_payload(res, jid)
 
-    elif job_type == "clustering":
-        if not _clustering_runner:
-            return {"error": "Clustering runner not available (not initialized)"}
-        if _clustering_runner.is_running:
+    if job_type == "clustering":
+        culling_runner = _selection_runner or _clustering_runner
+        if not culling_runner:
+            return {"error": "Clustering/selection runner not available (not initialized)"}
+        if culling_runner.is_running:
             return {"error": "Clustering job already running"}
         cluster_path = input_path.strip() if input_path and input_path.strip() else None
-        res = _clustering_runner.start_batch(
-            cluster_path,
-            threshold=args.get("threshold"),
-            time_gap=args.get("time_gap"),
-            force_rescan=args.get("force_rescan", False),
-            job_id=job_id
-        )
-        return {"status": res, "job_id": job_id}
+        store_path = cluster_path or "CLUSTERING"
+        jid = db.create_job(store_path, phase_code="culling")
+        db.create_job_phases(jid, ["culling"])
+        if _selection_runner and culling_runner is _selection_runner:
+            res = _selection_runner.start_batch(
+                input_path or "",
+                job_id=jid,
+                force_rescan=args.get("force_rescan", False),
+            )
+        else:
+            res = _clustering_runner.start_batch(
+                cluster_path,
+                threshold=args.get("threshold"),
+                time_gap=args.get("time_gap"),
+                force_rescan=args.get("force_rescan", False),
+                job_id=jid,
+            )
+        return _ok_payload(res, jid)
 
-    elif job_type == "bird_species":
+    if job_type == "bird_species":
         if not _bird_species_runner:
             return {"error": "Bird species runner not available"}
         if _bird_species_runner.is_running:
             return {"error": "Bird species job already running"}
+        jid = db.create_job(input_path or "BIRD_SPECIES", phase_code="bird_species")
+        db.create_job_phases(jid, ["bird_species"])
         res = _bird_species_runner.start_batch(
             input_path,
+            job_id=jid,
             threshold=args.get("threshold", 0.1),
             top_k=args.get("top_k", 3),
             overwrite=args.get("overwrite", False),
             candidate_species=args.get("candidate_species"),
         )
-        return {"status": res, "job_id": job_id}
+        return _ok_payload(res, jid)
 
-    else:
-        return {"error": f"Unknown job type: {job_type}"}
+    return {"error": f"Unknown job type: {job_type}"}
+
+
+@mcp.tool(annotations=_RW)
+def manage_runners(runner: str, operation: str) -> dict:
+    """Request ``stop`` or read ``status`` for an in-process background runner (WebUI / SSE context). Starting jobs is not supported here — use ``run_processing_job`` or the UI."""
+    r = (runner or "").strip().lower()
+    op = (operation or "").strip().lower()
+    if op == "start":
+        return {
+            "success": False,
+            "error": "Starting jobs is not supported via manage_runners; use run_processing_job or the Web UI.",
+        }
+    if op not in ("stop", "status"):
+        return {"success": False, "error": "operation must be 'stop' or 'status' (or 'start', which is rejected)."}
+
+    mapping: dict[str, Any] = {
+        "scoring": _scoring_runner,
+        "tagging": _tagging_runner,
+        "clustering": _clustering_runner,
+        "selection": _selection_runner,
+        "indexing": _indexing_runner,
+        "metadata": _metadata_runner,
+        "bird_species": _bird_species_runner,
+        "maintenance": _maintenance_runner,
+    }
+    if r not in mapping:
+        return {"success": False, "error": f"Unknown runner '{runner}'.", "known": sorted(mapping.keys())}
+
+    obj = mapping[r]
+    if obj is None:
+        return {"success": False, "error": f"Runner '{r}' is not wired in this process."}
+
+    if op == "status":
+        is_running = bool(getattr(obj, "is_running", False))
+        msg = str(getattr(obj, "status_message", "") or "")[:500]
+        return {"success": True, "runner": r, "is_running": is_running, "status_message": msg}
+
+    stop_fn = getattr(obj, "stop", None)
+    if not callable(stop_fn):
+        return {"success": False, "error": f"Runner '{r}' has no stop() method."}
+    try:
+        stop_fn()
+        return {"success": True, "runner": r, "message": "stop() invoked"}
+    except Exception as e:
+        return {"success": False, "runner": r, "error": str(e)}
 
 
 # ============================================================
@@ -1986,13 +2322,17 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
 
 @mcp.tool(annotations=_RO)
 def get_config() -> dict:
-    """Get current application configuration (config.json merged with environment.json)."""
-    cfg = config.load_config()
-    # Add internal MCP status for debugging
+    """Get current application configuration (config.json merged with environment.json). Sensitive keys are redacted."""
+    from modules.redact_sensitive import redact_json_obj
+
+    cfg = redact_json_obj(config.load_config())
+    if not isinstance(cfg, dict):
+        cfg = {"_raw": cfg}
+    cfg = dict(cfg)
     cfg["_mcp_status"] = {
         "db_available": _db_available,
         "last_db_error": _last_db_error,
-        "version": "1.0.1-resilient"
+        "version": "1.0.1-resilient",
     }
     return cfg
 
@@ -2068,6 +2408,68 @@ def get_server_log_tail(sources: str = "all", lines: int = 100) -> dict:
         return {"error": str(e)}
 
 
+@mcp.tool(annotations=_RO)
+def search_logs(
+    pattern: str,
+    sources: str = "all",
+    context_lines: int = 2,
+    max_lines_scan: int = 25000,
+    max_matches_per_file: int = 40,
+    case_insensitive: bool = True,
+) -> dict:
+    """Search the tail of ``webui.log`` / ``debug.log`` for a regex ``pattern``; returns matching lines with optional context."""
+    from modules.ui import log_views
+
+    spec = (sources or "all").strip().lower()
+    if spec in ("all", "*", ""):
+        file_ids = ("webui", "debug")
+    elif spec in ("webui", "debug"):
+        file_ids = (spec,)
+    else:
+        return {"error": "sources must be 'all', 'webui', or 'debug'"}
+
+    ctx = max(0, min(int(context_lines), 50))
+    max_scan = max(100, min(int(max_lines_scan), 100_000))
+    cap = max(1, min(int(max_matches_per_file), 200))
+    flags = re.IGNORECASE if case_insensitive else 0
+    try:
+        rx = re.compile(pattern, flags)
+    except re.error as e:
+        return {"error": f"invalid_regex: {e}"}
+
+    out: dict[str, Any] = {"pattern": pattern, "matches": []}
+
+    for sid in file_ids:
+        path = log_views.resolve_webui_log_path() if sid == "webui" else log_views.resolve_debug_log_path()
+        tail = log_views.read_log_tail(path, max_scan)
+        lines = tail.get("lines") or []
+        total = tail.get("total_lines")
+        if not lines:
+            continue
+        base = int(total or len(lines)) - len(lines)
+        n_matches = 0
+        for i, line in enumerate(lines):
+            if not rx.search(line):
+                continue
+            lo = max(0, i - ctx)
+            hi = min(len(lines), i + ctx + 1)
+            out["matches"].append(
+                {
+                    "source": sid,
+                    "path": tail.get("path"),
+                    "line_number": base + i + 1,
+                    "line": line[:4000],
+                    "context_before": lines[lo:i],
+                    "context_after": lines[i + 1 : hi],
+                }
+            )
+            n_matches += 1
+            if n_matches >= cap:
+                break
+
+    return out
+
+
 # ============================================================
 # Advanced Search Tools
 # ============================================================
@@ -2098,6 +2500,40 @@ def search_similar_images(
         min_similarity=min_similarity,
         embedding_space=embedding_space,
     )
+
+
+@mcp.tool(annotations=_RO)
+@_require_db
+def search_images_by_text(
+    query: str,
+    limit: int = 20,
+    folder_path: Optional[str] = None,
+    min_similarity: Optional[float] = None,
+) -> dict:
+    """Search images by free-text query using CLIP text-to-image similarity.
+
+    Encodes the query with the CLIP ViT-B/32 text tower and searches against
+    stored ``clip_vit_b32_image`` embeddings via pgvector cosine distance.
+    Requires PostgreSQL and images with CLIP embeddings (produced during tagging).
+
+    Examples: ``"sunset over mountains"``, ``"a bird on a branch"``,
+    ``"portrait with dramatic lighting"``.
+    """
+    from modules import similar_search
+    result = similar_search.search_by_text(
+        query=query,
+        limit=limit,
+        folder_path=folder_path,
+        min_similarity=min_similarity,
+    )
+    if isinstance(result, dict) and "error" in result:
+        return result
+    return {
+        "query": query,
+        "results": result,
+        "count": len(result),
+        "embedding_space": "clip_vit_b32_image",
+    }
 
 
 @mcp.tool(annotations=_RO)
@@ -2353,7 +2789,7 @@ if __name__ == "__main__":
     # Run standalone - NO print statements allowed! MCP uses stdio for JSON protocol.
     # All output must go to stderr, not stdout.
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
-    logger.info("Starting Image Scoring MCP Server...")
+    logger.info("Starting Vexlum Scoring MCP server...")
 
     # Initialize runners for standalone mode
     try:

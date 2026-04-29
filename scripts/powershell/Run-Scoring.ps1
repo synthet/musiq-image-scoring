@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Universal Image Scoring Runner
+    Universal Vexlum scoring runner
     Accepts a File or a Folder.
     - If Folder: Runs batch processing (WSL) + Gallery Generation.
     - If File: Runs single image scoring (WSL).

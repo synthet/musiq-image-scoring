@@ -122,7 +122,7 @@ The changes implement a **multi-model, multi-source image quality assessment sys
 | File | Purpose |
 |------|---------|
 | **`docs/reference/models/MODEL_WEIGHTS.md`** | Documents current General/Aesthetic/Technical weights (e.g. PaQ2PiQ, LIQE, AVA, KonIQ, SPAQ). |
-| **`docs/plans/models/SUGGESTED_SCORING_ADJUSTMENTS.md`** | Suggests alternative weights (e.g. more LIQE, less MUSIQ) and optional use of QPT V2 / AesMamba. |
+| **`docs/planning/models/SUGGESTED_SCORING_ADJUSTMENTS.md`** | Suggests alternative weights (e.g. more LIQE, less MUSIQ) and optional use of QPT V2 / AesMamba. |
 | **`docs/reports/IAA_PAPER_ANALYSIS.md`** | Likely notes from API/docs analysis (e.g. EveryPixel, SightEngine). |
 
 ### 3.3 Tests & Utilities
@@ -213,7 +213,7 @@ The changes implement a **multi-model, multi-source image quality assessment sys
 6. **Scoring:** `modules/scoring.py` (debug logging removed).
 7. **Scripts:** `scripts/python/run_all_musiq_models.py` (debug logging removed).
 8. **UI:** `modules/ui/app.py`, `common.py`, `navigation.py`, `tabs/gallery.py`, `tabs/scoring.py`; fix gallery bugs (duplicates, Min LIQE).
-9. **Docs:** `docs/technical/MULTI_MODEL_SCORING.md`, `docs/reference/models/MODEL_WEIGHTS.md`, `docs/plans/models/SUGGESTED_SCORING_ADJUSTMENTS.md` (if desired).
+9. **Docs:** `docs/technical/MULTI_MODEL_SCORING.md`, `docs/reference/models/MODEL_WEIGHTS.md`, `docs/planning/models/SUGGESTED_SCORING_ADJUSTMENTS.md` (if desired).
 10. **Tests & utilities:** Add chosen tests/scripts and wire them into the suite.
 
 **Do not commit:** `webui.lock` (or keep as local-only), `secrets.json`, `pdf_content*.txt` (unless intentional), and any temporary debug-only edits.
@@ -235,8 +235,8 @@ The changes implement a **multi-model, multi-source image quality assessment sys
 
 - [Docs index](../INDEX.md)
 - [Model weights](../reference/models/MODEL_WEIGHTS.md)
-- [Suggested scoring adjustments](../plans/models/SUGGESTED_SCORING_ADJUSTMENTS.md)
+- [Suggested scoring adjustments](../planning/models/SUGGESTED_SCORING_ADJUSTMENTS.md)
 - [IAA paper analysis](../reports/IAA_PAPER_ANALYSIS.md)
 - [Project reviews](project-reviews/)
-- [Technical summary](../technical/TECHNICAL_SUMMARY.md)
+- [Technical summary](../architecture/technical-summary.md)
 

@@ -4,7 +4,7 @@ Selection Policy Module
 Pure deterministic policy for pick/reject band assignment within stacks.
 No I/O. Used by SelectionService for automated stack + selection workflow.
 
-Policy constants and behavior are documented in docs/plans/refactoring/STACK_CULLING_REFACTOR_PLAN.md
+Policy constants and behavior are documented in docs/planning/refactoring/STACK_CULLING_REFACTOR_PLAN.md
 """
 
 from math import floor

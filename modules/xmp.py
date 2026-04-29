@@ -213,7 +213,7 @@ def _create_xmp_template() -> ET.Element:
     """Create a minimal XMP document structure."""
     # Root xmpmeta element
     root = ET.Element(f'{{{NAMESPACES["x"]}}}xmpmeta')
-    root.set('x:xmptk', 'Image Scoring Culling Tool')
+    root.set('x:xmptk', 'Vexlum Scoring')
     
     # RDF wrapper
     rdf = ET.SubElement(root, f'{{{NAMESPACES["rdf"]}}}RDF')
@@ -835,6 +835,100 @@ def _write_metadata_embedded(image_path: str,
     except Exception as e:
         logger.error(f"Embedded metadata write failed: {e}")
         return False
+
+
+def write_gps_and_location_to_files(
+    image_path: str,
+    lat: float,
+    lon: float,
+    *,
+    city: str | None = None,
+    state: str | None = None,
+    country: str | None = None,
+    location_label: str | None = None,
+    write_embedded: bool = True,
+    write_sidecar: bool = True,
+) -> bool:
+    """
+    Write GPS and optional IPTC-style location tags using exiftool.
+    Skips sidecar if the .xmp file does not exist (does not create it).
+    """
+    import subprocess
+
+    from modules.exif_extractor import get_exiftool_path, get_exiftool_timeout_seconds
+
+    exiftool = get_exiftool_path()
+    if not exiftool:
+        logger.error("exiftool not found in PATH for GPS/location write")
+        return False
+
+    local_path = utils.convert_path_to_local(image_path)
+    if not local_path or not os.path.exists(local_path):
+        logger.error("File not found for GPS/location write: %s", image_path)
+        return False
+
+    def _args_for_target(target: str) -> list:
+        cmd = [exiftool, "-overwrite_original", "-P", "-m"]
+        gps_lat = abs(float(lat))
+        gps_lat_ref = "N" if float(lat) >= 0 else "S"
+        gps_lon = abs(float(lon))
+        gps_lon_ref = "E" if float(lon) >= 0 else "W"
+        cmd.append(f"-GPS:GPSLatitude={gps_lat}")
+        cmd.append(f"-GPS:GPSLatitudeRef={gps_lat_ref}")
+        cmd.append(f"-GPS:GPSLongitude={gps_lon}")
+        cmd.append(f"-GPS:GPSLongitudeRef={gps_lon_ref}")
+        if city:
+            cmd.append(f"-City={city}")
+        if state:
+            cmd.append(f"-State={state}")
+        if country:
+            cmd.append(f"-Country={country}")
+        if location_label:
+            cmd.append(f"-Location={location_label}")
+        cmd.append(target)
+        return cmd
+
+    success = False
+    timeout = get_exiftool_timeout_seconds(write=True)
+    if write_embedded:
+        try:
+            result = subprocess.run(
+                _args_for_target(local_path),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            if result.returncode == 0:
+                success = True
+                logger.info("Wrote GPS/location to embedded metadata: %s", local_path)
+            else:
+                logger.warning("exiftool embedded GPS/location: %s", result.stderr)
+        except subprocess.TimeoutExpired:
+            logger.error("exiftool timeout writing GPS to %s", local_path)
+        except Exception as e:
+            logger.error("exiftool embedded GPS/location failed: %s", e)
+    if write_sidecar:
+        xmp_path = get_xmp_path(image_path)
+        if os.path.exists(xmp_path):
+            try:
+                result = subprocess.run(
+                    _args_for_target(xmp_path),
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+                if result.returncode == 0:
+                    success = True
+                    logger.info("Wrote GPS/location to XMP sidecar: %s", xmp_path)
+                else:
+                    logger.warning("exiftool XMP GPS/location: %s", result.stderr)
+            except subprocess.TimeoutExpired:
+                logger.error("exiftool timeout writing GPS to XMP %s", xmp_path)
+            except Exception as e:
+                logger.error("exiftool XMP GPS/location failed: %s", e)
+        else:
+            logger.debug("No XMP sidecar for GPS write: %s", xmp_path)
+    return success
 
 
 def sync_xmp_to_db(image_path: str) -> dict:

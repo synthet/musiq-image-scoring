@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-# Docker Smoke Test for Image Scoring Environment
+# Docker smoke test for Vexlum environment
 # Checks for Docker, GPU support, and container connectivity
 
 RED='\033[0;31m'

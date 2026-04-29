@@ -370,7 +370,7 @@ Lack of a cohesive test suite (`tests/` contains ad-hoc scripts).
 
 - [Docs index](../../README.md)
 - [Project review (summary)](PROJECT_REVIEW_2026-01-31.md)
-- [Technical summary](../../technical/TECHNICAL_SUMMARY.md)
-- [Project structure](../../technical/PROJECT_STRUCTURE.md)
+- [Technical summary](../../architecture/technical-summary.md)
+- [Project structure](../../architecture/project-structure.md)
 - [Uncommitted changes analysis](../UNCOMMITTED_CHANGES_ANALYSIS.md)
 

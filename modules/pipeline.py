@@ -18,7 +18,7 @@ from modules import score_normalization as snorm
 from modules import config as app_config
 from modules.phases import PhaseCode, PhaseStatus
 from modules.version import APP_VERSION
-from modules.run_log import emit_run_log
+from modules.run_log import attach_image_log_suffix, emit_run_log
 # Lazy imports — TensorFlow/PyTorch live behind ScoringWorker._get_liqe_scorer()
 # so tests that only exercise phase gating or prep paths need not import LIQE.
 
@@ -454,20 +454,21 @@ class ResultWorker(PipelineWorker):
         self.scorer = scorer_instance
         self._folder_agg_dirty_ids = folder_agg_dirty_ids
 
-    def _progress(self, msg: str, level: str = "INFO") -> None:
+    def _progress(self, msg: str, level: str = "INFO", *, image_id: Optional[int] = None) -> None:
         if not self.progress_callback:
             return
+        out = attach_image_log_suffix(msg, image_id)
         try:
-            self.progress_callback(msg, level)
+            self.progress_callback(out, level)
         except TypeError:
-            self.progress_callback(msg)
+            self.progress_callback(out)
 
     def process(self, job: ImageJob):
         collector = getattr(self, "report_collector", None)
 
         # 1. Handle Status
         if job.status == "skipped":
-            self._progress(f"Skipped: {job.image_path}", "INFO")
+            self._progress(f"Skipped: {job.image_path}", "INFO", image_id=job.image_id)
             if job.image_id and _is_phase_targeted(job.target_phases, PhaseCode.SCORING):
                 thumb = job.thumbnail_path
                 if not thumb or not os.path.isfile(thumb):
@@ -478,7 +479,7 @@ class ResultWorker(PipelineWorker):
                     collector.record_skip(job.image_id, job.skip_reason or "scoring_policy_skip")
 
         elif job.status == "failed":
-            self._progress(f"FAILED: {job.image_path} - {job.error}", "ERROR")
+            self._progress(f"FAILED: {job.image_path} - {job.error}", "ERROR", image_id=job.image_id)
             if job.image_id:
                 db.set_image_phase_status(
                     job.image_id,
@@ -500,7 +501,11 @@ class ResultWorker(PipelineWorker):
                 try:
                     normalized_scores_dict = {}
                     for m_name, m_res in job.result["models"].items():
-                         if m_res.get("status") == "success":
+                         # Shadow models run alongside production but must NOT contribute
+                         # to fused scores (Phase 1 shadow-mode). The host stamps
+                         # is_shadow=True on those rows; legacy results omit the key
+                         # entirely, which `not m_res.get("is_shadow")` treats as production.
+                         if m_res.get("status") == "success" and not m_res.get("is_shadow"):
                              normalized_scores_dict[m_name] = m_res.get("normalized_score", 0)
 
                     result_all = snorm.compute_all(normalized_scores_dict)
@@ -532,7 +537,7 @@ class ResultWorker(PipelineWorker):
                         }
                         
                 except Exception as e:
-                    self._progress(f"Metadata Write Failed: {e}", "WARNING")
+                    self._progress(f"Metadata Write Failed: {e}", "WARNING", image_id=job.image_id)
 
             # Upsert
             try:
@@ -575,7 +580,11 @@ class ResultWorker(PipelineWorker):
                                               job_id=job.job_id)
 
                 score = job.result.get("summary", {}).get("weighted_scores", {}).get("general", 0)
-                self._progress(f"Scored: {Path(job.image_path).name} - {score:.2f}", "INFO")
+                self._progress(
+                    f"Scored: {Path(job.image_path).name} - {score:.2f}",
+                    "INFO",
+                    image_id=job.image_id,
+                )
 
                 # Record after-snapshot for execution trail.
                 if collector and job.image_id:
@@ -604,7 +613,7 @@ class ResultWorker(PipelineWorker):
                                               job_id=job.job_id, error=str(e))
                     if collector:
                         collector.record_failure(job.image_id, str(e))
-                self._progress(f"DB Error: {e}", "ERROR")
+                self._progress(f"DB Error: {e}", "ERROR", image_id=job.image_id)
         
         # 2. Cleanup
         for p in job.temp_files:

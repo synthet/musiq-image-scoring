@@ -83,8 +83,21 @@ def get_percentile_anchors() -> dict:
 
 
 def get_composite_weights() -> dict:
+    """Composite (fusion) weights per category.
+
+    Resolution order:
+      1. ``scoring.fusion`` (canonical, lives next to ``scoring.models``)
+      2. ``composite_weights`` (legacy top-level, kept for back-compat)
+      3. ``DEFAULT_COMPOSITE_WEIGHTS``
+    """
     cfg = _load_config()
-    return cfg.get("composite_weights", DEFAULT_COMPOSITE_WEIGHTS)
+    fusion = (cfg.get("scoring") or {}).get("fusion")
+    if isinstance(fusion, dict) and fusion:
+        return fusion
+    legacy = cfg.get("composite_weights")
+    if isinstance(legacy, dict) and legacy:
+        return legacy
+    return DEFAULT_COMPOSITE_WEIGHTS
 
 
 def get_rating_thresholds() -> dict:

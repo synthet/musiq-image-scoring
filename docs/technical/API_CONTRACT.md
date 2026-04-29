@@ -1,6 +1,6 @@
 # API Contract Summary
 
-REST API for the Image Scoring WebUI. Base path: `/api`.
+REST API for the Vexlum Scoring Scoring WebUI. Base path: `/api`.
 
 ## Overview
 

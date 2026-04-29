@@ -347,6 +347,65 @@ export interface WsWorkItemDone {
 
 export type WsEvent = WsRunProgress | WsStageTransition | WsLogLine | WsQueueUpdate | WsWorkItemDone
 
+// ─── Embedding map / similarity ──────────────────────────────────────────
+
+export interface EmbeddingPoint {
+  image_id: number
+  x: number
+  y: number
+  file_path: string
+  thumbnail_path: string | null
+  label: string | null
+  rating: number | null
+  score_general: number | null
+}
+
+export interface EmbeddingMapMeta {
+  count: number
+  method: 'umap' | 't-sne' | string
+  computed_at: string
+  cache_key: string
+  embedding_space: string
+  pca_dim: number | null
+  /** Set when the backend could not produce a map (e.g. "too_few_points", "unknown_embedding_space"). */
+  error?: string
+  message?: string
+}
+
+export interface EmbeddingMapResponse {
+  points: EmbeddingPoint[]
+  meta: EmbeddingMapMeta
+}
+
+export interface EmbeddingSpace {
+  code: string
+  dim: number
+  description: string | null
+  active: boolean
+  is_default: boolean
+}
+
+export interface EmbeddingSpacesResponse {
+  spaces: EmbeddingSpace[]
+  meta: {
+    default_code: string
+    engine: string
+  }
+}
+
+export interface SimilarImage {
+  image_id: number
+  file_path: string
+  similarity: number
+}
+
+export interface SimilarImagesResponse {
+  query_image_id: number
+  results: SimilarImage[]
+  count: number
+  embedding_space?: string | null
+}
+
 // ─── Electron-compatible type aliases ────────────────────────────────────
 // Mirror electron-image-scoring's electron/types.ts for shared contracts
 

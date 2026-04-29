@@ -1,7 +1,7 @@
 # Design & Code Review: Lazy Load Full Resolution Images
 
 ## Overview
-This document details the implementation of the "Lazy Load Full Resolution" feature for the Image Scoring WebUI. The goal was to improve performance and user experience by displaying thumbnails during rapid navigation and only loading full-resolution images when the user settles on an image.
+This document details the implementation of the "Lazy Load Full Resolution" feature for the Vexlum Scoring Scoring WebUI. The goal was to improve performance and user experience by displaying thumbnails during rapid navigation and only loading full-resolution images when the user settles on an image.
 
 ## Feature Specification
 1.  **Lazy Loading**: Open full-resolution image only after a delay (debounce).

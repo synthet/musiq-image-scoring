@@ -62,7 +62,7 @@ The PDF confirms that while **MUSIQ** is a solid baseline, the field has moved f
 ## Related Documents
 
 - [Docs index](../README.md)
-- [Suggested scoring adjustments](../plans/models/SUGGESTED_SCORING_ADJUSTMENTS.md)
+- [Suggested scoring adjustments](../planning/models/SUGGESTED_SCORING_ADJUSTMENTS.md)
 - [Model weights](../reference/models/MODEL_WEIGHTS.md)
 - [Multi-model scoring](../technical/MULTI_MODEL_SCORING.md)
 

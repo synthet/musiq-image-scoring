@@ -1,6 +1,6 @@
 # Firebird Database Schema
 
-This document describes the schema of the Image Scoring Firebird database (`scoring_history.fdb`).
+This document describes the schema of the Vexlum Scoring Firebird database (`scoring_history.fdb`).
 
 ## Overview
 

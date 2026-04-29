@@ -44,9 +44,9 @@ failed           -> restarting | running                  # retry
 skipped          -> restarting | running                  # explicit rerun
 ```
 
-**DB guard rails:** none. The `VARCHAR(20)` accepts any string; the enum is enforced only in Python.
+**DB guard rails:** `CHECK ck_image_phase_status_status` covering the nine `PhaseStatus` values (added in Alembic revision `0014`, 2026-04-25). Empirical inventory before the constraint showed only `done`, `skipped`, `not_started`, `running` in production data — all members of the enum, no rewrite needed.
 
-**Recommendation for D2:** add `CHECK (status IN (...))` covering exactly the nine `PhaseStatus` values. Keep VARCHAR rather than a Postgres `ENUM` type so adding a new state remains a single migration without a `ALTER TYPE` dance.
+**Rationale for VARCHAR + CHECK rather than Postgres `ENUM`:** adding a new state remains a single migration that updates the CHECK list, without an `ALTER TYPE … ADD VALUE` dance and the transactional constraints that come with it.
 
 ---
 
@@ -75,10 +75,31 @@ skipped          -> restarting | running                  # explicit rerun
 
 **DB guard rails:** none.
 
-**Open question for D2:**
-- `error` vs `failed` — these are written from different call sites and are not normalized. Pick one canonical terminal-error value and migrate the other before adding a CHECK constraint, or include both in the allowed set and accept the redundancy.
+**Empirical inventory (2026-04-25, production):**
 
-**Recommendation for D2:** once `error`/`failed` is reconciled, add `CHECK (status IN ('pending', 'queued', 'running', 'paused', 'user_pause', 'completed', 'failed', 'cancelled', 'interrupted'))`. Consider tightening to `NOT NULL DEFAULT 'pending'` in the same migration.
+| Value | Rows | In code path? |
+|-------|------|---------------|
+| `completed` | 1236 | ✅ |
+| `failed` | 184 | ✅ |
+| `interrupted` | 97 | ✅ |
+| `cancelled` | 48 | ✅ (UK spelling) |
+| `canceled` | 21 | ⚠️ (US spelling — orphan; no current writer) |
+| `queued` | 9 | ✅ |
+| `running` | 1 | ✅ |
+
+`error`, `pending`, `paused`, and `user_pause` do **not** appear in current data despite being writable from code paths.
+
+**Open questions for D2:**
+1. `error` vs `failed` — `error` not currently written to `jobs.status` in any code path searched (only to `runner_state` and to dataclass return values such as `SelectionSummary`). Treat as **resolved**: keep `failed` as the canonical terminal-error value; do not include `error` in the allowed set unless a writer is added.
+2. `canceled` vs `cancelled` — both spellings exist in production data. Code uses `cancelled` (UK). The 21 `canceled` rows likely originate from a removed code path; data-normalization step required before constraint.
+
+**Recommendation for D2:** before adding a CHECK constraint, run a normalization pass:
+
+```sql
+UPDATE jobs SET status = 'cancelled' WHERE status = 'canceled';
+```
+
+Then add `CHECK (status IN ('pending', 'queued', 'running', 'paused', 'user_pause', 'completed', 'failed', 'cancelled', 'interrupted'))`. Tightening to `NOT NULL DEFAULT 'pending'` is a separate decision (existing nullable column allows historical `NULL`s if any).
 
 ---
 
@@ -89,19 +110,27 @@ skipped          -> restarting | running                  # explicit rerun
 | Column | `job_phases.state VARCHAR(20) NOT NULL` (no default) |
 | DDL    | [`db_postgres.py`](../../../modules/db_postgres.py) `CREATE TABLE job_phases` |
 
-**Values observed in code** (grep of `state = "..."` and `first_phase_state` defaults in `job_dispatcher` / `pipeline_orchestrator`):
+**Empirical inventory (2026-04-25, production):**
 
-| Value | Notes |
-|-------|-------|
-| `queued` | Default for `enqueue_job_with_phases(first_phase_state="queued")`. |
-| `running` | Phase is executing. |
-| `completed` | Terminal success. |
-| `failed` | Terminal failure. |
-| `cancelled` | Terminal cancel. |
+| Value | Rows | In code path? |
+|-------|------|---------------|
+| `completed` | 2023 | ✅ |
+| `pending` | 275 | ⚠️ (not in code grep — likely historical/migrated default) |
+| `failed` | 123 | ✅ |
+| `queued` | 79 | ✅ (default for `enqueue_job_with_phases`) |
+| `interrupted` | 53 | ⚠️ (not in code grep — likely written from runner crash paths) |
+| `running` | 23 | ✅ |
+| `canceled` | 17 | ⚠️ (US spelling) |
+| `skipped` | 5 | ⚠️ (not surfaced in code grep) |
+| `paused` | 4 | ⚠️ (not surfaced in code grep) |
 
 **DB guard rails:** none.
 
-**Recommendation for D2:** add `CHECK (state IN ('queued', 'running', 'completed', 'failed', 'cancelled'))`. **Naming nit:** the column is named `state`, not `status`, unlike its siblings — leave the column name alone (rename is high-churn for low value), but document this in `DB_SCHEMA.md` so consumers do not grep for the wrong key.
+**Open questions for D2:**
+1. The empirical vocab is **larger** than the code-grep vocab. Before adding a CHECK we need to either (a) add the missing writers/transitions to documentation, or (b) confirm those rows came from now-removed paths.
+2. `canceled` vs `cancelled` — same UK/US split as `jobs.status`. Normalize first.
+
+**Recommendation for D2:** defer until a code-vs-data audit reconciles the writer set. Tentative full vocabulary: `pending`, `queued`, `running`, `paused`, `completed`, `failed`, `interrupted`, `cancelled`, `skipped`. **Naming nit:** the column is named `state`, not `status`, unlike its siblings — leave the column name alone (rename is high-churn for low value), but document this in `DB_SCHEMA.md` so consumers do not grep for the wrong key.
 
 ---
 
@@ -146,15 +175,19 @@ skipped          -> restarting | running                  # explicit rerun
 
 ## Summary table for D2 planning
 
-| Column | Has CHECK today? | Recommended CHECK in D2 | Blocked by |
-|--------|------------------|--------------------------|------------|
-| `image_phase_status.status` | No | Yes — 9 `PhaseStatus` values | None |
-| `jobs.status` | No | Yes — 9–10 values | Reconcile `error` vs `failed` first |
-| `job_phases.state` | No | Yes — 5 values | None |
+| Column | Has CHECK today? | D2 status | Blocked by |
+|--------|------------------|-----------|------------|
+| `image_phase_status.status` | **Yes** (`ck_image_phase_status_status`, rev. 0014) | **Done** | — |
+| `jobs.status` | No | Pending CHECK | Spelling normalized in rev. 0015; CHECK migration outstanding |
+| `job_phases.state` | No | Pending CHECK | Spelling normalized in rev. 0015; reconcile code-vs-data writer set before CHECK |
 | `job_steps.status` | No | Defer | No active writer |
 | `culling_sessions.status` | No | Defer | No active writer |
 
-**Estimated D2 migration size:** one Alembic revision adding three CHECK constraints (`image_phase_status`, `jobs`, `job_phases`). Each is a no-data-rewrite operation provided the existing rows already match the allowed set; spot-check with `SELECT DISTINCT status FROM <table>` before applying.
+**Realized D2 work so far (2026-04-25):**
+- Alembic revision `0014_status_check_constraints.py` adds the `image_phase_status` CHECK; production rows verified non-violating (`done`/`skipped`/`not_started`/`running` only).
+- Alembic revision `0015_normalize_canceled_status.py` rewrites `jobs.status = 'canceled'` → `'cancelled'` (21 rows) and `job_phases.state = 'canceled'` → `'cancelled'` (17 rows). Idempotent; downgrade is a no-op.
+
+**Remaining D2 work:** add the `jobs.status` CHECK (vocabulary in §2 above). For `job_phases.state`, audit the empirical-only values (`pending`, `interrupted`, `paused`, `skipped`) against current writers before finalizing the allowed set.
 
 ---
 

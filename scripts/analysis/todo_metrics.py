@@ -13,7 +13,7 @@ from pathlib import Path
 TARGET_FILES = (
     Path("TODO.md"),
     Path("docs/project/TODO.md"),
-    Path("docs/plans/embedding/TODO.md"),
+    Path("docs/features/planned/embeddings/TODO.md"),
     Path("docs/reference/api/TODO.md"),
 )
 

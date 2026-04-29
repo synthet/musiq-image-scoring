@@ -1,6 +1,6 @@
 # API Schema for LLM Agents
 
-This document provides a machine-readable schema description of the Image Scoring WebUI REST API, optimized for LLM agent consumption.
+This document provides a machine-readable schema description of the Vexlum Scoring Scoring WebUI REST API, optimized for LLM agent consumption.
 
 ## Quick Access
 

@@ -706,7 +706,7 @@ def _log_legacy_keyword_access(image_id, context=""):
         "⚠️  DEPRECATION: Reading IMAGES.KEYWORDS (legacy column). "
         "Migrate to IMAGE_KEYWORDS + KEYWORDS_DIM normalized schema. "
         "Legacy column will be removed in v7.0 (2026-07). "
-        "Image ID: %s | Context: %s | See docs/plans/database/PHASE4_KEYWORDS_DEPRECATION.md",
+        "Image ID: %s | Context: %s | See docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md",
         image_id, context or "unknown"
     )
 
@@ -1957,6 +1957,13 @@ def _init_db_impl():
             image_unique_id VARCHAR(64),
             shutter_count INTEGER,
             sub_sec_time_original VARCHAR(10),
+            gps_latitude DOUBLE PRECISION,
+            gps_longitude DOUBLE PRECISION,
+            gps_altitude DOUBLE PRECISION,
+            gps_position_source VARCHAR(20),
+            location_resolved BLOB SUB_TYPE TEXT,
+            geocoded_at TIMESTAMP,
+            geocode_provider VARCHAR(50),
             extracted_at TIMESTAMP
         )''')
         try: conn.commit()
@@ -1982,6 +1989,23 @@ def _init_db_impl():
             conn.commit()
         except Exception:
             pass  # Column may already be INTEGER or Firebird < 4
+        c = conn.cursor()
+    
+    # image_exif: GPS and geocoding (additive)
+    for col_sql in (
+        "ALTER TABLE image_exif ADD gps_latitude DOUBLE PRECISION",
+        "ALTER TABLE image_exif ADD gps_longitude DOUBLE PRECISION",
+        "ALTER TABLE image_exif ADD gps_altitude DOUBLE PRECISION",
+        "ALTER TABLE image_exif ADD gps_position_source VARCHAR(20)",
+        "ALTER TABLE image_exif ADD location_resolved BLOB SUB_TYPE TEXT",
+        "ALTER TABLE image_exif ADD geocoded_at TIMESTAMP",
+        "ALTER TABLE image_exif ADD geocode_provider VARCHAR(50)",
+    ):
+        try:
+            c.execute(col_sql)
+            conn.commit()
+        except Exception:
+            conn.rollback()
         c = conn.cursor()
     
     # IMAGE_XMP — cached XMP sidecar metadata (one row per image)
@@ -2692,7 +2716,7 @@ def _init_db_impl():
         except Exception: pass
 
     # --- Phase 1: Integrity + Index Hardening ---
-    # Ref: docs/plans/database/DB_SCHEMA_REFACTOR_PLAN.md
+    # Ref: docs/planning/database/DB_SCHEMA_REFACTOR_PLAN.md
     # All DDL is idempotent (check-then-act). Safe to run on every startup.
     try:
         c = conn.cursor()
@@ -6583,6 +6607,71 @@ def _validate_folder_id_or_from_path(folder_id, image_path):
         return None
 
 
+_IMS_VALID_STATUS = {"success", "failed", "not_loaded"}
+
+
+def _extract_image_model_score_rows(image_id, result, model_version):
+    """Pure helper: build INSERT rows for image_model_scores from a scoring result.
+
+    Reads ``result["models"]`` produced by ``MultiModelMUSIQ.run_all_models()``
+    or ``MultiModelHost.run_all_models()`` — both share the same shape.
+    Returns a list of tuples in column order matching ``_write_image_model_scores``.
+    """
+    if image_id is None:
+        return []
+    models = result.get("models") if isinstance(result, dict) else None
+    if not isinstance(models, dict) or not models:
+        return []
+    rows = []
+    for name, payload in models.items():
+        if not isinstance(payload, dict):
+            continue
+        status = payload.get("status")
+        if status not in _IMS_VALID_STATUS:
+            status = "failed"
+        raw = payload.get("score")
+        normalized = payload.get("normalized_score")
+        is_shadow = bool(payload.get("is_shadow", False))
+        rows.append((image_id, name, raw, normalized, status, is_shadow, model_version))
+    return rows
+
+
+def _write_image_model_scores(image_id, result, model_version):
+    """Dual-write per-model scores to ``image_model_scores`` (Postgres only).
+
+    Coexists with ``images.score_spaq`` / ``score_ava`` / etc. for Electron
+    back-compat: the legacy typed columns are still written by ``upsert_image``;
+    new models live only in this table. No-op on Firebird (table doesn't exist
+    there) and on results without a ``models`` block.
+    """
+    rows = _extract_image_model_score_rows(image_id, result, model_version)
+    if not rows:
+        return
+    conn = get_connector()
+    if getattr(conn, "type", None) != "postgres":
+        return
+    sql = (
+        "INSERT INTO image_model_scores "
+        "(image_id, model_name, raw_score, normalized, status, is_shadow, model_version, scored_at) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP) "
+        "ON CONFLICT (image_id, model_name) DO UPDATE SET "
+        "raw_score = EXCLUDED.raw_score, "
+        "normalized = EXCLUDED.normalized, "
+        "status = EXCLUDED.status, "
+        "is_shadow = EXCLUDED.is_shadow, "
+        "model_version = EXCLUDED.model_version, "
+        "scored_at = CURRENT_TIMESTAMP"
+    )
+    for row in rows:
+        try:
+            db_postgres.execute_write(sql, row)
+        except Exception as exc:
+            logger.warning(
+                "image_model_scores write failed for image=%s model=%s: %s",
+                row[0], row[1], exc,
+            )
+
+
 def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
     """
     Upsert a single image result from the streaming output.
@@ -6804,6 +6893,7 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                      thumbnail_path, thumbnail_path_win, image_hash, hash_version, folder_id, existing_id)
                 )
                 _sync_image_keywords(existing_id, keywords)
+                _write_image_model_scores(existing_id, result, model_version)
                 register_image_path(existing_id, image_path)
                 try:
                     resolve_windows_path(existing_id, image_path, verify=False)
@@ -6876,6 +6966,11 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
         except Exception as kw_err:
             logger.error("Failed to sync keywords for image %s: %s; will retry on next access", image_id, kw_err)
             # Mark image for keyword resync on next update
+
+        try:
+            _write_image_model_scores(image_id, result, model_version)
+        except Exception as ims_err:
+            logger.warning("image_model_scores dual-write failed for image %s: %s", image_id, ims_err)
 
         # Register file path with retry
         try:
@@ -6997,7 +7092,9 @@ def upsert_image_exif(image_id: int, data: dict) -> bool:
     data keys: make, model, lens_model, focal_length, focal_length_35mm,
     date_time_original, create_date, exposure_time, f_number, iso,
     exposure_compensation, image_width, image_height, orientation, flash,
-    image_unique_id, shutter_count, sub_sec_time_original
+    image_unique_id, shutter_count, sub_sec_time_original,
+    gps_latitude, gps_longitude, gps_altitude, gps_position_source,
+    location_resolved, geocoded_at, geocode_provider
     """
     if not image_id or not isinstance(data, dict):
         return False
@@ -7008,8 +7105,11 @@ def upsert_image_exif(image_id: int, data: dict) -> bool:
                 image_id, make, model, lens_model, focal_length, focal_length_35mm,
                 date_time_original, create_date, exposure_time, f_number, iso,
                 exposure_compensation, image_width, image_height, orientation, flash,
-                image_unique_id, shutter_count, sub_sec_time_original, extracted_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                image_unique_id, shutter_count, sub_sec_time_original,
+                gps_latitude, gps_longitude, gps_altitude, gps_position_source,
+                location_resolved, geocoded_at, geocode_provider, extracted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?)
             MATCHING (image_id)''',
             (
                 image_id,
@@ -7031,6 +7131,13 @@ def upsert_image_exif(image_id: int, data: dict) -> bool:
                 _str_or_none(data.get('image_unique_id')),
                 _safe_int(data.get('shutter_count')),
                 _str_or_none(data.get('sub_sec_time_original')),
+                _safe_float(data.get('gps_latitude')),
+                _safe_float(data.get('gps_longitude')),
+                _safe_float(data.get('gps_altitude')),
+                _str_or_none(data.get('gps_position_source'), max_len=20),
+                _exif_location_resolved_param(data.get('location_resolved')),
+                _parse_exif_timestamp(data.get('geocoded_at')),
+                _str_or_none(data.get('geocode_provider'), max_len=50),
                 extracted_at,
             ),
         )
@@ -7087,7 +7194,16 @@ def get_image_exif(image_id: int) -> dict | None:
     if not image_id:
         return None
     row = get_connector().query_one("SELECT * FROM image_exif WHERE image_id = ?", (image_id,))
-    return dict(row) if row else None
+    if not row:
+        return None
+    d = dict(row)
+    lr = d.get("location_resolved")
+    if isinstance(lr, str) and lr.strip():
+        try:
+            d["location_resolved"] = json.loads(lr)
+        except json.JSONDecodeError:
+            pass
+    return d
 
 
 def get_image_xmp(image_id: int) -> dict | None:
@@ -7096,6 +7212,27 @@ def get_image_xmp(image_id: int) -> dict | None:
         return None
     row = get_connector().query_one("SELECT * FROM image_xmp WHERE image_id = ?", (image_id,))
     return dict(row) if row else None
+
+
+def _safe_float(val):
+    """Convert value to float, return None for invalid/empty."""
+    if val is None or val == "":
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _exif_location_resolved_param(val):
+    """Serialize location_resolved for DB (JSONB or Firebird BLOB text)."""
+    if val is None:
+        return None
+    if isinstance(val, (dict, list)):
+        return json.dumps(val)
+    if isinstance(val, str) and val.strip():
+        return val.strip()
+    return None
 
 
 def _safe_int(val):
@@ -7708,6 +7845,45 @@ def get_incomplete_records(limit: int | None = None):
         query = query.strip() + f"\n        FETCH FIRST {int(limit)} ROWS ONLY"
 
     return list(get_connector().query(query))
+
+
+def get_newly_imported_folders(days: int = 7, min_images: int = 1, path_pattern: str = None):
+    """
+    Find folders created in the last N days with at least min_images.
+    Includes signs and flags for processing status.
+    """
+    import datetime
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=days)
+    
+    where_clauses = ["f.created_at >= ?"]
+    params = [cutoff]
+    
+    if path_pattern:
+        # Support both LIKE and simple inclusion
+        if '%' not in path_pattern and '_' not in path_pattern:
+            pattern = f"%{path_pattern}%"
+        else:
+            pattern = path_pattern
+        where_clauses.append("f.path LIKE ?")
+        params.append(pattern)
+    
+    where_sql = " AND ".join(where_clauses)
+    
+    # Use a JOIN to get accurate count since folders.image_count column might be stale
+    query = f"""
+        SELECT f.id, f.path, f.created_at, 
+               f.is_fully_scored, f.is_keywords_processed, f.phase_agg_dirty,
+               COUNT(i.id) as image_count
+        FROM folders f
+        LEFT JOIN images i ON f.id = i.folder_id
+        WHERE {where_sql}
+        GROUP BY f.id, f.path, f.created_at, f.is_fully_scored, f.is_keywords_processed, f.phase_agg_dirty
+        HAVING COUNT(i.id) >= ?
+        ORDER BY f.created_at DESC
+    """
+    params.append(min_images)
+    
+    return list(get_connector().query(query, params))
 
 
 def get_incomplete_image_ids_under_folder(folder_path: str, limit: int | None = None):
@@ -9414,7 +9590,7 @@ def update_image_embeddings_batch(pairs, model_version=None):
 def _pg_embedding_table_for_dim(dim: int) -> str:
     """Return the per-dimension fact table name for a given vector dim.
 
-    See ``docs/plans/database/DB_VECTORS_REFACTOR.md`` (Pattern B: registry +
+    See ``docs/planning/database/DB_VECTORS_REFACTOR.md`` (Pattern B: registry +
     keyed fact table per dimension family) and migration ``0012``.
     """
     if dim == 1280:

@@ -397,7 +397,7 @@ self.model_sources = {
 - [Docs index](../README.md)
 - [CHANGELOG.md](../../CHANGELOG.md) - Version 2.2.0 release notes
 - [README_VILA.md](vila/README_VILA.md) - Kaggle authentication setup
-- [WSL_WRAPPER_VERIFICATION.md](../setup/WSL_WRAPPER_VERIFICATION.md) - Environment verification
+- [WSL_WRAPPER_VERIFICATION.md](../guides/setup/WSL_WRAPPER_VERIFICATION.md) - Environment verification
 - [VILA_ALL_FIXES_SUMMARY.md](../vila/VILA_ALL_FIXES_SUMMARY.md) - Complete VILA integration history
 
 ---

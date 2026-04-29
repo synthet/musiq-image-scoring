@@ -184,8 +184,8 @@ def setup_server_endpoints(fastapi_app, scoring_runner=None, tagging_runner=None
         """Serve a minimal web app manifest to prevent 404 errors."""
         from fastapi.responses import JSONResponse
         return JSONResponse({
-            "name": "Image Scoring WebUI",
-            "short_name": "Image Scoring",
+            "name": "Vexlum Scoring WebUI",
+            "short_name": "Vexlum Scoring",
             "start_url": "/ui/",
             "display": "standalone",
             "theme_color": "#000000",

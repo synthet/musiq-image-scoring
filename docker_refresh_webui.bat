@@ -8,7 +8,7 @@ if not defined DOCKER_BUILDKIT set "DOCKER_BUILDKIT=1"
 if not defined WEBUI_OPEN_UI set "WEBUI_OPEN_UI=browser"
 
 echo ========================================================
-echo   MUSIQ Image Scoring - Docker refresh (frontend + webui)
+echo   Vexlum Scoring - Docker refresh (frontend + webui)
 echo ========================================================
 echo   Rebuilds Vite SPA to static/app, rebuilds webui image,
 echo   recreates webui container. Postgres data volume is kept

@@ -1,4 +1,4 @@
-# Image Scoring Project - LLM Context Guide
+# Vexlum Project - LLM Context Guide
 
 ## Project Overview
 

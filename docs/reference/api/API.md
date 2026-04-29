@@ -1,6 +1,6 @@
 # REST API Documentation
 
-The Image Scoring WebUI exposes a REST API layer for programmatic access to scoring and tagging operations.
+The Vexlum Scoring Scoring WebUI exposes a REST API layer for programmatic access to scoring and tagging operations.
 
 ## Schema Access
 

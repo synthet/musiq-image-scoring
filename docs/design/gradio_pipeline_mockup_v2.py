@@ -333,9 +333,9 @@ def job_monitor_html():
     """
 
 
-with gr.Blocks(title="Image Scoring WebUI") as demo:
+with gr.Blocks(title="Vexlum WebUI") as demo:
     with gr.Column(elem_id="app-shell"):
-        gr.HTML("<div id='title'>Image Scoring WebUI</div>")
+        gr.HTML("<div id='title'>Vexlum WebUI</div>")
 
         with gr.Tabs(elem_classes=["tabs"]):
             with gr.Tab("Pipeline"):
