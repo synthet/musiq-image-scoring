@@ -13,6 +13,11 @@ export const SECTION = {
     subtitle:
       'Per-step repair: identifies false completions (marked done but missing data), resets them, and spawns targeted runs for affected folders.',
   },
+  data_backfill: {
+    title: 'Data Backfill',
+    subtitle:
+      'Targeted maintenance actions to backfill missing vector embeddings or extract missing metadata from the filesystem without resetting phase statuses.',
+  },
 } as const
 
 export const HEAL_STEPS = [
@@ -45,5 +50,28 @@ export const HEAL_STEPS = [
     code: 'bird_species',
     name: 'Heal Bird Species',
     description: 'Finds bird images with no species tags, resets, and re-classifies.',
+  },
+] as const
+
+export const BACKFILL_STEPS = [
+  {
+    code: 'backfill_embeddings',
+    name: 'Backfill MobileNet Vectors',
+    description: 'Finds images missing MobileNet embeddings and runs clustering extraction on them.',
+  },
+  {
+    code: 'backfill_clip_vectors',
+    name: 'Backfill CLIP Vectors',
+    description: 'Finds images missing CLIP vit-b32 embeddings and runs tagging extraction on them.',
+  },
+  {
+    code: 'backfill_exif_camera_lens',
+    name: 'Backfill EXIF Camera/Lens',
+    description: 'Finds images missing camera or lens metadata and re-extracts them via exiftool.',
+  },
+  {
+    code: 'backfill_exif_gps',
+    name: 'Backfill EXIF GPS',
+    description: 'Finds images missing GPS coordinates and re-extracts them via exiftool.',
   },
 ] as const

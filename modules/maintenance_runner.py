@@ -111,6 +111,14 @@ class MaintenanceRunner:
                 self._action_deduplicate_images(job_id, payload)
             elif action == "heal_folder_ids":
                 self._action_heal_folder_ids(job_id, payload)
+            elif action == "backfill_exif_camera_lens":
+                self._action_backfill_exif_camera_lens(job_id, payload)
+            elif action == "backfill_exif_gps":
+                self._action_backfill_exif_gps(job_id, payload)
+            elif action == "backfill_embeddings":
+                self._action_backfill_embeddings(job_id, payload)
+            elif action == "backfill_clip_vectors":
+                self._action_backfill_clip_vectors(job_id, payload)
             else:
                 runner_emit(self.log_history, job_id, f"Unknown maintenance action: {action}", "ERROR", phase="maintenance")
                 db.update_job_status(job_id, "failed", log=f"Unknown action: {action}")
@@ -358,4 +366,178 @@ class MaintenanceRunner:
                     db.update_job_progress(job_id, int((i/total)*100))
 
         runner_emit(self.log_history, job_id, f"Heal folder IDs completed. {updated_count} IDs updated, {scanned} scanned.", phase="maintenance")
+        db.update_job_progress(job_id, 100)
+
+    def _action_backfill_exif_camera_lens(self, job_id: int, payload: Dict[str, Any]):
+        from modules import exif_extractor
+        limit = payload.get("limit", 1000)
+        logger.info("Maintenance backfill_exif_camera_lens: job_id=%s limit=%s", job_id, limit)
+        runner_emit(self.log_history, job_id, f"Backfilling EXIF Camera/Lens (limit={limit})...", phase="maintenance")
+        
+        stats = exif_extractor.backfill_exif_camera_lens(limit=limit)
+        
+        msg = f"Camera/Lens backfill: {stats['updated']} updated, {stats['checked']} checked, {stats['errors']} errors."
+        runner_emit(self.log_history, job_id, msg, phase="maintenance")
+        db.update_job_progress(job_id, 100)
+
+    def _action_backfill_exif_gps(self, job_id: int, payload: Dict[str, Any]):
+        from modules import exif_extractor
+        limit = payload.get("limit", 1000)
+        logger.info("Maintenance backfill_exif_gps: job_id=%s limit=%s", job_id, limit)
+        runner_emit(self.log_history, job_id, f"Backfilling EXIF GPS (limit={limit})...", phase="maintenance")
+        
+        stats = exif_extractor.backfill_exif_gps(limit=limit)
+        
+        msg = f"GPS backfill: {stats['updated']} updated, {stats['checked']} checked, {stats['errors']} errors."
+        runner_emit(self.log_history, job_id, msg, phase="maintenance")
+        db.update_job_progress(job_id, 100)
+
+    def _action_backfill_embeddings(self, job_id: int, payload: Dict[str, Any]):
+        limit = payload.get("limit", 10000)
+        logger.info("Maintenance backfill_embeddings: job_id=%s limit=%s", job_id, limit)
+        runner_emit(self.log_history, job_id, f"Backfilling MobileNet Embeddings (limit={limit})...", phase="maintenance")
+        
+        rows = db.get_images_missing_embeddings(limit=limit)
+        total = len(rows)
+        if total == 0:
+            runner_emit(self.log_history, job_id, "No images missing MobileNet embeddings.", phase="maintenance")
+            db.update_job_progress(job_id, 100)
+            return
+            
+        runner_emit(self.log_history, job_id, f"Found {total} images missing embeddings. Initializing engine...", phase="maintenance")
+        
+        from modules.clustering import ClusteringEngine
+        engine = ClusteringEngine()
+        
+        batch_size = 32
+        updated = 0
+        errors = 0
+        
+        import os
+        from modules import utils
+        
+        for i in range(0, total, batch_size):
+            if self._cancel_requested: break
+            batch_rows = rows[i:i+batch_size]
+            batch_ids = []
+            batch_paths = []
+            
+            for row in batch_rows:
+                img_id = row["id"] if isinstance(row, dict) and "id" in row else row[0]
+                fp = row["file_path"] if isinstance(row, dict) and "file_path" in row else row[1]
+                path = utils.resolve_file_path(fp, img_id)
+                if not path:
+                    path = utils.convert_path_to_local(fp)
+                if path and os.path.exists(path):
+                    batch_ids.append(img_id)
+                    batch_paths.append(path)
+            
+            if not batch_paths:
+                continue
+                
+            try:
+                features, valid_indices = engine.extract_features(batch_paths)
+                if features.size:
+                    embedding_pairs = []
+                    for j, orig_idx in enumerate(valid_indices):
+                        vec = features[j].astype("float32")
+                        embedding_pairs.append((batch_ids[orig_idx], vec.tobytes()))
+                    
+                    if embedding_pairs:
+                        db.update_image_embeddings_batch(embedding_pairs)
+                        updated += len(embedding_pairs)
+            except Exception as e:
+                logger.error("Error in backfill embeddings batch: %s", e)
+                errors += len(batch_paths)
+                
+            progress = int((i + len(batch_rows)) / total * 100)
+            db.update_job_progress(job_id, progress)
+            if (i // batch_size) % 5 == 0:
+                runner_emit(self.log_history, job_id, f"Backfilled {updated} embeddings so far...", phase="maintenance")
+                
+        runner_emit(self.log_history, job_id, f"MobileNet backfill complete: {updated} updated, {errors} errors.", phase="maintenance")
+        db.update_job_progress(job_id, 100)
+
+    def _action_backfill_clip_vectors(self, job_id: int, payload: Dict[str, Any]):
+        limit = payload.get("limit", 10000)
+        logger.info("Maintenance backfill_clip_vectors: job_id=%s limit=%s", job_id, limit)
+        runner_emit(self.log_history, job_id, f"Backfilling CLIP Vectors (limit={limit})...", phase="maintenance")
+        
+        if not hasattr(db, "get_images_missing_embedding_for_space"):
+            runner_emit(self.log_history, job_id, "CLIP backfill requires Postgres.", phase="maintenance", level="ERROR")
+            db.update_job_progress(job_id, 100)
+            return
+
+        rows = db.get_images_missing_embedding_for_space('clip_vit_b32_image', limit=limit)
+        total = len(rows)
+        if total == 0:
+            runner_emit(self.log_history, job_id, "No images missing CLIP vectors.", phase="maintenance")
+            db.update_job_progress(job_id, 100)
+            return
+            
+        runner_emit(self.log_history, job_id, f"Found {total} images missing CLIP embeddings. Initializing engine...", phase="maintenance")
+        
+        try:
+            from modules.tagging import KeywordScorer
+            scorer = KeywordScorer()
+            scorer.load_model()
+        except Exception as e:
+            logger.error("Failed to load CLIP engine: %s", e)
+            runner_emit(self.log_history, job_id, f"Failed to load CLIP engine: {e}", phase="maintenance", level="ERROR")
+            db.update_job_progress(job_id, 100)
+            return
+            
+        batch_size = 16
+        updated = 0
+        errors = 0
+        
+        import os
+        import torch
+        from modules import utils
+        from modules.thumbnails import open_image_for_ml
+        from modules.embeddings_extract import extract_clip_image_features_from_outputs
+        
+        for i in range(0, total, batch_size):
+            if self._cancel_requested: break
+            batch_rows = rows[i:i+batch_size]
+            
+            for row in batch_rows:
+                if self._cancel_requested: break
+                img_id = row["id"] if isinstance(row, dict) and "id" in row else row[0]
+                fp = row["file_path"] if isinstance(row, dict) and "file_path" in row else row[1]
+                path = utils.resolve_file_path(fp, img_id)
+                if not path:
+                    path = utils.convert_path_to_local(fp)
+                if path and os.path.exists(path):
+                    try:
+                        image = open_image_for_ml(path)
+                        inputs = scorer.processor(text=["dummy"], images=image, return_tensors="pt", padding=True)
+                        inputs = {k: v.to(scorer.device) for k, v in inputs.items()}
+                        
+                        with torch.no_grad():
+                            outputs = scorer.model(**inputs)
+                            
+                        vec = extract_clip_image_features_from_outputs(outputs)
+                        if vec is not None:
+                            db.update_image_embeddings_batch_for_space(
+                                'clip_vit_b32_image',
+                                [
+                                    (
+                                        img_id,
+                                        vec,
+                                        getattr(scorer, "model_name", "ViT-B/32"),
+                                    )
+                                ],
+                            )
+                            updated += 1
+                    except Exception as e:
+                        logger.error("Error extracting CLIP for image %d: %s", img_id, e)
+                        errors += 1
+            
+            progress = int((i + len(batch_rows)) / total * 100)
+            db.update_job_progress(job_id, progress)
+            if (i // batch_size) % 5 == 0:
+                runner_emit(self.log_history, job_id, f"Backfilled {updated} CLIP embeddings so far...", phase="maintenance")
+                
+        runner_emit(self.log_history, job_id, f"CLIP backfill complete: {updated} updated, {errors} errors.", phase="maintenance")
         db.update_job_progress(job_id, 100)

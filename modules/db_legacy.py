@@ -9698,7 +9698,9 @@ def update_image_embeddings_batch_for_space(space_code, rows):
 
     ``rows`` is a sequence of ``(image_id, vector, model_version | None)`` tuples
     where ``vector`` is any 1-D numeric array-like (list, tuple, numpy array,
-    torch tensor). The caller is responsible for L2-normalization; this helper
+    torch tensor) or raw ``float32`` bytes (``bytes`` / ``bytearray`` /
+    ``memoryview``, length ``4 * dim``). The caller is responsible for
+    L2-normalization; this helper
     only validates the dim against the registered ``embedding_spaces`` row and
     upserts into the matching per-dim table.
 
@@ -9735,7 +9737,10 @@ def update_image_embeddings_batch_for_space(space_code, rows):
         for image_id, vec, model_version in rows:
             if vec is None or image_id is None:
                 continue
-            arr = np.asarray(vec, dtype=np.float32).reshape(-1)
+            if isinstance(vec, (bytes, bytearray, memoryview)):
+                arr = np.frombuffer(vec, dtype=np.float32).reshape(-1).copy()
+            else:
+                arr = np.asarray(vec, dtype=np.float32).reshape(-1)
             if arr.shape[0] != expected_dim:
                 raise ValueError(
                     f"Embedding dim mismatch for space {space_code!r}: expected "

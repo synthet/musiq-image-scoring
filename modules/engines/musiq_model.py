@@ -61,8 +61,10 @@ class MusiqModelWrapper(IScoringModel):
             ok = bool(self._backend.load_model(self.name))
         except Exception as exc:
             logger.error("MUSIQ %s load_model raised: %s", self.name, exc)
+            self.load_status = "failed"
             return False
         self._loaded = ok
+        self.load_status = "loaded" if ok else "failed"
         return ok
 
     def predict(self, image_path: str) -> Dict[str, Any]:

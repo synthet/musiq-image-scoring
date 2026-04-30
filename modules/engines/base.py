@@ -18,6 +18,7 @@ class IScoringModel(ABC):
     version: str = "0.0.0"
     framework: str = ""
     score_range: Tuple[float, float] = (0.0, 1.0)
+    load_status: str = "unknown"  # "unknown" | "loaded" | "failed"
 
     @abstractmethod
     def load(self) -> bool:

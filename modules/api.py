@@ -7374,7 +7374,41 @@ def create_api_router() -> APIRouter:
             "maintenance": "available" if _maintenance_runner is not None else "unavailable",
             "orchestrator": "active" if _orchestrator and _orchestrator.get_status().get("active") else "idle"
         }
-        
+
         return diag
+
+    @router.get(
+        "/models",
+        summary="List registered scoring models",
+        description=(
+            "Return the contents of the scoring-model registry: per-model "
+            "name, version, framework, native score range, and whether the "
+            "model is enabled (production) or running in shadow mode. "
+            "Useful for UI / shadow-comparison tooling."
+        ),
+        tags=["General API"],
+    )
+    async def list_scoring_models():
+        from modules.engines.registry import get_registry
+
+        registry = get_registry()
+        models = registry.all_registered()
+        enabled_names = {m.name for m in registry.enabled()}
+        shadow_names = {m.name for m in registry.shadow()}
+
+        items = []
+        for m in models:
+            lo, hi = getattr(m, "score_range", (0.0, 1.0))
+            items.append({
+                "name": m.name,
+                "version": getattr(m, "version", ""),
+                "framework": getattr(m, "framework", ""),
+                "score_range": [float(lo), float(hi)],
+                "enabled": m.name in enabled_names,
+                "shadow": m.name in shadow_names,
+                "load_status": getattr(m, "load_status", "unknown"),
+            })
+
+        return {"models": items, "count": len(items)}
 
     return router

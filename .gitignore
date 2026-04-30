@@ -244,3 +244,13 @@ heal_test_results.json
 # ML feature cache (regenerated at runtime)
 thumbnails/feature_cache/
 
+# Agent scratch / cache
+.agent/scratch/
+brain/
+artifacts/brain/
+.cache/
+.playwright-mcp/
+
+# Rotated WebUI logs (webui.log.1 already covered above)
+webui.log.*
+

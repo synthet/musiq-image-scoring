@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Wrench, RefreshCw, ExternalLink, Play, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
+  BACKFILL_STEPS,
   HEAL_STEPS,
   PIPELINE_TOOLS_HEADER,
   SECTION,
@@ -221,6 +222,29 @@ export function RunsToolsTab() {
             )}
           </div>
         )}
+      </TierSection>
+
+      <TierSection title={SECTION.data_backfill.title} subtitle={SECTION.data_backfill.subtitle}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {BACKFILL_STEPS.map((step) => (
+            <ToolCard
+              key={step.code}
+              title={step.name}
+              description={step.description}
+              buttonText="Start"
+              onAction={() =>
+                run({
+                  kind: 'backfill',
+                  trackingId: `backfill-${step.code}`,
+                  actionName: step.code,
+                })
+              }
+              isPending={isPending && pendingId === `backfill-${step.code}`}
+              disabled={toolsLocked}
+              variant="secondary"
+            />
+          ))}
+        </div>
       </TierSection>
     </div>
   )

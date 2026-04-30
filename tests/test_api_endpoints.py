@@ -536,3 +536,70 @@ def test_restart_step_run_success(monkeypatch):
         response = client.post("/api/step-runs/99/scoring/restart", json={})
     assert response.status_code == 200
     assert calls == ["restarting", "queued"]
+
+
+# ---------------------------------------------------------------------------
+# Scoring model registry endpoint
+# ---------------------------------------------------------------------------
+
+def test_models_endpoint_returns_empty_when_registry_empty(monkeypatch):
+    from modules.engines.registry import reset_registry
+
+    reset_registry()
+    with _build_client() as client:
+        response = client.get("/api/models")
+    assert response.status_code == 200
+    data = response.json()
+    assert data == {"models": [], "count": 0}
+
+
+def test_models_endpoint_lists_registered_models(monkeypatch):
+    from modules.engines.base import IScoringModel
+    from modules.engines.registry import get_registry, reset_registry
+
+    class _Stub(IScoringModel):
+        def __init__(self, name, version, framework, score_range):
+            self.name = name
+            self.version = version
+            self.framework = framework
+            self.score_range = score_range
+            self.load_status = "loaded"
+
+        def load(self):
+            return True
+
+        def predict(self, image_path):
+            return {"score": 0.0, "status": "success", "error": None}
+
+    reset_registry()
+    reg = get_registry()
+    reg.register(_Stub("spaq", "musiq-1", "tf", (0.0, 100.0)))
+    reg.register(_Stub("liqe", "liqe-1", "torch", (1.0, 5.0)))
+
+    monkeypatch.setattr(
+        "modules.engines.registry.ModelRegistry._resolve_config",
+        staticmethod(lambda cfg=None: {
+            "spaq": {"enabled": True, "shadow": False},
+            "liqe": {"enabled": False, "shadow": True},
+        }),
+    )
+
+    with _build_client() as client:
+        response = client.get("/api/models")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 2
+    by_name = {m["name"]: m for m in data["models"]}
+
+    assert by_name["spaq"]["framework"] == "tf"
+    assert by_name["spaq"]["version"] == "musiq-1"
+    assert by_name["spaq"]["score_range"] == [0.0, 100.0]
+    assert by_name["spaq"]["enabled"] is True
+    assert by_name["spaq"]["shadow"] is False
+    assert by_name["spaq"]["load_status"] == "loaded"
+
+    assert by_name["liqe"]["framework"] == "torch"
+    assert by_name["liqe"]["enabled"] is False
+    assert by_name["liqe"]["shadow"] is True
+
+    reset_registry()

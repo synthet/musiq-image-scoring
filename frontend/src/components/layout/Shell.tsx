@@ -61,6 +61,7 @@ export function Shell() {
         <nav className="flex items-center gap-1">
           <NavItem to="/runs" icon={<Workflow size={14} />} label="Runs" />
           <NavItem to="/images" icon={<Database size={14} />} label="Images" />
+          <NavItem to="/embeddings" icon={<Search size={14} />} label="Atlas" />
           <NavItem to="/search" icon={<Search size={14} />} label="Search" />
           <NavItem to="/map" icon={<MapPin size={14} />} label="Map" />
           <NavItem to="/diagnostics" icon={<Stethoscope size={14} />} label="Health" />

@@ -15,6 +15,10 @@ _DEFAULT_TITLE_BY_ACTION: Dict[str, str] = {
     "backfill_exif": "Backfill EXIF Dates",
     "prune_missing": "Prune Missing Files",
     "backfill_index_meta": "Backfill Index/Meta Phase Status",
+    "backfill_embeddings": "Backfill Missing MobileNet Vectors",
+    "backfill_clip_vectors": "Backfill Missing CLIP Vectors",
+    "backfill_exif_camera_lens": "Backfill EXIF Camera/Lens",
+    "backfill_exif_gps": "Backfill EXIF GPS",
 }
 
 

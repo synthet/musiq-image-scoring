@@ -32,6 +32,8 @@ class LiqeModelWrapper(IScoringModel):
         self._scorer = scorer
         self._device = device
         self._loaded = scorer is not None and getattr(scorer, "available", False)
+        if self._loaded:
+            self.load_status = "loaded"
         self.version = getattr(scorer, "VERSION", None) or "liqe-1"
 
     def load(self) -> bool:
@@ -42,13 +44,16 @@ class LiqeModelWrapper(IScoringModel):
                 from modules.liqe import LiqeScorer
             except Exception as exc:
                 logger.error("Could not import LiqeScorer: %s", exc)
+                self.load_status = "failed"
                 return False
             try:
                 self._scorer = LiqeScorer(device=self._device)
             except Exception as exc:
                 logger.error("LiqeScorer construction failed: %s", exc)
+                self.load_status = "failed"
                 return False
         self._loaded = bool(getattr(self._scorer, "available", False))
+        self.load_status = "loaded" if self._loaded else "failed"
         return self._loaded
 
     def predict(self, image_path: str) -> Dict[str, Any]:

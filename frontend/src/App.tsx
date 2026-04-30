@@ -9,6 +9,7 @@ import { ImagesPage } from '@/pages/ImagesPage'
 import { ImageInspectorPage } from '@/pages/ImageInspectorPage'
 import { SearchPage } from '@/pages/SearchPage'
 import { GeoMapPage } from '@/pages/GeoMapPage'
+import { EmbeddingAtlasPage } from '@/features/embedding-atlas/pages/EmbeddingAtlasPage'
 import { ScopeSelector } from '@/components/scope/ScopeSelector'
 
 const queryClient = new QueryClient({
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/runs/:runId" element={<RunDetailPage />} />
             <Route path="/images" element={<ImagesPage />} />
             <Route path="/images/:imageId" element={<ImageInspectorPage />} />
+            <Route path="/embeddings" element={<EmbeddingAtlasPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/map" element={<GeoMapPage />} />
             <Route path="/diagnostics" element={<DiagnosticsPage />} />

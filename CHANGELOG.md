@@ -15,6 +15,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.9.0] - 2026-04-29
+
+### Added
+
+- **React `/ui/embeddings` — embedding atlas**: **`EmbeddingAtlasPage`** and **`frontend/src/features/embedding-atlas/`** (canvas, toolbar, inspector, filmstrip, projection settings, stores/hooks) wired to embedding-map and similarity APIs.
+- **`GET /api/models`**: Lists registered scoring models (name, version, framework, score range, enabled/shadow, **`load_status`**) from **`modules/engines/registry`** for operator UI and shadow tooling.
+- **Maintenance runner actions**: **`backfill_exif_camera_lens`**, **`backfill_exif_gps`**, **`backfill_embeddings`** (MobileNet via **`ClusteringEngine`**), and **`backfill_clip_vectors`** (Postgres), dispatched through **`MaintenanceRunner`** alongside existing actions.
+- **Runs — pipeline / maintenance tools**: Expanded **`RunsToolsTab`**, **`pipelineTools`**, **`usePipelineToolAction`**, and **`frontend/src/api/tools.ts`** to trigger tools from run detail.
+- **Frontend dev mocks**: **`frontend/src/mocks/`** and **Vite** `resolve.alias` configuration for local **`/ui`** development.
+- **Docs & scripts**: **`docs/technical/spec_vector_db_visualization.md`**; maintenance helpers **`scripts/maintenance/backfill_exif_gps.py`**, **`scripts/maintenance/heal_bird_species_until_done.py`**; **`scripts/bootstrap_issues.py`**, **`scripts/bootstrap_labels.sh`** for backlog hygiene.
+
+### Changed
+
+- **Scoring model wrappers**: **`IScoringModel.load_status`** (**`modules/engines/base.py`**) with **loaded** / **failed** reporting on **MUSIQ** and **LIQE** wrappers for **`/api/models`** and diagnostics.
+- **Static `/app` bundle**: Rebuilt **`static/app`** hashed JS/CSS (incl. **`webgl-device`** chunk).
+- **`.gitignore`**: Ignore **`.cache/`** and related agent/ML scratch paths; **`config.example.json`** tweaks.
+
+### Fixed
+
+- **`modules/db_legacy` — `update_image_embeddings_batch_for_space`**: Accepts raw **`float32`** **`bytes`** / **`bytearray`** / **`memoryview`** payloads (length `4 × dim`) in addition to array-likes.
+
+### Tests
+
+- **`tests/test_api_endpoints.py`**: Extended coverage (incl. **`/api/models`**).
+
 ## [7.8.0] - 2026-04-28
 
 ### Added

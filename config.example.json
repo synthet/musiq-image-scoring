@@ -11,6 +11,11 @@
       "general":   { "liqe": 0.45, "ava": 0.30, "spaq": 0.25 },
       "technical": { "liqe": 1.00 },
       "aesthetic": { "ava": 0.55, "spaq": 0.45 }
+    },
+    "models": {
+      "spaq": { "enabled": true,  "shadow": false },
+      "ava":  { "enabled": true,  "shadow": false },
+      "liqe": { "enabled": true,  "shadow": false }
     }
   },
   "processing": {

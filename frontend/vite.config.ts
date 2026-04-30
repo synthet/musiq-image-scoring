@@ -12,9 +12,17 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      'gl-bench': path.resolve(__dirname, './src/mocks/gl-bench.ts'),
     },
   },
+  optimizeDeps: {
+    include: ['gl-bench', '@cosmograph/react'],
+  },
   build: {
+    commonjsOptions: {
+      transformMixedEsModules: true,
+      include: [/gl-bench/, /node_modules/],
+    },
     outDir: '../static/app',
     emptyOutDir: true,
     // Vite warns at 500 kB; our UI can legitimately exceed this (e.g. Leaflet/map).

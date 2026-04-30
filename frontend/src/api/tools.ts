@@ -35,6 +35,12 @@ export const toolsApi = {
       run_mode?: string
     },
   ) => api.post<ApiEnvelope<HealPhaseData>>(`/maintenance/heal/${phaseCode}`, body ?? {}),
+
+  /**
+   * Start a data backfill maintenance job.
+   */
+  backfillStart: (action: string) =>
+    api.post<ApiEnvelope>(`/maintenance/start`, { action }),
 }
 
 export function formatToolError(err: unknown): string {

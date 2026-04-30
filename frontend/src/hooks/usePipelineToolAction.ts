@@ -7,15 +7,21 @@ import {
 } from '@/api/tools'
 import { RUNS_QUERY_ROOT } from '@/queryKeys/runs'
 
-export type PipelineToolAction = {
-  kind: 'heal'
-  trackingId: string
-  phaseCode: string
-  rootPath?: string
-  budget: number
-  dryRun: boolean
-  runMode: string
-}
+export type PipelineToolAction =
+  | {
+      kind: 'heal'
+      trackingId: string
+      phaseCode: string
+      rootPath?: string
+      budget: number
+      dryRun: boolean
+      runMode: string
+    }
+  | {
+      kind: 'backfill'
+      trackingId: string
+      actionName: string
+    }
 
 export type UsePipelineToolActionOptions = {
   /** After a heal run is spawned, optionally reveal path in sidebar */
@@ -37,8 +43,10 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
             dry_run: action.dryRun,
             run_mode: action.runMode,
           })
+        case 'backfill':
+          return toolsApi.backfillStart(action.actionName)
         default: {
-          const _x: never = action as never
+          const _x: never = action
           return _x
         }
       }
@@ -63,7 +71,6 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
         if (envelope.data && envelope.data.scheduled) {
           setHealStats(envelope.data)
           setLastBanner({ ok: envelope.success, text: envelope.message })
-          // If we scheduled something, we might want to refresh the UI
           if (envelope.data.scheduled.length > 0) {
             options?.onHealSpawned?.(envelope.data.scheduled[0].folder_path)
           }
@@ -71,6 +78,10 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
           setHealStats(null)
           setLastBanner({ ok: envelope.success, text: envelope.message })
         }
+        void queryClient.invalidateQueries({ queryKey: RUNS_QUERY_ROOT })
+      } else if (variables.kind === 'backfill') {
+        const envelope = data as { success: boolean; message: string }
+        setLastBanner({ ok: envelope.success, text: envelope.message })
         void queryClient.invalidateQueries({ queryKey: RUNS_QUERY_ROOT })
       }
     },
