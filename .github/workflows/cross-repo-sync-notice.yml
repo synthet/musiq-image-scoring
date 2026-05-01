@@ -1,0 +1,58 @@
+name: Cross-repo sync notice
+
+on:
+  pull_request:
+    paths:
+      - 'openapi.json'
+      - 'migrations/versions/**'
+      - 'modules/api.py'
+      - 'modules/db_postgres.py'
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  notice:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post or update cross-repo sync notice
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          MARKER='<!-- cross-repo-sync-notice -->'
+
+          BODY=$(cat <<'EOF'
+          <!-- cross-repo-sync-notice -->
+          ### Cross-repo sync notice
+
+          This PR changes backend API or schema (`openapi.json`, `migrations/versions/**`, `modules/api.py`, or `modules/db_postgres.py`).
+
+          The **image-scoring-gallery** repo likely needs follow-up updates:
+
+          - [ ] `api-contract/openapi.json` — re-sync from this PR's `openapi.json`
+          - [ ] `electron/apiTypes.ts` — regenerate via `npm run api:types:generate`
+          - [ ] `electron/apiService.ts` — update if endpoint paths or shapes changed
+          - [ ] `electron/db.ts` — update if column names, types, or queries changed
+
+          See [`docs/technical/AGENT_COORDINATION.md`](https://github.com/synthet/image-scoring-backend/blob/master/docs/technical/AGENT_COORDINATION.md) for the full coordination protocol.
+
+          **Discipline tracking:** [image-scoring-gallery#71](https://github.com/synthet/image-scoring-gallery/issues/71)
+
+          _This comment is auto-posted by `.github/workflows/cross-repo-sync-notice.yml` and updates in place on subsequent pushes._
+          EOF
+          )
+
+          EXISTING_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+            | jq -r --arg marker "$MARKER" '[.[] | select(.body | startswith($marker))] | first | .id // empty')
+
+          if [ -n "$EXISTING_ID" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$EXISTING_ID" -f body="$BODY" >/dev/null
+            echo "Updated existing sync-notice comment ($EXISTING_ID)."
+          else
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$BODY"
+            echo "Posted new sync-notice comment."
+          fi
