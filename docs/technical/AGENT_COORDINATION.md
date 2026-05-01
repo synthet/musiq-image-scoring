@@ -61,6 +61,17 @@ COALESCE(
 
 **Docs:** [`PHASE4_KEYWORDS_HUB.md`](../planning/database/PHASE4_KEYWORDS_HUB.md) (index), [`PHASE4_KEYWORDS_DEPRECATION.md`](../planning/database/PHASE4_KEYWORDS_DEPRECATION.md), archived completion summary [`PHASE4_COMPLETION_SUMMARY.md`](../archive/plans/database/PHASE4_COMPLETION_SUMMARY.md)
 
+### 5. Cross-repo Sync Automation
+
+To keep the discipline above from being silently skipped, this repo runs the [`Cross-repo sync notice`](../../.github/workflows/cross-repo-sync-notice.yml) workflow on every PR that touches:
+
+* `openapi.json` (REST contract)
+* `migrations/versions/**` (Alembic schema)
+* `modules/api.py` (FastAPI surface)
+* `modules/db_postgres.py` (PostgreSQL schema authority)
+
+The workflow posts (and idempotently updates) a comment listing the gallery files that typically need follow-up — `api-contract/openapi.json`, `electron/apiTypes.ts`, `electron/apiService.ts`, `electron/db.ts` — and links back to the discipline-tracking issue [`image-scoring-gallery#71`](https://github.com/synthet/image-scoring-gallery/issues/71). The comment is a nudge, not a hard gate; reviewers are still responsible for confirming the gallery side is updated or a counterpart issue is filed.
+
 ## 🔍 Troubleshooting with MCP
 
 Agents use **stdio** MCP against the Python backend: **`imgscore-py-stdio`** in the **image-scoring-backend** workspace; **`imgscore-el-stdio`** in **image-scoring-gallery** (same server, different `cwd`). For WebUI / **`execute_code`**, enable **`imgscore-py-sse`** or **`imgscore-el-sse`** (unique keys, same URL). Use these to diagnose cross-project issues:
