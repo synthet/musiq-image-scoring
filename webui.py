@@ -1,4 +1,9 @@
 import os
+
+# Before any import that may load TensorFlow (e.g. modules.ui.app → scoring).
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
+os.environ.setdefault("TF_ENABLE_DEPRECATION_WARNINGS", "0")
+
 import platform
 import warnings
 import logging
@@ -19,12 +24,15 @@ from modules.ui import app as app_module
 from modules.events import event_manager
 from modules.command_dispatcher import command_dispatcher
 
-# Suppress TensorFlow logging (C++ level)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-# Suppress TensorFlow Python-level deprecation warnings (e.g. tf.losses.* → tf.compat.v1.losses.*)
-os.environ.setdefault('TF_ENABLE_DEPRECATION_WARNINGS', '0')
+# Suppress TensorFlow Python deprecation warnings (e.g. tf.losses.* → tf.compat.v1.losses.*)
 warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"tensorflow|keras")
 warnings.filterwarnings("ignore", message=r".*tf\.losses\..*is deprecated.*")
+warnings.filterwarnings(
+    "ignore",
+    category=UserWarning,
+    module=r"tensorflow_hub",
+    message=r".*pkg_resources is deprecated.*",
+)
 
 # Suppress Gradio 6.0 deprecation warnings
 warnings.filterwarnings("ignore", message="The 'css' parameter in the Blocks constructor")
@@ -457,7 +465,7 @@ def main():
         raise HTTPException(status_code=404, detail="favicon not found")
 
     # Mount Gradio App onto FastAPI at /app (legacy fallback)
-    app = gr.mount_gradio_app(app, demo, path="/app", allowed_paths=allowed_paths, favicon_path="static/favicon.png")
+    app = gr.mount_gradio_app(app, demo, path="/app", allowed_paths=allowed_paths)
 
     # Configure server endpoints using the FINAL FastAPI instance.
     #

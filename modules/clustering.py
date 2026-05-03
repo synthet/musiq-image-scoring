@@ -16,6 +16,7 @@ from modules.phases_policy import explain_phase_run_decision
 from modules.version import APP_VERSION
 from modules.engines.base import IClusteringEngine
 from modules.indexing_policy import filter_image_rows_for_nef_policy
+from modules.quality_ranking import quality_tiebreak_sort_key_best_first
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,7 @@ class ClusteringEngine(IClusteringEngine):
         except (TypeError, ValueError):
             return h
 
-    def _select_best_image(self, img_ids, id_to_score, id_to_feature=None):
+    def _select_best_image(self, img_ids, id_to_score, id_to_feature=None, id_to_exif=None):
         """
         Select the best representative image from a stack.
 
@@ -106,6 +107,8 @@ class ClusteringEngine(IClusteringEngine):
             img_ids: List of image IDs in the stack.
             id_to_score: Dict mapping image_id -> score_general (float or None).
             id_to_feature: Optional dict mapping image_id -> 1-D numpy embedding.
+            id_to_exif: Optional ``image_id`` -> EXIF row (``iso``, ``exposure_time``,
+                ``date_time_original``) for deterministic tie-break in ``score`` strategy.
 
         Returns:
             The image_id selected as best representative.
@@ -149,8 +152,26 @@ class ClusteringEngine(IClusteringEngine):
             strategy = 'score'
 
         if strategy == 'score':
-            best_idx = int(np.argmax(norm_scores))
-            return img_ids[best_idx]
+            max_ns = float(np.max(norm_scores))
+            tol = 1e-9
+            best_indices = [j for j in range(len(img_ids)) if abs(norm_scores[j] - max_ns) <= tol]
+            if len(best_indices) == 1:
+                return img_ids[best_indices[0]]
+            candidates = [img_ids[j] for j in best_indices]
+            exif_by_id = id_to_exif
+            if exif_by_id is None:
+                exif_by_id = db.get_exif_fields_for_quality_tiebreak(list(img_ids))
+
+            def _exif_row(iid: int) -> dict:
+                ex = exif_by_id.get(iid) or {}
+                return {
+                    "id": iid,
+                    "iso": ex.get("iso"),
+                    "exposure_time": ex.get("exposure_time"),
+                    "date_time_original": ex.get("date_time_original"),
+                }
+
+            return min(candidates, key=lambda iid: quality_tiebreak_sort_key_best_first(_exif_row(iid)))
 
         # Compute centroid from valid-embedding images only
         valid_feats = feat_matrix[[i for i, v in enumerate(valid_mask) if v]]
@@ -886,11 +907,15 @@ class ClusteringEngine(IClusteringEngine):
                 for r, t in batch:
                     id_to_score_batch[r['id']] = r.get('score_general') or 0
 
+                id_to_exif_batch = db.get_exif_fields_for_quality_tiebreak([r["id"] for r, t in batch])
+
                 for lbl, img_ids in local_clusters.items():
                     if len(img_ids) < 2:
                         continue
 
-                    best_id = self._select_best_image(img_ids, id_to_score_batch, id_to_feature)
+                    best_id = self._select_best_image(
+                        img_ids, id_to_score_batch, id_to_feature, id_to_exif_batch
+                    )
                     logger.debug(f"[Clustering] Batch {b_idx+1}: Found similarity group with {len(img_ids)} images. Best representative selected: {best_id}")
                             
                     # Name based on Time? or Folder?

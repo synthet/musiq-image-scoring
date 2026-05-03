@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { ChevronRight, ChevronDown, Folder, FolderOpen, Plus } from 'lucide-react'
+import { ChevronRight, ChevronDown, Folder, FolderOpen, Plus, Trash2 } from 'lucide-react'
 import { scopeApi } from '@/api/scope'
+import { ApiError, parseApiErrorDetail } from '@/api/client'
 import { useUiStore } from '@/stores/uiStore'
 import { useWsStore } from '@/stores/wsStore'
 import { Button } from '@/components/ui/button'
@@ -24,6 +25,9 @@ export function Sidebar() {
   const { openNewRun, setSelectedScopePath, selectedScopePath, pendingTreeRevealPaths, setPendingTreeRevealPaths } =
     useUiStore()
   const runsVersion = useWsStore((s) => s.runsVersion)
+
+  const [deleteTarget, setDeleteTarget] = useState<FolderNode | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
 
   const isRunsMode = location.pathname.startsWith('/runs')
 
@@ -55,6 +59,26 @@ export function Sidebar() {
       clearTimeout(clear)
     }
   }, [pendingTreeRevealPaths, tree, setPendingTreeRevealPaths])
+
+  const confirmRemoveEmptyFolder = async () => {
+    if (!deleteTarget) return
+    setDeleteBusy(true)
+    try {
+      await scopeApi.deleteEmptyFolderCache(deleteTarget.path)
+      const delPath = deleteTarget.path
+      setDeleteTarget(null)
+      await qc.invalidateQueries({ queryKey: ['folders-tree'] })
+      if (selectedScopePath && pathTargetsRevealFolder(delPath, [selectedScopePath])) {
+        setSelectedScopePath(null)
+      }
+    } catch (e) {
+      const msg =
+        e instanceof ApiError ? parseApiErrorDetail(e.message) : String((e as Error)?.message ?? e)
+      window.alert(msg)
+    } finally {
+      setDeleteBusy(false)
+    }
+  }
 
   return (
     <aside className="w-56 shrink-0 border-r border-[#3c3c3c] bg-[#252526] flex flex-col overflow-hidden">
@@ -90,12 +114,47 @@ export function Sidebar() {
             revealPaths={pendingTreeRevealPaths}
             isRunsMode={isRunsMode}
             navigate={navigate}
+            onRequestDelete={setDeleteTarget}
           />
         ))}
         {!isLoading && (!Array.isArray(tree) || tree.length === 0) && (
           <div className="text-xs text-[#6d6d6d] px-2">No indexed folders yet</div>
         )}
       </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg shadow-2xl w-[min(420px,92vw)] p-4 text-sm text-[#cccccc]">
+            <div className="font-semibold text-[#e0e0e0] mb-2">Remove empty folder</div>
+            <p className="text-xs text-[#9d9d9d] mb-3">
+              Remove &quot;{deleteTarget.name}&quot; from the database folder cache? This does not delete files on
+              disk.
+            </p>
+            <p className="text-[10px] text-[#6d6d6d] break-all mb-4">{deleteTarget.path}</p>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={deleteBusy}
+                onClick={() => !deleteBusy && setDeleteTarget(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                className="!bg-[#c72e0f] hover:!bg-[#a8260c]"
+                disabled={deleteBusy}
+                onClick={() => void confirmRemoveEmptyFolder()}
+              >
+                {deleteBusy ? 'Removing…' : 'Remove'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   )
 }
@@ -109,6 +168,7 @@ interface FolderTreeNodeProps {
   revealPaths: string[] | null
   isRunsMode: boolean
   navigate: (path: string) => void
+  onRequestDelete: (node: FolderNode) => void
 }
 
 function FolderTreeNode({
@@ -120,6 +180,7 @@ function FolderTreeNode({
   revealPaths,
   isRunsMode,
   navigate,
+  onRequestDelete,
 }: FolderTreeNodeProps) {
   const hasChildren = node.children && node.children.length > 0
   const isSelected = selected === node.path
@@ -189,6 +250,23 @@ function FolderTreeNode({
             title={dominantStatus}
           />
         )}
+
+        {(node.image_count ?? -1) === 0 && (
+          <button
+            type="button"
+            className={clsx(
+              'shrink-0 p-0.5 rounded text-[#f48771] hover:bg-[#3c3c3c] opacity-70 group-hover:opacity-100',
+              'focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-[#f48771]',
+            )}
+            title="Remove empty folder from DB cache"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRequestDelete(node)
+            }}
+          >
+            <Trash2 size={11} />
+          </button>
+        )}
       </div>
 
       {expanded && hasChildren && (
@@ -204,6 +282,7 @@ function FolderTreeNode({
               revealPaths={revealPaths}
               isRunsMode={isRunsMode}
               navigate={navigate}
+              onRequestDelete={onRequestDelete}
             />
           ))}
         </div>

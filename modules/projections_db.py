@@ -28,7 +28,9 @@ def get_embeddings_with_metadata_for_space(
 
     Each row mirrors ``db.get_embeddings_with_metadata`` shape:
         ``image_id``, ``file_path``, ``embedding`` (bytes),
-        ``thumbnail_path``, ``label``, ``rating``, ``score_general``.
+        ``thumbnail_path``, ``label``, ``rating``, ``score_general``,
+        ``score_technical``, ``score_aesthetic``, ``score_spaq``,
+        ``score_ava``, ``score_koniq``, ``score_paq2piq``, ``score_liqe``.
 
     Default space (``mobilenet_v2_imagenet_gap``) delegates to the legacy
     helper so the dual-read / legacy-column fallback still applies. All other
@@ -79,7 +81,9 @@ def get_embeddings_with_metadata_for_space(
 
     sql = (
         f"SELECT i.id AS image_id, i.file_path, e.embedding, "
-        f"       i.thumbnail_path, i.label, i.rating, i.score_general "
+        f"       i.thumbnail_path, i.label, i.rating, i.score_general, i.score_technical, "
+        f"i.score_aesthetic, i.score_spaq, i.score_ava, i.score_koniq, i.score_paq2piq, "
+        f"i.score_liqe "
         f"FROM {table} e "
         f"JOIN images i ON i.id = e.image_id "
         f"WHERE e.embedding_space_id = %s{folder_clause}"
@@ -108,5 +112,16 @@ def get_embeddings_with_metadata_for_space(
             "score_general": (
                 float(r["score_general"]) if r.get("score_general") is not None else None
             ),
+            "score_technical": (
+                float(r["score_technical"]) if r.get("score_technical") is not None else None
+            ),
+            "score_aesthetic": (
+                float(r["score_aesthetic"]) if r.get("score_aesthetic") is not None else None
+            ),
+            "score_spaq": float(r["score_spaq"]) if r.get("score_spaq") is not None else None,
+            "score_ava": float(r["score_ava"]) if r.get("score_ava") is not None else None,
+            "score_koniq": float(r["score_koniq"]) if r.get("score_koniq") is not None else None,
+            "score_paq2piq": float(r["score_paq2piq"]) if r.get("score_paq2piq") is not None else None,
+            "score_liqe": float(r["score_liqe"]) if r.get("score_liqe") is not None else None,
         })
     return out

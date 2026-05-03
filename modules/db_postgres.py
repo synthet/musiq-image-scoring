@@ -513,6 +513,7 @@ def _init_db_transaction():
                 model_version       VARCHAR(50),
                 rating              SMALLINT,
                 label               VARCHAR(50),
+                pick_status         SMALLINT NOT NULL DEFAULT 0,
                 image_hash          VARCHAR(64),
                 hash_version        INTEGER NOT NULL DEFAULT 1,
                 folder_id           INTEGER REFERENCES folders(id) ON DELETE SET NULL,
@@ -533,11 +534,15 @@ def _init_db_transaction():
                 "ALTER TABLE images ADD COLUMN IF NOT EXISTS hash_version INTEGER NOT NULL DEFAULT 1;"
             )
             cur.execute(
+                "ALTER TABLE images ADD COLUMN IF NOT EXISTS pick_status SMALLINT NOT NULL DEFAULT 0;"
+            )
+            cur.execute(
                 "UPDATE images SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP) "
                 "WHERE updated_at IS NULL"
             )
             cur.execute("CREATE INDEX IF NOT EXISTS idx_images_folder_id ON images(folder_id);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_images_stack_id ON images(stack_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_images_pick_status ON images(pick_status);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_images_hash ON images(image_hash);")
             cur.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_images_image_hash_hash_version "

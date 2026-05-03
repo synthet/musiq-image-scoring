@@ -5,6 +5,7 @@ import { clsx } from 'clsx'
 import {
   MapPin,
   Search,
+  Sparkles,
   SlidersHorizontal,
   X,
   Loader2,
@@ -201,6 +202,7 @@ export function GeoMapPage() {
   const [submittedKeyword, setSubmittedKeyword] = useState('')
   const [labelFilter, setLabelFilter] = useState('')
   const [ratingFilter, setRatingFilter] = useState(0)
+  const [isSemantic, setIsSemantic] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
@@ -221,14 +223,15 @@ export function GeoMapPage() {
   }, [])
 
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ['geo-images', submittedKeyword, labelFilter, ratingFilter, selectedScopePath],
+    queryKey: ['geo-images', submittedKeyword, labelFilter, ratingFilter, selectedScopePath, isSemantic],
     queryFn: () =>
       geoApi.getImages({
         keyword: submittedKeyword || undefined,
         label: labelFilter || undefined,
         rating: ratingFilter || undefined,
         folder_path: selectedScopePath ?? undefined,
-        limit: 5000,
+        semantic: isSemantic,
+        limit: 50000,
       }),
     staleTime: 60_000,
     retry: 1,
@@ -280,7 +283,7 @@ export function GeoMapPage() {
                 type="text"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                placeholder="Filter by keyword (e.g. bird, sunset)…"
+                placeholder={isSemantic ? "Describe what you're looking for (AI search)…" : "Filter by keyword (tag search)…"}
                 className={clsx(
                   'flex-1 bg-transparent text-sm text-[#cccccc] placeholder-[#6d6d6d]',
                   'outline-none min-w-0',
@@ -296,6 +299,19 @@ export function GeoMapPage() {
                   <X size={14} />
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setIsSemantic(!isSemantic)}
+                className={clsx(
+                  'p-1 rounded transition-colors',
+                  isSemantic
+                    ? 'text-[#4fc1ff] bg-[#003f6e] border border-[#007acc]'
+                    : 'text-[#6d6d6d] hover:text-[#9d9d9d] border border-transparent',
+                )}
+                title={isSemantic ? 'Switch to Keyword Search' : 'Switch to Semantic AI Search'}
+              >
+                <Sparkles size={14} className={clsx(isSemantic && 'animate-pulse')} />
+              </button>
               <button
                 type="button"
                 onClick={() => setShowFilters(!showFilters)}

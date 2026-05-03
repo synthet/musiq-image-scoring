@@ -24,6 +24,7 @@ export interface GeoImagesParams {
   min_score?: number
   label?: string
   rating?: number
+  semantic?: boolean
   limit?: number
 }
 
@@ -35,6 +36,7 @@ export const geoApi = {
     if (params.min_score != null) q.set('min_score', String(params.min_score))
     if (params.label) q.set('label', params.label)
     if (params.rating != null) q.set('rating', String(params.rating))
+    if (params.semantic) q.set('semantic', 'true')
     if (params.limit != null) q.set('limit', String(params.limit))
     const qs = q.toString()
     return api.get<GeoImagesResponse>(`/geo/images${qs ? `?${qs}` : ''}`)

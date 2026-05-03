@@ -1,6 +1,14 @@
 from modules import pipeline_selector_composer as composer
 
 
+def test_compose_selector_request_missing_path_adds_folder_and_image_selectors():
+    """Windows paths sent to a Linux API are neither file nor dir locally; still match DB folder/file paths."""
+    ghost = "/__no_such_path_image_scoring__/session"
+    payload = composer.compose_selector_request(input_path=ghost)
+    assert ghost in (payload["folder_paths"] or [])
+    assert ghost in (payload["image_paths"] or [])
+
+
 def test_compose_selector_request_accepts_native_lists(tmp_path):
     folder = str(tmp_path)
     payload = composer.compose_selector_request(

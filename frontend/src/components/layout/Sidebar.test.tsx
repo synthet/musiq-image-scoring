@@ -29,6 +29,7 @@ vi.mock('@/api/scope', () => ({
   scopeApi: {
     tree: vi.fn(),
     foldersTree: vi.fn(),
+    deleteEmptyFolderCache: vi.fn(),
   },
 }))
 
@@ -39,6 +40,7 @@ vi.mock('lucide-react', () => ({
   Folder: () => <div />,
   FolderOpen: () => <div />,
   Plus: () => <div />,
+  Trash2: () => <div />,
 }))
 
 describe('Sidebar', () => {
@@ -51,8 +53,9 @@ describe('Sidebar', () => {
       path: 'd:/photos',
       name: 'Photos',
       children: [],
-      phase_statuses: {}
-    }
+      phase_statuses: {},
+      image_count: 0,
+    },
   ]
 
   beforeEach(() => {
@@ -120,5 +123,48 @@ describe('Sidebar', () => {
     
     const node = photosLabel.closest('div[title]')
     expect(node?.getAttribute('title')).toContain('Double-click to view images')
+  })
+
+  it('shows remove-empty-folder control when image_count is zero', () => {
+    render(
+      <MemoryRouter initialEntries={['/images']}>
+        <Sidebar />
+      </MemoryRouter>
+    )
+    expect(screen.getByTitle('Remove empty folder from DB cache')).toBeInTheDocument()
+  })
+
+  it('does not show remove-empty-folder control when image_count is non-zero', () => {
+    vi.mocked(useQuery).mockReturnValue({
+      data: [
+        {
+          path: 'd:/photos',
+          name: 'Photos',
+          children: [],
+          phase_statuses: {},
+          image_count: 2,
+        },
+      ],
+      isLoading: false,
+    } as any)
+    render(
+      <MemoryRouter initialEntries={['/images']}>
+        <Sidebar />
+      </MemoryRouter>
+    )
+    expect(screen.queryByTitle('Remove empty folder from DB cache')).toBeNull()
+  })
+
+  it('does not show remove-empty-folder control when image_count is absent', () => {
+    vi.mocked(useQuery).mockReturnValue({
+      data: [{ path: 'd:/photos', name: 'Photos', children: [], phase_statuses: {} }],
+      isLoading: false,
+    } as any)
+    render(
+      <MemoryRouter initialEntries={['/images']}>
+        <Sidebar />
+      </MemoryRouter>
+    )
+    expect(screen.queryByTitle('Remove empty folder from DB cache')).toBeNull()
   })
 })

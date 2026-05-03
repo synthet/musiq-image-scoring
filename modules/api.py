@@ -44,6 +44,7 @@ Endpoints:
         GET /api/folders - Get flat folder listing
         GET /api/folders/tree - Get hierarchical folder tree (for Electron sidebar)
         GET /api/folders/phase-status - Get pipeline phase aggregate for a folder
+        DELETE /api/folders/cache - Remove empty folder subtree from DB cache (no disk delete)
         POST /api/gallery/export - Export filtered image set to JSON/CSV/XLSX
         GET /api/stacks - Get stacks listing
         GET /api/stacks/{stack_id}/images - Get images in a stack
@@ -1402,6 +1403,16 @@ class ImageUpdateRequest(BaseModel):
     title: Optional[str] = Field(None, description="Image title.")
     description: Optional[str] = Field(None, description="Image description.")
     keywords: Optional[str] = Field(None, description="Comma-separated keywords string.")
+    pick_status: Optional[int] = Field(
+        None,
+        ge=-1,
+        le=1,
+        description=(
+            "Culling pick: 1 = picked, -1 = rejected, 0 = unflagged. When provided "
+            "without explicit rating/label, the server mirrors the pick to "
+            "rating + label so legacy gallery filters keep working."
+        ),
+    )
     write_sidecar: bool = Field(True, description="If true, also write metadata to XMP sidecar / embedded tags via tagging runner.")
 
 
@@ -2890,7 +2901,7 @@ def create_api_router() -> APIRouter:
             500: {"description": "Internal Server Error"},
         },
     )
-    async def get_raw_preview(path: str = Query(..., description="Full path to the image file")):
+    def get_raw_preview(path: str = Query(..., description="Full path to the image file")):
         """Get or generate a preview for a RAW file."""
         import urllib.parse
         from modules import thumbnails
@@ -3480,7 +3491,8 @@ def create_api_router() -> APIRouter:
         - min_score: Optional. Minimum score_general threshold.
         - label: Optional. Filter by label (e.g. 'Green', 'Yellow', 'Red').
         - rating: Optional. Filter by star rating (1-5).
-        - limit: Maximum number of results (default: 5000, max: 10000).
+        - semantic: Optional. If true, perform semantic search via CLIP.
+        - limit: Maximum number of results (default: 50000, max: 100000).
 
         **Returns:**
         - images: List of geotagged image objects with lat/lng and metadata.
@@ -3495,9 +3507,32 @@ def create_api_router() -> APIRouter:
         min_score: Optional[float] = Query(None, ge=0.0, le=100.0, description="Minimum score_general"),
         label: Optional[str] = Query(None, description="Filter by label"),
         rating: Optional[int] = Query(None, ge=1, le=5, description="Filter by star rating"),
-        limit: int = Query(5000, ge=1, le=10000, description="Maximum results"),
+        semantic: bool = Query(False, description="Perform semantic search via CLIP"),
+        limit: int = Query(50000, ge=1, le=100000, description="Maximum results"),
     ):
         """Return images with GPS coordinates for map display."""
+        semantic_ids: Optional[List[int]] = None
+        if semantic and keyword:
+            from modules import similar_search
+            try:
+                semantic_results = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        similar_search.search_by_text,
+                        query=keyword,
+                        limit=limit,
+                        folder_path=folder_path
+                    ),
+                    timeout=30.0
+                )
+                if isinstance(semantic_results, list):
+                    semantic_ids = [r["image_id"] for r in semantic_results]
+                    if not semantic_ids:
+                        return {"images": [], "count": 0, "bounds": None}
+            except Exception as e:
+                logger.error(f"Semantic search failed in geo endpoint: {e}")
+                # Fallback to empty or keyword? Let's return empty to be consistent
+                return {"images": [], "count": 0, "bounds": None}
+
         def _fetch():
             conn = db.get_db()
             try:
@@ -3511,7 +3546,12 @@ def create_api_router() -> APIRouter:
                 if folder_path:
                     clauses.append("f.path = ?")
                     params.append(folder_path)
-                if keyword:
+                
+                if semantic_ids is not None:
+                    placeholders = ",".join(["?"] * len(semantic_ids))
+                    clauses.append(f"i.id IN ({placeholders})")
+                    params.extend(semantic_ids)
+                elif keyword:
                     clauses.append(
                         "EXISTS ("
                         " SELECT 1"
@@ -3521,6 +3561,7 @@ def create_api_router() -> APIRouter:
                         ")"
                     )
                     params.append(f"%{keyword}%")
+
                 if min_score is not None:
                     clauses.append("i.score_general >= ?")
                     params.append(min_score)
@@ -3593,6 +3634,7 @@ def create_api_router() -> APIRouter:
             rows = await asyncio.wait_for(asyncio.to_thread(_fetch), timeout=30.0)
         except asyncio.TimeoutError:
             raise HTTPException(status_code=504, detail="Geo query timed out.")
+
 
         # Build response with computed bounds
         images = []
@@ -4263,7 +4305,7 @@ def create_api_router() -> APIRouter:
         This endpoint replaces direct DB access from the Electron app.
         """
     )
-    async def query_images(
+    def query_images(
         page: int = Query(1, ge=1, description="Page number (1-based)"),
         page_size: int = Query(50, ge=1, le=500, description="Items per page"),
         sort_by: str = Query("score", description="Sort field (score, date, name, rating, score_general, score_aesthetic, score_technical)"),
@@ -4819,7 +4861,7 @@ def create_api_router() -> APIRouter:
         'cluster' requires a folder path.
         """
     )
-    async def submit_pipeline(request: PipelineSubmitRequest):
+    def submit_pipeline(request: PipelineSubmitRequest):
         """Submit image/folder to the processing pipeline."""
         from modules.ui.security import _check_rate_limit
         _check_rate_limit("pipeline_submit")
@@ -4835,7 +4877,7 @@ def create_api_router() -> APIRouter:
             ]
         )
         if not has_selector:
-            raise HTTPException(status_code=400, detail="Provide workspace_target or at least one selector")
+            return ApiResponse(success=False, message="Invalid submission parameters: Provide workspace_target or at least one selector")
 
         selector_request = compose_selector_request(
             input_path=wt or None,
@@ -4846,32 +4888,33 @@ def create_api_router() -> APIRouter:
             exclude_image_paths_raw=request.exclude_image_paths,
             recursive=request.recursive,
         )
-        preview = validate_and_preview(selector_request)
-        resolved_count = int(preview.get("preview_count") or 0)
-        if resolved_count <= 0:
-            raise HTTPException(status_code=400, detail="No images matched selectors")
-
-        if wt and not any([request.image_ids, request.image_paths, request.folder_ids, request.folder_paths]):
-            if not os.path.exists(wt):
-                raise HTTPException(status_code=400, detail=f"Path not found: {wt}")
-
         valid_ops = {"indexing", "metadata", "score", "tag", "cluster"}
         invalid_ops = [op for op in request.stage_codes if op not in valid_ops]
         if invalid_ops:
-            raise HTTPException(status_code=400, detail=f"Invalid stage_codes: {invalid_ops}. Valid: {sorted(valid_ops)}")
+            return ApiResponse(success=False, message=f"Invalid submission parameters: Invalid stage_codes: {invalid_ops}. Valid: {sorted(valid_ops)}")
         if not request.stage_codes:
-            raise HTTPException(status_code=400, detail="At least one stage_code is required")
+            return ApiResponse(success=False, message="Invalid submission parameters: At least one stage_code is required")
+
+        first_op = request.stage_codes[0]
+
+        preview = validate_and_preview(selector_request)
+        resolved_count = int(preview.get("preview_count") or 0)
+        if resolved_count <= 0 and first_op != "indexing":
+            return ApiResponse(success=False, message="Invalid submission parameters: No images matched selectors")
+
+        if wt and not any([request.image_ids, request.image_paths, request.folder_ids, request.folder_paths]):
+            if not os.path.exists(wt):
+                return ApiResponse(success=False, message=f"Invalid submission parameters: Path not found: {wt}")
 
         is_file = bool(wt and os.path.isfile(wt))
         if is_file and "cluster" in request.stage_codes:
-            raise HTTPException(status_code=400, detail="Clustering requires a folder path, not a single file")
+            return ApiResponse(success=False, message="Invalid submission parameters: Clustering requires a folder path, not a single file")
         if "cluster" in request.stage_codes and not any([wt, request.folder_ids, request.folder_paths]):
-            raise HTTPException(status_code=400, detail="Clustering requires a folder selector")
+            return ApiResponse(success=False, message="Invalid submission parameters: Clustering requires a folder selector")
 
         queue_input_path = wt or "SELECTOR_PIPELINE"
 
         from modules import db
-        first_op = request.stage_codes[0]
 
         def _normalize_stage_run_plan(rows: List[dict]) -> List[dict]:
             """Return semantic StageRun keys while preserving legacy phase aliases."""
@@ -4890,22 +4933,22 @@ def create_api_router() -> APIRouter:
         if is_file:
             if first_op == "score":
                 if _scoring_runner is None:
-                    raise HTTPException(status_code=503, detail="Scoring runner not available")
+                    return ApiResponse(success=False, message="Orchestrator unavailable: Scoring runner not available")
                 if _scoring_runner.is_running:
-                    return ApiResponse(success=False, message="Scoring runner is busy", data={"is_running": True})
+                    return ApiResponse(success=False, message="Orchestrator busy: Scoring runner is busy", data={"is_running": True})
                 success, message = _scoring_runner.run_single_image(wt)
             elif first_op == "tag":
                 if _tagging_runner is None:
-                    raise HTTPException(status_code=503, detail="Tagging runner not available")
+                    return ApiResponse(success=False, message="Orchestrator unavailable: Tagging runner not available")
                 if _tagging_runner.is_running:
-                    return ApiResponse(success=False, message="Tagging runner is busy", data={"is_running": True})
+                    return ApiResponse(success=False, message="Orchestrator busy: Tagging runner is busy", data={"is_running": True})
                 success, message = _tagging_runner.run_single_image(
                     wt,
                     request.custom_keywords,
                     request.generate_captions,
                 )
             else:
-                raise HTTPException(status_code=400, detail="Single-file pipeline supports score/tag only")
+                return ApiResponse(success=False, message="Invalid submission parameters: Single-file pipeline supports score/tag only")
 
             stage_run_plan = _normalize_stage_run_plan([
                 {"stage_order": i, "stage_code": op, "state": "completed" if i == 0 else "pending"}
@@ -4958,7 +5001,7 @@ def create_api_router() -> APIRouter:
 
         if first_op == "indexing":
             if _indexing_runner is None:
-                raise HTTPException(status_code=503, detail="Indexing runner not available")
+                return ApiResponse(success=False, message="Orchestrator unavailable: Indexing runner not available")
             job_id, queue_position = db.enqueue_job(
                 queue_input_path,
                 phase_code="indexing",
@@ -4976,7 +5019,7 @@ def create_api_router() -> APIRouter:
             )
         elif first_op == "metadata":
             if _metadata_runner is None:
-                raise HTTPException(status_code=503, detail="Metadata runner not available")
+                return ApiResponse(success=False, message="Orchestrator unavailable: Metadata runner not available")
             job_id, queue_position = db.enqueue_job(
                 queue_input_path,
                 phase_code="metadata",
@@ -4994,7 +5037,7 @@ def create_api_router() -> APIRouter:
             )
         elif first_op == "score":
             if _scoring_runner is None:
-                raise HTTPException(status_code=503, detail="Scoring runner not available")
+                return ApiResponse(success=False, message="Orchestrator unavailable: Scoring runner not available")
             
             # Map operations to internal phase codes for the orchestrator
             target_phases = [op_to_phase_code.get(op) for op in request.stage_codes if op in ["indexing", "metadata", "score"]]
@@ -5017,7 +5060,7 @@ def create_api_router() -> APIRouter:
             )
         elif first_op == "tag":
             if _tagging_runner is None:
-                raise HTTPException(status_code=503, detail="Tagging runner not available")
+                return ApiResponse(success=False, message="Orchestrator unavailable: Tagging runner not available")
             job_id, queue_position = db.enqueue_job(
                 queue_input_path,
                 phase_code="keywords",
@@ -5037,7 +5080,7 @@ def create_api_router() -> APIRouter:
             )
         else:
             if _clustering_runner is None:
-                raise HTTPException(status_code=503, detail="Clustering runner not available")
+                return ApiResponse(success=False, message="Orchestrator unavailable: Clustering runner not available")
             job_id, queue_position = db.enqueue_job(
                 queue_input_path,
                 phase_code="culling",
@@ -5455,6 +5498,41 @@ def create_api_router() -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+    class DeleteFolderCacheRequest(BaseModel):
+        """Remove a folder subtree from the ``folders`` cache when no images reference it."""
+
+        path: str = Field(..., description="Absolute folder path matching a cached ``folders.path``.")
+
+    @router.delete(
+        "/folders/cache",
+        summary="Remove empty folder subtree from DB cache",
+        description=(
+            "Deletes the subtree rooted at ``path`` only when ``COUNT(images.folder_id ∈ subtree)==0``. "
+            "Does not delete files on disk. Descendant rows are cleared via FK cascade."
+        ),
+    )
+    async def delete_empty_folder_cache_route(request: DeleteFolderCacheRequest):
+        try:
+            res = await asyncio.to_thread(db.delete_empty_folder_cache_subtree, (request.path or "").strip())
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+        reason = res.get("reason")
+        if reason == "invalid":
+            raise HTTPException(status_code=400, detail=res.get("message") or "Invalid folder path.")
+        if reason == "not_found":
+            raise HTTPException(status_code=404, detail=res.get("message") or "Folder not found.")
+        if reason == "not_empty":
+            raise HTTPException(status_code=409, detail=res.get("message") or "Folder is not empty.")
+        if reason == "error" or not res.get("success"):
+            raise HTTPException(status_code=500, detail=res.get("message") or "Delete failed.")
+
+        return {
+            "success": True,
+            "message": res.get("message"),
+            "deleted_folders": int(res.get("deleted_folders") or 0),
+        }
+
     @router.get(
         "/folders/phase-status",
         summary="Get pipeline phase aggregate for a folder",
@@ -5526,10 +5604,33 @@ def create_api_router() -> APIRouter:
         new_rating = request.rating if request.rating is not None else current_rating
         new_label = request.label if request.label is not None else current_label
 
+        # Pick-status mirror: when caller sets pick_status without an explicit
+        # rating/label, project the pick onto Adobe-compatible rating + label so
+        # Lightroom and existing gallery filters see it.
+        if request.pick_status is not None:
+            if request.pick_status == 1:
+                if request.rating is None:
+                    new_rating = 4
+                if request.label is None:
+                    new_label = "Green"
+            elif request.pick_status == -1:
+                if request.rating is None:
+                    new_rating = 1
+                if request.label is None:
+                    new_label = "Red"
+            else:  # 0
+                if request.rating is None:
+                    new_rating = 0
+                if request.label is None:
+                    new_label = ""
+
         try:
             success = db.update_image_metadata(file_path, new_keywords, new_title, new_desc, new_rating, new_label)
             if not success:
                 raise HTTPException(status_code=500, detail="Database update failed")
+
+            if request.pick_status is not None:
+                db.update_image_pick_status(image_id, request.pick_status)
 
             sidecar_ok = True
             if request.write_sidecar and _tagging_runner is not None:
@@ -5539,7 +5640,13 @@ def create_api_router() -> APIRouter:
             return ApiResponse(
                 success=True,
                 message=f"Updated image {image_id}",
-                data={"image_id": image_id, "sidecar_written": sidecar_ok}
+                data={
+                    "image_id": image_id,
+                    "sidecar_written": sidecar_ok,
+                    "pick_status": request.pick_status,
+                    "rating": new_rating,
+                    "label": new_label,
+                },
             )
         except HTTPException:
             raise
@@ -6630,6 +6737,22 @@ def create_api_router() -> APIRouter:
             folders.append(local_p)
         folders = list(set(folders))
         tree_dict = build_tree_dict(folders)
+
+        dc_map = db.get_folder_direct_image_counts_by_local_path_norm()
+
+        def rollup_image_counts(node: Dict) -> int:
+            """Set ``node["image_count"]`` to subtree image total (gallery ``total_image_count`` semantics)."""
+            pkey = os.path.normpath(node.get("path") or "")
+            meta = dc_map.get(pkey) or {}
+            direct = int(meta.get("direct_count") or 0)
+            children = node.get("children") or []
+            under = sum(rollup_image_counts(ch) for ch in children)
+            total = direct + under
+            node["image_count"] = total
+            return total
+
+        for root in tree_dict:
+            rollup_image_counts(root)
 
         if not include_phase_status:
             return tree_dict

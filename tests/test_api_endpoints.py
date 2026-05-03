@@ -426,6 +426,57 @@ def test_folders_rebuild_calls_rebuild_and_returns_folders(monkeypatch):
     assert "folders" in data
 
 
+def test_delete_folder_cache_success(monkeypatch):
+    monkeypatch.setattr(
+        db,
+        "delete_empty_folder_cache_subtree",
+        lambda p: {"success": True, "message": "OK", "deleted_folders": 2, "reason": None},
+    )
+    with _build_client() as client:
+        response = client.request(
+            "DELETE",
+            "/api/folders/cache",
+            json={"path": "/photos/empty"},
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["deleted_folders"] == 2
+
+
+def test_delete_folder_cache_not_found(monkeypatch):
+    monkeypatch.setattr(
+        db,
+        "delete_empty_folder_cache_subtree",
+        lambda p: {"success": False, "message": "nope", "deleted_folders": 0, "reason": "not_found"},
+    )
+    with _build_client() as client:
+        response = client.request("DELETE", "/api/folders/cache", json={"path": "/nope"})
+    assert response.status_code == 404
+
+
+def test_delete_folder_cache_not_empty(monkeypatch):
+    monkeypatch.setattr(
+        db,
+        "delete_empty_folder_cache_subtree",
+        lambda p: {"success": False, "message": "has images", "deleted_folders": 0, "reason": "not_empty"},
+    )
+    with _build_client() as client:
+        response = client.request("DELETE", "/api/folders/cache", json={"path": "/x"})
+    assert response.status_code == 409
+
+
+def test_delete_folder_cache_invalid_body(monkeypatch):
+    monkeypatch.setattr(
+        db,
+        "delete_empty_folder_cache_subtree",
+        lambda p: {"success": False, "message": "No folder path", "deleted_folders": 0, "reason": "invalid"},
+    )
+    with _build_client() as client:
+        response = client.request("DELETE", "/api/folders/cache", json={"path": "  "})
+    assert response.status_code == 400
+
+
 # ---------------------------------------------------------------------------
 # Stats endpoint
 # ---------------------------------------------------------------------------

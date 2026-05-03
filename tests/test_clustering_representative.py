@@ -66,6 +66,9 @@ if _pydantic_was_stubbed:
 # Heavy project-internal stubs (avoid DB / TF / fdb imports)
 _stub("modules.events", event_manager=MagicMock())
 _stub("modules.db")
+_db_mod = sys.modules["modules.db"]
+if not hasattr(_db_mod, "get_exif_fields_for_quality_tiebreak"):
+    _db_mod.get_exif_fields_for_quality_tiebreak = MagicMock(return_value={})
 _stub("modules.utils")
 
 def _get_config_section(section):
@@ -155,7 +158,20 @@ class TestSelectBestImageScore:
         id_to_score = {1: None, 2: None, 3: None}
         with cfg_patch("score"):
             result = engine._select_best_image(img_ids, id_to_score)
-        assert result in img_ids
+        assert result == 1
+
+    def test_equal_scores_lower_iso_wins_with_exif(self):
+        engine = make_engine()
+        img_ids = [10, 20, 30]
+        id_to_score = {10: 0.5, 20: 0.5, 30: 0.5}
+        id_to_exif = {
+            10: {"iso": 800, "exposure_time": "1/250", "date_time_original": "2020-01-02"},
+            20: {"iso": 100, "exposure_time": "1/250", "date_time_original": "2020-01-02"},
+            30: {"iso": 400, "exposure_time": "1/250", "date_time_original": "2020-01-02"},
+        }
+        with cfg_patch("score"):
+            result = engine._select_best_image(img_ids, id_to_score, id_to_exif=id_to_exif)
+        assert result == 20
 
     def test_all_equal_scores(self):
         engine = make_engine()
@@ -163,7 +179,8 @@ class TestSelectBestImageScore:
         id_to_score = {10: 0.5, 20: 0.5, 30: 0.5}
         with cfg_patch("score"):
             result = engine._select_best_image(img_ids, id_to_score)
-        assert result in img_ids
+        # No EXIF in stub map → tie-break is lowest id
+        assert result == 10
 
 
 # ---------------------------------------------------------------------------
@@ -171,7 +188,7 @@ class TestSelectBestImageScore:
 # ---------------------------------------------------------------------------
 
 
-
+class TestSelectBestImageCentroid:
     def test_prefers_stack_representative_strategy_over_legacy_key(self):
         engine = make_engine()
         img_ids = [1, 2, 3]
@@ -191,7 +208,7 @@ class TestSelectBestImageScore:
         ):
             result = engine._select_best_image(img_ids, id_to_score, id_to_feature)
         assert result == 2
-class TestSelectBestImageCentroid:
+
     def _make_feats(self):
         """Three 3-D embeddings: id=2 is closest to the centroid direction."""
         f1 = np.array([1.0, 0.0, 0.0], dtype=np.float32)

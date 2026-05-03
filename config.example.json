@@ -37,7 +37,8 @@
   "culling": {
     "default_threshold": 0.15,
     "default_time_gap": 120,
-    "auto_export_default": false
+    "auto_export_default": false,
+    "sub_cluster_distance_threshold": 0.05
   },
   "ui": {
     "gallery_page_size": 50,
@@ -83,7 +84,7 @@
     "method": "umap",
     "n_neighbors": 30,
     "min_dist": 0.1,
-    "max_points": 50000
+    "max_points": 15000
   },
   "embeddings": {
     "persist_clip_image": true,

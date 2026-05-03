@@ -10,6 +10,13 @@ export interface EmbeddingPoint {
   label: string | null;
   rating: number | null;
   score_general: number | null;
+  score_technical?: number | null;
+  score_aesthetic?: number | null;
+  score_spaq?: number | null;
+  score_ava?: number | null;
+  score_koniq?: number | null;
+  score_paq2piq?: number | null;
+  score_liqe?: number | null;
 }
 
 export interface EmbeddingMapResponse {
@@ -21,6 +28,8 @@ export interface EmbeddingMapResponse {
     cache_key?: string;
     embedding_space: string;
     pca_dim: number;
+    /** Present when method is umap; may be lower than requested when N is small. */
+    n_neighbors_effective?: number;
     error?: string;
   };
 }
@@ -36,7 +45,7 @@ export interface FetchEmbeddingMapParams {
   pca_dim?: number;
 }
 
-export function fetchEmbeddingMap(params: FetchEmbeddingMapParams) {
+export async function fetchEmbeddingMap(params: FetchEmbeddingMapParams): Promise<EmbeddingMapResponse> {
   const query = new URLSearchParams();
   if (params.folder_path) query.set('folder_path', params.folder_path);
   if (params.method) query.set('method', params.method);
@@ -47,7 +56,8 @@ export function fetchEmbeddingMap(params: FetchEmbeddingMapParams) {
   if (params.space_code) query.set('space_code', params.space_code);
   if (params.pca_dim !== undefined) query.set('pca_dim', params.pca_dim.toString());
 
-  return api.get<EmbeddingMapResponse>(`/embedding_map?${query.toString()}`);
+  const res = await api.get<any>(`/embedding_map?${query.toString()}`);
+  return res.data ? res.data : res;
 }
 
 export function useEmbeddingMap(params: FetchEmbeddingMapParams) {

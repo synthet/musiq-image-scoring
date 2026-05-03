@@ -40,6 +40,13 @@ def _fake_rows(n, dim=8):
             "label": None,
             "rating": None,
             "score_general": round(float(rng.random()), 3),
+            "score_technical": round(float(rng.random()), 3),
+            "score_aesthetic": round(float(rng.random()), 3),
+            "score_spaq": round(float(rng.random()), 3),
+            "score_ava": round(float(rng.random()), 3),
+            "score_koniq": round(float(rng.random()), 3),
+            "score_paq2piq": round(float(rng.random()), 3),
+            "score_liqe": round(float(rng.random()), 3),
         })
     return rows
 
@@ -103,8 +110,11 @@ def test_embedding_map_returns_points(monkeypatch):
     assert len(points) == n
     # All required fields present
     for pt in points:
-        for field in ("image_id", "x", "y", "file_path", "thumbnail_path",
-                      "label", "rating", "score_general"):
+        for field in (
+            "image_id", "x", "y", "file_path", "thumbnail_path",
+            "label", "rating", "score_general", "score_technical", "score_aesthetic",
+            "score_spaq", "score_ava", "score_koniq", "score_paq2piq", "score_liqe",
+        ):
             assert field in pt, f"Missing field: {field}"
     # x/y are in [0, 1]
     for pt in points:
@@ -116,6 +126,35 @@ def test_embedding_map_returns_points(monkeypatch):
     assert meta["method"] == "umap"
     assert "computed_at" in meta
     assert "cache_key" in meta
+    # UMAP requires n_neighbors < n_samples; default 30 clamps to n-1 here.
+    assert meta["n_neighbors_effective"] == n - 1
+
+
+def test_embedding_map_clamps_umap_n_neighbors(monkeypatch):
+    """Default n_neighbors=30 must clamp below n_samples so UMAP does not fail."""
+    import modules.db as db_mod
+    import modules.projections as proj_mod
+
+    n = 8
+    rows = _fake_rows(n)
+    monkeypatch.setattr(db_mod, "get_embeddings_with_metadata", lambda **kw: rows)
+
+    captured = {}
+
+    def _capture_umap(vecs, n_neighbors, min_dist):
+        captured["n_neighbors"] = n_neighbors
+        return _fake_coords(len(vecs))
+
+    monkeypatch.setattr(proj_mod, "_project_umap", _capture_umap)
+    monkeypatch.setattr(proj_mod, "_load_cache", lambda key: None)
+    monkeypatch.setattr(proj_mod, "_save_cache", lambda key, data: None)
+
+    with _build_client() as client:
+        resp = client.get("/api/embedding_map?method=umap&n_neighbors=30")
+
+    assert resp.status_code == 200
+    assert captured["n_neighbors"] == n - 1
+    assert resp.json()["data"]["meta"]["n_neighbors_effective"] == n - 1
 
 
 def test_embedding_map_invalid_method():
@@ -165,7 +204,9 @@ def test_embedding_map_cache_hit(monkeypatch):
     cached_data = {
         "points": [{"image_id": 1, "x": 0.5, "y": 0.5, "file_path": "/a.jpg",
                     "thumbnail_path": None, "label": None, "rating": None,
-                    "score_general": 0.9}],
+                    "score_general": 0.9, "score_technical": 0.5, "score_aesthetic": 0.6,
+                    "score_spaq": None, "score_ava": None, "score_koniq": None,
+                    "score_paq2piq": None, "score_liqe": None}],
         "meta": {"count": 1, "method": "umap", "computed_at": "2026-01-01T00:00:00+00:00",
                  "cache_key": "abc123"},
     }

@@ -68,6 +68,7 @@ def _make_cache_key(
             "method_params": method_params,
             "embedding_space": embedding_space or DEFAULT_EMBEDDING_SPACE_CODE,
             "pca_dim": int(pca_dim) if pca_dim else 0,
+            "output_v": 4,
         },
         sort_keys=True,
     )
@@ -134,6 +135,13 @@ def _normalize(matrix):
     return matrix / norms
 
 
+def _effective_umap_n_neighbors(n_neighbors: int, n_samples: int) -> int:
+    """UMAP requires ``2 <= n_neighbors < n_samples`` (strict upper bound)."""
+    if n_samples <= MIN_POINTS:
+        return max(2, int(n_neighbors))
+    return max(2, min(int(n_neighbors), n_samples - 1))
+
+
 def _project_umap(vecs, n_neighbors, min_dist):
     import umap  # optional dependency
     reducer = umap.UMAP(
@@ -149,7 +157,9 @@ def _project_umap(vecs, n_neighbors, min_dist):
 def _project_tsne(vecs, n_neighbors):
     from sklearn.manifold import TSNE
 
-    perplexity = min(n_neighbors, max(5, len(vecs) - 1))
+    n = len(vecs)
+    # sklearn: perplexity must be less than n_samples
+    perplexity = float(min(max(1.0, float(n_neighbors)), max(1.0, n - 1.0001)))
     reducer = TSNE(
         n_components=2,
         metric="cosine",
@@ -216,7 +226,9 @@ def compute_embedding_map(
     dict
         {
             "points": [{image_id, x, y, file_path, thumbnail_path,
-                        label, rating, score_general}, ...],
+                        label, rating, score_general, score_technical,
+                        score_aesthetic, score_spaq, score_ava, score_koniq,
+                        score_paq2piq, score_liqe}, ...],
             "meta":   {count, method, computed_at, cache_key,
                        embedding_space, pca_dim}
         }
@@ -229,7 +241,9 @@ def compute_embedding_map(
     min_dist = min_dist if min_dist is not None else get_config_value(
         "embedding_map.min_dist", 0.1
     )
-    max_points = sample_limit or get_config_value("embedding_map.max_points", 50000)
+    # Default cap keeps first UMAP/t-SNE interactive load responsive; raise in
+    # config.json (`embedding_map.max_points`) for full-library projections.
+    max_points = sample_limit or get_config_value("embedding_map.max_points", 15000)
 
     space_code = embedding_space or DEFAULT_EMBEDDING_SPACE_CODE
     if space_code not in SPACE_DIMS:
@@ -296,11 +310,20 @@ def compute_embedding_map(
             logger.warning("sklearn.decomposition.PCA unavailable, skipping PCA pre-step")
             effective_pca_dim = 0
 
+    umap_neighbors = _effective_umap_n_neighbors(n_neighbors, count)
+    if umap_neighbors != n_neighbors:
+        logger.debug(
+            "Embedding map: clamped n_neighbors %s -> %s for n=%d",
+            n_neighbors,
+            umap_neighbors,
+            count,
+        )
+
     # Project to 2D
     actual_method = method
     try:
         if method == "umap":
-            coords = _project_umap(vecs, n_neighbors, min_dist)
+            coords = _project_umap(vecs, umap_neighbors, min_dist)
         else:
             coords = _project_tsne(vecs, n_neighbors)
     except ImportError:
@@ -320,20 +343,31 @@ def compute_embedding_map(
             "label": r["label"],
             "rating": r["rating"],
             "score_general": r["score_general"],
+            "score_technical": r.get("score_technical"),
+            "score_aesthetic": r.get("score_aesthetic"),
+            "score_spaq": r.get("score_spaq"),
+            "score_ava": r.get("score_ava"),
+            "score_koniq": r.get("score_koniq"),
+            "score_paq2piq": r.get("score_paq2piq"),
+            "score_liqe": r.get("score_liqe"),
         }
         for i, r in enumerate(rows)
     ]
 
+    meta = {
+        "count": count,
+        "method": actual_method,
+        "computed_at": datetime.now(timezone.utc).isoformat(),
+        "cache_key": cache_key,
+        "embedding_space": space_code,
+        "pca_dim": effective_pca_dim,
+    }
+    if actual_method == "umap":
+        meta["n_neighbors_effective"] = umap_neighbors
+
     result = {
         "points": points,
-        "meta": {
-            "count": count,
-            "method": actual_method,
-            "computed_at": datetime.now(timezone.utc).isoformat(),
-            "cache_key": cache_key,
-            "embedding_space": space_code,
-            "pca_dim": effective_pca_dim,
-        },
+        "meta": meta,
     }
 
     _save_cache(cache_key, result)

@@ -31,7 +31,7 @@ export function SimilarImagesFilmstrip() {
                 onClick={() => setSelectedPointId(item.image_id)}
               >
                 <img
-                  src={`/api/images/${item.image_id}/thumbnail`}
+                  src={`/source-image?path=${encodeURIComponent(item.file_path)}&thumb=1`}
                   alt={item.file_path}
                   className="h-full max-w-[120px] object-cover rounded-md border border-slate-800 hover:border-slate-400 transition-colors"
                   title={`${item.file_path.split(/[/\\]/).pop()} (Sim: ${(item.similarity * 100).toFixed(1)}%)`}

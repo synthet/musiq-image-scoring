@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import subprocess
+from typing import Any, Callable
 
 from modules import utils
 
@@ -187,7 +188,11 @@ def extract_and_upsert_exif(image_path: str, image_id: int) -> bool:
     return db.upsert_image_exif(image_id, merged)
 
 
-def backfill_exif_dates(limit: int | None = None) -> dict:
+def backfill_exif_dates(
+    limit: int | None = None,
+    *,
+    on_progress: Callable[[int, int, dict], Any] | None = None,
+) -> dict:
     """
     Refresh EXIF + XMP caches for images that still have no effective capture date.
 
@@ -195,7 +200,11 @@ def backfill_exif_dates(limit: int | None = None) -> dict:
     is NULL, then re-reads XMP sidecar and exiftool (-ee for embedded RAW metadata).
 
     Args:
-        limit: Optional max rows per call (use for batching large libraries).
+        limit: Optional max rows per call (use for batching large libraries). Candidates are
+            ordered randomly each run so batches spread across the library instead of always
+            starting at the lowest ``image_id``.
+        on_progress: Optional callback ``(done_checked, total_candidates, stats_copy)`` for
+            batched UI/logs (``done_checked==0`` is a pre-loop banner when ``total_candidates>0``).
 
     Returns:
         dict: checked, updated, skipped_no_file, skipped_no_date, errors.
@@ -210,10 +219,21 @@ def backfill_exif_dates(limit: int | None = None) -> dict:
             LEFT JOIN image_exif ex ON ex.image_id = i.id
             LEFT JOIN image_xmp xm ON xm.image_id = i.id
             WHERE COALESCE(ex.date_time_original, ex.create_date, xm.create_date) IS NULL
-            ORDER BY i.id{limit_clause}"""
+            ORDER BY RAND(){limit_clause}"""
     )
 
     stats = {"checked": 0, "updated": 0, "skipped_no_file": 0, "skipped_no_date": 0, "errors": 0}
+    total = len(rows)
+    if on_progress is not None:
+        on_progress(0, total, dict(stats))
+
+    def _maybe_progress_after_row() -> None:
+        if on_progress is None:
+            return
+        c = stats["checked"]
+        if total == 0 or c % 75 == 0 or c >= total:
+            on_progress(c, total, dict(stats))
+
     for row in rows:
         stats["checked"] += 1
         image_id = row["image_id"]
@@ -225,6 +245,7 @@ def backfill_exif_dates(limit: int | None = None) -> dict:
             if not resolved or not os.path.exists(resolved):
                 stats["skipped_no_file"] += 1
                 logger.debug("backfill skip image_id=%s: file not found (%s)", image_id, file_path)
+                _maybe_progress_after_row()
                 continue
             xmp_mod.extract_and_upsert_xmp(resolved, image_id)
             data = extract_exif(resolved, image_id)
@@ -233,6 +254,7 @@ def backfill_exif_dates(limit: int | None = None) -> dict:
                 merged = _merge_exif_for_upsert(existing, data)
                 if not db.upsert_image_exif(image_id, merged):
                     stats["errors"] += 1
+                    _maybe_progress_after_row()
                     continue
             exif_row = db.get_image_exif(image_id) or {}
             xmp_row = db.get_image_xmp(image_id) or {}
@@ -252,6 +274,7 @@ def backfill_exif_dates(limit: int | None = None) -> dict:
         except Exception as e:
             logger.warning("backfill_exif_dates failed for image_id %s: %s", image_id, e)
             stats["errors"] += 1
+        _maybe_progress_after_row()
 
     logger.info("backfill_exif_dates: %s", stats)
     return stats
@@ -324,6 +347,7 @@ def backfill_exif_camera_lens(
     limit: int | None = None,
     *,
     path_like: str | None = None,
+    on_progress: Callable[[int, int, dict], Any] | None = None,
 ) -> dict:
     """
     Re-extract EXIF from disk for rows missing camera and/or lens (image_exif.make/model or lens_model).
@@ -333,8 +357,9 @@ def backfill_exif_camera_lens(
     other cached columns.
 
     Args:
-        limit: Optional max rows per call.
+        limit: Optional max rows per call (random order each run; see :func:`backfill_exif_dates`).
         path_like: Optional SQL ``LIKE`` pattern on ``images.file_path`` (e.g. ``%/Photos/Z6ii/%``).
+        on_progress: Optional ``(done_checked, total_candidates, stats_copy)`` for UI milestones.
 
     Returns:
         dict: checked, updated, skipped_no_file, skipped_no_exif, skipped_still_missing, errors.
@@ -360,7 +385,7 @@ def backfill_exif_camera_lens(
                 ) IS NULL
                 OR NULLIF(TRIM(COALESCE(ex.lens_model, '')), '') IS NULL
             ){path_clause}
-            ORDER BY i.id{limit_clause}""",
+            ORDER BY RAND(){limit_clause}""",
         sql_params,
     )
 
@@ -372,6 +397,17 @@ def backfill_exif_camera_lens(
         "skipped_still_missing": 0,
         "errors": 0,
     }
+    total = len(rows)
+    if on_progress is not None:
+        on_progress(0, total, dict(stats))
+
+    def _maybe_progress_after_row() -> None:
+        if on_progress is None:
+            return
+        c = stats["checked"]
+        if total == 0 or c % 75 == 0 or c >= total:
+            on_progress(c, total, dict(stats))
+
     for row in rows:
         stats["checked"] += 1
         image_id = row["image_id"]
@@ -383,6 +419,7 @@ def backfill_exif_camera_lens(
             if not resolved or not os.path.exists(resolved):
                 stats["skipped_no_file"] += 1
                 logger.debug("backfill_exif_camera_lens skip image_id=%s: file not found (%s)", image_id, file_path)
+                _maybe_progress_after_row()
                 continue
 
             existing = db.get_image_exif(image_id)
@@ -394,11 +431,13 @@ def backfill_exif_camera_lens(
                     image_id,
                     file_path,
                 )
+                _maybe_progress_after_row()
                 continue
 
             merged = _merge_exif_for_upsert(existing, fresh)
             if not db.upsert_image_exif(image_id, merged):
                 stats["errors"] += 1
+                _maybe_progress_after_row()
                 continue
 
             exif_row = db.get_image_exif(image_id) or {}
@@ -414,6 +453,7 @@ def backfill_exif_camera_lens(
         except Exception as e:
             logger.warning("backfill_exif_camera_lens failed for image_id %s: %s", image_id, e)
             stats["errors"] += 1
+        _maybe_progress_after_row()
 
     logger.info("backfill_exif_camera_lens: %s", stats)
     return stats
@@ -423,6 +463,7 @@ def backfill_exif_gps(
     limit: int | None = None,
     *,
     path_like: str | None = None,
+    on_progress: Callable[[int, int, dict], Any] | None = None,
 ) -> dict:
     """
     Re-extract EXIF from disk for rows missing ``gps_latitude`` / ``gps_longitude`` in ``image_exif``.
@@ -431,8 +472,9 @@ def backfill_exif_gps(
     Merges with existing ``image_exif`` so reverse-geocode fields are not wiped when fresh EXIF lacks them.
 
     Args:
-        limit: Optional max rows per call.
+        limit: Optional max rows per call (random order each run; see :func:`backfill_exif_dates`).
         path_like: Optional SQL ``LIKE`` pattern on ``images.file_path``.
+        on_progress: Optional ``(done_checked, total_candidates, stats_copy)`` for UI milestones.
     """
     from modules import db
 
@@ -452,7 +494,7 @@ def backfill_exif_gps(
                 OR ex.gps_latitude IS NULL
                 OR ex.gps_longitude IS NULL
             ){path_clause}
-            ORDER BY i.id{limit_clause}""",
+            ORDER BY RAND(){limit_clause}""",
         sql_params,
     )
 
@@ -464,6 +506,17 @@ def backfill_exif_gps(
         "skipped_still_missing": 0,
         "errors": 0,
     }
+    total = len(rows)
+    if on_progress is not None:
+        on_progress(0, total, dict(stats))
+
+    def _maybe_progress_after_row() -> None:
+        if on_progress is None:
+            return
+        c = stats["checked"]
+        if total == 0 or c % 75 == 0 or c >= total:
+            on_progress(c, total, dict(stats))
+
     for row in rows:
         stats["checked"] += 1
         image_id = row["image_id"]
@@ -475,6 +528,7 @@ def backfill_exif_gps(
             if not resolved or not os.path.exists(resolved):
                 stats["skipped_no_file"] += 1
                 logger.debug("backfill_exif_gps skip image_id=%s: file not found (%s)", image_id, file_path)
+                _maybe_progress_after_row()
                 continue
 
             existing = db.get_image_exif(image_id)
@@ -486,11 +540,13 @@ def backfill_exif_gps(
                     image_id,
                     file_path,
                 )
+                _maybe_progress_after_row()
                 continue
 
             merged = _merge_exif_for_upsert(existing, fresh)
             if not db.upsert_image_exif(image_id, merged):
                 stats["errors"] += 1
+                _maybe_progress_after_row()
                 continue
 
             exif_row = db.get_image_exif(image_id) or {}
@@ -506,6 +562,7 @@ def backfill_exif_gps(
         except Exception as e:
             logger.warning("backfill_exif_gps failed for image_id %s: %s", image_id, e)
             stats["errors"] += 1
+        _maybe_progress_after_row()
 
     logger.info("backfill_exif_gps: %s", stats)
     return stats

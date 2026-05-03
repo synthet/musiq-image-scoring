@@ -173,60 +173,110 @@ class CullingEngine:
         logger.info(f"Imported {stats['total']} images into {stats['groups']} groups")
         return stats
     
-    def auto_pick_all(self, session_id: int, 
+    def auto_pick_all(self, session_id: int,
                       score_field: str = 'score_general',
-                      pick_percentage: float = 0.38) -> dict:
+                      pick_percentage: float = 0.38,
+                      sub_cluster_distance_threshold: float | None = None) -> dict:
         """
         AI-Automated mode: Automatically picks the top images in each group.
-        
+
+        Two-level clustering: each session group is further split into tight
+        cosine sub-clusters using image embeddings, and the top
+        ``pick_percentage`` of *each sub-cluster* is picked. This keeps
+        visually-distinct frames within a stack rather than rejecting them in
+        favour of higher-scored near-duplicates.
+
         Args:
             session_id: Culling session ID
             score_field: Which score to use for ranking (score_general, score_technical, score_aesthetic)
-            pick_percentage: Percentage of top images to pick (default: 0.38 = 38%)
-        
+            pick_percentage: Percentage of top images to pick per sub-cluster
+                (default: 0.38 = 38%)
+            sub_cluster_distance_threshold: Cosine distance threshold for the
+                secondary clustering. ``None`` (default) reads
+                ``culling.sub_cluster_distance_threshold`` from config; a
+                non-positive value disables sub-clustering and preserves the
+                legacy whole-group behaviour.
+
         Returns:
-            Dict with pick stats: {picked, rejected, groups_processed}
+            Dict with pick stats: {picked, rejected, groups_processed,
+            sub_clusters_processed}
         """
         import math
-        
+        from modules.config import get_config_value
+        from modules.sub_clustering import compute_sub_clusters
+
         groups = db.get_session_groups(session_id)
-        
+
         picked_count = 0
         rejected_count = 0
-        
+        total_sub_clusters = 0
+
+        thr = sub_cluster_distance_threshold
+        if thr is None:
+            thr = get_config_value("culling.sub_cluster_distance_threshold", default=None)
+        try:
+            thr_val = float(thr) if thr is not None else None
+        except (TypeError, ValueError):
+            thr_val = None
+        sub_clustering_enabled = thr_val is not None and thr_val > 0.0
+
+        def _sort_group(rows):
+            return sorted(
+                rows,
+                key=lambda x: (
+                    -float(x.get(score_field) or 0),
+                    str(x.get('created_at') or ''),
+                    int(x.get('image_id') or x.get('id') or 0),
+                ),
+            )
+
         for group in groups:
             images = group['images']
-            
+
             if len(images) == 0:
                 continue
-            
-            # Sort by score (highest first)
-            images_sorted = sorted(
-                images, 
-                key=lambda x: x.get(score_field) or 0, 
-                reverse=True
-            )
-            
-            # Calculate pick count: ceil(38% of stack size)
-            # Special handling for Singles (group_id=0): Pick ALL because they are unique moments
+
+            # Singles (group_id=0): unique moments — pick all, do NOT
+            # sub-cluster (would just re-confirm they're already singletons).
             if group.get('group_id') == 0:
-                pick_count = len(images)
-            else:
-                pick_count = math.ceil(len(images_sorted) * pick_percentage)
-            
-            # Mark top percentage as picked, rest as rejected
-            for i, img in enumerate(images_sorted):
-                if i < pick_count:
-                    # Pick this image
+                for img in images:
                     db.set_pick_decision(session_id, img['image_id'], 'pick', auto_suggested=True)
-                    # Mark the first one as best in group
-                    if i == 0:
-                        db.set_best_in_group(session_id, img['image_id'], group['group_id'])
                     picked_count += 1
-                else:
-                    # Reject this image
-                    db.set_pick_decision(session_id, img['image_id'], 'reject', auto_suggested=True)
-                    rejected_count += 1
+                total_sub_clusters += len(images)
+                continue
+
+            # Build sub-clusters within this group
+            if sub_clustering_enabled and len(images) >= 2:
+                # ``image_id`` is the foreign key to images.id in session rows.
+                ids = [img['image_id'] for img in images]
+                emb_map = db.get_image_embeddings_batch(ids)
+                sub_groups = compute_sub_clusters(
+                    images, emb_map, distance_threshold=thr_val, id_key='image_id'
+                )
+                if not sub_groups:
+                    sub_groups = [list(images)]
+            else:
+                sub_groups = [list(images)]
+
+            total_sub_clusters += len(sub_groups)
+            best_set = False  # Mark the group's overall best-in-group exactly once.
+
+            for sub_idx, sub in enumerate(sub_groups):
+                sub_sorted = _sort_group(sub)
+                pick_count = math.ceil(len(sub_sorted) * pick_percentage)
+
+                for i, img in enumerate(sub_sorted):
+                    if i < pick_count:
+                        db.set_pick_decision(session_id, img['image_id'], 'pick', auto_suggested=True)
+                        # The very first picked image of the *first* sub-cluster
+                        # (which is sorted best-first) is the group's keeper.
+                        if not best_set and sub_idx == 0 and i == 0:
+                            db.set_best_in_group(session_id, img['image_id'], group['group_id'])
+                            best_set = True
+                        picked_count += 1
+                    else:
+                        db.set_pick_decision(session_id, img['image_id'], 'reject', auto_suggested=True)
+                        rejected_count += 1
         
         # Update session stats
         stats = db.get_session_stats(session_id)
@@ -240,10 +290,19 @@ class CullingEngine:
         result = {
             'picked': picked_count,
             'rejected': rejected_count,
-            'groups_processed': len(groups)
+            'groups_processed': len(groups),
+            'sub_clusters_processed': total_sub_clusters,
         }
-        
-        logger.info(f"Auto-picked {picked_count} images (38%), rejected {rejected_count} (62%)")
+
+        logger.info(
+            "Auto-picked %s images (~%.0f%%), rejected %s, groups=%s, sub_clusters=%s%s",
+            picked_count,
+            pick_percentage * 100,
+            rejected_count,
+            len(groups),
+            total_sub_clusters,
+            f", threshold={thr_val:.4f}" if sub_clustering_enabled else " (sub-clustering disabled)",
+        )
         return result
     
     def get_picks(self, session_id: int) -> list:

@@ -14,8 +14,11 @@ from typing import Callable, Optional
 
 from modules import db, clustering, utils
 from modules.selection_policy import classify_sorted_ids, POLICY_VERSION
+from modules.quality_ranking import quality_tiebreak_sort_key_best_first
 from modules.selection_metadata import write_selection_metadata
 from modules.indexing_policy import filter_image_rows_for_nef_policy
+from modules.sub_clustering import compute_sub_clusters
+from modules.config import get_config_value
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +42,10 @@ class SelectionConfig:
     diversity_lambda: float = 0.70
     diversity_min_similarity_penalty: float = 0.85
     diversity_fallback_on_missing_embedding: str = "score_only"
+    # Two-level (sub-)clustering: tighter cosine threshold applied within each
+    # stack so the pick/reject policy is run per visually-distinct sub-group
+    # rather than the whole stack. Set to None to disable.
+    sub_cluster_distance_threshold: Optional[float] = None
 
 
 @dataclass
@@ -186,6 +193,14 @@ class SelectionService:
                 if not images:
                     continue
 
+                exif_map = db.get_exif_fields_for_quality_tiebreak([img["id"] for img in images])
+                for im in images:
+                    ex = exif_map.get(im["id"])
+                    if ex:
+                        im["iso"] = ex.get("iso")
+                        im["exposure_time"] = ex.get("exposure_time")
+                        im["date_time_original"] = ex.get("date_time_original")
+
                 # 4. Group & Sort
                 by_stack = defaultdict(list)
                 for img in images:
@@ -207,33 +222,82 @@ class SelectionService:
                     s = img.get(score_col) or 0
                     c = img.get("created_at") or ""
                     i = img.get("id") or 0
-                    return (-float(s) if s else 0, str(c), int(i))
+                    return (
+                        -float(s) if s else 0,
+                        quality_tiebreak_sort_key_best_first(img),
+                        str(c),
+                        int(i),
+                    )
 
+                # Resolve sub-cluster threshold once per folder. A None or
+                # non-positive value disables the second pass and preserves
+                # legacy whole-stack behaviour.
+                sub_thr = cfg.sub_cluster_distance_threshold
+                if sub_thr is None:
+                    sub_thr = get_config_value(
+                        "culling.sub_cluster_distance_threshold", default=None
+                    )
+                try:
+                    sub_thr_val = float(sub_thr) if sub_thr is not None else None
+                except (TypeError, ValueError):
+                    sub_thr_val = None
+                sub_clustering_enabled = sub_thr_val is not None and sub_thr_val > 0.0
+
+                self._progress(progress_cb, pct_base, "Assigning pick/reject bands...")
                 folder_decisions: list[tuple[int, str, str]] = []
+                folder_subcluster_count = 0
                 for stack_id, group in by_stack.items():
-                    sorted_group = sorted(group, key=sort_key)
-                    
-                    if cfg.diversity_enabled and len(sorted_group) > 2:
-                        from modules.selection_policy import band_sizes
-                        from modules.diversity import reorder_with_mmr
-                        k_picks, _ = band_sizes(len(sorted_group), cfg.pick_fraction)
-                        if k_picks > 0:
-                            stack_image_ids = [img["id"] for img in sorted_group]
-                            embeddings_dict = db.get_image_embeddings_batch(stack_image_ids)
-                            sorted_group = reorder_with_mmr(
-                                sorted_images=sorted_group,
-                                k=k_picks,
-                                embeddings_dict=embeddings_dict,
-                                lambda_val=cfg.diversity_lambda,
-                                score_key=cfg.score_field
-                            )
-                    
-                    sorted_ids = [img["id"] for img in sorted_group]
-                    path_by_id = {img["id"]: img.get("file_path") or "" for img in sorted_group}
-                    classifications = classify_sorted_ids(sorted_ids, frac=cfg.pick_fraction)
-                    for img_id, decision in classifications.items():
-                        path = path_by_id.get(img_id, "")
-                        folder_decisions.append((img_id, decision, path))
+                    # Group images of this stack into tight sub-clusters
+                    # (visually near-identical micro-groups) so we can apply
+                    # the 33/33 (or configured) policy *per sub-group*. The
+                    # None bucket — unstacked images — is treated as one
+                    # implicit sub-cluster to preserve legacy behaviour.
+                    if sub_clustering_enabled and stack_id is not None and len(group) >= 2:
+                        ids_for_emb = [img["id"] for img in group]
+                        emb_map = db.get_image_embeddings_batch(ids_for_emb)
+                        sub_groups = compute_sub_clusters(
+                            group, emb_map, distance_threshold=sub_thr_val
+                        )
+                        if not sub_groups:
+                            sub_groups = [list(group)]
+                    else:
+                        sub_groups = [list(group)]
+
+                    folder_subcluster_count += len(sub_groups)
+
+                    for sub_group in sub_groups:
+                        sorted_sub = sorted(sub_group, key=sort_key)
+
+                        if cfg.diversity_enabled and len(sorted_sub) > 2:
+                            from modules.selection_policy import band_sizes
+                            from modules.diversity import reorder_with_mmr
+                            k_picks, _ = band_sizes(len(sorted_sub), cfg.pick_fraction)
+                            if k_picks > 0:
+                                sub_ids = [img["id"] for img in sorted_sub]
+                                embeddings_dict = db.get_image_embeddings_batch(sub_ids)
+                                sorted_sub = reorder_with_mmr(
+                                    sorted_images=sorted_sub,
+                                    k=k_picks,
+                                    embeddings_dict=embeddings_dict,
+                                    lambda_val=cfg.diversity_lambda,
+                                    score_key=cfg.score_field,
+                                )
+
+                        sorted_ids = [img["id"] for img in sorted_sub]
+                        path_by_id = {img["id"]: img.get("file_path") or "" for img in sorted_sub}
+                        classifications = classify_sorted_ids(sorted_ids, frac=cfg.pick_fraction)
+                        for img_id, decision in classifications.items():
+                            path = path_by_id.get(img_id, "")
+                            folder_decisions.append((img_id, decision, path))
+
+                if sub_clustering_enabled:
+                    logger.debug(
+                        "[culling] sub-clustering folder=%s stacks=%s sub_clusters=%s threshold=%.4f",
+                        folder,
+                        len(by_stack),
+                        folder_subcluster_count,
+                        sub_thr_val,
+                    )
                         
                 # 5. Persist DB
                 db.batch_update_cull_decisions(folder_decisions, policy_version=POLICY_VERSION)

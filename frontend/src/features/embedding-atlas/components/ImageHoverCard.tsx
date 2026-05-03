@@ -17,12 +17,18 @@ export function ImageHoverCard({ points }: ImageHoverCardProps) {
 
   if (!hoveredPointId || !hoveredPoint) return null;
 
+  const thumbSrc = hoveredPoint.thumbnail_path
+    ? `/source-image?path=${encodeURIComponent(hoveredPoint.thumbnail_path)}&thumb=1`
+    : hoveredPoint.file_path
+      ? `/source-image?path=${encodeURIComponent(hoveredPoint.file_path)}&thumb=1`
+      : null;
+
   return (
-    <div className="pointer-events-none fixed bottom-4 left-4 z-50 overflow-hidden rounded-xl border border-slate-700 bg-slate-900/90 shadow-xl backdrop-blur">
-      <div className="flex w-64 flex-col">
-        {hoveredPoint.thumbnail_path ? (
+    <div className="pointer-events-none absolute bottom-4 right-4 z-20 max-w-[min(18rem,calc(100%-2rem))] overflow-hidden rounded-xl border border-slate-700 bg-slate-900/95 shadow-xl backdrop-blur">
+      <div className="flex w-64 max-w-full flex-col">
+        {thumbSrc ? (
           <img
-            src={`/api/images/${hoveredPoint.image_id}/thumbnail`}
+            src={thumbSrc}
             alt={hoveredPoint.file_path}
             className="h-40 w-full object-cover"
           />

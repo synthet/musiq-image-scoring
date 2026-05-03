@@ -26,7 +26,14 @@ except ImportError:
 
 import shutil
 
+from modules.quality_ranking import quality_tiebreak_order_sql
+
 logger = logging.getLogger(__name__)
+
+
+def _stack_quality_tiebreak_sql() -> str:
+    """ORDER BY suffix for stack best-image / stack listing (Postgres vs Firebird)."""
+    return quality_tiebreak_order_sql(exif_alias="e", images_alias="i", dialect=_get_db_engine())
 DEBUG_DB_CONNECTION = os.environ.get("DEBUG_DB_CONNECTION", "").lower() in ("1", "true", "yes")
 
 
@@ -4081,6 +4088,9 @@ def delete_folder_cache_entry(folder_path: str, delete_descendants: bool = True)
     """
     Delete a folder record from the `folders` table (folder tree cache).
 
+    **Maintenance / batch use:** this clears ``images.folder_id`` before deleting rows.
+    For UI deletes of *empty* subtrees, prefer ``delete_empty_folder_cache_subtree`` (no image rows).
+
     This is intended for removing stale/incorrect folder cache entries that appear
     in the Folder Tree UI.
 
@@ -4213,6 +4223,197 @@ def delete_folder_cache_entry(folder_path: str, delete_descendants: bool = True)
     except Exception as e:
         logging.error(f"delete_folder_cache_entry failed for {folder_path}: {e}")
         return {"success": False, "message": f"Error deleting folder cache entry: {e}", "deleted_folders": 0}
+
+
+def get_folder_direct_image_counts_by_local_path_norm():
+    """Map ``os.path.normpath(local_folder_path)`` -> ``{folder_id, direct_count}``.
+
+    Used by the Scope Navigator (React) folder tree rollup; keys match folder tree paths
+    after ``convert_path_to_local`` (same normalization as `/api/scope/tree` payload).
+    """
+    from modules import utils
+
+    try:
+        rows = get_connector().query(
+            "SELECT f.id AS id, f.path AS path, "
+            "(SELECT COUNT(*) FROM images i WHERE i.folder_id = f.id) AS direct_count "
+            "FROM folders f"
+        )
+    except Exception as e:
+        logging.error("get_folder_direct_image_counts_by_local_path_norm query failed: %s", e)
+        return {}
+
+    out: dict = {}
+    for r in rows or []:
+        try:
+            raw = str(r.get("path") or "")
+            local_p = utils.convert_path_to_local(raw) if hasattr(utils, "convert_path_to_local") else raw
+            if not local_p:
+                continue
+            key = os.path.normpath(local_p)
+            out[key] = {
+                "folder_id": int(r["id"]),
+                "direct_count": int(r.get("direct_count") or 0),
+            }
+        except Exception:
+            continue
+    return out
+
+
+def delete_empty_folder_cache_subtree(folder_path: str) -> dict:
+    """Remove one folder subtree from ``folders`` when no ``images.folder_id`` reference it.
+
+    Deletes the matching cache row as the subtree root; descendant ``folders`` rows are
+    removed via ``ON DELETE CASCADE`` on ``folders.parent_id`` (PostgreSQL).
+
+    Does not delete files on disk. Returns ``reason`` of ``not_found`` or ``not_empty`` on failure.
+    """
+    if not folder_path or not str(folder_path).strip():
+        return {
+            "success": False,
+            "message": "No folder path provided.",
+            "deleted_folders": 0,
+            "reason": "invalid",
+        }
+
+    raw = str(folder_path).strip()
+    candidates: list[str] = []
+    try:
+        from modules import utils
+
+        if ":" in raw or "\\" in raw:
+            wsl = utils.convert_path_to_wsl(raw)
+            if wsl and wsl != raw:
+                candidates.append(wsl)
+            candidates.append(os.path.normpath(raw))
+        else:
+            candidates.append(raw)
+    except Exception:
+        candidates.append(raw)
+
+    seen: set[str] = set()
+    candidates = [p for p in candidates if not (p in seen or seen.add(p))]
+
+    def _tx(tx):
+        root_id = None
+        root_row_path = None
+        for cand in candidates:
+            try:
+                row = tx.query_one("SELECT id, path FROM folders WHERE path = ?", (cand,))
+                if row:
+                    root_id = int(row["id"])
+                    root_row_path = str(row["path"])
+                    break
+            except Exception:
+                continue
+
+        if root_id is None:
+            return {
+                "success": False,
+                "message": f"Folder not found in cache: {raw}",
+                "deleted_folders": 0,
+                "reason": "not_found",
+            }
+
+        subtree_ids: list[int] = []
+        paths_for_cp: list[str] = []
+        queue = [root_id]
+        seen_ids: set[int] = set()
+        while queue:
+            bid = queue.pop(0)
+            if bid in seen_ids:
+                continue
+            seen_ids.add(bid)
+            subtree_ids.append(bid)
+            prow = tx.query_one("SELECT path FROM folders WHERE id = ?", (bid,))
+            if prow:
+                pth = str(prow.get("path") or "")
+                if pth and pth not in paths_for_cp:
+                    paths_for_cp.append(pth)
+            for ch in tx.query("SELECT id FROM folders WHERE parent_id = ?", (bid,)):
+                try:
+                    cid = int(ch["id"])
+                    if cid not in seen_ids:
+                        queue.append(cid)
+                except Exception:
+                    continue
+
+        if not subtree_ids:
+            return {
+                "success": False,
+                "message": f"Nothing to delete for: {raw}",
+                "deleted_folders": 0,
+                "reason": "not_found",
+            }
+
+        placeholders = ",".join(["?"] * len(subtree_ids))
+        cnt_row = tx.query_one(
+            f"SELECT COUNT(*) AS c FROM images WHERE folder_id IN ({placeholders})",
+            tuple(subtree_ids),
+        )
+        img_count = int((cnt_row or {}).get("c") or 0)
+        if img_count > 0:
+            return {
+                "success": False,
+                "message": "Folder subtree still has indexed images; remove or move images first.",
+                "deleted_folders": 0,
+                "reason": "not_empty",
+            }
+
+        try:
+            if paths_for_cp:
+                cp_ph = ",".join(["?"] * len(paths_for_cp))
+                tx.execute(f"DELETE FROM cluster_progress WHERE folder_path IN ({cp_ph})", tuple(paths_for_cp))
+        except Exception:
+            pass
+
+        n_del = len(subtree_ids)
+        tx.execute("DELETE FROM folders WHERE id = ?", (root_id,))
+
+        return {
+            "success": True,
+            "deleted_folders": n_del,
+            "paths_deleted": paths_for_cp,
+            "root_path": root_row_path,
+        }
+
+    try:
+        result = get_connector().run_transaction(_tx)
+        if isinstance(result, dict) and result.get("success") is False:
+            return result
+        if not isinstance(result, dict) or not result.get("success"):
+            return {
+                "success": False,
+                "message": "Unexpected delete result.",
+                "deleted_folders": 0,
+                "reason": "error",
+            }
+
+        paths_deleted = result.get("paths_deleted") or []
+        try:
+            from modules.events import event_manager
+
+            for path in paths_deleted:
+                event_manager.broadcast_threadsafe("folder_deleted", {"path": path})
+        except Exception:
+            pass
+
+        n = int(result.get("deleted_folders") or 0)
+        return {
+            "success": True,
+            "message": f"Removed {n} empty folder cache record(s).",
+            "deleted_folders": n,
+            "reason": None,
+        }
+    except Exception as e:
+        logging.error(f"delete_empty_folder_cache_subtree failed for {folder_path}: {e}")
+        return {
+            "success": False,
+            "message": f"Error removing folder cache entries: {e}",
+            "deleted_folders": 0,
+            "reason": "error",
+        }
+
 
 _folder_images_cache = {}
 _FOLDER_CACHE_TTL = 30  # seconds
@@ -7413,10 +7614,15 @@ def delete_image(file_path, delete_related: bool = True):
                 else:
                     best_row = tx.query_one("SELECT best_image_id FROM stacks WHERE id = ?", (stack_id,))
                     if best_row and best_row["best_image_id"] == image_id:
+                        tie = _stack_quality_tiebreak_sql()
                         tx.execute(
-                            """UPDATE stacks SET best_image_id = (
-                                SELECT id FROM images WHERE stack_id = ?
-                                ORDER BY score_general DESC NULLS LAST FETCH FIRST 1 ROWS ONLY
+                            f"""UPDATE stacks SET best_image_id = (
+                                SELECT i.id FROM images i
+                                LEFT JOIN image_exif e ON e.image_id = i.id
+                                WHERE i.stack_id = ?
+                                ORDER BY i.score_general DESC NULLS LAST
+                                {tie}
+                                FETCH FIRST 1 ROWS ONLY
                             ) WHERE id = ?""",
                             (stack_id, stack_id),
                         )
@@ -7641,6 +7847,34 @@ def update_image_metadata(file_path, keywords, title, description, rating, label
         return True
     except Exception as e:
         logging.error(f"Failed to update metadata for {file_path}: {e}")
+        return False
+
+
+def update_image_pick_status(image_id: int, pick_status: int) -> bool:
+    """Persist the Culling workspace pick state for a single image.
+
+    Values: ``1`` picked, ``-1`` rejected, ``0`` unflagged. Callers are expected
+    to mirror to ``rating`` / ``label`` separately (see api.update_image) so
+    legacy filters keep working.
+    """
+    if pick_status not in (-1, 0, 1):
+        raise ValueError(f"pick_status must be -1, 0, or 1; got {pick_status!r}")
+    try:
+        get_connector().execute(
+            "UPDATE images SET pick_status = ? WHERE id = ?",
+            (pick_status, image_id),
+        )
+        try:
+            from modules.events import event_manager
+            event_manager.broadcast_threadsafe(
+                "image_pick_status_updated",
+                {"image_id": image_id, "pick_status": pick_status},
+            )
+        except Exception:
+            pass
+        return True
+    except Exception as e:
+        logging.error(f"Failed to update pick_status for image {image_id}: {e}")
         return False
 
 
@@ -8797,11 +9031,51 @@ def get_stacks_for_display(folder_path=None, sort_by="score_general", order="des
 
     return rows
 
+
+def get_exif_fields_for_quality_tiebreak(image_ids: list) -> dict:
+    """
+    Return ``image_id`` -> row dict with ``iso``, ``exposure_time``, ``date_time_original``
+    for :func:`modules.quality_ranking.quality_tiebreak_sort_key_best_first` / clustering.
+    """
+    if not image_ids:
+        return {}
+    placeholders = ",".join(["?"] * len(image_ids))
+    query = (
+        f"SELECT image_id, iso, exposure_time, date_time_original "
+        f"FROM image_exif WHERE image_id IN ({placeholders})"
+    )
+    rows = list(get_connector().query(query, tuple(image_ids)))
+    out: dict = {}
+    for r in rows:
+        iid = r.get("image_id")
+        if iid is not None:
+            out[iid] = r
+    return out
+
+
 def get_images_in_stack(stack_id):
     """
-    Returns all images in a stack.
+    Returns all images in a stack, joined with EXIF columns (iso, exposure_time,
+    width, height) for the Culling workspace. When ``score_general`` is equal,
+    ordering follows :func:`modules.quality_ranking.quality_tiebreak_order_sql`
+    (lower ISO, shorter exposure on Postgres, earlier capture time, lower id).
     """
-    return list(get_connector().query("SELECT * FROM images WHERE stack_id = ? ORDER BY score_general DESC", (stack_id,)))
+    tie = _stack_quality_tiebreak_sql()
+    return list(get_connector().query(
+        f"""
+        SELECT i.*,
+               e.iso             AS exif_iso,
+               e.exposure_time   AS exif_exposure_time,
+               e.image_width     AS exif_image_width,
+               e.image_height    AS exif_image_height
+        FROM images i
+        LEFT JOIN image_exif e ON e.image_id = i.id
+        WHERE i.stack_id = ?
+        ORDER BY i.score_general DESC NULLS LAST
+        {tie}
+        """,
+        (stack_id,),
+    ))
 
 def get_stack_count():
     row = get_connector().query_one("SELECT COUNT(*) AS cnt FROM stacks")
@@ -8915,11 +9189,14 @@ def clear_stacks_in_folder(folder_path):
                     tx.execute("DELETE FROM stacks WHERE id = ?", (sid,))
                     deleted_stacks += 1
                 else:
-                    tx.execute("""
+                    tie = _stack_quality_tiebreak_sql()
+                    tx.execute(f"""
                         UPDATE stacks SET best_image_id = (
-                            SELECT id FROM images
-                            WHERE stack_id = ?
-                            ORDER BY score_general DESC NULLS LAST
+                            SELECT i.id FROM images i
+                            LEFT JOIN image_exif e ON e.image_id = i.id
+                            WHERE i.stack_id = ?
+                            ORDER BY i.score_general DESC NULLS LAST
+                            {tie}
                             FETCH FIRST 1 ROWS ONLY
                         ) WHERE id = ?
                     """, (sid, sid))
@@ -9019,17 +9296,23 @@ def create_stack_from_images(image_ids, name=None):
         def _tx(tx):
             nonlocal name
             placeholders = ','.join(['?'] * len(image_ids))
-            rows = tx.query(f"SELECT id, score_general FROM images WHERE id IN ({placeholders})", tuple(image_ids))
+            rows = tx.query(f"SELECT id FROM images WHERE id IN ({placeholders})", tuple(image_ids))
             if len(rows) != len(image_ids):
                 raise ValueError(f"Some images not found. Expected {len(image_ids)}, found {len(rows)}")
 
-            best_id = None
-            best_score = -1
-            for r in rows:
-                score = r["score_general"] if r.get("score_general") else 0
-                if score > best_score:
-                    best_score = score
-                    best_id = r["id"]
+            tie = _stack_quality_tiebreak_sql()
+            best_row = tx.query_one(
+                f"""
+                SELECT i.id AS id FROM images i
+                LEFT JOIN image_exif e ON e.image_id = i.id
+                WHERE i.id IN ({placeholders})
+                ORDER BY i.score_general DESC NULLS LAST
+                {tie}
+                FETCH FIRST 1 ROWS ONLY
+                """,
+                tuple(image_ids),
+            )
+            best_id = best_row["id"] if best_row else None
 
             if not name:
                 cnt_row = tx.query_one("SELECT COUNT(*) AS cnt FROM stacks")
@@ -9085,11 +9368,14 @@ def remove_images_from_stack(image_ids):
                     tx.execute("DELETE FROM stacks WHERE id = ?", (sid,))
                     deleted_stacks += 1
                 else:
-                    tx.execute("""
+                    tie = _stack_quality_tiebreak_sql()
+                    tx.execute(f"""
                         UPDATE stacks SET best_image_id = (
-                            SELECT id FROM images
-                            WHERE stack_id = ?
-                            ORDER BY score_general DESC NULLS LAST
+                            SELECT i.id FROM images i
+                            LEFT JOIN image_exif e ON e.image_id = i.id
+                            WHERE i.stack_id = ?
+                            ORDER BY i.score_general DESC NULLS LAST
+                            {tie}
                             FETCH FIRST 1 ROWS ONLY
                         ) WHERE id = ?
                     """, (sid, sid))
@@ -9947,7 +10233,8 @@ def get_embeddings_with_metadata(folder_path=None, limit=None):
 
     Each returned dict has keys:
         image_id, file_path, embedding (bytes), thumbnail_path,
-        label, rating, score_general
+        label, rating, score_general, score_technical, score_aesthetic,
+        score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe
     Optionally filter by folder_path and cap results with limit.
     """
     if _get_db_engine() == "postgres":
@@ -9958,7 +10245,9 @@ def get_embeddings_with_metadata(folder_path=None, limit=None):
             norm = os.path.normpath(folder_path)
             sql = (
                 f"SELECT i.id, i.file_path, {emb_expr} AS image_embedding, i.thumbnail_path, "
-                f"       i.label, i.rating, i.score_general FROM images i "
+                f"       i.label, i.rating, i.score_general, i.score_technical, i.score_aesthetic, "
+                f"       i.score_spaq, i.score_ava, i.score_koniq, i.score_paq2piq, i.score_liqe "
+                f"FROM images i "
                 f"LEFT JOIN image_embeddings ie ON ie.image_id = i.id AND ie.embedding_space_id = {sub} "
                 f"JOIN folders f ON f.id = i.folder_id "
                 f"WHERE {has_e} AND f.path = ?"
@@ -9967,7 +10256,9 @@ def get_embeddings_with_metadata(folder_path=None, limit=None):
         else:
             sql = (
                 f"SELECT i.id, i.file_path, {emb_expr} AS image_embedding, i.thumbnail_path, "
-                f"       i.label, i.rating, i.score_general FROM images i "
+                f"       i.label, i.rating, i.score_general, i.score_technical, i.score_aesthetic, "
+                f"       i.score_spaq, i.score_ava, i.score_koniq, i.score_paq2piq, i.score_liqe "
+                f"FROM images i "
                 f"LEFT JOIN image_embeddings ie ON ie.image_id = i.id AND ie.embedding_space_id = {sub} "
                 f"WHERE {has_e}"
             )
@@ -9990,6 +10281,17 @@ def get_embeddings_with_metadata(folder_path=None, limit=None):
                         "label": r["label"],
                         "rating": r["rating"],
                         "score_general": float(r["score_general"]) if r["score_general"] is not None else None,
+                        "score_technical": (
+                            float(r["score_technical"]) if r.get("score_technical") is not None else None
+                        ),
+                        "score_aesthetic": (
+                            float(r["score_aesthetic"]) if r.get("score_aesthetic") is not None else None
+                        ),
+                        "score_spaq": float(r["score_spaq"]) if r.get("score_spaq") is not None else None,
+                        "score_ava": float(r["score_ava"]) if r.get("score_ava") is not None else None,
+                        "score_koniq": float(r["score_koniq"]) if r.get("score_koniq") is not None else None,
+                        "score_paq2piq": float(r["score_paq2piq"]) if r.get("score_paq2piq") is not None else None,
+                        "score_liqe": float(r["score_liqe"]) if r.get("score_liqe") is not None else None,
                     } for r in cur.fetchall()]
         rows = conn.query(sql, tuple(params) if params else None)
         return [{
@@ -10000,6 +10302,17 @@ def get_embeddings_with_metadata(folder_path=None, limit=None):
             "label": r["label"],
             "rating": r["rating"],
             "score_general": float(r["score_general"]) if r["score_general"] is not None else None,
+            "score_technical": (
+                float(r["score_technical"]) if r.get("score_technical") is not None else None
+            ),
+            "score_aesthetic": (
+                float(r["score_aesthetic"]) if r.get("score_aesthetic") is not None else None
+            ),
+            "score_spaq": float(r["score_spaq"]) if r.get("score_spaq") is not None else None,
+            "score_ava": float(r["score_ava"]) if r.get("score_ava") is not None else None,
+            "score_koniq": float(r["score_koniq"]) if r.get("score_koniq") is not None else None,
+            "score_paq2piq": float(r["score_paq2piq"]) if r.get("score_paq2piq") is not None else None,
+            "score_liqe": float(r["score_liqe"]) if r.get("score_liqe") is not None else None,
         } for r in rows]
 
 

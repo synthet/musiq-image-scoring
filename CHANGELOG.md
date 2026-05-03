@@ -15,6 +15,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.10.0] - 2026-05-03
+
+### Added
+
+- **PostgreSQL — `images.pick_status`**: Alembic **`0018_image_pick_status.py`** adds **`pick_status`** (**`SMALLINT`**, default **`0`**: unflagged; **`1`** picked; **`-1`** rejected) plus **`idx_images_pick_status`** for the Culling workspace.
+- **`PATCH /api/images/{image_id}` — `pick_status`**: **`ImagePatchBody`** accepts **`pick_status`**; persists via **`update_image_pick_status`** and mirrors to legacy rating/label for existing gallery filters (**`modules/api.py`**, **`modules/db_legacy.py`**).
+- **React `/ui/culling` — Culling workspace**: **`CullingPage`**, **`CullingWorkspace`** (survey / loupe / stacks), **`FolderScopeSelector`**, **`LoupeFilmstrip`** / **`LoupeView`**, keyboard + pick mutations, **`cullingStore`**, **`api/culling`** — wired from **`frontend/src/App.tsx`** and **`Shell`** / **`Sidebar`**.
+- **Sub-cluster stacks & picks**: **`modules/sub_clustering.py`**, **`modules/culling.py`**, clustering/selection integrations; **`scripts/backfill_subcluster_picks.py`** (plus shell wrapper) for data repair.
+- **Quality ranking helpers**: **`modules/quality_ranking.py`** used with selection/policy paths; **`tests/test_quality_ranking.py`**, **`tests/test_selection_sort_tiebreak.py`**.
+- **Maintenance runner extensions**: Expanded **`MaintenanceRunner`** / **`modules/maintenance_runner.py`** wiring (documentation in codepaths as shipped).
+
+### Changed
+
+- **Selection / pipeline**: **`modules/selection.py`**, **`selection_policy.py`**, **`pipeline_selector_composer.py`**, **`projections.py`** / **`projections_db.py`** — tie-break ordering, projector behavior, DB alignment (**`tests/test_pipeline_selector_composer.py`**, **`test_clustering_representative.py`**).
+- **Clustering**: **`modules/clustering.py`** updates paired with representative tests.
+- **`modules/exif_extractor.py`**, **`modules/db_postgres.py`**, **`modules/db_legacy.py`**: Robustness and schema alignment for embeddings / EXIF (**`tests/test_api_embedding_map.py`**, **`test_api_endpoints.py`**).
+- **React `/ui/embeddings`**: Embedding atlas canvas, inspector, geo scope, similarity hooks (**`EmbeddingAtlasPage`** and related **`frontend/src/features/embedding-atlas/*`** including **`folderColor`** util).
+- **React `/ui/geo`**: **`GeoMapPage`** behavior aligned with atlas scope / API.
+- **Static `/app` bundle**: Rebuilt **`static/app`** hashed chunks (**`index.html`**, JS/CSS/vendor splits incl. **`webgl-device`**).
+
+### Fixed
+
+- **API regression coverage**: **`tests/test_api_image_patch.py`** exercises image patch behavior including **`pick_status`**.
+
+### Tests
+
+- Expanded **`tests/test_api_endpoints.py`** and **`test_api_embedding_map.py`** alongside new suites above.
+
 ## [7.9.0] - 2026-04-29
 
 ### Added

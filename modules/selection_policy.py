@@ -14,7 +14,9 @@ DEFAULT_PICK_FRACTION = 0.33
 DEFAULT_REJECT_FRACTION = 0.33
 POLICY_VERSION = "1.0"
 
-# Tie-break order for ranking (documented): score_field DESC, created_at ASC, id ASC
+# Tie-break order for ranking (documented): score_field DESC, then EXIF
+# (ISO ASC, exposure ASC, date_time_original ASC, id ASC via quality_ranking),
+# then created_at ASC, id ASC
 
 
 def band_sizes(n: int, frac: float = DEFAULT_PICK_FRACTION) -> tuple[int, int]:

@@ -57,9 +57,16 @@ def compose_selector_request(
 
     normalized_input_path = input_path.strip() if isinstance(input_path, str) and input_path.strip() else None
     if normalized_input_path:
-        if os.path.isdir(normalized_input_path):
+        is_dir = os.path.isdir(normalized_input_path)
+        is_file = os.path.isfile(normalized_input_path)
+        if is_dir:
             folder_paths.append(normalized_input_path)
+        elif is_file:
+            image_paths.append(normalized_input_path)
         else:
+            # Path not visible on this host (e.g. Windows folder sent to Linux API). Resolve via DB using
+            # folder and/or image path variants instead of treating the folder string as one image path.
+            folder_paths.append(normalized_input_path)
             image_paths.append(normalized_input_path)
 
     return {

@@ -9,6 +9,12 @@ export const scopeApi = {
 
   tree: () => api.get<FolderNode[]>('/scope/tree'),
 
+  /** Remove subtree from folders cache only when rollup image count is zero (validated server-side). */
+  deleteEmptyFolderCache: (path: string) =>
+    api.delete<{ success: boolean; message?: string; deleted_folders?: number }>('/folders/cache', {
+      path,
+    }),
+
   // Fallback: /folders/tree returns { tree, count }, normalize to FolderNode[]
   foldersTree: () =>
     api

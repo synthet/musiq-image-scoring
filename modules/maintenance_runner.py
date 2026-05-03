@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import json
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 from modules import db
 from modules.maintenance_job_display import maintenance_job_input_path
@@ -28,6 +28,60 @@ class MaintenanceRunner:
         self._thread = None
         self._cancel_requested = False
         self.log_history: List[str] = []
+
+    def _persist_job_log(self, job_id: int) -> None:
+        text = "\n".join(self.log_history).strip()
+        if not text:
+            return
+        try:
+            db.update_job_log(job_id, text)
+        except Exception as exc:
+            logger.debug("MaintenanceRunner update_job_log failed (job_id=%s): %s", job_id, exc)
+
+    def _emit_backfill_stats(self, job_id: int, label: str, stats: Dict[str, Any]) -> None:
+        runner_emit(
+            self.log_history,
+            job_id,
+            f"{label} stats_json: {json.dumps(stats, sort_keys=True, default=str)}",
+            phase="maintenance",
+        )
+
+    def _backfill_progress_handler(self, job_id: int, label: str) -> Callable[[int, int, dict], None]:
+        def _cb(done: int, total: int, snap: dict) -> None:
+            if total == 0:
+                runner_emit(
+                    self.log_history,
+                    job_id,
+                    f"{label}: no candidate rows matched this selection.",
+                    phase="maintenance",
+                )
+                db.update_job_progress(job_id, 100)
+                self._persist_job_log(job_id)
+                return
+            if done == 0:
+                runner_emit(
+                    self.log_history,
+                    job_id,
+                    f"{label}: processing {total} candidate row(s)...",
+                    phase="maintenance",
+                )
+                db.update_job_progress(job_id, 0)
+                self._persist_job_log(job_id)
+                return
+            pct = min(100, max(1, int(done * 100 / total)))
+            runner_emit(
+                self.log_history,
+                job_id,
+                (
+                    f"{label}: progress {done}/{total} ({pct}%) "
+                    f"{json.dumps(snap, sort_keys=True, default=str)}"
+                ),
+                phase="maintenance",
+            )
+            db.update_job_progress(job_id, pct)
+            self._persist_job_log(job_id)
+
+        return _cb
 
     def start_batch(self, input_path: str, job_id: int = None, **kwargs) -> str:
         """Entry point from JobDispatcher."""
@@ -121,12 +175,18 @@ class MaintenanceRunner:
                 self._action_backfill_clip_vectors(job_id, payload)
             else:
                 runner_emit(self.log_history, job_id, f"Unknown maintenance action: {action}", "ERROR", phase="maintenance")
-                db.update_job_status(job_id, "failed", log=f"Unknown action: {action}")
+                fail_log = "\n".join(
+                    [*self.log_history, f"Unknown action: {action}"],
+                ).strip()
+                db.update_job_status(job_id, "failed", log=fail_log or f"Unknown action: {action}")
+                self._persist_job_log(job_id)
                 return
 
-            db.update_job_status(job_id, "completed")
-            db.set_job_phase_state(job_id, "maintenance", "completed")
             runner_emit(self.log_history, job_id, f"Maintenance action {action} completed.", phase="maintenance")
+            terminal_log = "\n".join(self.log_history).strip()
+            db.update_job_status(job_id, "completed", log=terminal_log)
+            db.set_job_phase_state(job_id, "maintenance", "completed")
+            self._persist_job_log(job_id)
             logger.info(
                 "Maintenance job %s completed successfully (action=%r, label=%r)",
                 job_id,
@@ -136,8 +196,12 @@ class MaintenanceRunner:
 
         except Exception as e:
             logger.exception("MaintenanceRunner failed (job_id=%s, label=%r)", job_id, job.get("input_path"))
-            db.update_job_status(job_id, "failed", log=str(e))
+            runner_emit(self.log_history, job_id, f"Maintenance failed: {e}", "ERROR", phase="maintenance")
+            fail_parts = [str(e), *self.log_history]
+            terminal_fail = "\n".join([p for p in fail_parts if p]).strip()
+            db.update_job_status(job_id, "failed", log=terminal_fail or str(e))
             db.set_job_phase_state(job_id, "maintenance", "failed")
+            self._persist_job_log(job_id)
         finally:
             self.is_running = False
 
@@ -187,14 +251,23 @@ class MaintenanceRunner:
         limit = payload.get("limit", 1000)
         logger.info("Maintenance backfill_exif: job_id=%s limit=%s", job_id, limit)
         runner_emit(self.log_history, job_id, f"Backfilling EXIF capture dates (limit={limit})...", phase="maintenance")
-        
-        # We process in smaller chunks to report progress if possible, 
-        # but backfill_exif_dates is already batched.
-        stats = exif_extractor.backfill_exif_dates(limit=limit)
-        
-        msg = f"EXIF backfill: {stats['updated']} updated, {stats['checked']} checked, {stats['errors']} errors."
-        runner_emit(self.log_history, job_id, msg, phase="maintenance")
+
+        stats = exif_extractor.backfill_exif_dates(
+            limit=limit,
+            on_progress=self._backfill_progress_handler(job_id, "Backfill capture dates"),
+        )
+        self._emit_backfill_stats(job_id, "Backfill capture dates", stats)
+        runner_emit(
+            self.log_history,
+            job_id,
+            (
+                f"Capture date backfill: {stats['updated']} updated, {stats['checked']} checked, "
+                f"{stats['errors']} errors."
+            ),
+            phase="maintenance",
+        )
         db.update_job_progress(job_id, 100)
+        self._persist_job_log(job_id)
 
     def _action_prune_missing(self, job_id: int, payload: Dict[str, Any]):
         from modules import utils
@@ -247,8 +320,11 @@ class MaintenanceRunner:
         logger.info("Maintenance backfill_index_meta: job_id=%s limit=%s", job_id, limit)
         runner_emit(self.log_history, job_id, f"Global Index/Meta backfill (limit={limit})...", phase="maintenance")
         updated = db.backfill_index_meta_global(limit=limit)
+        idx_stats = {"updated": updated, "limit": limit}
+        self._emit_backfill_stats(job_id, "Backfill index/meta", idx_stats)
         runner_emit(self.log_history, job_id, f"Updated {updated} image(s).", phase="maintenance")
         db.update_job_progress(job_id, 100)
+        self._persist_job_log(job_id)
 
     def _action_deduplicate_images(self, job_id: int, payload: Dict[str, Any]):
         limit = payload.get("limit", 1000)
@@ -373,24 +449,50 @@ class MaintenanceRunner:
         limit = payload.get("limit", 1000)
         logger.info("Maintenance backfill_exif_camera_lens: job_id=%s limit=%s", job_id, limit)
         runner_emit(self.log_history, job_id, f"Backfilling EXIF Camera/Lens (limit={limit})...", phase="maintenance")
-        
-        stats = exif_extractor.backfill_exif_camera_lens(limit=limit)
-        
-        msg = f"Camera/Lens backfill: {stats['updated']} updated, {stats['checked']} checked, {stats['errors']} errors."
-        runner_emit(self.log_history, job_id, msg, phase="maintenance")
+
+        path_like = payload.get("path_like")
+        stats = exif_extractor.backfill_exif_camera_lens(
+            limit=limit,
+            path_like=str(path_like) if path_like else None,
+            on_progress=self._backfill_progress_handler(job_id, "Backfill Camera/Lens"),
+        )
+        self._emit_backfill_stats(job_id, "Backfill Camera/Lens", stats)
+        runner_emit(
+            self.log_history,
+            job_id,
+            (
+                f"Camera/Lens backfill: {stats['updated']} updated, {stats['checked']} checked, "
+                f"{stats['errors']} errors."
+            ),
+            phase="maintenance",
+        )
         db.update_job_progress(job_id, 100)
+        self._persist_job_log(job_id)
 
     def _action_backfill_exif_gps(self, job_id: int, payload: Dict[str, Any]):
         from modules import exif_extractor
         limit = payload.get("limit", 1000)
         logger.info("Maintenance backfill_exif_gps: job_id=%s limit=%s", job_id, limit)
         runner_emit(self.log_history, job_id, f"Backfilling EXIF GPS (limit={limit})...", phase="maintenance")
-        
-        stats = exif_extractor.backfill_exif_gps(limit=limit)
-        
-        msg = f"GPS backfill: {stats['updated']} updated, {stats['checked']} checked, {stats['errors']} errors."
-        runner_emit(self.log_history, job_id, msg, phase="maintenance")
+
+        path_like = payload.get("path_like")
+        stats = exif_extractor.backfill_exif_gps(
+            limit=limit,
+            path_like=str(path_like) if path_like else None,
+            on_progress=self._backfill_progress_handler(job_id, "Backfill GPS"),
+        )
+        self._emit_backfill_stats(job_id, "Backfill GPS", stats)
+        runner_emit(
+            self.log_history,
+            job_id,
+            (
+                f"GPS backfill: {stats['updated']} updated, {stats['checked']} checked, "
+                f"{stats['errors']} errors."
+            ),
+            phase="maintenance",
+        )
         db.update_job_progress(job_id, 100)
+        self._persist_job_log(job_id)
 
     def _action_backfill_embeddings(self, job_id: int, payload: Dict[str, Any]):
         limit = payload.get("limit", 10000)
@@ -400,8 +502,10 @@ class MaintenanceRunner:
         rows = db.get_images_missing_embeddings(limit=limit)
         total = len(rows)
         if total == 0:
+            self._emit_backfill_stats(job_id, "Backfill MobileNet embeddings", {"candidates_selected": 0})
             runner_emit(self.log_history, job_id, "No images missing MobileNet embeddings.", phase="maintenance")
             db.update_job_progress(job_id, 100)
+            self._persist_job_log(job_id)
             return
             
         runner_emit(self.log_history, job_id, f"Found {total} images missing embeddings. Initializing engine...", phase="maintenance")
@@ -454,9 +558,17 @@ class MaintenanceRunner:
             db.update_job_progress(job_id, progress)
             if (i // batch_size) % 5 == 0:
                 runner_emit(self.log_history, job_id, f"Backfilled {updated} embeddings so far...", phase="maintenance")
-                
+                self._persist_job_log(job_id)
+
+        mn_stats = {
+            "candidates_selected": total,
+            "embeddings_written": updated,
+            "batch_errors_approx": errors,
+        }
+        self._emit_backfill_stats(job_id, "Backfill MobileNet embeddings", mn_stats)
         runner_emit(self.log_history, job_id, f"MobileNet backfill complete: {updated} updated, {errors} errors.", phase="maintenance")
         db.update_job_progress(job_id, 100)
+        self._persist_job_log(job_id)
 
     def _action_backfill_clip_vectors(self, job_id: int, payload: Dict[str, Any]):
         limit = payload.get("limit", 10000)
@@ -466,13 +578,16 @@ class MaintenanceRunner:
         if not hasattr(db, "get_images_missing_embedding_for_space"):
             runner_emit(self.log_history, job_id, "CLIP backfill requires Postgres.", phase="maintenance", level="ERROR")
             db.update_job_progress(job_id, 100)
+            self._persist_job_log(job_id)
             return
 
         rows = db.get_images_missing_embedding_for_space('clip_vit_b32_image', limit=limit)
         total = len(rows)
         if total == 0:
+            self._emit_backfill_stats(job_id, "Backfill CLIP vectors", {"candidates_selected": 0})
             runner_emit(self.log_history, job_id, "No images missing CLIP vectors.", phase="maintenance")
             db.update_job_progress(job_id, 100)
+            self._persist_job_log(job_id)
             return
             
         runner_emit(self.log_history, job_id, f"Found {total} images missing CLIP embeddings. Initializing engine...", phase="maintenance")
@@ -485,6 +600,7 @@ class MaintenanceRunner:
             logger.error("Failed to load CLIP engine: %s", e)
             runner_emit(self.log_history, job_id, f"Failed to load CLIP engine: {e}", phase="maintenance", level="ERROR")
             db.update_job_progress(job_id, 100)
+            self._persist_job_log(job_id)
             return
             
         batch_size = 16
@@ -538,6 +654,19 @@ class MaintenanceRunner:
             db.update_job_progress(job_id, progress)
             if (i // batch_size) % 5 == 0:
                 runner_emit(self.log_history, job_id, f"Backfilled {updated} CLIP embeddings so far...", phase="maintenance")
-                
-        runner_emit(self.log_history, job_id, f"CLIP backfill complete: {updated} updated, {errors} errors.", phase="maintenance")
+                self._persist_job_log(job_id)
+
+        clip_stats = {
+            "candidates_selected": total,
+            "embeddings_written": updated,
+            "per_image_errors": errors,
+        }
+        self._emit_backfill_stats(job_id, "Backfill CLIP vectors", clip_stats)
+        runner_emit(
+            self.log_history,
+            job_id,
+            f"CLIP backfill complete: {updated} updated, {errors} errors.",
+            phase="maintenance",
+        )
         db.update_job_progress(job_id, 100)
+        self._persist_job_log(job_id)
