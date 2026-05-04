@@ -238,7 +238,7 @@ def test_pipeline_submit_mixed_operations_only_targets_scoring_side(monkeypatch,
 
 
 def test_pipeline_submit_metadata_requires_scoring_runner(monkeypatch, tmp_path):
-    # metadata now routes to _metadata_runner; absence → "Metadata runner not available"
+    # metadata routes to _metadata_runner; absence → ApiResponse failure (HTTP 200 envelope)
     monkeypatch.setattr(ui_security, "_check_rate_limit", lambda endpoint: None)
     monkeypatch.setattr(api, "_metadata_runner", None)
     monkeypatch.setattr(
@@ -253,8 +253,10 @@ def test_pipeline_submit_metadata_requires_scoring_runner(monkeypatch, tmp_path)
             json={"input_path": str(tmp_path), "operations": ["metadata"]},
         )
 
-    assert response.status_code == 503
-    assert response.json()["detail"] == "Metadata runner not available"
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is False
+    assert "Metadata runner" in body["message"]
 
 
 def test_pipeline_phase_skip_calls_db_with_defaults(monkeypatch, tmp_path):
@@ -543,8 +545,10 @@ def test_pipeline_submit_requires_input_path(monkeypatch):
     with _build_client() as client:
         response = client.post("/api/pipeline/submit", json={"operations": ["score"]})
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Provide workspace_target or at least one selector"
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is False
+    assert "workspace_target" in body["message"] and "selector" in body["message"]
 
 
 def test_outliers_endpoint_returns_detector_payload(monkeypatch):

@@ -1,10 +1,12 @@
 import json
-import os
-import threading
 import logging
+import os
+import platform
+import threading
 from typing import Any, Dict, List, Optional
 
 from modules import db
+from modules.utils import is_docker_runtime, resolve_scope_input_path
 from modules.version import APP_VERSION
 from modules.phases import PhaseCode, PhaseStatus
 from modules.events import event_manager
@@ -402,15 +404,61 @@ class IndexingRunner:
         def log(level: str, msg: str, image_id: Optional[int] = None) -> None:
             runner_emit(self.log_history, job_id, msg, level, phase="indexing", image_id=image_id)
 
-        # Handle WSL path conversion if needed
-        if input_path and ":" in input_path and len(input_path) > 1 and input_path[1] == ":":
-            drive = input_path[0].lower()
-            path = input_path[2:].replace("\\", "/")
-            wsl_path = f"/mnt/{drive}{path}"
-            if os.path.exists("/mnt/") and os.path.exists(wsl_path):
-                input_path = wsl_path
+        def fail_terminal(error_summary: str):
+            self.status_message = error_summary
+            if job_id:
+                db.update_job_status(job_id, "failed", "\n".join(self.log_history))
+                event_manager.broadcast_threadsafe("job_completed", {
+                    "job_id": job_id,
+                    "status": "failed",
+                    "error": error_summary,
+                })
 
         self.stop_event.clear()
+
+        # Match API scope validation: /mnt/d/... is not visible to native Windows Python, etc.
+        if resolved_image_ids is None:
+            if not input_path or not input_path.strip():
+                log("ERROR", "Input path empty. Cannot index entire DB from scratch currently.")
+                fail_terminal("Error Path")
+                return
+            stripped = input_path.strip()
+            resolved_local, tried = resolve_scope_input_path(stripped)
+            if not resolved_local:
+                uniq_try = list(dict.fromkeys(tried))
+                preview = ", ".join(repr(t) for t in uniq_try[:5])
+                if len(uniq_try) > 5:
+                    preview += ", …"
+                msg = (
+                    f"Input path not found: {stripped}. Checked: {preview or '(no variants)'}. "
+                    f"This process runs on {platform.system()}."
+                )
+                sl = stripped.replace("\\", "/")
+                if platform.system() == "Windows" and sl.startswith("/mnt/"):
+                    msg += (
+                        " Native Windows Python cannot read WSL paths under /mnt/; use D:\\Photos\\... "
+                        "or run the WebUI from WSL."
+                    )
+                elif platform.system() == "Linux" and sl.startswith("/mnt/"):
+                    segs = [x for x in sl.split("/") if x]
+                    if len(segs) >= 2 and segs[0] == "mnt":
+                        mroot = f"/mnt/{segs[1]}"
+                        if not os.path.exists(mroot):
+                            msg += f" {mroot}/ is not mounted here."
+                if is_docker_runtime():
+                    msg += (
+                        " Docker: only bind-mounted paths exist inside the container — see PHOTOS_BIND_SOURCE / compose volumes."
+                    )
+                log("ERROR", msg)
+                fail_terminal("Error Path")
+                return
+            try:
+                if os.path.normpath(resolved_local) != os.path.normpath(stripped):
+                    log("INFO", f"Resolved input path {stripped!r} -> {resolved_local!r}")
+            except (OSError, ValueError):
+                pass
+            input_path = resolved_local
+
         log("INFO", f"Starting Indexing process on {input_path or 'Selected Images'}...")
         if discovery_extensions() == frozenset({".nef"}):
             log("INFO", "NEF-only indexing enabled (config indexing.nikon_nef_only).")
@@ -425,16 +473,6 @@ class IndexingRunner:
                 "input_path": input_path
             })
 
-        def fail_terminal(error_summary: str):
-            self.status_message = error_summary
-            if job_id:
-                db.update_job_status(job_id, "failed", "\n".join(self.log_history))
-                event_manager.broadcast_threadsafe("job_completed", {
-                    "job_id": job_id,
-                    "status": "failed",
-                    "error": error_summary,
-                })
-
         all_files = []
         
         if resolved_image_ids is not None:
@@ -447,16 +485,8 @@ class IndexingRunner:
                  log("ERROR", f"Error fetching from DB: {e}")
                  fail_terminal("Error DB")
                  return
-        elif not input_path or not input_path.strip():
-             log("ERROR", "Input path empty. Cannot index entire DB from scratch currently.")
-             fail_terminal("Error Path")
-             return
-        elif os.path.exists(input_path):
-             all_files = self.discover_files(input_path)
         else:
-            log("ERROR", f"Input path not found: {input_path}")
-            fail_terminal("Error Path")
-            return
+            all_files = self.discover_files(input_path)
 
         log("INFO", f"Found {len(all_files)} files to potentially index.")
         self.total_count = len(all_files)
@@ -780,11 +810,36 @@ class IndexingRunner:
                 self._finalize_report(job_id, report_collector)
                 job = db.get_job(job_id)
                 st = (job.get("status") or "").strip().lower() if job else ""
+                final_log = "\n".join(self.log_history)
+                if len(final_log) > _MAX_PERSISTED_JOB_LOG_CHARS:
+                    final_log = final_log[-_MAX_PERSISTED_JOB_LOG_CHARS:]
                 if st not in db.JOB_TERMINAL_STATES:
-                    final_log = "\n".join(self.log_history)
-                    if len(final_log) > _MAX_PERSISTED_JOB_LOG_CHARS:
-                        final_log = final_log[-_MAX_PERSISTED_JOB_LOG_CHARS:]
                     db.update_job_status(job_id, "completed", log=final_log)
+                elif (
+                    st == "failed"
+                    and resolved_image_ids is None
+                    and self.total_count > 0
+                    and ("Done. Processed:" in final_log or processed_count > 0 or skipped_count > 0)
+                ):
+                    # Rare race: job/phase row marked failed before the indexer finishes writing
+                    # (e.g. dispatcher + stale phase snapshot). Reconcile so multi-phase runs can continue.
+                    try:
+                        phases = db.get_job_phases(job_id) or []
+                        n_phases = len(phases)
+                        db.set_job_phase_state(job_id, "indexing", "completed", error_message=None)
+                        if n_phases > 1:
+                            db.update_job_status(
+                                job_id, "running", log=final_log, runner_state="running"
+                            )
+                        else:
+                            db.update_job_status(
+                                job_id, "completed", log=final_log, runner_state="completed"
+                            )
+                    except Exception:
+                        logger.exception(
+                            "indexing: failed to reconcile stray failed job after successful batch (job_id=%s)",
+                            job_id,
+                        )
 
     @staticmethod
     def _finalize_report(job_id, report_collector):

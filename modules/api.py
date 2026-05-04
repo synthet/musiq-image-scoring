@@ -1034,6 +1034,28 @@ class HealthResponse(BaseModel):
     })
 
 
+class ConfigResponse(BaseModel):
+    """Response model for public configuration flags.
+    
+    Exposes a safe subset of configuration values to the frontend.
+    """
+    enable_culling: bool = Field(
+        False, 
+        description="True if the experimental culling feature should be visible and accessible."
+    )
+    embedding_map_enabled: bool = Field(
+        False,
+        description="True if the embedding map feature is enabled."
+    )
+
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "enable_culling": False,
+            "embedding_map_enabled": True
+        }
+    })
+
+
 class DiagnosticsResponse(BaseModel):
     """Response model for diagnostics check endpoint."""
     timestamp: str = Field(..., description="ISO 8601 timestamp.")
@@ -2720,6 +2742,19 @@ def create_api_router() -> APIRouter:
             scoring_available=_scoring_runner is not None,
             tagging_available=_tagging_runner is not None,
             clustering_available=_clustering_runner is not None
+        )
+
+    @router.get(
+        "/config",
+        response_model=ConfigResponse,
+        summary="Get public configuration",
+        description="Returns a safe subset of configuration flags for the frontend."
+    )
+    async def get_public_config():
+        """Get public configuration flags."""
+        return ConfigResponse(
+            enable_culling=config.get_config_value("culling.enabled", False),
+            embedding_map_enabled=config.get_config_value("embedding_map.enabled", False)
         )
 
     class DbQueryRequest(BaseModel):
@@ -7384,8 +7419,8 @@ def create_api_router() -> APIRouter:
         payload = request.payload or {}
 
         if channel == "pipeline:submit":
-            result = await submit_pipeline(PipelineSubmitRequest(**payload))
-            return IpcBridgeResponse(channel=channel, ok=True, data=result.model_dump())
+            result = submit_pipeline(PipelineSubmitRequest(**payload))
+            return IpcBridgeResponse(channel=channel, ok=result.success, data=result.model_dump())
 
         if channel == "pipeline:phase:skip":
             result = await skip_pipeline_phase(PipelinePhaseControlRequest(**payload))

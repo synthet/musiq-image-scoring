@@ -64,6 +64,31 @@ def _resolve_folder_ids(folder_path: str) -> set[int]:
     return out
 
 
+def _manual_override_image_ids() -> set[int]:
+    """Return image_ids whose ``cull_decision`` is set but whose
+    ``cull_policy_version`` is NULL — the convention for "this value did NOT
+    come from an automated policy run, so don't trample it."
+
+    No automated path in the current codebase writes ``cull_decision`` without
+    ``cull_policy_version``; the guard exists so a future manual-edit feature
+    that writes the column directly is forward-compatible with the backfill.
+    """
+    try:
+        rows = db.get_connector().query(
+            "SELECT id FROM images "
+            "WHERE cull_decision IS NOT NULL "
+            "  AND TRIM(CAST(cull_decision AS VARCHAR(20))) <> '' "
+            "  AND cull_policy_version IS NULL"
+        )
+    except Exception as e:
+        logger.warning(
+            "Could not enumerate manual cull_decision overrides (%s) — "
+            "proceeding without the preservation guard.", e,
+        )
+        return set()
+    return {int(r["id"]) for r in rows if r.get("id") is not None}
+
+
 def _stack_ids_to_process(folder_filter: set[int] | None) -> list[int]:
     stacks = db.get_stacks()
     if not stacks:
@@ -185,6 +210,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Compute decisions but do NOT persist to the DB or sidecars.",
     )
+    parser.add_argument(
+        "--no-preserve-manual",
+        dest="preserve_manual",
+        action="store_false",
+        default=True,
+        help="Disable the safety guard that skips rows whose cull_decision is "
+             "set but cull_policy_version is NULL (i.e. presumed manual "
+             "overrides). Default: guard is ON.",
+    )
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args(argv)
 
@@ -222,17 +256,28 @@ def main(argv: list[str] | None = None) -> int:
     if args.limit > 0:
         stack_ids = stack_ids[: args.limit]
 
+    skip_ids: set[int] = set()
+    if args.preserve_manual:
+        skip_ids = _manual_override_image_ids()
+        if skip_ids:
+            logger.info(
+                "Manual-override guard: %d image(s) with NULL "
+                "cull_policy_version will be skipped.",
+                len(skip_ids),
+            )
+
     logger.info(
         "Backfill plan: stacks=%d threshold=%.4f pick_fraction=%.2f score_field=%s "
-        "dry_run=%s write_sidecars=%s",
+        "dry_run=%s write_sidecars=%s preserve_manual=%s",
         len(stack_ids), threshold, args.pick_fraction, args.score_field,
-        args.dry_run, args.write_sidecars,
+        args.dry_run, args.write_sidecars, args.preserve_manual,
     )
 
     counts = Counter()
     sub_clusters_total = 0
     side_ok = 0
     side_err = 0
+    skipped_manual = 0
 
     pending_decisions: list[tuple] = []
     BATCH = 5_000
@@ -248,6 +293,14 @@ def main(argv: list[str] | None = None) -> int:
         stack_ids, threshold, args.pick_fraction, args.score_field,
     ):
         sub_clusters_total += sub_clusters
+        if skip_ids:
+            kept = []
+            for d in decisions:
+                if d[0] in skip_ids:
+                    skipped_manual += 1
+                else:
+                    kept.append(d)
+            decisions = kept
         for _, decision, _ in decisions:
             counts[decision] += 1
         pending_decisions.extend(decisions)
@@ -267,10 +320,10 @@ def main(argv: list[str] | None = None) -> int:
 
     logger.info(
         "Backfill done. stacks=%d sub_clusters=%d picks=%d rejects=%d neutrals=%d "
-        "sidecar_ok=%d sidecar_err=%d dry_run=%s",
+        "skipped_manual=%d sidecar_ok=%d sidecar_err=%d dry_run=%s",
         len(stack_ids), sub_clusters_total,
         counts["pick"], counts["reject"], counts["neutral"],
-        side_ok, side_err, args.dry_run,
+        skipped_manual, side_ok, side_err, args.dry_run,
     )
     return 0
 

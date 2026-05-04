@@ -47,7 +47,9 @@ JOB_ALLOWED_TRANSITIONS = {
     "restarting": {"queued", "running", "failed", "interrupted", "canceled", "cancelled"},
     "interrupted": {"queued", "running", "canceled", "cancelled", "restarting"},
     "completed": set(),
-    "failed": set(),
+    # queued: restart_failed_job; running/completed: indexing_runner reconciles a stray
+    # terminal row after a successful on-disk pass (see IndexingRunner._run_batch_internal).
+    "failed": {"queued", "running", "completed"},
     "canceled": set(),
     "cancelled": set(),
 }
@@ -6023,7 +6025,7 @@ def set_job_phase_state(job_id, phase_code, state, error_message=None, tx=None):
         "cancel_requested": {"canceled", "failed"},
         "restarting": {"queued", "running", "failed"},
         "completed": set(),
-        "failed": {"skipped", "pending"},
+        "failed": {"skipped", "pending", "completed"},
         "interrupted": {"running", "failed", "skipped", "pending", "queued"},
         "skipped": set(),
         "canceled": set(),

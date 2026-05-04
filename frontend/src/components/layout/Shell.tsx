@@ -20,6 +20,7 @@ import { useWebSocket } from '@/hooks/useWebSocket'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { runsApi } from '@/api/runs'
 import { RUNS_ACTIVE_QUERY_KEY } from '@/queryKeys/runs'
+import { useConfig } from '@/hooks/useConfig'
 
 export function Shell() {
   useWebSocket()
@@ -28,6 +29,7 @@ export function Shell() {
   const connected = useWsStore((s) => s.connected)
   const runsVersion = useWsStore((s) => s.runsVersion)
   const qc = useQueryClient()
+  const { isCullingEnabled, isEmbeddingMapEnabled } = useConfig()
 
   const { data: runsRaw } = useQuery({
     queryKey: RUNS_ACTIVE_QUERY_KEY,
@@ -63,8 +65,12 @@ export function Shell() {
         <nav className="flex items-center gap-1">
           <NavItem to="/runs" icon={<Workflow size={14} />} label="Runs" />
           <NavItem to="/images" icon={<Database size={14} />} label="Images" />
-          <NavItem to="/embeddings" icon={<ChartScatter size={14} />} label="Atlas" />
-          <NavItem to="/culling" icon={<Scissors size={14} />} label="Culling" />
+          {isEmbeddingMapEnabled && (
+            <NavItem to="/embeddings" icon={<ChartScatter size={14} />} label="Atlas" />
+          )}
+          {isCullingEnabled && (
+            <NavItem to="/culling" icon={<Scissors size={14} />} label="Culling" />
+          )}
           <NavItem to="/search" icon={<Search size={14} />} label="Search" />
           <NavItem to="/map" icon={<MapPin size={14} />} label="Map" />
           <NavItem to="/diagnostics" icon={<Stethoscope size={14} />} label="Health" />

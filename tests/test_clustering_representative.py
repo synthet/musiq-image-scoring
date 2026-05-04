@@ -42,9 +42,14 @@ def _stub(name, **attrs):
     return sys.modules[name], created
 
 
-# sklearn stubs (not installed in pytest environment)
-_stub("sklearn")
-_stub("sklearn.cluster", AgglomerativeClustering=MagicMock())
+# Stub sklearn only when it is not installed — registering a fake
+# ``sklearn.cluster`` in ``sys.modules`` breaks later tests (e.g.
+# ``test_sub_clustering``) that rely on the real AgglomerativeClustering.
+try:
+    import sklearn.cluster  # noqa: F401
+except ImportError:
+    _stub("sklearn")
+    _stub("sklearn.cluster", AgglomerativeClustering=MagicMock())
 
 # PIL stubs (only when not already imported)
 _stub("PIL")

@@ -15,6 +15,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.11.0] - 2026-05-03
+
+### Added
+
+- **`GET /api/config`**: Public feature flags **`enable_culling`** and **`embedding_map_enabled`** (from **`culling.enabled`** / **`embedding_map.enabled`**) via **`ConfigResponse`** in **`modules/api.py`**.
+- **React `/ui/` — config-driven navigation**: **`frontend/src/api/config.ts`**, **`frontend/src/hooks/useConfig.ts`**; **Atlas** and **Culling** routes and sidebar entries render only when the backend reports the feature enabled (**`frontend/src/App.tsx`**, **`frontend/src/components/layout/Shell.tsx`**).
+
+### Changed
+
+- **`IndexingRunner`**: Resolves folder scope with **`resolve_scope_input_path`** (aligned with API validation), clearer **Windows / WSL / Docker** diagnostics, and terminal failure on empty input (**`modules/indexing_runner.py`**).
+- **IPC bridge `pipeline:submit`**: Uses synchronous **`submit_pipeline`** and surfaces **`success`** in **`IpcBridgeResponse`** (**`modules/api.py`**).
+- **`db_legacy` job transitions**: Allows **`failed` → `queued` / `running` / `completed`** (restart / indexing reconcile) and phase **`failed` → `completed`** where applicable (**`JOB_ALLOWED_TRANSITIONS`**, **`set_job_phase_state`**).
+- **`scripts/backfill_subcluster_picks.py`**: Skips images with **`cull_decision`** set but **`cull_policy_version` NULL** (presumed manual overrides) unless **`--no-preserve-manual`**; logging extended.
+- **Static `/app` bundle**: Rebuilt hashed assets (**`static/app/index.html`**, new JS chunk).
+
+### Tests
+
+- **`tests/test_api_queue.py`**, **`tests/test_clustering_representative.py`**: Updated for pipeline submit / job transition behavior.
+
 ## [7.10.0] - 2026-05-03
 
 ### Added
