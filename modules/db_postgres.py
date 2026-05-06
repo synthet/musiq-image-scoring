@@ -284,6 +284,41 @@ class PGConnectionManager:
                 self.conn.rollback()
             release_pg_connection(self.conn)
 
+def is_deadlock_error(exc: BaseException) -> bool:
+    """True when ``exc`` is a PostgreSQL deadlock (SQLSTATE 40P01)."""
+    pgcode = getattr(exc, "pgcode", None)
+    if pgcode == "40P01":
+        return True
+    return "deadlock detected" in str(exc).lower()
+
+
+def run_with_deadlock_retry(fn, *, max_attempts: int = 4, op_name: str = "db op"):
+    """Invoke ``fn`` with automatic retry on PostgreSQL deadlock (SQLSTATE 40P01).
+
+    Each retry runs ``fn`` again from scratch (the failing transaction has
+    already been rolled back by Postgres / the connection manager). Backoff is
+    exponential with light jitter to break lock-order ties between racing
+    workers.
+    """
+    import random
+    import time
+
+    from psycopg2 import DatabaseError
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return fn()
+        except DatabaseError as e:
+            if not is_deadlock_error(e) or attempt == max_attempts:
+                raise
+            wait = min(2.0, 0.10 * (2 ** (attempt - 1))) + random.uniform(0, 0.10)
+            logger.warning(
+                "PostgreSQL deadlock during %s (attempt %d/%d), retrying in %.2fs: %s",
+                op_name, attempt, max_attempts, wait, e,
+            )
+            time.sleep(wait)
+
+
 def execute_select(sql: str, params=None) -> list[dict]:
     """Execute a (pre-translated) SELECT on PostgreSQL and return a list of dicts."""
     with PGConnectionManager() as conn:
@@ -299,20 +334,32 @@ def execute_select_one(sql: str, params=None) -> "dict | None":
 
 
 def execute_write(sql: str, params=None) -> int:
-    """Execute INSERT/UPDATE/DELETE on PostgreSQL and return rowcount."""
-    with PGConnectionManager(commit=True) as conn:
-        with conn.cursor() as cur:
-            cur.execute(sql, params)
-            return cur.rowcount
+    """Execute INSERT/UPDATE/DELETE on PostgreSQL and return rowcount.
+
+    Retries automatically on SQLSTATE 40P01 (deadlock detected).
+    """
+    def _do() -> int:
+        with PGConnectionManager(commit=True) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, params)
+                return cur.rowcount
+
+    return run_with_deadlock_retry(_do, op_name="execute_write")
 
 
 def execute_write_returning(sql: str, params=None) -> "dict | None":
-    """Execute INSERT/UPDATE ... RETURNING on PostgreSQL, return first row as dict."""
-    with PGConnectionManager(commit=True) as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, params)
-            row = cur.fetchone()
-            return dict(row) if row else None
+    """Execute INSERT/UPDATE ... RETURNING on PostgreSQL, return first row as dict.
+
+    Retries automatically on SQLSTATE 40P01 (deadlock detected).
+    """
+    def _do() -> "dict | None":
+        with PGConnectionManager(commit=True) as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(sql, params)
+                row = cur.fetchone()
+                return dict(row) if row else None
+
+    return run_with_deadlock_retry(_do, op_name="execute_write_returning")
 
 
 def init_db():

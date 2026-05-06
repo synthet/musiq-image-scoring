@@ -110,35 +110,53 @@ class PostgresConnector:
         import psycopg2.extras
         from modules import db_postgres
         pg_sql, pg_params = _prepare(sql, params)
-        with db_postgres.PGConnectionManager(commit=True) as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(pg_sql, pg_params)
-                if cur.description:
-                    return [dict(r) for r in cur.fetchall()]
-                return []
+
+        def _do() -> list[dict]:
+            with db_postgres.PGConnectionManager(commit=True) as conn:
+                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                    cur.execute(pg_sql, pg_params)
+                    if cur.description:
+                        return [dict(r) for r in cur.fetchall()]
+                    return []
+
+        return db_postgres.run_with_deadlock_retry(_do, op_name="execute_returning")
 
     def execute_many(self, sql: str, params_list: list[Sequence]) -> None:
         from modules.db import _escape_pct_in_string_literals
         from modules import db_postgres
         pg_sql = _escape_pct_in_string_literals(_translate(sql))
-        with db_postgres.PGConnectionManager(commit=True) as conn:
-            with conn.cursor() as cur:
-                cur.executemany(pg_sql, [tuple(p) for p in params_list])
+        rows = [tuple(p) for p in params_list]
+
+        def _do() -> None:
+            with db_postgres.PGConnectionManager(commit=True) as conn:
+                with conn.cursor() as cur:
+                    cur.executemany(pg_sql, rows)
+
+        db_postgres.run_with_deadlock_retry(_do, op_name="execute_many")
 
     def run_transaction(self, callback: Callable[[_PgTx], T]) -> T:
-        """Run callback inside a single PostgreSQL transaction."""
+        """Run callback inside a single PostgreSQL transaction.
+
+        Retries the entire callback on SQLSTATE 40P01 (deadlock detected). The
+        callback must therefore be idempotent — it is re-invoked from scratch
+        with a fresh connection on each retry.
+        """
         from modules import db_postgres
-        with db_postgres.PGConnectionManager(commit=False) as conn:
-            try:
-                result = callback(_PgTx(conn))
-                conn.commit()
-                return result
-            except Exception:
+
+        def _do() -> T:
+            with db_postgres.PGConnectionManager(commit=False) as conn:
                 try:
-                    conn.rollback()
+                    result = callback(_PgTx(conn))
+                    conn.commit()
+                    return result
                 except Exception:
-                    pass
-                raise
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    raise
+
+        return db_postgres.run_with_deadlock_retry(_do, op_name="run_transaction")
 
     def check_connection(self) -> bool:
         try:

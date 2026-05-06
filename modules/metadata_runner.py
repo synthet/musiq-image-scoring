@@ -153,6 +153,39 @@ class MetadataRunner:
                  return
 
         all_images = filter_image_rows_for_nef_policy(all_images)
+
+        # Defensive guard: if scope resolution returned an empty list but the
+        # target folder demonstrably has indexed images, the runner would
+        # silently mark this phase complete with zero work and the orchestrator
+        # would advance — leaving an entire folder un-touched until a Heal job
+        # caught up days later (job 2140 vs heal job 2158 on folder
+        # /mnt/d/Photos/Z8/180-600mm/2026/2026-05-03). Treat the mismatch as a
+        # hard failure so the operator can investigate path/folder_id drift.
+        if (
+            resolved_image_ids is None
+            and not all_images
+            and input_path
+            and os.path.isdir(input_path)
+        ):
+            try:
+                folder_image_count = db.get_image_count(folder_path=input_path)
+            except Exception:
+                folder_image_count = 0
+                logger.exception(
+                    "metadata_runner: get_image_count probe failed for %s",
+                    input_path,
+                )
+            if folder_image_count > 0:
+                msg = (
+                    f"Metadata scope resolved to 0 images, but folder {input_path!r} "
+                    f"contains {folder_image_count} indexed images. Refusing to "
+                    "silently complete this phase — investigate path normalization "
+                    "or folder_id mismatch before re-running."
+                )
+                log(msg, "ERROR")
+                fail_terminal("Error Empty Scope")
+                return
+
         log(f"Found {len(all_images)} images to potentially process.")
         self.total_count = len(all_images)
         self.current_count = 0

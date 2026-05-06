@@ -40,6 +40,59 @@ def _parse_metadata_dict(raw: Any) -> Dict[str, Any]:
     return {}
 
 
+def _looks_like_transient_mount_path(raw: str) -> bool:
+    """True for paths that may transiently 404 due to mount/drvfs/UNC blips.
+
+    On Linux/WSL ``/mnt/<drive>/...`` is a 9P/drvfs mount that can briefly fail
+    `os.path.exists()` after heavy host I/O; on Windows ``\\\\server\\share`` UNC
+    paths have the same property. Pure local paths are not retried.
+    """
+    if not raw:
+        return False
+    s = str(raw).strip().replace("\\", "/")
+    if s.startswith("/mnt/"):
+        return True
+    if s.startswith("//"):  # UNC normalized
+        return True
+    return False
+
+
+def _resolve_scope_input_path_with_retry(
+    raw: str,
+    *,
+    log,
+    max_attempts: int = 3,
+    base_delay: float = 1.0,
+):
+    """Soft-retry wrapper around :func:`resolve_scope_input_path`.
+
+    A first miss on a WSL/UNC mount is treated as transient and re-tried with
+    short backoff. Local paths are checked exactly once (no retry).
+    """
+    import time
+
+    resolved, tried = resolve_scope_input_path(raw)
+    if resolved or not _looks_like_transient_mount_path(raw):
+        return resolved, tried
+
+    for attempt in range(2, max_attempts + 1):
+        delay = base_delay * (2 ** (attempt - 2))
+        log(
+            "WARNING",
+            f"Path not found yet ({raw!r}); transient mount suspected, "
+            f"retrying in {delay:.1f}s (attempt {attempt}/{max_attempts}).",
+        )
+        time.sleep(delay)
+        resolved, tried = resolve_scope_input_path(raw)
+        if resolved:
+            log(
+                "INFO",
+                f"Path resolved on retry attempt {attempt}: {resolved}",
+            )
+            return resolved, tried
+    return None, tried
+
+
 def _image_row_has_identity_hash(row: Optional[Dict[str, Any]]) -> bool:
     """True when ``images.image_hash`` is non-empty (matches ``get_phase_incomplete_sql('indexing')``)."""
     if not row:
@@ -423,7 +476,9 @@ class IndexingRunner:
                 fail_terminal("Error Path")
                 return
             stripped = input_path.strip()
-            resolved_local, tried = resolve_scope_input_path(stripped)
+            resolved_local, tried = _resolve_scope_input_path_with_retry(
+                stripped, log=log
+            )
             if not resolved_local:
                 uniq_try = list(dict.fromkeys(tried))
                 preview = ", ".join(repr(t) for t in uniq_try[:5])
