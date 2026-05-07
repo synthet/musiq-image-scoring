@@ -3,6 +3,8 @@ import logging
 import threading
 from typing import Any, Dict, Optional
 
+import time
+
 from modules import db
 from modules.run_modes import infer_run_mode, resolve_run_mode_flags
 
@@ -35,7 +37,9 @@ class JobDispatcher:
         self.poll_interval = max(0.2, float(poll_interval or 1.0))
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
+        self._thread: Optional[threading.Thread] = None
         self._dispatch_lock = threading.Lock()
+        self._last_busy_logged: float = 0
 
     def set_runners(self, scoring_runner=None, tagging_runner=None, clustering_runner=None, selection_runner=None, bird_species_runner=None, indexing_runner=None, metadata_runner=None, maintenance_runner=None):
         self.scoring_runner = scoring_runner
@@ -84,12 +88,23 @@ class JobDispatcher:
         self._tick()
 
     def _tick(self):
+        start_tick = time.perf_counter()
         if self._any_runner_busy():
+            # Only log busy state every 30 seconds to avoid spam
+            now = time.time()
+            if now - getattr(self, '_last_busy_logged', 0) > 30:
+                logger.debug(f"[DISPATCHER] Skipping tick: runner '{self._get_active_runner()}' is currently busy.")
+                self._last_busy_logged = now
             return
 
         with self._dispatch_lock:
             if self._any_runner_busy():
                 return
+            
+            queue_depth = db.get_queued_jobs_count()
+            if queue_depth > 0:
+                logger.debug(f"[DISPATCHER] Found {queue_depth} jobs in queue. Attempting dequeue.")
+                
             job = db.dequeue_next_job()
             if job:
                 payload = self._parse_queue_payload(job)
@@ -115,6 +130,10 @@ class JobDispatcher:
                 reason = err or "Dispatcher failed to continue multi-phase job (unknown reason)"
                 logger.warning("Dispatcher: continuation job %s failed to start: %s", cont.get("id"), reason)
                 db.update_job_status(cont["id"], "failed", reason)
+                
+        tick_duration = time.perf_counter() - start_tick
+        if tick_duration > 1.0:
+            logger.warning(f"[DISPATCHER] Slow tick detected: {tick_duration:.3f}s")
 
     @staticmethod
     def _parse_queue_payload(job: Dict[str, Any]) -> Dict[str, Any]:
@@ -207,6 +226,8 @@ class JobDispatcher:
         if not runner:
             return False, f"No runner available for '{phase}' (runner '{runner_name}' is not initialized)"
 
+        logger.info(f"[DISPATCHER] Starting job {job_id} on {runner_name} (phase: {phase}, path: {input_path})")
+        
         try:
             result = self._dispatch_to_runner(phase, runner, job_id, input_path, payload)
         except Exception as exc:

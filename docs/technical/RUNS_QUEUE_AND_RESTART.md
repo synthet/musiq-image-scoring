@@ -33,7 +33,7 @@ After recovery, the orchestrator may look up interrupted **pipeline** jobs (`job
 ## UI and API
 
 - The React **Runs** page ([`frontend/src/pages/RunsPage.tsx`](../../frontend/src/pages/RunsPage.tsx)) treats **`interrupted`** as **history**.
-- **[`POST /api/runs/{run_id}/retry`](../../modules/api.py)** enqueues a **new** job from an existing record; [`RunCard`](../../frontend/src/components/runs/RunCard.tsx) exposes Retry for **`failed`** and **`interrupted`**.
+- **[`POST /api/runs/{run_id}/retry`](../../modules/api.py)** enqueues a **new** job from an existing record; [`RunCard`](../../frontend/src/components/runs/RunCard.tsx) exposes Retry for **`failed`** and **`interrupted`**. The React **run detail** route ([`RunDetailPage`](../../frontend/src/pages/RunDetailPage.tsx)) does **not** submit or retry on load—only `GET` calls. After run-level Retry succeeds, the UI navigates to the **new** `jobs.id` returned by the API. A **higher** id can also appear from **orchestrator follow-up** jobs (e.g. next phase queued with `parent_job_id` pointing at the completed parent) when earlier tooling built the phase plan in the wrong order or when multi-phase work continues as a linked job—inspect `jobs.description`, `job_type`, and `parent_job_id`, not only the Runs UI **Retry** path. [`workflow_healing._enqueue_heal_run`](../../modules/workflow_healing.py) sorts phases with [`sort_phase_value_strings`](../../modules/phases.py) so culling heals run **metadata** before **culling** like the main submit path. To re-run a **single** stage **in place**, use **`POST /api/runs/{run_id}/stages/{stage_code}/retry`** (stage panel **Retry**), which keeps the same run id.
 
 ## Restart recovery: `jobs` + `job_phases`
 

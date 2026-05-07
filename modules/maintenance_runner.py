@@ -102,9 +102,11 @@ class MaintenanceRunner:
 
         def target():
             try:
-                # We need to fetch the job to get the queue_payload
-                job = db.get_job(job_id)
-                self._run_job_internal(job)
+                from modules.pipeline_diagnostics import phase_timer
+                with phase_timer("MaintenanceRunner.batch", job_id):
+                    # We need to fetch the job to get the queue_payload
+                    job = db.get_job(job_id)
+                    self._run_job_internal(job)
             except Exception:
                 logger.exception("MaintenanceRunner thread crashed (job_id=%s)", job_id)
             finally:

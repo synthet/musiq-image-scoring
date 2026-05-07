@@ -1,6 +1,6 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Grid3x3, Maximize2, Keyboard } from 'lucide-react'
+import { FolderTree, Grid3x3, Maximize2, Keyboard } from 'lucide-react'
 import { clsx } from 'clsx'
 import { cullingApi, type CullingStackImagesResponse } from '../api/culling'
 import { useCullingStore } from '../stores/cullingStore'
@@ -8,13 +8,17 @@ import { useCullingKeyboard } from '../hooks/useCullingKeyboard'
 import { usePickMutation } from '../hooks/usePickMutation'
 import { sortByQualityDesc } from '../utils/qualityRank'
 import { pickStatusOf, type PickStatus } from '../utils/pickStatus'
-import { FolderScopeSelector } from './FolderScopeSelector'
 import { SurveyView } from './SurveyView'
 import { LoupeView } from './LoupeView'
 import { ToolbarHints } from './ToolbarHints'
+import { useUiStore } from '@/stores/uiStore'
 
 export function CullingWorkspace() {
-  const scopePath = useCullingStore((s) => s.scopePath)
+  // Scope is owned by the global Sidebar (Scope Navigator). The Culling page
+  // only reads it; clicking a folder in the tree drives this view.
+  const scopePath = useUiStore((s) => s.selectedScopePath)
+  const setSidebarOpen = useUiStore((s) => s.setSidebarOpen)
+  const sidebarOpen = useUiStore((s) => s.sidebarOpen)
   const mode = useCullingStore((s) => s.mode)
   const setMode = useCullingStore((s) => s.setMode)
   const activeStackId = useCullingStore((s) => s.activeStackId)
@@ -24,6 +28,22 @@ export function CullingWorkspace() {
   const toggleZoom = useCullingStore((s) => s.toggleZoom)
   const hintsOpen = useCullingStore((s) => s.hintsOpen)
   const setHintsOpen = useCullingStore((s) => s.setHintsOpen)
+  const setScopePath = useCullingStore((s) => s.setScopePath)
+
+  // When the global scope changes, reset our local selection so we don't
+  // keep showing stacks/images from the previous folder.
+  const lastScopeRef = useRef<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (lastScopeRef.current !== undefined && lastScopeRef.current !== scopePath) {
+      setActiveStackId(null)
+      setActiveImageId(null)
+      setMode('survey')
+    }
+    lastScopeRef.current = scopePath
+    // Keep the cullingStore.scopePath mirror in sync for any sub-components
+    // that still observe it (back-compat).
+    setScopePath(scopePath ?? null)
+  }, [scopePath, setActiveStackId, setActiveImageId, setMode, setScopePath])
 
   const qc = useQueryClient()
   const pickMutation = usePickMutation()
@@ -121,10 +141,27 @@ export function CullingWorkspace() {
     return { picks, rejects }
   }, [stacks, qc])
 
+  const scopeLabel = scopePath ? scopePath.split(/[/\\]/).filter(Boolean).pop() ?? scopePath : null
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-bg-primary">
       <div className="flex shrink-0 items-center gap-4 border-b border-border-muted bg-bg-secondary px-4 py-2">
-        <FolderScopeSelector />
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="inline-flex items-center gap-2 rounded px-2 py-1 text-xs text-text-secondary transition-colors hover:bg-bg-elevated hover:text-text-primary"
+          title={sidebarOpen ? 'Hide scope navigator' : 'Show scope navigator'}
+        >
+          <FolderTree size={14} className="text-accent-bright" />
+          <span className="text-text-muted">Scope:</span>
+          {scopeLabel ? (
+            <span className="max-w-[20rem] truncate text-accent-bright" title={scopePath ?? undefined}>
+              {scopeLabel}
+            </span>
+          ) : (
+            <span className="text-text-muted">none — pick a folder ←</span>
+          )}
+        </button>
         <ModeToggle mode={mode} onChange={setMode} />
         <div className="ml-auto flex items-center gap-3 text-xs">
           <span className="inline-flex items-center gap-1 text-success">

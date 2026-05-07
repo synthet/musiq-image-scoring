@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { FolderOpen, XCircle, Pause, Play, RotateCcw, Zap } from 'lucide-react'
 import { runsApi } from '@/api/runs'
+import { RUN_LEVEL_RETRY_TOOLTIP } from '@/constants/runRetry'
 import { RunBadge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
@@ -146,6 +147,7 @@ export function RunCard({ run, compact = false }: RunCardProps) {
               variant="ghost"
               onClick={() => retryMut.mutate()}
               loading={retryMut.isPending}
+              title={RUN_LEVEL_RETRY_TOOLTIP}
             >
               <RotateCcw size={14} />
               Retry

@@ -7569,4 +7569,18 @@ def create_api_router() -> APIRouter:
 
         return {"models": items, "count": len(items)}
 
+    @router.get(
+        "/debug/thread-dump",
+        summary="Capture Python thread dump",
+        description="Returns a full Python thread dump for backend diagnostic and stall debugging.",
+        tags=["General API"]
+    )
+    async def get_thread_dump():
+        try:
+            from modules.pipeline_diagnostics import get_thread_dump as _get_thread_dump
+            return {"success": True, "thread_dump": _get_thread_dump()}
+        except Exception as e:
+            logger.exception("Failed to capture thread dump")
+            raise HTTPException(status_code=500, detail=f"Failed to capture thread dump: {e}")
+
     return router

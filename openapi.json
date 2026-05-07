@@ -8301,7 +8301,7 @@
               }
             ],
             "title": "Threshold",
-            "description": "Distance threshold for clustering (lower = stricter).",
+            "description": "Cosine distance cutoff for visual similarity clustering *within* each time batch (lower = stricter). This is not an image count.",
             "example": 0.15
           },
           "time_gap": {
@@ -8314,7 +8314,7 @@
               }
             ],
             "title": "Time Gap",
-            "description": "Time gap in seconds for burst grouping.",
+            "description": "Seconds: images are sorted by capture time; start a new batch when the gap between two consecutive shots exceeds this value. Only shots in the same batch are compared visually (e.g. 3 for tight bursts).",
             "example": 5
           },
           "force_rescan": {
@@ -8327,7 +8327,7 @@
         },
         "type": "object",
         "title": "ClusteringStartRequest",
-        "description": "Request model for starting a clustering job.\n\nClusters images in a folder based on visual similarity and temporal proximity.\n\nAttributes:\n    input_path: Directory path containing images to cluster. If empty, clusters all unprocessed folders.\n    threshold: Distance threshold for clustering (lower = stricter grouping).\n    time_gap: Time gap in seconds for burst grouping.\n    force_rescan: If True, re-cluster even if already processed."
+        "description": "Request model for starting a clustering job.\n\nClusters images in a folder using (1) temporal batching by capture time gaps, then (2) visual similarity *within* each batch.\n\nAttributes:\n    input_path: Directory path containing images to cluster. If empty, clusters all unprocessed folders.\n    threshold: Cosine distance limit for visual similarity (not a shot count).\n    time_gap: Seconds between consecutive capture times; above this, a new temporal batch starts.\n    force_rescan: If True, re-cluster even if already processed."
       },
       "DbQueryRequest": {
         "properties": {
@@ -9501,7 +9501,7 @@
               }
             ],
             "title": "Clustering Threshold",
-            "description": "Distance threshold for clustering (if 'cluster' is in stage_codes)."
+            "description": "Cosine distance for visual clustering within each time batch (if 'cluster' is in stage_codes). Not an image count."
           },
           "clustering_time_gap": {
             "anyOf": [
@@ -9513,7 +9513,7 @@
               }
             ],
             "title": "Clustering Time Gap",
-            "description": "Time gap in seconds for clustering burst grouping (if 'cluster' is in stage_codes)."
+            "description": "Seconds: max capture-time gap between consecutive shots in sorted order while keeping them in one batch; larger gaps start a new batch (if 'cluster' is in stage_codes)."
           },
           "clustering_force_rescan": {
             "type": "boolean",

@@ -15,6 +15,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.12.0] - 2026-05-06
+
+### Added
+
+- **Runs queue & restart guidance**: New `docs/technical/RUNS_QUEUE_AND_RESTART.md` covering run queue payloads, retry behavior, and restart expectations.
+- **Command dispatch / healing helpers**: `modules/command_dispatcher.py` and `modules/workflow_healing.py` extend operator-side recovery flows and ordering logic; `modules/phases_policy.py` adds phase gating rules used by the dispatcher/healer paths.
+
+### Changed
+
+- **React Runs UI**: Run cards and run detail surfaces show queue/retry-oriented metadata and expose the queue payload view (`frontend/src/components/runs/RunCard.tsx`, `frontend/src/pages/RunDetailPage.tsx`, `frontend/src/components/runs/RunQueuePayloadPanel.tsx`).
+- **Culling workspace**: Refined scope/stack interaction and pick UX; removed the deprecated `FolderScopeSelector` component (`frontend/src/features/culling/components/CullingWorkspace.tsx`).
+- **Pipeline tools**: Expanded pipeline tool registry for run-level actions (`frontend/src/constants/pipelineTools.ts`).
+
+### Fixed
+
+- **Legacy DB job/phase bookkeeping**: `modules/db_legacy.py` tightens transitions and reconciliation behavior to match dispatcher/healer expectations.
+
+### Tests
+
+- Added coverage for command dispatch and phase policy behavior (`tests/test_command_dispatcher.py`, `tests/test_phases_policy.py`).
+
 ## [7.11.0] - 2026-05-03
 
 ### Added

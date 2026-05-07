@@ -7,6 +7,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.testclient import TestClient
 
 from modules.command_dispatcher import CommandDispatcher
+from modules.phases import sort_phase_value_strings
 from modules.events import event_manager
 
 
@@ -129,6 +130,36 @@ def test_unicast_response_targets_requesting_socket_only():
     assert len(ws_one.messages) == 1
     assert ws_one.messages[0]["request_id"] == "r-1"
     assert ws_two.messages == []
+
+
+def test_enqueue_submit_pipeline_job_sorts_phases_canonically(monkeypatch):
+    captured: dict = {}
+
+    def fake_enqueue_job_with_phases(
+        input_path, phase_code=None, job_type=None, queue_payload=None,
+        description=None, phase_codes=None, first_phase_state="queued",
+    ):
+        payload = queue_payload if isinstance(queue_payload, dict) else {}
+        captured["payload_phases"] = list(payload.get("phases") or [])
+        captured["phase_codes"] = list(phase_codes or [])
+        return 42, 0
+
+    monkeypatch.setattr("modules.db.enqueue_job_with_phases", fake_enqueue_job_with_phases)
+
+    dispatcher = CommandDispatcher()
+    asyncio.run(
+        dispatcher._handle_submit_folder(
+            {
+                "targetPaths": ["/tmp/scope"],
+                "jobType": "pipeline",
+                "options": {},
+            }
+        )
+    )
+
+    expected = sort_phase_value_strings(["indexing", "metadata", "scoring", "keywords", "culling"])
+    assert captured["payload_phases"] == expected
+    assert captured["phase_codes"] == expected
 
 
 def test_get_status_clustering_runner_four_tuple():

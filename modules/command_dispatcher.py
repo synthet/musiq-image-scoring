@@ -2,6 +2,7 @@ import logging
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 from modules.events import event_manager
+from modules.phases import sort_phase_value_strings
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,7 @@ class CommandDispatcher:
             raise ValueError(f"Unsupported jobType: {job_type_in}")
 
         phase_code, enqueue_job_type, phases = job_type_map[job_type_in]
+        phases = sort_phase_value_strings(list(phases))
 
         payload = {
             "scope_type": data.get("scopeType") or default_scope_type,
@@ -162,11 +164,17 @@ class CommandDispatcher:
             client_description=None,
         )
 
-        job_id, queue_position = db.enqueue_job(primary_path, phase_code, enqueue_job_type, payload, wf_desc)
+        job_id, queue_position = db.enqueue_job_with_phases(
+            primary_path,
+            phase_code,
+            enqueue_job_type,
+            payload,
+            wf_desc,
+            phase_codes=phases,
+            first_phase_state="queued",
+        )
         if not job_id:
             raise RuntimeError("Failed to enqueue job")
-
-        db.create_job_phases(job_id, phases, "queued")
         return {
             "job_id": job_id,
             "queue_position": queue_position,

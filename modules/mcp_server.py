@@ -326,7 +326,7 @@ def query_images(
                 id, file_path, file_name, file_type,
                 score_general, score_technical, score_aesthetic,
                 score_spaq, score_koniq, score_liqe,
-                rating, label, keywords, created_at
+                rating, label, keywords, image_hash, created_at
             FROM images
         """
 
@@ -1853,6 +1853,16 @@ def get_system_resources() -> dict:
         out["gpu"]["error"] = str(e)
 
     return out
+
+
+@mcp.tool(annotations=_RO)
+def get_thread_dump() -> dict:
+    """Capture a full Python thread dump for backend diagnostic and stall debugging."""
+    try:
+        from modules.pipeline_diagnostics import get_thread_dump as _get_thread_dump
+        return {"success": True, "thread_dump": _get_thread_dump()}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool(annotations=_RO)

@@ -3,6 +3,11 @@ Workflow Healing Service — Identify and repair incomplete processing phases.
 
 This module provides logic to:
 1. Find images where a phase status is marked 'done' but required data is missing.
+   For ``culling``, this includes similarity-clustering staleness (done + pick/reject +
+   clustered eligibility but no ``stack_id`` and no default-space Mobilenet embeddings),
+   and **time-cohesive unstacked folders**: 2+ images, none in a stack, embeddings present,
+   capture-time span ``<= (n-1) * clustering.default_time_gap`` (see
+   ``get_phase_incomplete_sql('culling')`` and ``heal_folder_cohesion_candidates``).
 2. Reset those statuses (healing false-positives).
 3. Identify folders with any images needing the specified phase.
 4. Spawn targeted pipeline runs for those folders.
@@ -16,7 +21,7 @@ from typing import Any, List, Dict, Optional
 from urllib.parse import urlparse
 
 from modules import db
-from modules.phases import PhaseCode
+from modules.phases import PhaseCode, sort_phase_value_strings
 from modules.phases_policy import get_phase_executor_version
 from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
 from modules.run_modes import resolve_run_mode_flags
@@ -276,6 +281,9 @@ def _enqueue_heal_run(folder_path: str, phase_code: str, run_mode: str = "valida
         # Default for index/meta/score
         phase_values = [PhaseCode(phase_code).value]
 
+    # Canonical pipeline order (e.g. metadata before culling)
+    phase_values = sort_phase_value_strings(phase_values)
+
     mode_flags = resolve_run_mode_flags(run_mode)
     
     payload = {
@@ -303,13 +311,13 @@ def _enqueue_heal_run(folder_path: str, phase_code: str, run_mode: str = "valida
         client_description=f"Automated workflow healing for phase: {phase_code}",
     )
     
-    job_id, pos = db.enqueue_job(
+    job_id, pos = db.enqueue_job_with_phases(
         folder_path,
         phase_code,
         job_type,
         payload,
-        description
+        description,
+        phase_codes=phase_values,
+        first_phase_state="queued",
     )
-    
-    db.create_job_phases(job_id, phase_values, "queued")
     return job_id, pos

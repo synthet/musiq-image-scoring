@@ -283,10 +283,12 @@ class BirdSpeciesRunner:
             from modules.pipeline import safe_runner_thread
             def target_wrapper():
                 try:
-                    self._run_batch_internal(
-                        input_path, candidate_species, threshold, top_k,
-                        overwrite, job_id=job_id, resolved_image_ids=resolved_image_ids,
-                    )
+                    from modules.pipeline_diagnostics import phase_timer
+                    with phase_timer("BirdSpeciesRunner.batch", job_id):
+                        self._run_batch_internal(
+                            input_path, candidate_species, threshold, top_k,
+                            overwrite, job_id=job_id, resolved_image_ids=resolved_image_ids,
+                        )
                 except Exception:
                     self.status_message = "Failed"
                     raise

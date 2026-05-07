@@ -108,6 +108,10 @@ def explain_phase_run_decision(
             decision["should_run"] = True
             decision["reason"] = "missing_cull_decision"
             return decision
+        if db.is_image_culling_similarity_artefacts_missing(image_id):
+            decision["should_run"] = True
+            decision["reason"] = "missing_similarity_artefacts"
+            return decision
 
     decision["should_run"] = False
     decision["reason"] = "already_done_current_executor"

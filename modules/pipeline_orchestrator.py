@@ -3,6 +3,7 @@ import threading
 from typing import Dict, List, Optional
 from modules import db, config
 from modules.phases import PhaseCode
+from modules.pipeline_diagnostics import log_phase_transition, get_stall_detector
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class PipelineOrchestrator:
         self._phase_drain_ticks: int = 0
         self._resume_policy: bool = bool(config.get_config_value("pipeline.auto_resume_interrupted", False))
         self._last_recovery_info: Dict = {}
+        self._stall_detector = get_stall_detector()
         
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -82,7 +84,10 @@ class PipelineOrchestrator:
                 """,
                 (phase_code, folder_path, path_like_unix, path_like_win),
             )
-            return int(row["n"]) if row and row.get("n") is not None else 0
+            count = int(row["n"]) if row and row.get("n") is not None else 0
+            if count > 0:
+                logger.debug(f"[ORCHESTRATOR] Found {count} non-terminal rows for {folder_path} in phase {phase_code}")
+            return count
         except Exception as e:
             logger.debug("Non-terminal row probe failed for %s/%s: %s", folder_path, phase_code, e)
             return 0
@@ -141,8 +146,14 @@ class PipelineOrchestrator:
             logger.debug("get_folder_phase_summary refresh failed for %s: %s", folder_path, e)
 
     def _run_loop(self):
+        tick_count = 0
         while not self._stop_event.is_set():
             try:
+                tick_count += 1
+                if self._stall_detector:
+                    self._stall_detector.tick_orchestrator()
+                if tick_count % 30 == 0 and self._active:
+                    logger.debug(f"[ORCHESTRATOR] Tick {tick_count} - Active Phase: {self.current_phase}")
                 self.on_tick()
             except Exception as e:
                 logger.error(f"PipelineOrchestrator tick error: {e}")
@@ -274,9 +285,11 @@ class PipelineOrchestrator:
             db.set_job_phase_state(self.root_job_id, next_phase, "skipped")
             return self._start_next_phase()
 
+        prev_phase = self.current_phase or "idle"
         self.current_phase = next_phase
 
         logger.info("Pipeline: Starting phase %s for folder %s", next_phase, self.folder_path)
+        log_phase_transition(self.root_job_id, prev_phase, next_phase, "orchestrator sequence advance", folder_path=self.folder_path)
         try:
             phases = db.get_job_phases(self.root_job_id) or []
             phase_codes = [p.get("phase_code") for p in phases if p.get("phase_code")]
@@ -371,6 +384,10 @@ class PipelineOrchestrator:
                                 )
                             self._phase_drain_ticks = 0
                             self._refresh_folder_aggregates(self.folder_path)
+                            
+                            # Log the completion transition
+                            log_phase_transition(self.root_job_id, self.current_phase, "done", "phase successfully finished", folder_path=self.folder_path)
+                            
                             db.set_job_phase_state(self.root_job_id, self.current_phase, "completed")
                             self._start_next_phase()
 

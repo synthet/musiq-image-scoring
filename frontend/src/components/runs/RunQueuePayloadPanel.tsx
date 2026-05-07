@@ -29,8 +29,9 @@ export function RunQueuePayloadPanel({
         Flags such as <span className="text-[#cccccc]">run_mode</span>,{' '}
         <span className="text-[#cccccc]">force_rescan</span>,{' '}
         <span className="text-[#cccccc]">skip_done</span>, and clustering{' '}
-        <span className="text-[#cccccc]">threshold</span> / <span className="text-[#cccccc]">time_gap</span> come from
-        this payload when the run was queued.
+        <span className="text-[#cccccc]">threshold</span> (visual cosine distance) /{' '}
+        <span className="text-[#cccccc]">time_gap</span> (capture-time gap in seconds between consecutive shots) come
+        from this payload when the run was queued.
       </p>
     </div>
   )

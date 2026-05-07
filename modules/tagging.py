@@ -407,7 +407,9 @@ class TaggingRunner:
             from modules.pipeline import safe_runner_thread
             def target_wrapper():
                 try:
-                    self._run_batch_internal(input_path, custom_keywords, overwrite, generate_captions, job_id=job_id, resolved_image_ids=resolved_image_ids)
+                    from modules.pipeline_diagnostics import phase_timer
+                    with phase_timer("TaggingRunner.batch", job_id):
+                        self._run_batch_internal(input_path, custom_keywords, overwrite, generate_captions, job_id=job_id, resolved_image_ids=resolved_image_ids)
                 except Exception:
                     self.status_message = "Failed"
                     raise

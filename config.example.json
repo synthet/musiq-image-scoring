@@ -32,6 +32,7 @@
     "best_image_alpha": 0.65,
     "default_threshold": 0.15,
     "default_time_gap": 120,
+    "heal_folder_cohesion_candidates": true,
     "force_rescan_default": false
   },
   "culling": {

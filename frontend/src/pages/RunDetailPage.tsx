@@ -15,6 +15,7 @@ import { ReportPanel } from '@/components/runs/ReportPanel'
 import { useWsStore } from '@/stores/wsStore'
 import type { StageCode } from '@/types/api'
 import { STAGE_DISPLAY } from '@/types/api'
+import { RUN_LEVEL_RETRY_TOOLTIP_DETAIL } from '@/constants/runRetry'
 import { RUNS_QUERY_ROOT, runDetailQueryKey, runStagesQueryKey } from '@/queryKeys/runs'
 
 export function RunDetailPage() {
@@ -161,7 +162,13 @@ export function RunDetailPage() {
             </Button>
           )}
           {(run.status === 'failed' || run.status === 'interrupted') && (
-            <Button size="sm" variant="secondary" onClick={() => retryMut.mutate()} loading={retryMut.isPending}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => retryMut.mutate()}
+              loading={retryMut.isPending}
+              title={RUN_LEVEL_RETRY_TOOLTIP_DETAIL}
+            >
               <RotateCcw size={14} />
               Retry
             </Button>

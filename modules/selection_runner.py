@@ -65,7 +65,11 @@ class SelectionRunner:
 
         def target():
             from modules.pipeline import safe_runner_thread
-            safe_runner_thread(self, job_id, self._run_internal, input_path, force_rescan, job_id)
+            def target_wrapper():
+                from modules.pipeline_diagnostics import phase_timer
+                with phase_timer("SelectionRunner.batch", job_id):
+                    self._run_internal(input_path, force_rescan, job_id)
+            safe_runner_thread(self, job_id, target_wrapper)
 
         self._thread = threading.Thread(target=target, daemon=True)
         self._thread.start()
@@ -360,3 +364,8 @@ class SelectionRunner:
     def stop(self) -> None:
         """Request stop. Checked between stages."""
         self._service.stop()
+        # Best-effort: wait briefly for the background thread to drain so UI/tests
+        # observe ``is_running`` flipping promptly (safe_runner_thread also clears it).
+        t = self._thread
+        if t and t.is_alive():
+            t.join(timeout=5.0)

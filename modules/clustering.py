@@ -432,16 +432,18 @@ class ClusteringEngine(IClusteringEngine):
         self.total = 0
         
         try:
-            yield from self._cluster_images_impl(
-                distance_threshold,
-                time_gap_seconds,
-                force_rescan,
-                target_folder,
-                job_id,
-                target_image_ids=target_image_ids,
-                progress_log=progress_log,
-                stop_event=stop_event,
-            )
+            from modules.pipeline_diagnostics import phase_timer
+            with phase_timer("ClusteringEngine.batch", job_id):
+                yield from self._cluster_images_impl(
+                    distance_threshold,
+                    time_gap_seconds,
+                    force_rescan,
+                    target_folder,
+                    job_id,
+                    target_image_ids=target_image_ids,
+                    progress_log=progress_log,
+                    stop_event=stop_event,
+                )
         finally:
             # Always mark as not running when done
             self.is_running = False
@@ -475,6 +477,13 @@ class ClusteringEngine(IClusteringEngine):
             progress_log("Preparing clustering scope (database query)...")
         
         # Load defaults from config if not provided
+        #
+        # default_threshold  — AgglomerativeClustering cosine-distance cutoff (visual similarity).
+        #                      This is NOT a shot count; it only applies *within* each time batch.
+        # default_time_gap   — Seconds (capture-time based). Shots are sorted by time; whenever
+        #                      (current_time - previous_time) exceeds this value, a NEW batch starts.
+        #                      Only images in the same batch are compared for visual clustering.
+        #                      Example: 3 → burst-style grouping (neighbors must be within ~3s).
         if distance_threshold is None:
             clustering_config = config.get_config_section('clustering')
             distance_threshold = clustering_config.get('default_threshold', 0.15)
@@ -613,13 +622,13 @@ class ClusteringEngine(IClusteringEngine):
                 if decision['should_run']:
                     # Pre-requisite validation: ensure image has a hash and a score
                     # (Score is used for representative selection; Hash for embedding cache)
-                    if not r.get("image_hash"):
+                    if not r.get("image_hash") and not force_rescan:
                         logger.warning("[Clustering] Skipping image_id=%s: missing image_hash. Run Indexing phase first.", r["id"])
                         continue
                     if r.get("score_general") is None:
-                        logger.warning("[Clustering] Skipping image_id=%s: missing score_general. Run Scoring phase first for better representative selection.", r["id"])
-                        # We don't necessarily abort here because clustering can still happen, 
-                        # but we want the user to know it's suboptimal.
+                        logger.warning("[Clustering] image_id=%s: missing score_general. Run Scoring phase first for better representative selection.", r["id"])
+                        # We don't abort here because clustering can still happen (spatial/temporal),
+                        # but representative selection will fall back to default order.
                     
                     runnable_rows.append(r)
                 else:
@@ -802,8 +811,9 @@ class ClusteringEngine(IClusteringEngine):
                 time_batches.append(current_batch)
             
             non_burst_msg = (
-                f"Temporal analysis in {folder}: split {len(non_burst_rows)} images into {len(time_batches)} batch(es) "
-                f"(max gap: {time_gap_seconds}s). Batches with >=2 images: {sum(1 for b in time_batches if len(b)>=2)}"
+                f"Temporal analysis in {folder}: split {len(non_burst_rows)} images into {len(time_batches)} time batch(es) "
+                f"(new batch when consecutive capture times differ by > {time_gap_seconds}s). "
+                f"Batches with >=2 images: {sum(1 for b in time_batches if len(b) >= 2)}"
             )
             logger.info(f"[Clustering] {non_burst_msg}")
             if progress_log:

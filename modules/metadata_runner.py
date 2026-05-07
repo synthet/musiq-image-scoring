@@ -47,7 +47,9 @@ class MetadataRunner:
             from modules.pipeline import safe_runner_thread
             def target_wrapper():
                 try:
-                    self._run_batch_internal(input_path, job_id, skip_existing, resolved_image_ids, report_collector=report_collector)
+                    from modules.pipeline_diagnostics import phase_timer
+                    with phase_timer("MetadataRunner.batch", job_id):
+                        self._run_batch_internal(input_path, job_id, skip_existing, resolved_image_ids, report_collector=report_collector)
                 except Exception:
                     self.status_message = "Failed"
                     raise

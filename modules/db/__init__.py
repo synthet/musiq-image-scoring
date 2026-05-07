@@ -47,6 +47,20 @@ def _ensure_new_helpers(mod):
             return row is not None and str(row.get("cull_decision") or "").strip() != ""
         mod.is_image_culling_complete = is_image_culling_complete
 
+    # Some call sites import `modules.db` very early (during module import),
+    # before `modules.db_legacy` finishes defining all helpers. Provide a safe
+    # fallback so those call sites don't crash on attribute access.
+    if not hasattr(mod, "get_queued_jobs_count"):
+        def get_queued_jobs_count() -> int:
+            try:
+                row = mod.get_connector().query_one(
+                    "SELECT COUNT(*) AS cnt FROM jobs WHERE status = 'queued'"
+                )
+                return int((row or {}).get("cnt") or 0)
+            except Exception:
+                return 0
+        mod.get_queued_jobs_count = get_queued_jobs_count
+
 
 _ensure_new_helpers(_db_legacy)
 

@@ -28,6 +28,7 @@ import shutil
 
 from modules.quality_ranking import quality_tiebreak_order_sql
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -185,15 +186,70 @@ class PostgresCursorProxy:
         self._cur = pg_cur
 
     def execute(self, query, params=None):
+        """
+        Execute a query with Firebird/sqlite-style SQL on a psycopg2 cursor.
+
+        Under pytest we sometimes run multi-connector setups (pool + direct cursors)
+        against the same Postgres instance.  A small amount of write churn from other
+        processes (e.g. a running WebUI) can introduce transient SQLSTATE 40P01
+        deadlocks.  The PostgresConnector already retries deadlocks; mirror that
+        behavior here so legacy cursor callers (tests + some utilities) remain robust.
+        """
+        import time
+
         query = self._translate_query(query)
         if params:
             query = _escape_pct_in_string_literals(query)
-            return self._cur.execute(query, params)
-        return self._cur.execute(query)
+
+        # Retry on deadlock detected (SQLSTATE 40P01). Keep this tight: callers
+        # should not experience long stalls on genuine lock contention.
+        last_exc = None
+        for attempt in range(4):
+            try:
+                if params:
+                    return self._cur.execute(query, params)
+                return self._cur.execute(query)
+            except Exception as e:
+                last_exc = e
+                try:
+                    import psycopg2  # type: ignore
+                    import psycopg2.errors  # type: ignore
+
+                    if isinstance(e, psycopg2.errors.DeadlockDetected):
+                        # 15ms, 50ms, 150ms, 450ms
+                        time.sleep(0.015 * (3 ** attempt))
+                        continue
+                except Exception:
+                    # psycopg2 may not be importable in non-postgres engines;
+                    # if so, just fall through and re-raise the original error.
+                    pass
+                raise
+
+        raise last_exc
 
     def executemany(self, query, params):
+        import time
+
         query = _escape_pct_in_string_literals(self._translate_query(query))
-        return self._cur.executemany(query, params)
+
+        last_exc = None
+        for attempt in range(4):
+            try:
+                return self._cur.executemany(query, params)
+            except Exception as e:
+                last_exc = e
+                try:
+                    import psycopg2  # type: ignore
+                    import psycopg2.errors  # type: ignore
+
+                    if isinstance(e, psycopg2.errors.DeadlockDetected):
+                        time.sleep(0.015 * (3 ** attempt))
+                        continue
+                except Exception:
+                    pass
+                raise
+
+        raise last_exc
 
     def fetchone(self):
         row = self._cur.fetchone()
@@ -4446,8 +4502,8 @@ def get_images_by_folder(folder_path):
     cached = _folder_images_cache.get(folder_path)
     if cached is not None:
         cached_time, cached_rows = cached
-        if now - cached_time < _FOLDER_CACHE_TTL:
-            return cached_rows
+        # if now - cached_time < _FOLDER_CACHE_TTL:
+        #     return cached_rows
         del _folder_images_cache[folder_path]
 
     folder_id = get_or_create_folder(folder_path)
@@ -4459,10 +4515,7 @@ def get_images_by_folder(folder_path):
         # Postgres: fetch all columns, replace keywords with COALESCE
         sql = f"""
             SELECT
-                i.id, i.file_path, i.file_name, i.folder_id, i.stack_id,
-                i.image_embedding, i.rating, i.label, i.title, i.description,
-                i.metadata, i.scores_json, i.created_at, i.updated_at,
-                i.thumbnail_path, i.thumbnail_path_win, i.score_general, i.burst_uuid,
+                i.*,
                 COALESCE(
                     (SELECT STRING_AGG(COALESCE(kd.keyword_display, kd.keyword_norm), ', ')
                      FROM image_keywords ik
@@ -4483,6 +4536,9 @@ def get_images_by_folder(folder_path):
         except Exception as e:
             logging.error(f"get_images_by_folder Postgres: {e}")
             result = []
+        
+        if not result:
+            logger.info("get_images_by_folder Postgres result is empty")
     else:
         # Firebird: same COALESCE logic with LIST()
         sql = """
@@ -4491,6 +4547,8 @@ def get_images_by_folder(folder_path):
                 i.image_embedding, i.rating, i.label, i.title, i.description,
                 i.metadata, i.scores_json, i.created_at, i.updated_at,
                 i.thumbnail_path, i.thumbnail_path_win, i.score_general, i.burst_uuid,
+                i.image_hash, i.hash_version,
+                i.score_technical, i.score_aesthetic, i.score_spaq, i.score_ava, i.score_koniq, i.score_paq2piq, i.score_liqe,
                 COALESCE(
                     (SELECT LIST(COALESCE(kd.keyword_display, kd.keyword_norm), ', ')
                      FROM image_keywords ik
@@ -5809,6 +5867,21 @@ def get_queued_jobs(limit=200, include_related=False):
         row["retry_count"] = int(row.get("retry_count") or 0)
         row["priority"] = int(row.get("priority") or 100)
     return rows
+
+
+def get_queued_jobs_count() -> int:
+    """
+    Lightweight queue depth for JobDispatcher logging.
+
+    Must never raise (dispatcher runs in a background thread).
+    """
+    try:
+        row = get_connector().query_one("SELECT COUNT(*) AS cnt FROM jobs WHERE status = 'queued'")
+        if not row:
+            return 0
+        return int(row.get("cnt") or 0)
+    except Exception:
+        return 0
 
 
 
@@ -7925,8 +7998,81 @@ def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
         return _incomplete_images_where_sql(table_alias)
 
     if code == "culling":
-        # Check if cull_decision is set.
-        return f"{prefix}cull_decision IS NULL OR TRIM(CAST({prefix}cull_decision AS VARCHAR(20))) = ''"
+        # Primary: missing pick/reject. Secondary: falsely-done clustering — cull populated
+        # but row never got stack assignment or Mobilenet fingerprints (workflow_healing /
+        # selection can complete pick bands without embeddings; see phases_policy staleness).
+        # Tertiary (heal-oriented): folder has 2+ images, none in any stack, embeddings exist,
+        # and capture-time span fits a single clustering time chain: span <= (n-1)*default_time_gap.
+        from modules.config import get_config_section
+
+        missing_cull = (
+            f"{prefix}cull_decision IS NULL OR "
+            f"TRIM(CAST({prefix}cull_decision AS VARCHAR(20))) = ''"
+        )
+        cull_nonempty = (
+            f"{prefix}cull_decision IS NOT NULL AND "
+            f"TRIM(CAST({prefix}cull_decision AS VARCHAR(20))) <> ''"
+        )
+        clustering_eligible_hash = (
+            f"{prefix}image_hash IS NOT NULL AND "
+            f"TRIM(CAST({prefix}image_hash AS VARCHAR(128))) <> ''"
+        )
+        ialias = (table_alias or "i").strip() or "i"
+        if _get_db_engine() == "postgres":
+            clustering_emb_missing_sql = (
+                f"NOT ({_postgres_has_default_embedding_sql(ialias)})"
+            )
+        else:
+            clustering_emb_missing_sql = f"{prefix}image_embedding IS NULL"
+
+        clustering_stale_similarity_sql = (
+            f"({cull_nonempty} AND {prefix}stack_id IS NULL AND "
+            f"{clustering_eligible_hash} AND ({clustering_emb_missing_sql}))"
+        )
+
+        cc = get_config_section("clustering") or {}
+        cohesion_enabled = bool(cc.get("heal_folder_cohesion_candidates", True))
+        if not cohesion_enabled:
+            return f"(({missing_cull}) OR ({clustering_stale_similarity_sql}))"
+
+        gap_sec = float(cc.get("default_time_gap", 120) or 120)
+        gap_lit = str(gap_sec)
+        if _get_db_engine() == "postgres":
+            emb_present_sql = f"({_postgres_has_default_embedding_sql(ialias)})"
+        else:
+            emb_present_sql = f"({prefix}image_embedding IS NOT NULL)"
+
+        _ts3 = (
+            "COALESCE(ex3.date_time_original, ex3.create_date, i3.created_at)"
+        )
+        if _get_db_engine() == "postgres":
+            span_sql = f"EXTRACT(EPOCH FROM (MAX({_ts3}) - MIN({_ts3})))"
+        else:
+            span_sql = f"DATEDIFF(SECOND FROM MIN({_ts3}) TO MAX({_ts3}))"
+
+        folder_time_cohesion_sql = f"""(
+            {cull_nonempty}
+            AND {clustering_eligible_hash}
+            AND {prefix}stack_id IS NULL
+            AND ({emb_present_sql})
+            AND EXISTS (
+                SELECT 1
+                FROM (
+                    SELECT 1
+                    FROM images i3
+                    LEFT JOIN image_exif ex3 ON ex3.image_id = i3.id
+                    WHERE i3.folder_id = {prefix}folder_id
+                    GROUP BY i3.folder_id
+                    HAVING COUNT(*) >= 2
+                      AND SUM(CASE WHEN i3.stack_id IS NOT NULL THEN 1 ELSE 0 END) = 0
+                      AND ({span_sql}) <= ((COUNT(*) - 1) * {gap_lit})
+                ) _fcd
+            )
+        )"""
+        return (
+            f"(({missing_cull}) OR ({clustering_stale_similarity_sql}) "
+            f"OR ({folder_time_cohesion_sql}))"
+        )
 
     if code == "keywords":
         return f"""(
@@ -8147,6 +8293,62 @@ def is_image_keywords_complete(image_id: int) -> bool:
     return True
 
 
+
+
+def is_image_culling_similarity_artefacts_missing(image_id: int) -> bool:
+    """True when pick/reject data exists without any clustering fingerprints on the row.
+
+    This catches the stale state described in selection + clustering coupling: clustering
+    can finish without assigning ``stack_id`` or persisting default-space MobileNet
+    embeddings while :func:`~modules.db_legacy.batch_update_cull_decisions` still
+    assigns ``cull_decision`` for every image under the implicit ``stack_id=NULL``
+    bucket. Those rows otherwise look terminal to phase policy despite never having run
+    a successful visual feature write.
+
+    Returns False when clustering would not consider the row runnable (missing
+    ``image_hash``) or when a stack/default visual embedding is already persisted.
+    """
+    try:
+        conn = get_connector()
+        row = conn.query_one(
+            """
+            SELECT stack_id, image_hash, image_embedding, cull_decision
+            FROM images WHERE id = ?
+            """,
+            (image_id,),
+        )
+        if not row:
+            return False
+        if str(row.get("cull_decision") or "").strip() == "":
+            return False
+        if row.get("stack_id") is not None:
+            return False
+        if str(row.get("image_hash") or "").strip() == "":
+            return False
+
+        if row.get("image_embedding") is not None:
+            return False
+
+        if conn.type == 'postgres':
+            from modules.embedding_spaces import get_default_embedding_space_id
+
+            sid = get_default_embedding_space_id()
+            if sid is not None:
+                hit = conn.query_one(
+                    "SELECT 1 AS x FROM image_embeddings WHERE image_id = ? "
+                    "AND embedding_space_id = ?",
+                    (image_id, sid),
+                )
+                if hit:
+                    return False
+
+        # Eligible clustering row reached pick/reject without ever persisting Mobilenet blobs.
+        return True
+    except Exception:
+        logger.exception(
+            "is_image_culling_similarity_artefacts_missing failed for image_id=%s", image_id
+        )
+        return False
 
 
 def get_incomplete_records(limit: int | None = None):
@@ -9063,7 +9265,7 @@ def get_images_in_stack(stack_id):
     (lower ISO, shorter exposure on Postgres, earlier capture time, lower id).
     """
     tie = _stack_quality_tiebreak_sql()
-    return list(get_connector().query(
+    rows = list(get_connector().query(
         f"""
         SELECT i.*,
                e.iso             AS exif_iso,
@@ -9078,6 +9280,12 @@ def get_images_in_stack(stack_id):
         """,
         (stack_id,),
     ))
+    # Strip the raw embedding: on Postgres + pgvector it comes back as a
+    # numpy ndarray which FastAPI's default JSON encoder cannot serialise,
+    # and the Culling UI never needs the vector itself.
+    for r in rows:
+        r.pop("image_embedding", None)
+    return rows
 
 def get_stack_count():
     row = get_connector().query_one("SELECT COUNT(*) AS cnt FROM stacks")

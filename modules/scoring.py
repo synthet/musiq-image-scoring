@@ -98,7 +98,9 @@ class ScoringRunner:
                 if target_phases is not None:
                     run_kwargs["target_phases"] = target_phases
                 try:
-                    self._run_batch_internal(input_path, job_id, skip_existing, report_collector=report_collector, **run_kwargs)
+                    from modules.pipeline_diagnostics import phase_timer
+                    with phase_timer("ScoringRunner.batch", job_id):
+                        self._run_batch_internal(input_path, job_id, skip_existing, report_collector=report_collector, **run_kwargs)
                 except Exception:
                     self.status_message = "Failed"
                     raise

@@ -296,7 +296,14 @@ def _render_threads() -> str:
         for t in threads
     ]
     table = _table(["Name", "Ident", "Daemon", "Alive"], rows)
-    return _section(f"Threads ({len(threads)})", table)
+    
+    header = (
+        f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px'>"
+        f"<span style='font-size:0.85em;color:{_TEXT_DIM}'>Active Python threads</span>"
+        f"<a href='/api/debug/thread-dump' target='_blank' style='font-size:0.75em;color:{_ACCENT};text-decoration:none;border:1px solid {_BORDER};padding:3px 8px;border-radius:4px;background:{_BG_LIGHT}'>View Thread Dump</a>"
+        f"</div>"
+    )
+    return _section(f"Threads ({len(threads)})", header + table)
 
 
 def _render_profiling() -> str:

@@ -19,6 +19,7 @@ from modules import config as app_config
 from modules.phases import PhaseCode, PhaseStatus
 from modules.version import APP_VERSION
 from modules.run_log import attach_image_log_suffix, emit_run_log
+from modules.pipeline_diagnostics import get_stall_detector, phase_timer
 # Lazy imports — TensorFlow/PyTorch live behind ScoringWorker._get_liqe_scorer()
 # so tests that only exercise phase gating or prep paths need not import LIQE.
 
@@ -120,31 +121,39 @@ class PipelineWorker(threading.Thread):
 
     def run(self):
         logger.info(f"{self.name} started.")
-        while not self.stop_event.is_set():
-            try:
-                # Timeout allows checking stop_event periodically
-                item = self.input_queue.get(timeout=1.0)
-            except queue.Empty:
-                continue
+        stall_detector = get_stall_detector()
+        hb = stall_detector.register_worker(self.name)
+        try:
+            while not self.stop_event.is_set():
+                hb.beat("waiting")
+                try:
+                    # Timeout allows checking stop_event periodically
+                    item = self.input_queue.get(timeout=1.0)
+                except queue.Empty:
+                    continue
 
-            if item is None: # Sentinel
-                if self.output_queue:
-                    self.output_queue.put(None)
-                break
-            
-            try:
-                self.process(item)
-            except Exception as e:
-                logger.error(f"Error in {self.name}: {e}")
-                traceback.print_exc()
-                if isinstance(item, ImageJob):
-                    item.status = "failed"
-                    item.error = str(e)
-                    # Pass it along to handle failure in DB/Cleanup
+                if item is None: # Sentinel
                     if self.output_queue:
-                         self.output_queue.put(item)
-            finally:
-                self.input_queue.task_done()
+                        self.output_queue.put(None)
+                    break
+                
+                try:
+                    hb.beat(f"processing_job_{item.job_id}")
+                    with phase_timer(f"{self.name}.process", item.job_id):
+                        self.process(item)
+                except Exception as e:
+                    logger.error(f"Error in {self.name}: {e}")
+                    traceback.print_exc()
+                    if isinstance(item, ImageJob):
+                        item.status = "failed"
+                        item.error = str(e)
+                        # Pass it along to handle failure in DB/Cleanup
+                        if self.output_queue:
+                             self.output_queue.put(item)
+                finally:
+                    self.input_queue.task_done()
+        finally:
+            stall_detector.unregister_worker(self.name)
         logger.info(f"{self.name} stopped.")
 
     def process(self, item):

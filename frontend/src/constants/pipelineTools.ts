@@ -39,7 +39,8 @@ export const HEAL_STEPS = [
   {
     code: 'culling',
     name: 'Heal Culling',
-    description: 'Finds images missing stack/cluster IDs, resets, and re-clusters.',
+    description:
+      'Finds images missing cull bands, missing embeddings, or time-cohesive folders with no stacks (2+ shots, span within clustering time-gap chain); resets and re-runs similarity clustering.',
   },
   {
     code: 'keywords',
