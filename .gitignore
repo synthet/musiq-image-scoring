@@ -109,6 +109,12 @@ research_output/
 *.webp
 !sample.jpg
 
+# Nikon RAW files (testing samples — large, download locally)
+*.NEF
+*.nef
+*.NRW
+*.nrw
+
 # Large data files
 *.zip
 *.tar.gz

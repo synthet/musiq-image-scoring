@@ -15,12 +15,20 @@ export type PipelineToolAction =
       rootPath?: string
       budget: number
       dryRun: boolean
-      runMode: string
+      /** Defaults to validate_and_repair; heal must not use overwrite / skip-done modes */
+      runMode?: string
     }
   | {
       kind: 'backfill'
       trackingId: string
       actionName: string
+    }
+  | {
+      kind: 'cleanup'
+      trackingId: string
+      actionName: string
+      dryRun: boolean
+      rootPath?: string
     }
 
 export type UsePipelineToolActionOptions = {
@@ -41,10 +49,15 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
             root_path: action.rootPath,
             budget: action.budget,
             dry_run: action.dryRun,
-            run_mode: action.runMode,
+            run_mode: action.runMode ?? 'validate_and_repair',
           })
         case 'backfill':
           return toolsApi.backfillStart(action.actionName)
+        case 'cleanup':
+          return toolsApi.cleanupStart(action.actionName, {
+            dry_run: action.dryRun,
+            input_path: action.rootPath,
+          })
         default: {
           const _x: never = action
           return _x
@@ -79,7 +92,7 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
           setLastBanner({ ok: envelope.success, text: envelope.message })
         }
         void queryClient.invalidateQueries({ queryKey: RUNS_QUERY_ROOT })
-      } else if (variables.kind === 'backfill') {
+      } else if (variables.kind === 'backfill' || variables.kind === 'cleanup') {
         const envelope = data as { success: boolean; message: string }
         setLastBanner({ ok: envelope.success, text: envelope.message })
         void queryClient.invalidateQueries({ queryKey: RUNS_QUERY_ROOT })

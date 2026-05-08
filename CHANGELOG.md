@@ -15,6 +15,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.13.0] - 2026-05-07
+
+### Added
+
+- **PostgreSQL — `pipeline_tool_folder_last_touch`**: Alembic **`0019_pipeline_tool_folder_last_touch.py`** stores per-folder last success time per pipeline tool key (round-robin / deprioritize recent work).
+- **`modules/pipeline_tool_folder_touch.py`**: Upsert helpers for tool folder touches (Postgres); integrated with maintenance and workflow-healing paths.
+- **Run submit — scope prerequisites**: **`POST /api/runs/submit`** (and related pipeline submit paths) can return **`missing_prerequisites`** when requested stages are not satisfied for the resolved scope.
+- **Phase prerequisites & diagnostics**: Expanded **`modules/phases.py`** registry / prerequisite semantics; **`modules/pipeline_diagnostics.py`** and **`docs/technical/WORKFLOW_DIAGNOSTICS.md`** / **`docs/technical/RUN_OPTIONS_MODE_MATRIX.md`** for operator clarity.
+- **Testing & samples**: Optional public-sample download / synthetic NEF helpers under **`scripts/python/`**; **`tests/fixtures/testing_samples/public/`** sidecars and manifest updates (large NEF binaries no longer vendored in-tree).
+- **Docker / CI helpers**: **`scripts/docker_inference_e2e.sh`**; **`docker-compose.yml`** refinements for WebUI-oriented dev flows.
+
+### Changed
+
+- **`modules/workflow_healing.py`**, **`modules/maintenance_runner.py`**, **`modules/db_legacy.py`**, **`modules/db_postgres.py`**: Healing order, reconciliation, and Postgres alignment with new touch tracking and phase policy.
+- **`modules/exif_extractor.py`** and thumbnail / RAW preview tests: NEF and camera–lens coverage reshaped; **`tests/test_dcraw_thumb.py`** retired in favor of **`tests/test_raw_thumb_extraction.py`**.
+- **React `/ui/` runs & scope**: **`ScopeSelector`**, **`RunsToolsTab`**, **`pipeline.ts` / `pipelineTools.ts`**, **`usePipelineToolAction`**, and **`frontend/src/api/tools.ts`** for pipeline-tool actions and gating UX.
+- **Integration tests**: Pipeline workflow matrix support, incremental runs e2e, and submit phase-permutation e2e updates (**`tests/support/pipeline_matrix.py`**, **`tests/integration/*`**).
+
+### Fixed
+
+- **Legacy DB bookkeeping**: Tighter job/phase transitions and stale-running reconciliation aligned with submit and healing (**`modules/db_legacy.py`**).
+
+### Tests
+
+- New / expanded suites: prerequisite gating, phase status transitions, registry sync, reconcile stale running, NEF camera–lens diversity, workflow healing touch order, **`tests/e2e_docker/`** where applicable.
+
 ## [7.12.0] - 2026-05-06
 
 ### Added

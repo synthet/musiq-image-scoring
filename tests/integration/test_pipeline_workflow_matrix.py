@@ -23,6 +23,7 @@ import pytest
 from modules import db
 from modules.job_dispatcher import JobDispatcher
 from tests.support.fake_runners import (
+    FakeBirdSpeciesRunner,
     FakeClusteringRunner,
     FakePhaseRunner,
     FakeScoringRunner,
@@ -95,6 +96,10 @@ def _make_dispatcher(
             kw["fail_message"] = f"Simulated failure in {name}"
         return FakePhaseRunner(**kw)
 
+    bs_kw = dict(delay_s=delay_s, on_start=_noop_running_sync)
+    if fail_phase == "bird_species":
+        bs_kw["fail_message"] = "Simulated failure in bird_species"
+
     return JobDispatcher(
         indexing_runner=_generic("indexing", fail_phase == "indexing"),
         metadata_runner=_generic("metadata", fail_phase == "metadata"),
@@ -102,6 +107,7 @@ def _make_dispatcher(
         tagging_runner=_tagging(fail_phase == "keywords"),
         clustering_runner=_clustering(fail_phase in ("clustering", "culling")),
         selection_runner=_selection(fail_phase == "culling"),
+        bird_species_runner=FakeBirdSpeciesRunner(**bs_kw),
         poll_interval=5.0,
     )
 
@@ -387,9 +393,9 @@ class TestDispatcherEdgeCases:
         assert int(row.get("retry_count") or 0) == 1
 
     def test_full_five_phase_monolithic_happy_path(self):
-        """Full pipeline: indexing -> metadata -> scoring -> keywords -> culling."""
+        """Full pipeline: indexing → metadata → scoring → culling → keywords."""
         dispatcher = _make_dispatcher()
-        plan = ("indexing", "metadata", "scoring", "keywords", "culling")
+        plan = ("indexing", "metadata", "scoring", "culling", "keywords")
         job_id = enqueue_monolithic("D:/edge/full-pipeline", plan)
 
         run_dispatcher_until_quiet(dispatcher, deadline_s=15.0)
@@ -405,7 +411,7 @@ class TestDispatcherEdgeCases:
     def test_five_phase_sequential_happy_path(self):
         """Full pipeline as 5 sequential single-phase jobs."""
         dispatcher = _make_dispatcher()
-        plan = ("indexing", "metadata", "scoring", "keywords", "culling")
+        plan = ("indexing", "metadata", "scoring", "culling", "keywords")
         job_ids = enqueue_sequential("D:/edge/full-seq", plan)
 
         run_dispatcher_until_quiet(dispatcher, deadline_s=15.0)
@@ -427,7 +433,7 @@ class TestDispatcherEdgeCases:
     def test_monolithic_mid_pipeline_fail_preserves_completed_phases(self):
         """When phase 3 fails in a 5-phase job, phases 1-2 stay completed."""
         dispatcher = _make_dispatcher(fail_phase="scoring")
-        plan = ("indexing", "metadata", "scoring", "keywords", "culling")
+        plan = ("indexing", "metadata", "scoring", "culling", "keywords")
         job_id = enqueue_monolithic("D:/edge/mid-fail", plan)
 
         run_dispatcher_until_quiet(dispatcher, deadline_s=10.0)
@@ -438,15 +444,12 @@ class TestDispatcherEdgeCases:
         phases = db.get_job_phases(job_id)
         states = {p["phase_code"]: (p["state"] or "").lower() for p in phases}
 
-        # First two phases completed before the failing one
         assert states["indexing"] == "completed"
         assert states["metadata"] == "completed"
         assert states["scoring"] == "failed"
-        # Remaining phases: may be pending, running (auto-advanced), or failed
-        # depending on how the dispatcher handled the failure cascade
         non_terminal = {"pending", "running", "failed", "queued"}
-        assert states["keywords"] in non_terminal, f"keywords: {states['keywords']}"
         assert states["culling"] in non_terminal, f"culling: {states['culling']}"
+        assert states["keywords"] in non_terminal, f"keywords: {states['keywords']}"
 
     def test_empty_queue_tick_is_noop(self):
         """Ticking an empty queue does not crash or create phantom jobs."""

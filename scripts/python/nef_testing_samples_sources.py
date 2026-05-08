@@ -29,5 +29,5 @@ SAMPLES: list[tuple[str, str, str]] = [
 
 
 def source_url_by_relpath() -> dict[str, str]:
-    """Maps 'D300/RAW_NIKON_D300.NEF' -> url."""
-    return {f"{sub}/{name}": url for sub, name, url in SAMPLES}
+    """Maps 'public/D300/RAW_NIKON_D300.NEF' -> url."""
+    return {f"public/{sub}/{name}": url for sub, name, url in SAMPLES}

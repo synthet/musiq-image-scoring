@@ -2,6 +2,13 @@
 
 This tree holds **third-party** `.NEF` files for **D300**, **D90**, **Z6 II**, and **Z8** interoperability testing (metadata, previews, pipeline). It is **not** for personal photos.
 
+## Structure
+
+- `public/`: Real Nikon RAW samples from third-party sources (Pixls.us, Photography Blog, etc.). Organized by camera model.
+- `synthetic/`: Artificially generated NEF files for edge-case metadata and pipeline testing.
+- `manifest.json`: Root inventory of all samples with SHA-256 hashes and EXIF metadata.
+- `expected_exif.json`: Ground-truth metadata expectations for diversity tests.
+
 ## Intended use
 
 - **Local / developer machine:** download, verify, point indexing or tests at this folder.

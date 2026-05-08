@@ -101,8 +101,16 @@ class StallDetector:
     Triggers automatic thread dumps if progress stops for too long.
     """
     def __init__(self, check_interval_s: float = 10.0, stall_threshold_s: float = 60.0):
-        self.check_interval_s = check_interval_s
-        self.stall_threshold_s = stall_threshold_s
+        # Try to load from config if available
+        try:
+            from modules import config
+            diag_cfg = config.get_config_section("diagnostics") or {}
+            self.check_interval_s = diag_cfg.get("check_interval_s", check_interval_s)
+            self.stall_threshold_s = diag_cfg.get("stall_threshold_s", stall_threshold_s)
+        except Exception:
+            self.check_interval_s = check_interval_s
+            self.stall_threshold_s = stall_threshold_s
+            
         self._heartbeats: Dict[str, WorkerHeartbeat] = {}
         self._lock = threading.Lock()
         self._running = False
@@ -256,3 +264,32 @@ def capture_pipeline_snapshot(orchestrator, runners: Dict[str, Any]) -> Dict[str
                 snap["runners"][name] = {"error": "Could not get status"}
                 
     return snap
+
+
+def get_thread_dump() -> str:
+    """Returns a nicely formatted thread dump string for diagnostics."""
+    dump = capture_thread_dump()
+    lines = []
+    lines.append(f"Vexlum Backend Thread Dump - {time.ctime(dump['timestamp'])}")
+    lines.append(f"Total threads tracked: {dump['thread_count']}")
+    lines.append("=" * 70)
+    
+    for t in dump["threads"]:
+        status = " [DAEMON]" if t["daemon"] else ""
+        pipeline = " [PIPELINE]" if t["is_pipeline"] else ""
+        lines.append(f"THREAD: {t['name']} (ident: {t['ident']}){status}{pipeline}")
+        
+        # Simple path redaction: replace user home if detected
+        user_home = os.path.expanduser("~")
+        
+        for frame in t["stack"]:
+            line = frame.strip()
+            if user_home and user_home in line:
+                line = line.replace(user_home, "~")
+            lines.append(f"  {line}")
+        lines.append("-" * 70)
+        
+    return "\n".join(lines)
+
+
+import os # Needed for expanduser

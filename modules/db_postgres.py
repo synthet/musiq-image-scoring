@@ -418,6 +418,19 @@ def _init_db_transaction():
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_folders_path ON folders(path);")
             cur.execute("ALTER TABLE folders ADD COLUMN IF NOT EXISTS image_count INTEGER DEFAULT 0;")
 
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS pipeline_tool_folder_last_touch (
+                tool_key          TEXT NOT NULL,
+                folder_id         INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+                last_touched_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (tool_key, folder_id)
+            );
+            """)
+            cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_pipeline_tool_folder_touch_tool_time
+            ON pipeline_tool_folder_last_touch (tool_key, last_touched_at);
+            """)
+
             # ------------------------------------------------------------------
             # STACKS
             # ------------------------------------------------------------------

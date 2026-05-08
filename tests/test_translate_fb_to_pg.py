@@ -339,6 +339,27 @@ class TestCombined:
         pg = _translate_fb_to_pg(fb)
         assert pg == "INSERT INTO folders (path, parent_id) VALUES (%s, %s) RETURNING id"
 
+    def test_scalar_subquery_explicit_inner_limit_survives_translation(self):
+        """Scalar subqueries in the select list must cap rows inside the parentheses.
+
+        ``SELECT FIRST 1 …`` at the start of a subquery is wrongly rewritten by
+        ``_translate_fb_to_pg`` (LIMIT is appended only to the outer query).
+
+        Prefer an inner ``LIMIT 1`` (and optional ``FETCH FIRST …`` only when the
+        whole statement needs it — still translated globally). Mirrors
+        :func:`~modules.db_legacy.get_stacks_for_display`.
+        """
+        fb = (
+            "SELECT s.id AS sid, "
+            "(SELECT COALESCE(i2.thumbnail_path, i2.file_path) FROM images i2 "
+            "WHERE i2.stack_id = s.id ORDER BY i2.score_general DESC NULLS LAST, i2.id "
+            "LIMIT 1) AS cover_path FROM stacks s"
+        )
+        pg = _translate_fb_to_pg(fb)
+        assert pg.count("LIMIT 1") == 1
+        assert ") AS cover_path FROM stacks s" in pg.replace("\n", " ")
+        assert "DESC NULLS LAST" in pg
+
 
 # ---------------------------------------------------------------------------
 # 9. _enqueue_dual_write embedding skip

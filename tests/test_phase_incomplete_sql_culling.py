@@ -30,8 +30,9 @@ def test_get_phase_incomplete_sql_culling_time_cohesion_branch_postgres():
     }):
         with patch.object(db, "_get_db_engine", return_value="postgres"):
             sql = db.get_phase_incomplete_sql("culling", table_alias="i")
-    assert "_fcd" in sql
-    assert "i3.folder_id" in sql and "i.folder_id" in sql
+    assert "i.folder_id IN" in sql
+    assert "GROUP BY i3.folder_id" in sql
+    assert "_fcd" not in sql
     assert "EXTRACT(EPOCH FROM" in sql
     assert "7.0" in sql
 
@@ -43,7 +44,7 @@ def test_get_phase_incomplete_sql_culling_time_cohesion_branch_firebird_span():
     }):
         with patch.object(db, "_get_db_engine", return_value="firebird"):
             sql = db.get_phase_incomplete_sql("culling", table_alias="i")
-    assert "_fcd" in sql
+    assert "i.folder_id IN" in sql
     assert "DATEDIFF" in sql
 
 
@@ -54,4 +55,20 @@ def test_get_phase_incomplete_sql_culling_cohesion_can_disable():
     }):
         with patch.object(db, "_get_db_engine", return_value="postgres"):
             sql = db.get_phase_incomplete_sql("culling", table_alias="i")
-    assert "_fcd" not in sql
+    assert "GROUP BY i3.folder_id" not in sql
+
+
+def test_culling_cohesion_folders_aggregate_matches_config_toggle():
+    with patch("modules.config.get_config_section", return_value={
+        "heal_folder_cohesion_candidates": False,
+    }):
+        sql = db.culling_cohesion_folders_aggregate_sql()
+    assert "1=0" in sql.replace(" ", "")
+
+    with patch("modules.config.get_config_section", return_value={
+        "heal_folder_cohesion_candidates": True,
+        "default_time_gap": 120,
+    }):
+        with patch.object(db, "_get_db_engine", return_value="postgres"):
+            sql_on = db.culling_cohesion_folders_aggregate_sql()
+    assert "HAVING COUNT(*)" in sql_on

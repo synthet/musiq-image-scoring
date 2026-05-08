@@ -209,10 +209,27 @@ class MaintenanceRunner:
 
     def _action_reconcile(self, job_id: int, payload: Dict[str, Any]):
         limit = payload.get("limit", 5000)
-        logger.info("Maintenance reconcile: job_id=%s limit=%s", job_id, limit)
+        threshold = payload.get("stale_threshold_seconds")
+        logger.info(
+            "Maintenance reconcile: job_id=%s limit=%s stale_threshold=%s",
+            job_id, limit, threshold,
+        )
         n = db.reconcile_stale_running_phases_for_terminal_jobs(limit=limit)
-        runner_emit(self.log_history, job_id, f"Reconciled {n} stuck phase row(s).", phase="maintenance")
-        
+        runner_emit(self.log_history, job_id, f"Reconciled {n} stuck phase row(s) for terminal jobs.", phase="maintenance")
+
+        try:
+            n_stale = db.reconcile_stale_running_image_phases(
+                threshold_seconds=threshold, limit=limit,
+            )
+        except Exception as e:
+            n_stale = 0
+            logger.warning("reconcile_stale_running_image_phases failed: %s", e)
+        runner_emit(
+            self.log_history, job_id,
+            f"Reaped {n_stale} stale 'running' phase row(s) past heartbeat threshold.",
+            phase="maintenance",
+        )
+
         try:
             db.delete_orphan_stacks()
             runner_emit(self.log_history, job_id, "Cleaned up orphan stacks.", phase="maintenance")
@@ -275,46 +292,73 @@ class MaintenanceRunner:
         from modules import utils
         limit = payload.get("limit", 5000)
         dry_run = payload.get("dry_run", False)
+        scope_path = (payload.get("input_path") or "").strip() or None
         logger.info(
-            "Maintenance prune_missing: job_id=%s limit=%s dry_run=%s",
+            "Maintenance prune_missing: job_id=%s limit=%s dry_run=%s scope=%r",
             job_id,
             limit,
             dry_run,
+            scope_path,
         )
 
-        runner_emit(self.log_history, job_id, f"Pruning records for missing files (limit={limit}, dry_run={dry_run})...", phase="maintenance")
-        
+        scope_label = f" under {scope_path}" if scope_path else ""
+        runner_emit(
+            self.log_history,
+            job_id,
+            f"Pruning records for missing files{scope_label} (limit={limit}, dry_run={dry_run})...",
+            phase="maintenance",
+        )
+
         pruned = 0
         scanned = 0
-        
+
         with db.connection() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT id, file_path FROM images FETCH FIRST ? ROWS ONLY", (limit,))
+            if scope_path:
+                wsl = utils.convert_path_to_wsl(scope_path) if hasattr(utils, "convert_path_to_wsl") else scope_path
+                target = wsl or scope_path
+                like_unix = target.rstrip("/") + "/%"
+                like_win = target.rstrip("\\") + "\\%"
+                cur.execute(
+                    "SELECT i.id, i.file_path FROM images i "
+                    "JOIN folders f ON f.id = i.folder_id "
+                    "WHERE f.path = ? OR f.path LIKE ? OR f.path LIKE ? "
+                    "FETCH FIRST ? ROWS ONLY",
+                    (target, like_unix, like_win, limit),
+                )
+            else:
+                cur.execute("SELECT id, file_path FROM images FETCH FIRST ? ROWS ONLY", (limit,))
             rows = cur.fetchall()
-            
-            total = len(rows)
+
+            total = len(rows) or 1
             for i, row in enumerate(rows):
                 if self._cancel_requested:
                     break
                 scanned += 1
-                
+
                 # Support both RowWrapper (Firebird) and dict/tuple (Postgres)
                 img_id = row["id"] if hasattr(row, "keys") or isinstance(row, dict) else row[0]
                 file_path = row["file_path"] if hasattr(row, "keys") or isinstance(row, dict) else row[1]
-                
+
                 resolved = utils.resolve_file_path(file_path, image_id=img_id)
                 if not resolved:
                     if not dry_run:
-                        # We use db.delete_image which handles its own connection/transaction
-                        db.delete_image(img_id)
+                        # db.delete_image expects file_path (not id) — passing id silently no-ops.
+                        db.delete_image(file_path)
                     pruned += 1
                     if pruned % 10 == 0:
                         runner_emit(self.log_history, job_id, f"Pruned {pruned} images so far...", phase="maintenance")
-                
+
                 if i % 100 == 0:
                     db.update_job_progress(job_id, int((i/total)*100))
 
-        runner_emit(self.log_history, job_id, f"Pruning done: {pruned} records removed, {scanned} scanned.", phase="maintenance")
+        verb = "would prune" if dry_run else "pruned"
+        runner_emit(
+            self.log_history,
+            job_id,
+            f"Pruning done: {verb} {pruned} record(s), {scanned} scanned{scope_label}.",
+            phase="maintenance",
+        )
         db.update_job_progress(job_id, 100)
 
     def _action_backfill_index_meta(self, job_id: int, payload: Dict[str, Any]):
@@ -457,6 +501,7 @@ class MaintenanceRunner:
             limit=limit,
             path_like=str(path_like) if path_like else None,
             on_progress=self._backfill_progress_handler(job_id, "Backfill Camera/Lens"),
+            tool_key="backfill_exif_camera_lens",
         )
         self._emit_backfill_stats(job_id, "Backfill Camera/Lens", stats)
         runner_emit(
@@ -482,6 +527,7 @@ class MaintenanceRunner:
             limit=limit,
             path_like=str(path_like) if path_like else None,
             on_progress=self._backfill_progress_handler(job_id, "Backfill GPS"),
+            tool_key="backfill_exif_gps",
         )
         self._emit_backfill_stats(job_id, "Backfill GPS", stats)
         runner_emit(
@@ -501,7 +547,7 @@ class MaintenanceRunner:
         logger.info("Maintenance backfill_embeddings: job_id=%s limit=%s", job_id, limit)
         runner_emit(self.log_history, job_id, f"Backfilling MobileNet Embeddings (limit={limit})...", phase="maintenance")
         
-        rows = db.get_images_missing_embeddings(limit=limit)
+        rows = db.get_images_missing_embeddings(limit=limit, tool_key="backfill_embeddings")
         total = len(rows)
         if total == 0:
             self._emit_backfill_stats(job_id, "Backfill MobileNet embeddings", {"candidates_selected": 0})
@@ -513,6 +559,8 @@ class MaintenanceRunner:
         runner_emit(self.log_history, job_id, f"Found {total} images missing embeddings. Initializing engine...", phase="maintenance")
         
         from modules.clustering import ClusteringEngine
+        from modules.pipeline_tool_folder_touch import touch_folders_for_image_ids
+
         engine = ClusteringEngine()
         
         batch_size = 32
@@ -552,6 +600,10 @@ class MaintenanceRunner:
                     if embedding_pairs:
                         db.update_image_embeddings_batch(embedding_pairs)
                         updated += len(embedding_pairs)
+                        touch_folders_for_image_ids(
+                            "backfill_embeddings",
+                            [pair[0] for pair in embedding_pairs],
+                        )
             except Exception as e:
                 logger.error("Error in backfill embeddings batch: %s", e)
                 errors += len(batch_paths)
@@ -583,7 +635,11 @@ class MaintenanceRunner:
             self._persist_job_log(job_id)
             return
 
-        rows = db.get_images_missing_embedding_for_space('clip_vit_b32_image', limit=limit)
+        rows = db.get_images_missing_embedding_for_space(
+            "clip_vit_b32_image",
+            limit=limit,
+            tool_key="backfill_clip_vectors",
+        )
         total = len(rows)
         if total == 0:
             self._emit_backfill_stats(job_id, "Backfill CLIP vectors", {"candidates_selected": 0})
@@ -612,9 +668,10 @@ class MaintenanceRunner:
         import os
         import torch
         from modules import utils
+        from modules.pipeline_tool_folder_touch import touch_folders_for_image_ids
         from modules.thumbnails import open_image_for_ml
         from modules.embeddings_extract import extract_clip_image_features_from_outputs
-        
+
         for i in range(0, total, batch_size):
             if self._cancel_requested: break
             batch_rows = rows[i:i+batch_size]
@@ -648,6 +705,7 @@ class MaintenanceRunner:
                                 ],
                             )
                             updated += 1
+                            touch_folders_for_image_ids("backfill_clip_vectors", [img_id])
                     except Exception as e:
                         logger.error("Error extracting CLIP for image %d: %s", img_id, e)
                         errors += 1

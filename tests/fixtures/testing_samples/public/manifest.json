@@ -1,0 +1,22 @@
+{
+  "D90/RAW_NIKON_D90.NEF": {
+    "source": "rawsamples.ch",
+    "url": "http://www.rawsamples.ch/raws/nikon/d90/RAW_NIKON_D90.NEF",
+    "model": "D90"
+  },
+  "Z6II/nikon_z6_ii_01.nef": {
+    "source": "photographyblog.com",
+    "url": "https://img.photographyblog.com/reviews/nikon_z6_ii/sample_images/nikon_z6_ii_01.nef",
+    "model": "Z6II"
+  },
+  "D300/RAW_NIKON_D300.NEF": {
+    "source": "rawsamples.ch",
+    "url": "http://www.rawsamples.ch/raws/nikon/d300/RAW_NIKON_D300.NEF",
+    "model": "D300"
+  },
+  "Z8/nikon_z8_01.nef": {
+    "source": "photographyblog.com",
+    "url": "https://img.photographyblog.com/reviews/nikon_z8/sample_images/nikon_z8_01.nef",
+    "model": "Z8"
+  }
+}

@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Wrench, RefreshCw, ExternalLink, Play, AlertTriangle } from 'lucide-react'
+import { Wrench, RefreshCw, ExternalLink, Play, AlertTriangle, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   BACKFILL_STEPS,
+  CLEANUP_STEPS,
   HEAL_STEPS,
   PIPELINE_TOOLS_HEADER,
   SECTION,
@@ -96,7 +97,9 @@ export function RunsToolsTab() {
 
   const [healBudget, setHealBudget] = useState(10)
   const [healDryRun, setHealDryRun] = useState(false)
-  const [healRunMode, setHealRunMode] = useState('process_unprocessed_or_empty')
+  /** Spawned heal jobs always use validate_and_repair (fix incomplete / false-done); other run modes are inappropriate here. */
+  const healRunMode = 'validate_and_repair' as const
+  const [cleanupDryRun, setCleanupDryRun] = useState(true)
 
   const {
     run,
@@ -144,19 +147,6 @@ export function RunsToolsTab() {
               className="h-7 w-20 bg-[var(--color-bg-secondary)] border border-[var(--color-border-muted)] text-[var(--color-text-primary)] px-2 text-xs rounded"
               disabled={toolsLocked}
             />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-[var(--color-text-muted)] uppercase font-bold">Execution Mode</label>
-            <select
-              value={healRunMode}
-              onChange={(e) => setHealRunMode(e.target.value)}
-              className="h-7 bg-[var(--color-bg-secondary)] border border-[var(--color-border-muted)] text-[var(--color-text-primary)] px-2 text-xs rounded"
-              disabled={toolsLocked}
-            >
-              <option value="validate_and_repair">Validate & Repair</option>
-              <option value="process_unprocessed_or_empty">Process Unprocessed</option>
-              <option value="process_all_overwrite">Overwrite All</option>
-            </select>
           </div>
           <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] h-7 cursor-pointer">
             <input
@@ -242,6 +232,48 @@ export function RunsToolsTab() {
               isPending={isPending && pendingId === `backfill-${step.code}`}
               disabled={toolsLocked}
               variant="secondary"
+            />
+          ))}
+        </div>
+      </TierSection>
+
+      <TierSection title={SECTION.cleanup_stale.title} subtitle={SECTION.cleanup_stale.subtitle}>
+        <div className={`${PANEL} flex flex-wrap items-end gap-4`}>
+          <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] h-7 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={cleanupDryRun}
+              onChange={(e) => setCleanupDryRun(e.target.checked)}
+              disabled={toolsLocked}
+            />
+            Dry Run (recommended for destructive actions)
+          </label>
+          {selectedScopePath?.trim() && (
+            <span className="text-[10px] text-[var(--color-text-muted)] font-mono truncate max-w-[60ch]">
+              Scope: {selectedScopePath}
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {CLEANUP_STEPS.map((step) => (
+            <ToolCard
+              key={step.code}
+              title={step.name}
+              description={step.description}
+              buttonText={step.destructive && !cleanupDryRun ? 'Run (destructive)' : 'Run'}
+              onAction={() =>
+                run({
+                  kind: 'cleanup',
+                  trackingId: `cleanup-${step.code}`,
+                  actionName: step.code,
+                  dryRun: cleanupDryRun,
+                  rootPath: selectedScopePath?.trim() || undefined,
+                })
+              }
+              isPending={isPending && pendingId === `cleanup-${step.code}`}
+              disabled={toolsLocked}
+              icon={step.destructive ? Trash2 : RefreshCw}
+              variant={step.destructive ? 'outline' : 'secondary'}
             />
           ))}
         </div>

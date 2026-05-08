@@ -1,38 +1,43 @@
 import sys
 import os
+from pathlib import Path
 import exifread
+import pytest
 
+pytestmark = [pytest.mark.sample_data]
 
-def test_exif_reading():
-    TARGET_FILE = r"D:/Photos/Z8/180-600mm/2025/2025-11-01/DSC_3953.NEF"
+def _get_public_samples():
+    root = Path("tests/fixtures/testing_samples/public")
+    if not root.exists():
+        return []
+    return list(root.rglob("*.NEF"))
 
-    if not os.path.exists(TARGET_FILE):
-        print("File not found")
-        # For pytest, we skip instead of exit
-        if "pytest" in sys.modules:
-            import pytest
-            pytest.skip("Test file not found")
-        else:
-            sys.exit(1)
-
-    print(f"Testing {TARGET_FILE} with exifread")
+@pytest.mark.parametrize("sample_path", _get_public_samples(), ids=lambda p: p.name)
+def test_exif_reading(sample_path):
+    print(f"Testing {sample_path} with exifread")
 
     try:
-        with open(TARGET_FILE, 'rb') as f:
+        with open(sample_path, 'rb') as f:
             tags = exifread.process_file(f, details=False)
             print(f"Found {len(tags)} tags")
+            assert len(tags) > 0, f"No tags found in {sample_path}"
             
             # Check standard EXIF tags for date
             keys_to_check = ['EXIF DateTimeOriginal', 'EXIF DateTimeDigitized', 'Image DateTime']
+            found_any = False
             for k in keys_to_check:
                 if k in tags:
                     print(f"{k}: {tags[k]}")
+                    found_any = True
+            
+            # Note: Some samples might not have these tags if they were stripped,
+            # but usually Nikon RAWs have them.
+            if not found_any:
+                print(f"Warning: No date tags found in {sample_path}")
                     
     except Exception as e:
-        print(f"Error: {e}")
-        if "pytest" in sys.modules:
-            pytest.fail(f"exifread processing failed: {e}")
+        pytest.fail(f"exifread processing failed for {sample_path}: {e}")
 
 if __name__ == "__main__":
-    test_exif_reading()
-
+    for sample in _get_public_samples():
+        test_exif_reading(sample)

@@ -86,6 +86,7 @@ from typing import Optional, List, Dict, Any, Literal
 import os
 import platform
 import logging
+import time
 import threading
 from modules.phases_policy import explain_phase_run_decision
 from modules.selector_resolver import resolve_selectors
@@ -5892,6 +5893,10 @@ def create_api_router() -> APIRouter:
         @model_validator(mode="after")
         def _normalize_run_mode_and_legacy_flags(self):
             if self.validation_repair_mode:
+                # Align with fix_incomplete pipeline: JobDispatcher recomputes flags from
+                # run_mode + booleans and does not read payload.skip_existing alone; without
+                # this, default process_unprocessed_or_empty would keep skip_existing=True.
+                self.run_mode = "validate_and_repair"
                 return self
             self.run_mode = infer_run_mode(
                 self.run_mode,
@@ -5926,7 +5931,12 @@ def create_api_router() -> APIRouter:
     @router.post("/runs/submit", summary="Submit a new Run")
     async def submit_run(request: RunSubmitRequest):
         from modules import db
-        from modules.phases import PhaseCode, normalize_phase_codes, sort_phase_value_strings
+        from modules.phases import (
+            PhaseCode,
+            assert_prereqs_for_scope,
+            normalize_phase_codes,
+            sort_phase_value_strings,
+        )
         scope_paths = [_normalize_scope_path_input(p) for p in request.scope_paths]
         scope_paths = [p for p in scope_paths if p]
         if not scope_paths:
@@ -5997,6 +6007,21 @@ def create_api_router() -> APIRouter:
             phase_values = list(phase_values) + ["bird_species"]
         if phase_values:
             phase_values = sort_phase_value_strings(phase_values)
+
+        try:
+            prereq_miss = await asyncio.to_thread(
+                assert_prereqs_for_scope,
+                phase_values or [],
+                scope_paths,
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"scope prerequisite check failed: {e}") from e
+
+        if prereq_miss:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "missing_prerequisites", "missing": prereq_miss},
+            )
 
         mode_flags = resolve_run_mode_flags(request.run_mode)
 
@@ -6659,97 +6684,105 @@ def create_api_router() -> APIRouter:
                     img_count += 1
         return (img_count, folder_count)
 
+    def _compute_scope_preview_for_resolved_paths(
+        resolved_paths: List[str],
+        recursive: bool,
+    ) -> Dict[str, Any]:
+        """Aggregate scope preview for paths already resolved via ``_scope_resolve_path``."""
+        from modules import db
+        from modules.phases import PhaseCode
+
+        total_images = 0
+        folder_count = 0
+        stage_done: Dict[str, int] = {}
+        stage_failed: Dict[str, int] = {}
+        stage_skipped: Dict[str, int] = {}
+        stage_total: Dict[str, int] = {}
+        phase_codes = [p.value for p in PhaseCode]
+
+        stage_running: Dict[str, int] = {}
+        stage_queued: Dict[str, int] = {}
+        for local_path in resolved_paths:
+            summary = db.get_folder_phase_summary(local_path, force_refresh=True)
+            db_img_count = (summary[0].get("total_count", 0) if summary else 0)
+            if summary and db_img_count > 0:
+                folder_count += 1
+                img_count = summary[0].get("total_count", 0) if summary else 0
+                total_images += img_count
+                for row in summary:
+                    code = row.get("code", "")
+                    stage_total[code] = stage_total.get(code, 0) + row.get("total_count", 0)
+                    stage_done[code] = stage_done.get(code, 0) + row.get("done_count", 0)
+                    stage_failed[code] = stage_failed.get(code, 0) + row.get("failed_count", 0)
+                    stage_skipped[code] = stage_skipped.get(code, 0) + row.get("skipped_count", 0)
+                    stage_running[code] = stage_running.get(code, 0) + int(row.get("running_count") or 0)
+                    stage_queued[code] = stage_queued.get(code, 0) + int(row.get("queued_count") or 0)
+            else:
+                img_count, n_folders = _scope_count_images_on_disk(local_path, recursive)
+                if img_count > 0 or n_folders > 0:
+                    folder_count += n_folders
+                    total_images += img_count
+                    for code in phase_codes:
+                        stage_total[code] = stage_total.get(code, 0) + img_count
+                        stage_done[code] = stage_done.get(code, 0)
+                        stage_failed[code] = stage_failed.get(code, 0)
+                        stage_skipped[code] = stage_skipped.get(code, 0)
+
+        stage_statuses: Dict[str, str] = {}
+        stage_counts: Dict[str, Any] = {}
+        for code in phase_codes:
+            total = stage_total.get(code, 0)
+            done = stage_done.get(code, 0)
+            failed = stage_failed.get(code, 0)
+            skipped = stage_skipped.get(code, 0)
+            running = stage_running.get(code, 0)
+            queued = stage_queued.get(code, 0)
+            if total == 0:
+                status = "not_started"
+            elif running > 0:
+                status = "running"
+            elif queued > 0:
+                status = "queued"
+            elif failed > 0:
+                status = "failed"
+            elif done == total:
+                status = "done"
+            elif (done + skipped) == total and failed == 0:
+                status = "done"
+            elif done > 0 or skipped > 0:
+                status = "partial"
+            else:
+                status = "not_started"
+            stage_statuses[code] = status
+            stage_counts[code] = {
+                "done": done,
+                "failed": failed,
+                "skipped": skipped,
+                "total": total,
+                "running": running,
+                "queued": queued,
+            }
+
+        return {
+            "image_count": total_images,
+            "folder_count": folder_count,
+            "stage_statuses": stage_statuses,
+            "stage_counts": stage_counts,
+        }
+
     @router.post("/scope/preview", summary="Preview scope before submitting a Run")
     async def scope_preview(request: ScopePreviewRequest):
         """Returns image count and per-stage phase statuses for the given paths.
         When a folder has no images in the DB (not yet indexed), scans the filesystem to show actual counts."""
-        from modules import db
-        from modules.phases import PhaseCode
         preview_paths = [_normalize_scope_path_input(p) for p in request.paths]
         preview_paths = [p for p in preview_paths if p]
         if not preview_paths:
             raise HTTPException(status_code=400, detail="paths must not be empty")
         try:
-            total_images = 0
-            folder_count = 0
-            stage_done: Dict[str, int] = {}
-            stage_failed: Dict[str, int] = {}
-            stage_skipped: Dict[str, int] = {}
-            stage_total: Dict[str, int] = {}
-            phase_codes = [p.value for p in PhaseCode]
-
-            stage_running: Dict[str, int] = {}
-            stage_queued: Dict[str, int] = {}
+            resolved: List[str] = []
             for path in preview_paths:
-                local_path = _scope_resolve_path(path)
-                # Use the same resolved path the job/runner uses so folder_id / phase aggregates match.
-                summary = db.get_folder_phase_summary(local_path, force_refresh=True)
-                db_img_count = (summary[0].get("total_count", 0) if summary else 0)
-                if summary and db_img_count > 0:
-                    folder_count += 1
-                    img_count = summary[0].get("total_count", 0) if summary else 0
-                    total_images += img_count
-                    for row in summary:
-                        code = row.get("code", "")
-                        stage_total[code] = stage_total.get(code, 0) + row.get("total_count", 0)
-                        stage_done[code] = stage_done.get(code, 0) + row.get("done_count", 0)
-                        stage_failed[code] = stage_failed.get(code, 0) + row.get("failed_count", 0)
-                        stage_skipped[code] = stage_skipped.get(code, 0) + row.get("skipped_count", 0)
-                        stage_running[code] = stage_running.get(code, 0) + int(row.get("running_count") or 0)
-                        stage_queued[code] = stage_queued.get(code, 0) + int(row.get("queued_count") or 0)
-                else:
-                    img_count, n_folders = _scope_count_images_on_disk(local_path, request.recursive)
-                    if img_count > 0 or n_folders > 0:
-                        folder_count += n_folders
-                        total_images += img_count
-                        for code in phase_codes:
-                            stage_total[code] = stage_total.get(code, 0) + img_count
-                            stage_done[code] = stage_done.get(code, 0)
-                            stage_failed[code] = stage_failed.get(code, 0)
-                            stage_skipped[code] = stage_skipped.get(code, 0)
-
-            stage_statuses = {}
-            stage_counts = {}
-            for code in phase_codes:
-                total = stage_total.get(code, 0)
-                done = stage_done.get(code, 0)
-                failed = stage_failed.get(code, 0)
-                skipped = stage_skipped.get(code, 0)
-                running = stage_running.get(code, 0)
-                queued = stage_queued.get(code, 0)
-                if total == 0:
-                    status = "not_started"
-                elif running > 0:
-                    status = "running"
-                elif queued > 0:
-                    status = "queued"
-                elif failed > 0:
-                    status = "failed"
-                elif done == total:
-                    status = "done"
-                elif (done + skipped) == total and failed == 0:
-                    # Optional phases (e.g. culling) can be "finished" via skip + done mix; mirror folder summary semantics.
-                    status = "done"
-                elif done > 0 or skipped > 0:
-                    status = "partial"
-                else:
-                    status = "not_started"
-                stage_statuses[code] = status
-                stage_counts[code] = {
-                    "done": done,
-                    "failed": failed,
-                    "skipped": skipped,
-                    "total": total,
-                    "running": running,
-                    "queued": queued,
-                }
-
-            return {
-                "image_count": total_images,
-                "folder_count": folder_count,
-                "stage_statuses": stage_statuses,
-                "stage_counts": stage_counts,
-            }
+                resolved.append(_scope_resolve_path(path))
+            return _compute_scope_preview_for_resolved_paths(resolved, request.recursive)
         except HTTPException:
             raise
         except Exception as e:
@@ -7474,10 +7507,11 @@ def create_api_router() -> APIRouter:
         if request.input_path and str(request.input_path).strip():
             payload_dict["input_path"] = str(request.input_path).strip()
 
+        tid = (request.tool_id or "").strip() or (request.action or "").strip()
         payload_dict = augment_queue_payload_for_audit(
             payload_dict,
             trigger=(request.trigger or "api").strip() or "api",
-            tool_id=request.tool_id,
+            tool_id=tid or None,
             ui_selected_scope_path=request.ui_selected_scope_path,
         )
         maint_desc = (request.description or "").strip() or build_default_maintenance_description(
@@ -7569,6 +7603,9 @@ def create_api_router() -> APIRouter:
 
         return {"models": items, "count": len(items)}
 
+    _last_dump_time = 0.0
+    _DUMP_COOLDOWN_S = 2.0
+
     @router.get(
         "/debug/thread-dump",
         summary="Capture Python thread dump",
@@ -7576,6 +7613,12 @@ def create_api_router() -> APIRouter:
         tags=["General API"]
     )
     async def get_thread_dump():
+        nonlocal _last_dump_time
+        now = time.time()
+        if now - _last_dump_time < _DUMP_COOLDOWN_S:
+            raise HTTPException(status_code=429, detail="Too many thread dump requests. Please wait a few seconds.")
+        _last_dump_time = now
+        
         try:
             from modules.pipeline_diagnostics import get_thread_dump as _get_thread_dump
             return {"success": True, "thread_dump": _get_thread_dump()}

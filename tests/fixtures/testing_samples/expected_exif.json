@@ -1,0 +1,144 @@
+{
+  "_comment": "Expected EXIF ground-truth for camera+lens diversity samples. Used by test_nef_camera_lens_diversity.py.",
+
+  "public/D300/D300_28_70mm_f2_8.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON D300",
+    "lens_contains": "28",
+    "sensor_format": "DX",
+    "min_width": 4200,
+    "min_height": 2800
+  },
+  "public/D300/D300_50mm_f1_4.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON D300",
+    "lens_contains": "50",
+    "sensor_format": "DX",
+    "min_width": 4200,
+    "min_height": 2800
+  },
+
+  "public/D90/D90_10_5mm_f2_8_fisheye.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON D90",
+    "lens_contains": "21/2",
+    "sensor_format": "DX",
+    "min_width": 4200,
+    "min_height": 2800
+  },
+  "public/D90/D90_18_55mm_f3_5_5_6.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON D90",
+    "lens_contains": "18",
+    "sensor_format": "DX",
+    "min_width": 4200,
+    "min_height": 2800
+  },
+  "public/D90/D90_28_70mm_f2_8.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON D90",
+    "lens_contains": "28",
+    "sensor_format": "DX",
+    "min_width": 4200,
+    "min_height": 2800
+  },
+  "public/D90/D90_28_105mm_f3_5_4_5.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON D90",
+    "lens_contains": "28",
+    "sensor_format": "DX",
+    "min_width": 4200,
+    "min_height": 2800
+  },
+  "public/D90/D90_35mm_f1_8G.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON D90",
+    "lens_contains": "35",
+    "sensor_format": "DX",
+    "min_width": 4200,
+    "min_height": 2800
+  },
+  "public/D90/D90_50mm_f1_4.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON D90",
+    "lens_contains": "50",
+    "sensor_format": "DX",
+    "min_width": 4200,
+    "min_height": 2800
+  },
+  "public/D90/D90_50mm_f1_8.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON D90",
+    "lens_contains": "50",
+    "sensor_format": "DX",
+    "min_width": 4200,
+    "min_height": 2800
+  },
+
+  "public/Z6II/Z6II_28mm_f2_8.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON Z 6_2",
+    "lens_contains": "28",
+    "sensor_format": "FX",
+    "min_width": 6000,
+    "min_height": 4000
+  },
+  "public/Z6II/Z6II_28_400mm_f4_8_VR.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON Z 6_2",
+    "lens_contains": "28-400",
+    "sensor_format": "FX",
+    "min_width": 6000,
+    "min_height": 4000
+  },
+  "public/Z6II/Z6II_40mm_f2.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON Z 6_2",
+    "lens_contains": "40",
+    "sensor_format": "FX",
+    "min_width": 6000,
+    "min_height": 4000
+  },
+  "public/Z6II/Z6II_MC_105mm_f2_8_VR_S.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON Z 6_2",
+    "lens_contains": "105",
+    "sensor_format": "FX",
+    "min_width": 6000,
+    "min_height": 4000
+  },
+
+  "public/Z8/Z8_28mm_f2_8.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON Z 8",
+    "lens_contains": "28",
+    "sensor_format": "FX",
+    "min_width": 8200,
+    "min_height": 5400
+  },
+  "public/Z8/Z8_28_400mm_f4_8_VR.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON Z 8",
+    "lens_contains": "28-400",
+    "sensor_format": "FX",
+    "min_width": 8200,
+    "min_height": 5400
+  },
+  "public/Z8/Z8_180_600mm_f5_6_6_3_VR.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON Z 8",
+    "lens_contains": "180-600",
+    "sensor_format": "FX",
+    "min_width": 8200,
+    "min_height": 5400
+  },
+  "public/Z8/Z8_MC_105mm_f2_8_VR_S.NEF": {
+    "make": "NIKON CORPORATION",
+    "model": "NIKON Z 8",
+    "lens_contains": "105",
+    "sensor_format": "FX",
+    "min_width": 8200,
+    "min_height": 5400
+  }
+
+}

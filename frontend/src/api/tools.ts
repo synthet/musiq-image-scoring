@@ -41,6 +41,21 @@ export const toolsApi = {
    */
   backfillStart: (action: string) =>
     api.post<ApiEnvelope>(`/maintenance/start`, { action }),
+
+  /**
+   * Start a cleanup maintenance job (prune_missing, reconcile, ...).
+   * Same /maintenance/start endpoint, but passes optional dry_run / input_path.
+   */
+  cleanupStart: (
+    action: string,
+    body?: { dry_run?: boolean; input_path?: string | null },
+  ) =>
+    api.post<ApiEnvelope>(`/maintenance/start`, {
+      action,
+      ...(body?.dry_run !== undefined ? { dry_run: body.dry_run } : {}),
+      ...(body?.input_path ? { input_path: body.input_path } : {}),
+      trigger: 'runs_tools_tab',
+    }),
 }
 
 export function formatToolError(err: unknown): string {

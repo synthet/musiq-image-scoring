@@ -7,7 +7,9 @@ This module provides logic to:
    clustered eligibility but no ``stack_id`` and no default-space Mobilenet embeddings),
    and **time-cohesive unstacked folders**: 2+ images, none in a stack, embeddings present,
    capture-time span ``<= (n-1) * clustering.default_time_gap`` (see
-   ``get_phase_incomplete_sql('culling')`` and ``heal_folder_cohesion_candidates``).
+   ``get_phase_incomplete_sql('culling')``, ``culling_cohesion_folders_aggregate_sql``,
+   and ``clustering.heal_folder_cohesion_candidates``). Heal scans compute that folder set
+   once via a ``cohesion_folders`` CTE instead of re-aggregating per image row.
 2. Reset those statuses (healing false-positives).
 3. Identify folders with any images needing the specified phase.
 4. Spawn targeted pipeline runs for those folders.
@@ -24,6 +26,7 @@ from modules import db
 from modules.phases import PhaseCode, sort_phase_value_strings
 from modules.phases_policy import get_phase_executor_version
 from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
+from modules.pipeline_tool_folder_touch import upsert_pipeline_tool_folder_touch
 from modules.run_modes import resolve_run_mode_flags
 
 logger = logging.getLogger(__name__)
@@ -94,6 +97,8 @@ def heal_phase_data(
     """
     phase_code = phase_code.lower().strip()
     root_path = normalize_heal_root(root_path)
+    heal_touch_tool_key = f"heal_workflow_{phase_code}"
+    use_touch_rr = db._get_db_engine() == "postgres"
 
     # Resolve active executor version for version-aware phases.
     current_executor_version: Optional[str] = None
@@ -107,11 +112,34 @@ def heal_phase_data(
             except Exception:
                 current_executor_version = None
 
+    # Culling heal: evaluate time-cohesion folder aggregate once (CTE) instead of
+    # re-aggregating per image row; keeps semantics identical to get_phase_incomplete_sql.
+    heal_sql_prefix = ""
+    if phase_code == PhaseCode.CULLING.value:
+        from modules.config import get_config_section
+
+        clustering_cfg = get_config_section("clustering") or {}
+        if bool(clustering_cfg.get("heal_folder_cohesion_candidates", True)):
+            heal_sql_prefix = (
+                "WITH cohesion_folders AS (\n"
+                + db.culling_cohesion_folders_aggregate_sql().strip()
+                + "\n)\n"
+            )
+            incomplete_sql = db.get_culling_incomplete_predicate_sql(
+                "i",
+                cohesion_folders_expr="SELECT folder_id FROM cohesion_folders",
+            )
+        else:
+            incomplete_sql = db.get_culling_incomplete_predicate_sql(
+                "i",
+                include_folder_cohesion=False,
+            )
+    else:
+        incomplete_sql = db.get_phase_incomplete_sql(phase_code, table_alias="i")
+
     # 1. Identify "False Positives" (Done but missing data)
     # -----------------------------------------------------------------------
-    incomplete_sql = db.get_phase_incomplete_sql(phase_code, table_alias="i")
-    
-    reset_query = f"""
+    reset_query = f"""{heal_sql_prefix}
         SELECT i.id
         FROM images i
         JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
@@ -141,23 +169,56 @@ def heal_phase_data(
     # Folders where at least one image is NOT 'done' (or was just reset)
     # but has the missing data criteria.
     # Note: after reset, images have status 'not_started'.
-    
-    folder_query = f"""
-        SELECT f.path, COUNT(*) as image_count
+
+    touch_join = ""
+    if use_touch_rr:
+        touch_join = (
+            "\n        LEFT JOIN pipeline_tool_folder_last_touch pt "
+            "ON pt.folder_id = f.id AND pt.tool_key = ?\n"
+        )
+    sel_cols = (
+        "f.id, f.path, COUNT(*) AS image_count"
+        if use_touch_rr
+        else "f.path, COUNT(*) AS image_count"
+    )
+    grp_order = (
+        " GROUP BY f.id, f.path "
+        "ORDER BY pt.last_touched_at NULLS FIRST, COUNT(*) DESC, f.path ASC"
+        if use_touch_rr
+        else " GROUP BY f.path ORDER BY image_count DESC"
+    )
+
+    if phase_code == PhaseCode.CULLING.value:
+        # Apply incomplete predicate first so the planner can narrow rows before joins;
+        # status filter still excludes only running/skipped (same as before).
+        folder_query = f"""{heal_sql_prefix}
+        SELECT {sel_cols}
         FROM images i
         JOIN folders f ON f.id = i.folder_id
-        JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
+        JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?{touch_join}
+        LEFT JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
+        WHERE ({incomplete_sql})
+          AND (ips.status IS NULL OR LOWER(TRIM(ips.status)) IN ('not_started', 'failed', 'partial', 'done'))
+    """
+    else:
+        folder_query = f"""
+        SELECT {sel_cols}
+        FROM images i
+        JOIN folders f ON f.id = i.folder_id
+        JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?{touch_join}
         LEFT JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
         WHERE (ips.status IS NULL OR LOWER(TRIM(ips.status)) IN ('not_started', 'failed', 'partial', 'done'))
           AND ({incomplete_sql})
     """
-    params: List[Any] = [phase_code]
+    params = [phase_code]
+    if use_touch_rr:
+        params.append(heal_touch_tool_key)
     if phase_code == PhaseCode.BIRD_SPECIES.value:
         folder_query = f"""
-            SELECT f.path, COUNT(*) as image_count
+            SELECT {sel_cols}
             FROM images i
             JOIN folders f ON f.id = i.folder_id
-            JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
+            JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?{touch_join}
             LEFT JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
             WHERE ({incomplete_sql})
               AND (
@@ -170,18 +231,25 @@ def heal_phase_data(
               )
         """
         params.extend([current_executor_version, current_executor_version])
-    
+
     if root_path:
         rp = root_path.rstrip("/\\")
         folder_query += " AND (f.path = ? OR f.path LIKE ?)"
         params.extend([rp, rp + "/%"])
-        
-    folder_query += " GROUP BY f.path ORDER BY image_count DESC"
-    
+
+    folder_query += grp_order
+
     with db.connection() as conn:
         c = conn.cursor()
         c.execute(folder_query, tuple(params))
-        folders_needing_work = [{"folder_path": row[0], "image_count": row[1]} for row in c.fetchall()]
+        rows = c.fetchall()
+        if use_touch_rr:
+            folders_needing_work = [
+                {"folder_id": int(row[0]), "folder_path": row[1], "image_count": int(row[2])}
+                for row in rows
+            ]
+        else:
+            folders_needing_work = [{"folder_path": row[0], "image_count": row[1]} for row in rows]
     
     if folders_needing_work:
         logger.info(
@@ -211,18 +279,32 @@ def heal_phase_data(
     to_schedule = eligible_folders[:capacity]
     
     scheduled_detail = []
+    skipped_detail = []
     if not dry_run:
         for folder in to_schedule:
             try:
                 result = _enqueue_heal_run(folder["folder_path"], phase_code, run_mode=run_mode)
-                if result is None or result[0] is None:
-                    continue  # missing on disk; logged inside
+                if result is None:
+                    continue
                 job_id, pos = result
+                if isinstance(pos, dict):
+                    # Structured skip (e.g., missing prerequisites). Surface to caller.
+                    skipped_detail.append({
+                        "folder_path": folder["folder_path"],
+                        "skipped": True,
+                        **pos,
+                    })
+                    continue
+                if job_id is None:
+                    continue  # missing on disk; logged inside
                 scheduled_detail.append({
                     "folder_path": folder["folder_path"],
                     "job_id": job_id,
-                    "queue_position": pos
+                    "queue_position": pos,
                 })
+                fid = folder.get("folder_id")
+                if fid is not None:
+                    upsert_pipeline_tool_folder_touch(heal_touch_tool_key, int(fid))
             except Exception:
                 logger.exception("Heal [%s]: Failed to schedule for %s", phase_code, folder["folder_path"])
     
@@ -235,6 +317,7 @@ def heal_phase_data(
         "eligible_folders": len(eligible_folders),
         "capacity_slots": capacity,
         "scheduled": scheduled_detail if not dry_run else to_schedule,
+        "skipped": skipped_detail if not dry_run else [],
         "budget": budget
     }
 
@@ -250,9 +333,17 @@ def _get_active_jobs_snapshot() -> List[Dict[str, Any]]:
         rows = c.fetchall()
     return [{"id": r[0], "input_path": r[1], "status": r[2]} for r in rows]
 
-def _enqueue_heal_run(folder_path: str, phase_code: str, run_mode: str = "validate_and_repair") -> tuple[int, int]:
-    """Enqueue a targeted pipeline run for a folder and phase."""
+def _enqueue_heal_run(folder_path: str, phase_code: str, run_mode: str = "validate_and_repair"):
+    """Enqueue a targeted pipeline run for a folder and phase.
+
+    Returns ``(job_id, queue_position)`` on success, ``(None, None)`` when the
+    folder is missing on disk, or ``(None, {"missing": {...}})`` when the
+    phase's prerequisites aren't satisfied for the folder. Callers should
+    interpret a dict in slot 1 as a structured "skipped, missing prereqs"
+    result rather than a real queue position.
+    """
     import os
+    from modules.phases import assert_prereqs_for_scope
     if not os.path.isdir(folder_path):
         logger.info("Heal skip (missing on disk): %s", folder_path)
         return None, None
@@ -266,9 +357,9 @@ def _enqueue_heal_run(folder_path: str, phase_code: str, run_mode: str = "valida
         "culling": "selection",
         "bird_species": "bird_species"
     }
-    
+
     job_type = job_type_map.get(phase_code, "scoring")
-    
+
     # Prepare phases list
     if phase_code == "bird_species":
         phase_values = ["bird_species"]
@@ -280,6 +371,15 @@ def _enqueue_heal_run(folder_path: str, phase_code: str, run_mode: str = "valida
     else:
         # Default for index/meta/score
         phase_values = [PhaseCode(phase_code).value]
+
+    # Prereq gate: skip folders whose phases-of-interest can't run yet.
+    prereq_miss = assert_prereqs_for_scope(phase_values, [folder_path])
+    if prereq_miss:
+        logger.info(
+            "Heal skip (missing prerequisites): %s phase=%s missing=%s",
+            folder_path, phase_code, prereq_miss,
+        )
+        return None, {"missing_prerequisites": prereq_miss}
 
     # Canonical pipeline order (e.g. metadata before culling)
     phase_values = sort_phase_value_strings(phase_values)

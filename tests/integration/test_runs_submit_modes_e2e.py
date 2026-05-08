@@ -245,12 +245,12 @@ def _assert_six_phases_completed(job_id: int):
             False,
             False,
             True,
-            "process_unprocessed_or_empty",
-            None,
-            None,
-            None,
-            None,
+            "validate_and_repair",
             False,
+            False,
+            False,
+            True,
+            True,
             True,
         ),
     ],
@@ -331,6 +331,7 @@ def test_runs_submit_modes_payload_and_pipeline(
     elif mode == "validation_repair":
         assert scoring_calls, "expected at least one scoring dispatch"
         assert pl.get("skip_existing") is False
+        assert all(sk is False for _, sk in scoring_calls), scoring_calls
 
 
 def test_validation_repair_preview_smoke(api_client, tmp_path):

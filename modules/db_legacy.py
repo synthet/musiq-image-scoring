@@ -5228,6 +5228,73 @@ def reconcile_stale_running_phases_for_terminal_jobs(limit=5000) -> int:
     )
 
 
+def reconcile_stale_running_image_phases(threshold_seconds: int | None = None, limit: int = 5000) -> int:
+    """Reap ``image_phase_status`` rows stuck in ``running`` past a wall-clock threshold.
+
+    Catches the case the existing ``reconcile_stale_running_phases_for_terminal_jobs``
+    misses: a worker process that crashed without updating ``jobs.status``. The job
+    looks alive, but the per-image rows haven't ticked their ``updated_at`` in a
+    long time. Independent of job status; flips matching rows to ``failed`` with
+    ``last_error='reconcile_stale:no_heartbeat'`` and ``finished_at=now``.
+
+    Threshold defaults to ``database.stale_running_threshold_seconds`` (or 3600s).
+    Returns the number of rows updated.
+    """
+    if threshold_seconds is None:
+        try:
+            from modules.config import get_config_value
+            threshold_seconds = int(get_config_value("database.stale_running_threshold_seconds", default=3600))
+        except Exception:
+            threshold_seconds = 3600
+    threshold_seconds = max(60, int(threshold_seconds))  # protect against runaway resets
+
+    cutoff = datetime.datetime.now() - datetime.timedelta(seconds=threshold_seconds)
+    now = datetime.datetime.now()
+
+    # Pre-flight: find candidate ids so we can both bound by limit and surface counts.
+    rows = get_connector().query(
+        """
+        SELECT id FROM image_phase_status
+        WHERE status = 'running'
+          AND (updated_at IS NULL OR updated_at < ?)
+        FETCH FIRST ? ROWS ONLY
+        """,
+        (cutoff, limit),
+    )
+    ids = [r["id"] for r in rows]
+    if not ids:
+        return 0
+
+    chunk_size = 900
+    updated_total = 0
+    for i in range(0, len(ids), chunk_size):
+        chunk = ids[i:i + chunk_size]
+        placeholders = ",".join(["?"] * len(chunk))
+        rc = get_connector().execute(
+            f"""
+            UPDATE image_phase_status
+            SET status = 'failed',
+                last_error = 'reconcile_stale:no_heartbeat',
+                finished_at = ?,
+                updated_at = ?
+            WHERE id IN ({placeholders})
+              AND status = 'running'
+            """,
+            (now, now, *chunk),
+        )
+        if isinstance(rc, int):
+            updated_total += rc
+        else:
+            updated_total += len(chunk)
+
+    if updated_total:
+        logger.info(
+            "reconcile_stale_running_image_phases: reaped %s row(s) "
+            "(threshold=%ss)", updated_total, threshold_seconds,
+        )
+    return updated_total
+
+
 def get_recent_jobs(limit=50, offset=0):
     """Retrieve a list of recent jobs, ordered by creation time."""
     return get_jobs(limit=limit, offset=offset)
@@ -7954,7 +8021,12 @@ def update_image_pick_status(image_id: int, pick_status: int) -> bool:
 
 
 def _incomplete_images_where_sql(table_alias: str = "") -> str:
-    """SQL fragment for scoring completeness checks (scores / rating / label)."""
+    """SQL fragment for scoring completeness — composite + model scores only.
+
+    rating and label are user-edited fields the scoring runner never writes,
+    so including them here would mark every freshly-scored-but-unrated image
+    incomplete forever and trap heal in a re-target loop.
+    """
     prefix = f"{table_alias}." if table_alias else ""
     score_checks = [
         f"{prefix}score_general IS NULL OR {prefix}score_general <= 0",
@@ -7968,10 +8040,114 @@ def _incomplete_images_where_sql(table_alias: str = "") -> str:
     score_cond = " OR ".join(score_checks)
     return f"""(
             ({prefix}score IS NULL OR {prefix}score <= 0) OR
-            ({prefix}rating IS NULL OR {prefix}rating <= 0) OR
-            ({prefix}label IS NULL OR TRIM({prefix}label) = '') OR
             ({score_cond})
         )"""
+
+
+def culling_cohesion_folders_aggregate_sql() -> str:
+    """
+    Uncorrelated SQL subquery body: one row per folder_id that matches heal time-cohesion
+    (2+ images, none in a stack, capture-time span within (n-1)*default_time_gap).
+
+    Safe to wrap as ``WITH cohesion_folders AS (<this>)`` or use inside ``IN (...)``.
+    Respects ``clustering.heal_folder_cohesion_candidates`` and ``default_time_gap``.
+    """
+    from modules.config import get_config_section
+
+    cc = get_config_section("clustering") or {}
+    if not bool(cc.get("heal_folder_cohesion_candidates", True)):
+        return "SELECT i3.folder_id FROM images i3 WHERE 1 = 0"
+
+    gap_sec = float(cc.get("default_time_gap", 120) or 120)
+    gap_lit = str(gap_sec)
+    _ts3 = "COALESCE(ex3.date_time_original, ex3.create_date, i3.created_at)"
+    if _get_db_engine() == "postgres":
+        span_sql = f"EXTRACT(EPOCH FROM (MAX({_ts3}) - MIN({_ts3})))"
+    else:
+        span_sql = f"DATEDIFF(SECOND FROM MIN({_ts3}) TO MAX({_ts3}))"
+
+    return f"""SELECT i3.folder_id
+FROM images i3
+LEFT JOIN image_exif ex3 ON ex3.image_id = i3.id
+GROUP BY i3.folder_id
+HAVING COUNT(*) >= 2
+  AND SUM(CASE WHEN i3.stack_id IS NOT NULL THEN 1 ELSE 0 END) = 0
+  AND ({span_sql}) <= ((COUNT(*) - 1) * {gap_lit})"""
+
+
+def get_culling_incomplete_predicate_sql(
+    table_alias: str = "i",
+    *,
+    cohesion_folders_expr: Optional[str] = None,
+    include_folder_cohesion: Optional[bool] = None,
+) -> str:
+    """
+    Image-level predicate (for ``WHERE ...``): culling incompleteness for workflow healing.
+
+    ``cohesion_folders_expr``: SQL producing ``folder_id`` values (typically the aggregate from
+    :func:`culling_cohesion_folders_aggregate_sql`). When ``None``, uses ``IN (<aggregate>)``.
+
+    ``include_folder_cohesion``: override config ``heal_folder_cohesion_candidates``.
+    ``None`` means read from config.
+
+    IMPORTANT: Prefer evaluating the cohesion aggregate once (CTE) plus
+    ``cohesion_folders_expr = 'SELECT folder_id FROM cohesion_folders'`` in heal scans;
+    callers that cannot use a CTE may omit ``cohesion_folders_expr`` to inline the aggregate.
+    """
+    prefix = f"{table_alias}." if table_alias else ""
+    ialias = (table_alias or "i").strip() or "i"
+
+    missing_cull = (
+        f"{prefix}cull_decision IS NULL OR "
+        f"TRIM(CAST({prefix}cull_decision AS VARCHAR(20))) = ''"
+    )
+    cull_nonempty = (
+        f"{prefix}cull_decision IS NOT NULL AND "
+        f"TRIM(CAST({prefix}cull_decision AS VARCHAR(20))) <> ''"
+    )
+    clustering_eligible_hash = (
+        f"{prefix}image_hash IS NOT NULL AND "
+        f"TRIM(CAST({prefix}image_hash AS VARCHAR(128))) <> ''"
+    )
+    if _get_db_engine() == "postgres":
+        clustering_emb_missing_sql = (
+            f"NOT ({_postgres_has_default_embedding_sql(ialias)})"
+        )
+        emb_present_sql = f"({_postgres_has_default_embedding_sql(ialias)})"
+    else:
+        clustering_emb_missing_sql = f"{prefix}image_embedding IS NULL"
+        emb_present_sql = f"({prefix}image_embedding IS NOT NULL)"
+
+    clustering_stale_similarity_sql = (
+        f"({cull_nonempty} AND {prefix}stack_id IS NULL AND "
+        f"{clustering_eligible_hash} AND ({clustering_emb_missing_sql}))"
+    )
+
+    from modules.config import get_config_section
+
+    cc = get_config_section("clustering") or {}
+    cohesion_enabled = (
+        bool(cc.get("heal_folder_cohesion_candidates", True))
+        if include_folder_cohesion is None
+        else bool(include_folder_cohesion)
+    )
+    if not cohesion_enabled:
+        return f"(({missing_cull}) OR ({clustering_stale_similarity_sql}))"
+
+    if cohesion_folders_expr is None:
+        cohesion_folders_expr = culling_cohesion_folders_aggregate_sql()
+
+    folder_time_cohesion_sql = f"""(
+            {cull_nonempty}
+            AND {clustering_eligible_hash}
+            AND {prefix}stack_id IS NULL
+            AND ({emb_present_sql})
+            AND {prefix}folder_id IN ({cohesion_folders_expr})
+        )"""
+    return (
+        f"(({missing_cull}) OR ({clustering_stale_similarity_sql}) "
+        f"OR ({folder_time_cohesion_sql}))"
+    )
 
 
 def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
@@ -7998,81 +8174,8 @@ def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
         return _incomplete_images_where_sql(table_alias)
 
     if code == "culling":
-        # Primary: missing pick/reject. Secondary: falsely-done clustering — cull populated
-        # but row never got stack assignment or Mobilenet fingerprints (workflow_healing /
-        # selection can complete pick bands without embeddings; see phases_policy staleness).
-        # Tertiary (heal-oriented): folder has 2+ images, none in any stack, embeddings exist,
-        # and capture-time span fits a single clustering time chain: span <= (n-1)*default_time_gap.
-        from modules.config import get_config_section
-
-        missing_cull = (
-            f"{prefix}cull_decision IS NULL OR "
-            f"TRIM(CAST({prefix}cull_decision AS VARCHAR(20))) = ''"
-        )
-        cull_nonempty = (
-            f"{prefix}cull_decision IS NOT NULL AND "
-            f"TRIM(CAST({prefix}cull_decision AS VARCHAR(20))) <> ''"
-        )
-        clustering_eligible_hash = (
-            f"{prefix}image_hash IS NOT NULL AND "
-            f"TRIM(CAST({prefix}image_hash AS VARCHAR(128))) <> ''"
-        )
-        ialias = (table_alias or "i").strip() or "i"
-        if _get_db_engine() == "postgres":
-            clustering_emb_missing_sql = (
-                f"NOT ({_postgres_has_default_embedding_sql(ialias)})"
-            )
-        else:
-            clustering_emb_missing_sql = f"{prefix}image_embedding IS NULL"
-
-        clustering_stale_similarity_sql = (
-            f"({cull_nonempty} AND {prefix}stack_id IS NULL AND "
-            f"{clustering_eligible_hash} AND ({clustering_emb_missing_sql}))"
-        )
-
-        cc = get_config_section("clustering") or {}
-        cohesion_enabled = bool(cc.get("heal_folder_cohesion_candidates", True))
-        if not cohesion_enabled:
-            return f"(({missing_cull}) OR ({clustering_stale_similarity_sql}))"
-
-        gap_sec = float(cc.get("default_time_gap", 120) or 120)
-        gap_lit = str(gap_sec)
-        if _get_db_engine() == "postgres":
-            emb_present_sql = f"({_postgres_has_default_embedding_sql(ialias)})"
-        else:
-            emb_present_sql = f"({prefix}image_embedding IS NOT NULL)"
-
-        _ts3 = (
-            "COALESCE(ex3.date_time_original, ex3.create_date, i3.created_at)"
-        )
-        if _get_db_engine() == "postgres":
-            span_sql = f"EXTRACT(EPOCH FROM (MAX({_ts3}) - MIN({_ts3})))"
-        else:
-            span_sql = f"DATEDIFF(SECOND FROM MIN({_ts3}) TO MAX({_ts3}))"
-
-        folder_time_cohesion_sql = f"""(
-            {cull_nonempty}
-            AND {clustering_eligible_hash}
-            AND {prefix}stack_id IS NULL
-            AND ({emb_present_sql})
-            AND EXISTS (
-                SELECT 1
-                FROM (
-                    SELECT 1
-                    FROM images i3
-                    LEFT JOIN image_exif ex3 ON ex3.image_id = i3.id
-                    WHERE i3.folder_id = {prefix}folder_id
-                    GROUP BY i3.folder_id
-                    HAVING COUNT(*) >= 2
-                      AND SUM(CASE WHEN i3.stack_id IS NOT NULL THEN 1 ELSE 0 END) = 0
-                      AND ({span_sql}) <= ((COUNT(*) - 1) * {gap_lit})
-                ) _fcd
-            )
-        )"""
-        return (
-            f"(({missing_cull}) OR ({clustering_stale_similarity_sql}) "
-            f"OR ({folder_time_cohesion_sql}))"
-        )
+        # Delegate to shared predicate; inline cohesion aggregate (no outer CTE).
+        return get_culling_incomplete_predicate_sql(table_alias, cohesion_folders_expr=None)
 
     if code == "keywords":
         return f"""(
@@ -9189,10 +9292,11 @@ def get_stacks_for_display(folder_path=None, sort_by="score_general", order="des
             s.name,
             COUNT(i.id) as image_count,
             {agg_func}(i.{sort_by}) as sort_val,
-            (SELECT FIRST 1 COALESCE(NULLIF(i2.{_thumb_col}, ''), NULLIF(i2.thumbnail_path, ''), i2.file_path)
+            (SELECT COALESCE(NULLIF(i2.{_thumb_col}, ''), NULLIF(i2.thumbnail_path, ''), i2.file_path)
              FROM images i2
              WHERE i2.stack_id = s.id {cte_where}
-             ORDER BY i2.{sort_by} {order_dir}) as cover_path
+             ORDER BY i2.{sort_by} {order_dir} NULLS LAST, i2.id
+             LIMIT 1) as cover_path
         FROM stacks s
         JOIN images i ON s.id = i.stack_id
         {where_clause}
@@ -10274,12 +10378,12 @@ def update_image_embeddings_batch_for_space(space_code, rows):
         return 0
 
 
-def get_images_missing_embedding_for_space(space_code, folder_path=None, limit=None):
+def get_images_missing_embedding_for_space(space_code, folder_path=None, limit=None, tool_key=None):
     """Return image rows lacking a stored embedding for ``space_code``.
 
     Columns: ``id``, ``file_path``, ``thumbnail_path``, ``thumbnail_path_win``.
     Postgres-only; returns ``[]`` on other engines. Rows are ordered by ``id``
-    for stable resume.
+    for stable resume (optional ``tool_key`` applies folder touch round-robin).
     """
     try:
         if _get_db_engine() != "postgres":
@@ -10293,8 +10397,19 @@ def get_images_missing_embedding_for_space(space_code, folder_path=None, limit=N
         if sid is None:
             return []
         table = _pg_embedding_table_for_dim(expected_dim)
-        params: list = [sid]
+        params: list = []
         folder_clause = ""
+        touch_join = ""
+        order_by = "ORDER BY i.id"
+        if tool_key:
+            touch_join = (
+                "JOIN folders f ON f.id = i.folder_id "
+                "LEFT JOIN pipeline_tool_folder_last_touch pt ON pt.folder_id = f.id "
+                "AND pt.tool_key = %s "
+            )
+            params.append(tool_key)
+            order_by = "ORDER BY pt.last_touched_at NULLS FIRST, i.id"
+        params.append(sid)
         if folder_path:
             norm = os.path.normpath(folder_path)
             frow = db_postgres.execute_select_one(
@@ -10307,11 +10422,12 @@ def get_images_missing_embedding_for_space(space_code, folder_path=None, limit=N
         sql = (
             f"SELECT i.id, i.file_path, i.thumbnail_path, i.thumbnail_path_win "
             f"FROM images i "
+            f"{touch_join}"
             f"WHERE NOT EXISTS ("
             f"  SELECT 1 FROM {table} e "
             f"  WHERE e.image_id = i.id AND e.embedding_space_id = %s"
             f"){folder_clause} "
-            f"ORDER BY i.id"
+            f"{order_by}"
         )
         if limit:
             sql += " LIMIT %s"
@@ -10526,7 +10642,7 @@ def get_embeddings_with_metadata(folder_path=None, limit=None):
         } for r in rows]
 
 
-def _get_images_missing_embeddings_pg(folder_path=None, limit=None, min_id_exclusive=None):
+def _get_images_missing_embeddings_pg(folder_path=None, limit=None, min_id_exclusive=None, tool_key=None):
     """Postgres: missing default-space embedding (no row in image_embeddings and no legacy blob)."""
     has_e = _postgres_has_default_embedding_sql("images")
     id_resume = ""
@@ -10534,42 +10650,71 @@ def _get_images_missing_embeddings_pg(folder_path=None, limit=None, min_id_exclu
     if min_id_exclusive is not None:
         id_resume = " AND images.id > ?"
         resume_params.append(int(min_id_exclusive))
+    rr = bool(tool_key)
+    touch_join = ""
+    if rr:
+        touch_join = (
+            "\n            JOIN folders f ON f.id = images.folder_id\n"
+            "            LEFT JOIN pipeline_tool_folder_last_touch pt "
+            "ON pt.folder_id = f.id AND pt.tool_key = ?\n"
+        )
     if folder_path:
         norm = os.path.normpath(folder_path)
         frow = get_connector().query_one("SELECT id FROM folders WHERE path = ?", (norm,))
         if not frow:
             return []
         folder_id = frow["id"]
-        query = f"""
+        if rr:
+            query = f"""
+            SELECT images.id, images.file_path, images.thumbnail_path, images.thumbnail_path_win
+            FROM images
+            {touch_join}
+            WHERE NOT {has_e} AND images.folder_id = ?{id_resume}
+            ORDER BY pt.last_touched_at NULLS FIRST, images.id
+            """
+            params = [tool_key, folder_id] + resume_params
+        else:
+            query = f"""
             SELECT images.id, images.file_path, images.thumbnail_path, images.thumbnail_path_win
             FROM images
             WHERE NOT {has_e} AND images.folder_id = ?{id_resume}
             ORDER BY images.id
-        """
-        params = [folder_id] + resume_params
+            """
+            params = [folder_id] + resume_params
     else:
-        query = f"""
+        if rr:
+            query = f"""
+            SELECT images.id, images.file_path, images.thumbnail_path, images.thumbnail_path_win
+            FROM images
+            {touch_join}
+            WHERE NOT {has_e}{id_resume}
+            ORDER BY pt.last_touched_at NULLS FIRST, images.id
+            """
+            params = [tool_key] + list(resume_params)
+        else:
+            query = f"""
             SELECT images.id, images.file_path, images.thumbnail_path, images.thumbnail_path_win
             FROM images
             WHERE NOT {has_e}{id_resume}
             ORDER BY images.id
-        """
-        params = list(resume_params)
+            """
+            params = list(resume_params)
     if limit:
         query += " FETCH FIRST ? ROWS ONLY"
         params.append(limit)
     return list(get_connector().query(query, tuple(params)))
 
-def get_images_missing_embeddings(folder_path=None, limit=None, min_id_exclusive=None):
+def get_images_missing_embeddings(folder_path=None, limit=None, min_id_exclusive=None, tool_key=None):
     """
     Return image rows with image_embedding IS NULL.
     Columns: id, file_path, thumbnail_path, thumbnail_path_win (for path resolution in WSL).
     Optionally filter by folder_path, cap with limit, and resume with min_id_exclusive (id > value).
-    Rows are ordered by id ascending for stable checkpointing.
+    Rows are ordered by id ascending for stable checkpointing (with optional ``tool_key``
+    round-robin ordering on Postgres — least recently touched folders first).
     """
     try:
         if _get_db_engine() == "postgres":
-            return _get_images_missing_embeddings_pg(folder_path, limit, min_id_exclusive)
+            return _get_images_missing_embeddings_pg(folder_path, limit, min_id_exclusive, tool_key)
         id_resume = ""
         resume_params: list = []
         if min_id_exclusive is not None:
@@ -11004,8 +11149,18 @@ def set_image_phase_status(image_id, phase_code, status,
 
     Increments attempt_count on reruns (done/failed/skipped → running).
     Sets started_at on 'running', finished_at on terminal states.
+
+    Side-effects: marks the image's folder + ancestors as ``phase_agg_dirty=1``
+    inside the same transaction so cached folder aggregates can never silently
+    diverge from per-image truth.
+
+    Skip-reason taxonomy: reasons starting with ``already_done_``, ``already_indexed``,
+    or ``metadata_already_done`` denote "this work was already complete at the current
+    executor version" and are aggregate-wise equivalent to ``done`` (see
+    ``get_folder_phase_summary``). Other ``skipped`` reasons mean "no work needed /
+    not applicable" and are also terminal but distinct from ``done`` semantically.
     """
-    from modules.phases import PhaseStatus
+    from modules.phases import PhaseStatus, is_transition_allowed
 
     phase_id = get_phase_id(phase_code)
     if phase_id is None:
@@ -11034,6 +11189,24 @@ def set_image_phase_status(image_id, phase_code, status,
                     "(img=%s, phase=%s) — skipping duplicate update", image_id, phase_code
                 )
                 return None
+
+            # Validate against ALLOWED_TRANSITIONS. Default behavior is to log and
+            # proceed (so a buggy runner doesn't take down the whole pipeline);
+            # config flag ``database.strict_phase_transitions`` flips it to a hard error.
+            if not is_transition_allowed(old_status, status):
+                strict = False
+                try:
+                    from modules.config import get_config_value
+                    strict = bool(get_config_value("database.strict_phase_transitions", default=False))
+                except Exception:
+                    strict = False
+                msg = (
+                    f"set_image_phase_status: illegal transition "
+                    f"{old_status!s}→{status!s} (img={image_id}, phase={phase_code})"
+                )
+                if strict:
+                    raise ValueError(msg)
+                logger.warning("%s — proceeding (strict=False)", msg)
 
             # Increment attempt on rerun transitions
             if status == PhaseStatus.RUNNING and old_status in (
@@ -11095,7 +11268,27 @@ def set_image_phase_status(image_id, phase_code, status,
             )
 
         frow = tx.query_one("SELECT folder_id FROM images WHERE id = ?", (image_id,))
-        return frow["folder_id"] if frow else None
+        folder_id_local = frow["folder_id"] if frow else None
+
+        # Mark folder + ancestor aggregate caches dirty so the UI cannot read stale
+        # folder-level state. Done in-transaction so we cannot half-commit.
+        if folder_id_local:
+            ancestor_ids = []
+            seen_ids: set = set()
+            current = folder_id_local
+            while current and current not in seen_ids:
+                seen_ids.add(current)
+                ancestor_ids.append(current)
+                parent_row = tx.query_one("SELECT parent_id FROM folders WHERE id = ?", (current,))
+                current = parent_row["parent_id"] if parent_row else None
+            if ancestor_ids:
+                placeholders = ",".join(["?"] * len(ancestor_ids))
+                tx.execute(
+                    f"UPDATE folders SET phase_agg_dirty = 1 WHERE id IN ({placeholders})",
+                    tuple(ancestor_ids),
+                )
+
+        return folder_id_local
 
     tx_ok = False
     try:
@@ -11141,8 +11334,8 @@ def set_image_phase_status(image_id, phase_code, status,
         source="db.set_image_phase_status",
     )
 
-    if folder_id:
-        invalidate_folder_phase_aggregates(folder_id=folder_id)
+    # Folder aggregate invalidation now happens inside the same transaction
+    # (see _tx above), so we no longer need a post-commit call here.
 
 
 def get_batch_image_phase_statuses(image_ids):
@@ -11611,14 +11804,20 @@ def get_folder_phase_summary(folder_path, force_refresh=False):
             skipped = row["skipped_count"] or 0
             is_optional = bool(row["optional"])
 
-            advance_ready = done + skipped if is_optional else done
+            # ``skipped`` is a terminal state (already_done_* / not_applicable).
+            # Treat it as advance-ready for required phases too — without this,
+            # fully-processed folders read as ``partial`` indefinitely (e.g.
+            # an indexing run that emits ``already_indexed`` for every image).
+            advance_ready = done + skipped
             if total == 0:
                 status = "not_started"
             elif done == total:
                 status = "done"
             elif skipped == total and is_optional:
                 status = "skipped"
-            elif advance_ready == total and is_optional:
+            elif advance_ready == total and failed == 0:
+                # done+skipped covers every image and nothing failed — folder is finished
+                # for this phase regardless of optional/required.
                 status = "done"
             elif running > 0:
                 status = "running"

@@ -3,11 +3,15 @@ Tier A helpers: phase plan generation, job enqueue helpers, dispatcher pump loop
 
 The Cartesian product of (phase_plan x submit_mode x skip_existing x intervention)
 is filtered to remove invalid combinations (e.g. culling-only without prior indexing).
+
+Submit-matrix helpers support POST ``/api/runs/submit`` parametrized integration tests.
 """
 from __future__ import annotations
 
 import itertools
+import os
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from modules import db
@@ -18,8 +22,8 @@ from modules.job_dispatcher import JobDispatcher
 # Phase plan generation
 # ---------------------------------------------------------------------------
 
-# Canonical phase order (pipeline_phases.sort_order in the DB)
-ALL_PHASES = ("indexing", "metadata", "scoring", "keywords", "culling")
+# Canonical pipeline order (matches ``modules.phases.PIPELINE_PHASE_ORDER``).
+ALL_PHASES = ("indexing", "metadata", "scoring", "culling", "keywords", "bird_species")
 
 # Phases that are valid standalone entry points (data already present in DB)
 STANDALONE_OK = {"scoring", "keywords", "culling"}
@@ -29,17 +33,19 @@ _SEED_PLANS: List[Tuple[str, ...]] = [
     ("indexing",),
     ("indexing", "metadata"),
     ("indexing", "metadata", "scoring"),
-    ("indexing", "metadata", "scoring", "keywords"),
-    ("indexing", "metadata", "scoring", "keywords", "culling"),
-    # Partial mid-pipeline (assume data exists)
+    ("indexing", "metadata", "scoring", "culling"),
+    ("indexing", "metadata", "scoring", "culling", "keywords"),
+    ("indexing", "metadata", "scoring", "culling", "keywords", "bird_species"),
     ("scoring",),
     ("keywords",),
     ("culling",),
-    ("scoring", "keywords"),
-    ("scoring", "keywords", "culling"),
     ("scoring", "culling"),
-    ("keywords", "culling"),
-    ("indexing", "metadata", "scoring", "culling"),
+    ("scoring", "keywords"),
+    ("scoring", "culling", "keywords"),
+    ("scoring", "keywords", "bird_species"),
+    ("keywords", "bird_species"),
+    ("culling", "keywords"),
+    ("indexing", "metadata", "scoring", "keywords"),
     ("indexing", "metadata", "keywords"),
     ("metadata", "scoring"),
 ]
@@ -65,8 +71,6 @@ def iter_valid_phase_plans(
     If ``max_plans`` > 0, truncate to that many plans (stable order).
     Expand via env ``PIPELINE_MATRIX_MAX_PLANS``.
     """
-    import os
-
     env_max = os.environ.get("PIPELINE_MATRIX_MAX_PLANS")
     if env_max:
         max_plans = int(env_max)
@@ -304,3 +308,182 @@ def _should_skip(plan: Tuple[str, ...], mode: str, intervention: str) -> bool:
         return True
 
     return False
+
+
+# ---------------------------------------------------------------------------
+# POST /api/runs/submit matrix (SPA-shaped)
+# ---------------------------------------------------------------------------
+
+CANONICAL_PIPELINE_PHASES: Tuple[str, ...] = ALL_PHASES
+
+RUN_API_MODES = ("process_new", "process_all", "fix_incomplete", "validation_repair")
+
+
+def _submit_run_legacy_flags(run_api_mode: str) -> Dict[str, bool]:
+    if run_api_mode == "process_new":
+        return {
+            "skip_done": True,
+            "force_rerun": False,
+            "fix_incomplete_stages": False,
+            "validation_repair_mode": False,
+        }
+    if run_api_mode == "process_all":
+        return {
+            "skip_done": False,
+            "force_rerun": True,
+            "fix_incomplete_stages": False,
+            "validation_repair_mode": False,
+        }
+    if run_api_mode == "fix_incomplete":
+        return {
+            "skip_done": True,
+            "force_rerun": False,
+            "fix_incomplete_stages": True,
+            "validation_repair_mode": False,
+        }
+    if run_api_mode == "validation_repair":
+        return {
+            "skip_done": True,
+            "force_rerun": False,
+            "fix_incomplete_stages": False,
+            "validation_repair_mode": True,
+        }
+    raise ValueError(f"unknown run_api_mode: {run_api_mode!r}")
+
+
+def submit_run_via_api(client, scope_paths, stages, run_api_mode: str = "process_new", scope_type: str = "folder_recursive"):
+    """POST ``/api/runs/submit`` with legacy flag shapes matching the React modal."""
+    flags = _submit_run_legacy_flags(run_api_mode)
+    body = {
+        "scope_type": scope_type,
+        "scope_paths": list(scope_paths),
+        "stages": list(stages),
+        **flags,
+        "validation_repair_dry_run": False,
+        "generate_captions": False,
+    }
+    return client.post("/api/runs/submit", json=body)
+
+
+def seed_partial_phase_state(scope_folder_abs: str, completed_phase_codes: Tuple[str, ...]) -> int:
+    """Create folder + one dummy image; mark ``completed_phase_codes`` done. Returns ``image_id``."""
+    root = os.path.normpath(scope_folder_abs)
+    Path(root).mkdir(parents=True, exist_ok=True)
+    fid = db.get_or_create_folder(root)
+    file_path = os.path.join(root, "_matrix_seed.jpg")
+    Path(file_path).touch()
+    result = {
+        "image_path": file_path,
+        "image_name": "_matrix_seed.jpg",
+        "folder_id": fid,
+        "score_general": 0.5,
+        "score_technical": 0.5,
+        "score_aesthetic": 0.5,
+        "summary": {
+            "weighted_scores": {"general": 0.5, "technical": 0.5, "aesthetic": 0.5},
+        },
+        "models": {},
+    }
+    db.upsert_image(job_id=None, result=result)
+    row = db.get_connector().query_one("SELECT id FROM images WHERE file_path = ?", (file_path,))
+    assert row is not None
+    image_id = int(row["id"])
+    for code in completed_phase_codes:
+        db.set_image_phase_status(image_id, code, "done", executor_version="test-1.0.0")
+    # `_heal_stale_phase_flags` resets inconsistent done rows during runs; keep seeded rows coherent.
+    if "indexing" in completed_phase_codes:
+        import numpy as np
+
+        emb = np.zeros(1280, dtype=np.float32)
+        db.get_connector().execute(
+            "UPDATE images SET image_embedding = ? WHERE id = ?",
+            (emb, image_id),
+        )
+    if "metadata" in completed_phase_codes:
+        db.get_connector().execute(
+            "UPDATE images SET rating = ?, label = ? WHERE id = ?",
+            (3, "matrix_seed", image_id),
+        )
+    if "keywords" in completed_phase_codes:
+        db.get_connector().execute(
+            "UPDATE images SET keywords = ? WHERE id = ?",
+            ("matrix_seed_kw", image_id),
+        )
+    return image_id
+
+
+def _valid_prefix_plans() -> List[Tuple[str, ...]]:
+    p = CANONICAL_PIPELINE_PHASES
+    return [tuple(p[:k]) for k in range(1, len(p) + 1)]
+
+
+_INVALID_SCRATCH_PLANS: Tuple[Tuple[str, ...], ...] = (
+    ("keywords",),
+    ("bird_species",),
+    ("culling",),
+    ("metadata",),
+    ("scoring",),
+    ("indexing", "keywords"),
+    ("indexing", "metadata", "keywords"),
+)
+
+
+def build_submit_matrix(max_cases: int = 120) -> List[Dict[str, Any]]:
+    """Scenarios for POST ``/api/runs/submit`` × run mode × seed state."""
+    cases: List[Dict[str, Any]] = []
+    for plan in _valid_prefix_plans():
+        for rm in RUN_API_MODES:
+            cases.append({
+                "phase_plan": plan,
+                "run_api_mode": rm,
+                "seed_state": "from_scratch",
+                "completed_prefix": (),
+                "expect_status": 200,
+                "test_id": f"submit|{'+'.join(plan)}|{rm}|scratch|200",
+            })
+
+    for plan in _INVALID_SCRATCH_PLANS:
+        for rm in RUN_API_MODES:
+            cases.append({
+                "phase_plan": plan,
+                "run_api_mode": rm,
+                "seed_state": "from_scratch",
+                "completed_prefix": (),
+                "expect_status": 400,
+                "test_id": f"submit|{'+'.join(plan)}|{rm}|scratch|400",
+            })
+
+    partial_specs = [
+        {
+            "completed_prefix": ("indexing", "metadata", "scoring"),
+            "phase_plan": ("keywords",),
+            "expect_status": 200,
+        },
+        {
+            "completed_prefix": ("indexing", "metadata", "scoring"),
+            "phase_plan": ("bird_species",),
+            "expect_status": 400,
+        },
+        {
+            "completed_prefix": ("indexing", "metadata", "scoring", "keywords"),
+            "phase_plan": ("bird_species",),
+            "expect_status": 200,
+        },
+    ]
+    for spec in partial_specs:
+        plan = spec["phase_plan"]
+        for rm in RUN_API_MODES:
+            cases.append({
+                "phase_plan": plan,
+                "run_api_mode": rm,
+                "seed_state": "partial_prefix",
+                "completed_prefix": spec["completed_prefix"],
+                "expect_status": spec["expect_status"],
+                "test_id": f"submit|{'+'.join(plan)}|{rm}|partial|{spec['expect_status']}",
+            })
+
+    env_max = os.environ.get("PIPELINE_SUBMIT_MATRIX_MAX_CASES")
+    cap = int(env_max) if env_max else max_cases
+    if cap > 0:
+        cases = cases[:cap]
+    return cases

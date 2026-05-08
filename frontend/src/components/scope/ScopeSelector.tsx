@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { X, Plus, Trash2, FolderOpen } from 'lucide-react'
@@ -10,7 +10,7 @@ import { PhaseStatusIcon } from '@/components/status/PhaseStatusIcon'
 import { useUiStore } from '@/stores/uiStore'
 import { STAGE_DISPLAY } from '@/types/api'
 import type { StageCode, ScopePreviewResult, ValidationRepairPreview } from '@/types/api'
-import { FULL_PIPELINE_STAGE_CODES } from '@/constants/pipeline'
+import { FULL_PIPELINE_STAGE_CODES, pruneStageSelection, stagePrerequisitesMet, STAGE_PREREQUISITES } from '@/constants/pipeline'
 import { RUNS_QUERY_ROOT } from '@/queryKeys/runs'
 
 const ALL_STAGES: StageCode[] = [...FULL_PIPELINE_STAGE_CODES]
@@ -85,6 +85,27 @@ export function ScopeSelector() {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [repairPreview, setRepairPreview] = useState<ValidationRepairPreview | null>(null)
   const [repairPreviewLoading, setRepairPreviewLoading] = useState(false)
+
+  const satisfiedStages = useMemo(() => {
+    const st = preview?.stage_statuses
+    if (!st) return new Set<StageCode>()
+    const next = new Set<StageCode>()
+    for (const code of ALL_STAGES) {
+      if (st[code] === 'done') next.add(code)
+    }
+    return next
+  }, [preview])
+
+  const previewGateActive = preview !== null
+
+  useEffect(() => {
+    if (!preview?.stage_statuses) return
+    const sat = new Set<StageCode>()
+    for (const code of ALL_STAGES) {
+      if (preview.stage_statuses[code] === 'done') sat.add(code)
+    }
+    setStages((prev) => pruneStageSelection(prev, sat))
+  }, [preview])
 
   // Modal stays mounted while closed (`return null`); reset local state whenever it opens
   // so preview is not left from a previous folder and paths re-apply even if `newRunInitialPath`
@@ -178,7 +199,7 @@ export function ScopeSelector() {
       const next = new Set(prev)
       if (next.has(code)) next.delete(code)
       else next.add(code)
-      return next
+      return pruneStageSelection(next, satisfiedStages)
     })
   }
 
@@ -309,11 +330,22 @@ export function ScopeSelector() {
               {ALL_STAGES.map((code) => {
                 const display = STAGE_DISPLAY[code]
                 const checked = stages.has(code)
+                const gateBlocked =
+                  previewGateActive && !stagePrerequisitesMet(code, satisfiedStages, stages)
+                const missingReq = STAGE_PREREQUISITES[code].filter(
+                  (pre) => !satisfiedStages.has(pre) && !stages.has(pre),
+                )
+                const titleHint =
+                  gateBlocked && missingReq.length > 0
+                    ? `Requires ${missingReq.map((p) => STAGE_DISPLAY[p].name).join(', ')} completed on disk or selected for this run.`
+                    : undefined
                 return (
                   <label
                     key={code}
+                    title={titleHint}
                     className={clsx(
-                      'flex items-start gap-3 rounded p-3 border cursor-pointer transition-colors',
+                      'flex items-start gap-3 rounded p-3 border transition-colors',
+                      gateBlocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
                       checked
                         ? 'bg-[var(--color-bg-primary)] border-[var(--color-accent)]'
                         : 'bg-[var(--color-bg-primary)] border-[var(--color-border-muted)] opacity-60',
@@ -322,6 +354,7 @@ export function ScopeSelector() {
                     <input
                       type="checkbox"
                       checked={checked}
+                      disabled={gateBlocked}
                       onChange={() => toggleStage(code)}
                       className="mt-0.5"
                     />

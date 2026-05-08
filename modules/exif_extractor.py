@@ -348,6 +348,7 @@ def backfill_exif_camera_lens(
     *,
     path_like: str | None = None,
     on_progress: Callable[[int, int, dict], Any] | None = None,
+    tool_key: str | None = None,
 ) -> dict:
     """
     Re-extract EXIF from disk for rows missing camera and/or lens (image_exif.make/model or lens_model).
@@ -360,21 +361,50 @@ def backfill_exif_camera_lens(
         limit: Optional max rows per call (random order each run; see :func:`backfill_exif_dates`).
         path_like: Optional SQL ``LIKE`` pattern on ``images.file_path`` (e.g. ``%/Photos/Z6ii/%``).
         on_progress: Optional ``(done_checked, total_candidates, stats_copy)`` for UI milestones.
+        tool_key: When set on Postgres, order candidates by Pipeline Tools folder round-robin
+            (least recently touched folders first) instead of ``ORDER BY RAND()``.
 
     Returns:
         dict: checked, updated, skipped_no_file, skipped_no_exif, skipped_still_missing, errors.
     """
     from modules import db
+    from modules.db_legacy import _get_db_engine
 
     path_clause = ""
-    sql_params: tuple | None = None
+    params_list: list[Any] = []
     if path_like:
         path_clause = " AND i.file_path LIKE ?"
-        sql_params = (path_like,)
+        params_list.append(path_like)
 
+    use_rr = bool(tool_key) and _get_db_engine() == "postgres"
     limit_clause = f" LIMIT {int(limit)}" if limit else ""
-    rows = db.get_connector().query(
-        f"""SELECT i.id AS image_id, i.file_path
+    if use_rr:
+        join_sql = """
+            JOIN folders f ON f.id = i.folder_id
+            LEFT JOIN pipeline_tool_folder_last_touch pt ON pt.folder_id = f.id AND pt.tool_key = ?
+        """
+        select_cols = "i.id AS image_id, i.file_path, i.folder_id AS folder_id"
+        order_sql = "ORDER BY pt.last_touched_at NULLS FIRST, i.id"
+        q_params = (tool_key,) + tuple(params_list)
+        rows = db.get_connector().query(
+            f"""SELECT {select_cols}
+            FROM images i
+            {join_sql}
+            LEFT JOIN image_exif ex ON ex.image_id = i.id
+            WHERE (
+                ex.image_id IS NULL
+                OR COALESCE(
+                    NULLIF(TRIM(COALESCE(ex.model, '')), ''),
+                    NULLIF(TRIM(COALESCE(ex.make, '')), '')
+                ) IS NULL
+                OR NULLIF(TRIM(COALESCE(ex.lens_model, '')), '') IS NULL
+            ){path_clause}
+            {order_sql}{limit_clause}""",
+            q_params if q_params else None,
+        )
+    else:
+        rows = db.get_connector().query(
+            f"""SELECT i.id AS image_id, i.file_path
             FROM images i
             LEFT JOIN image_exif ex ON ex.image_id = i.id
             WHERE (
@@ -386,8 +416,8 @@ def backfill_exif_camera_lens(
                 OR NULLIF(TRIM(COALESCE(ex.lens_model, '')), '') IS NULL
             ){path_clause}
             ORDER BY RAND(){limit_clause}""",
-        sql_params,
-    )
+            tuple(params_list) if params_list else None,
+        )
 
     stats = {
         "checked": 0,
@@ -443,6 +473,12 @@ def backfill_exif_camera_lens(
             exif_row = db.get_image_exif(image_id) or {}
             if _exif_row_has_camera_and_lens(exif_row):
                 stats["updated"] += 1
+                if use_rr:
+                    fid = row.get("folder_id")
+                    if fid is not None:
+                        from modules.pipeline_tool_folder_touch import upsert_pipeline_tool_folder_touch
+
+                        upsert_pipeline_tool_folder_touch(tool_key, int(fid))
             else:
                 stats["skipped_still_missing"] += 1
                 logger.debug(
@@ -464,6 +500,7 @@ def backfill_exif_gps(
     *,
     path_like: str | None = None,
     on_progress: Callable[[int, int, dict], Any] | None = None,
+    tool_key: str | None = None,
 ) -> dict:
     """
     Re-extract EXIF from disk for rows missing ``gps_latitude`` / ``gps_longitude`` in ``image_exif``.
@@ -475,18 +512,46 @@ def backfill_exif_gps(
         limit: Optional max rows per call (random order each run; see :func:`backfill_exif_dates`).
         path_like: Optional SQL ``LIKE`` pattern on ``images.file_path``.
         on_progress: Optional ``(done_checked, total_candidates, stats_copy)`` for UI milestones.
+        tool_key: When set on Postgres, order by Pipeline Tools folder round-robin instead of ``RAND()``.
+
+    Returns:
+        dict: checked, updated, skipped_no_file, skipped_no_exif, skipped_still_missing, errors.
     """
     from modules import db
+    from modules.db_legacy import _get_db_engine
 
     path_clause = ""
-    sql_params: tuple | None = None
+    params_list: list[Any] = []
     if path_like:
         path_clause = " AND i.file_path LIKE ?"
-        sql_params = (path_like,)
+        params_list.append(path_like)
 
+    use_rr = bool(tool_key) and _get_db_engine() == "postgres"
     limit_clause = f" LIMIT {int(limit)}" if limit else ""
-    rows = db.get_connector().query(
-        f"""SELECT i.id AS image_id, i.file_path
+    if use_rr:
+        join_sql = """
+            JOIN folders f ON f.id = i.folder_id
+            LEFT JOIN pipeline_tool_folder_last_touch pt ON pt.folder_id = f.id AND pt.tool_key = ?
+        """
+        select_cols = "i.id AS image_id, i.file_path, i.folder_id AS folder_id"
+        order_sql = "ORDER BY pt.last_touched_at NULLS FIRST, i.id"
+        q_params = (tool_key,) + tuple(params_list)
+        rows = db.get_connector().query(
+            f"""SELECT {select_cols}
+            FROM images i
+            {join_sql}
+            LEFT JOIN image_exif ex ON ex.image_id = i.id
+            WHERE (
+                ex.image_id IS NULL
+                OR ex.gps_latitude IS NULL
+                OR ex.gps_longitude IS NULL
+            ){path_clause}
+            {order_sql}{limit_clause}""",
+            q_params if q_params else None,
+        )
+    else:
+        rows = db.get_connector().query(
+            f"""SELECT i.id AS image_id, i.file_path
             FROM images i
             LEFT JOIN image_exif ex ON ex.image_id = i.id
             WHERE (
@@ -495,8 +560,8 @@ def backfill_exif_gps(
                 OR ex.gps_longitude IS NULL
             ){path_clause}
             ORDER BY RAND(){limit_clause}""",
-        sql_params,
-    )
+            tuple(params_list) if params_list else None,
+        )
 
     stats = {
         "checked": 0,
@@ -552,6 +617,12 @@ def backfill_exif_gps(
             exif_row = db.get_image_exif(image_id) or {}
             if _exif_row_has_gps_coords(exif_row):
                 stats["updated"] += 1
+                if use_rr:
+                    fid = row.get("folder_id")
+                    if fid is not None:
+                        from modules.pipeline_tool_folder_touch import upsert_pipeline_tool_folder_touch
+
+                        upsert_pipeline_tool_folder_touch(tool_key, int(fid))
             else:
                 stats["skipped_still_missing"] += 1
                 logger.debug(

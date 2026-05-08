@@ -14,7 +14,7 @@ class _FakeCursor:
         self._last_query = query
 
     def fetchall(self):
-        if "GROUP BY f.path" in self._last_query:
+        if "GROUP BY f.path" in self._last_query or "GROUP BY f.id, f.path" in self._last_query:
             return self._folder_rows
         return []
 
@@ -40,6 +40,7 @@ def test_heal_bird_species_excludes_done_current_version(monkeypatch):
         yield _FakeConn(folder_rows=[])
 
     monkeypatch.setattr(workflow_healing.db, "connection", _connection)
+    monkeypatch.setattr(workflow_healing.db, "_get_db_engine", lambda: "firebird")
     monkeypatch.setattr(workflow_healing.db, "get_phase_incomplete_sql", lambda *a, **k: "1=1")
     monkeypatch.setattr(workflow_healing, "get_phase_executor_version", lambda *a, **k: "1.0.0")
     monkeypatch.setattr(workflow_healing, "_get_active_jobs_snapshot", lambda: [])
@@ -63,6 +64,7 @@ def test_heal_bird_species_includes_when_executor_version_changes(monkeypatch):
         yield _FakeConn(folder_rows=[("/mnt/d/Photos/Z8/2026/2026-04-09", 12)])
 
     monkeypatch.setattr(workflow_healing.db, "connection", _connection)
+    monkeypatch.setattr(workflow_healing.db, "_get_db_engine", lambda: "firebird")
     monkeypatch.setattr(workflow_healing.db, "get_phase_incomplete_sql", lambda *a, **k: "1=1")
     monkeypatch.setattr(workflow_healing, "get_phase_executor_version", lambda *a, **k: "2.0.0")
     monkeypatch.setattr(workflow_healing, "_get_active_jobs_snapshot", lambda: [])

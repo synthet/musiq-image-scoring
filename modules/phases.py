@@ -13,7 +13,7 @@ Folder-level summaries are computed live (no stored table).
 
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import Optional, List, Callable, Any, Tuple, Dict
+from typing import Optional, List, Callable, Any, Tuple, Dict, Iterable
 import logging
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,114 @@ PIPELINE_PHASE_ORDER: Tuple[PhaseCode, ...] = (
 )
 
 _PHASE_ORDER_INDEX = {p: i for i, p in enumerate(PIPELINE_PHASE_ORDER)}
+
+# Direct prerequisites per pipeline stage (must stay aligned with ``phase_executors.register_all``).
+PHASE_PREREQUISITES: Dict[str, Tuple[str, ...]] = {
+    PhaseCode.INDEXING.value: (),
+    PhaseCode.METADATA.value: (PhaseCode.INDEXING.value,),
+    PhaseCode.SCORING.value: (PhaseCode.METADATA.value,),
+    PhaseCode.CULLING.value: (PhaseCode.SCORING.value,),
+    PhaseCode.KEYWORDS.value: (PhaseCode.SCORING.value,),
+    PhaseCode.BIRD_SPECIES.value: (PhaseCode.KEYWORDS.value,),
+}
+
+
+def missing_prerequisites(
+    requested: Iterable[str],
+    satisfied: Iterable[str],
+) -> Dict[str, List[str]]:
+    """Return phases whose direct prerequisites are not met.
+
+    A prerequisite *pre* for requested phase *P* is satisfied when *pre* is in
+    ``satisfied`` (e.g. scope preview marks stage ``done``) or when *pre* is
+    also listed in ``requested`` (same-run inclusion).
+    """
+    requested_norm: List[str] = []
+    seen_req: set[str] = set()
+    for raw in requested:
+        c = (str(raw or "")).strip().lower()
+        if not c or c in seen_req:
+            continue
+        seen_req.add(c)
+        requested_norm.append(c)
+
+    requested_set = set(requested_norm)
+    satisfied_set = {(str(s or "")).strip().lower() for s in satisfied}
+
+    missing_map: Dict[str, List[str]] = {}
+    for phase in requested_norm:
+        prereqs = PHASE_PREREQUISITES.get(phase)
+        if prereqs is None:
+            continue
+        missing_list = [
+            pre for pre in prereqs
+            if pre not in satisfied_set and pre not in requested_set
+        ]
+        if missing_list:
+            missing_map[phase] = missing_list
+    return missing_map
+
+
+def compute_satisfied_phases_for_scope(scope_paths: Iterable[str]) -> set[str]:
+    """Aggregate per-stage status across folders and return phases counted as satisfied.
+
+    A phase is satisfied for the scope when, summed across all folders:
+      - total_count == 0 (no images to gate on), OR
+      - done + skipped == total AND failed == 0
+
+    Mirrors the semantics of ``api._compute_scope_preview_for_resolved_paths``
+    so submit-time gating and heal-time gating cannot disagree.
+    """
+    from modules import db  # lazy: db imports phases
+
+    stage_total: Dict[str, int] = {}
+    stage_done_or_skipped: Dict[str, int] = {}
+    stage_failed: Dict[str, int] = {}
+
+    for raw_path in scope_paths or []:
+        path = (str(raw_path or "")).strip()
+        if not path:
+            continue
+        try:
+            summary = db.get_folder_phase_summary(path, force_refresh=False)
+        except Exception:
+            logger.exception("compute_satisfied_phases_for_scope: summary failed for %s", path)
+            continue
+        for row in summary or []:
+            code = (row.get("code") or "").strip()
+            if not code:
+                continue
+            stage_total[code] = stage_total.get(code, 0) + int(row.get("total_count") or 0)
+            stage_done_or_skipped[code] = (
+                stage_done_or_skipped.get(code, 0)
+                + int(row.get("done_count") or 0)
+                + int(row.get("skipped_count") or 0)
+            )
+            stage_failed[code] = stage_failed.get(code, 0) + int(row.get("failed_count") or 0)
+
+    satisfied: set[str] = set()
+    for code, total in stage_total.items():
+        if total <= 0:
+            satisfied.add(code)
+            continue
+        if stage_done_or_skipped.get(code, 0) >= total and stage_failed.get(code, 0) == 0:
+            satisfied.add(code)
+    return satisfied
+
+
+def assert_prereqs_for_scope(
+    phase_values: Iterable[str],
+    scope_paths: Iterable[str],
+) -> Dict[str, List[str]]:
+    """Return the {phase: [missing_prereqs]} map for the given scope.
+
+    Empty dict means all requested phases have their prereqs satisfied (or
+    co-requested in the same submission). Callers decide policy: ``submit_run``
+    raises 400 on a non-empty result; heal records a per-folder skip and
+    continues.
+    """
+    satisfied = compute_satisfied_phases_for_scope(scope_paths)
+    return missing_prerequisites(phase_values or [], satisfied)
 
 
 def sort_phase_codes_canonical(phases: List[PhaseCode]) -> List[PhaseCode]:
@@ -134,18 +242,74 @@ class PhaseStatus(str, Enum):
     SKIPPED     = "skipped"
     FAILED      = "failed"
 
-# Allowed transitions: from_status -> set of to_statuses
+# Allowed transitions for ``set_image_phase_status`` updates: from_status -> set of to_statuses.
+# Anything not in this map is treated as suspicious and logged at WARNING (or, when
+# ``database.strict_phase_transitions`` is true, raised as a ValueError). The map is the
+# state-machine contract; expand it consciously when adding a new code path.
+#
+# Notes on the explicit edges below:
+#   - "X -> X" (idempotent): callers occasionally re-emit the same status and we do not
+#     want to flag those as transition violations.
+#   - "NOT_STARTED -> DONE/SKIPPED/FAILED": legitimate one-shot writes from backfill /
+#     ad-hoc maintenance paths that never go through RUNNING.
+#   - "RUNNING/DONE/FAILED/SKIPPED -> NOT_STARTED": heal reset paths (see
+#     ``reset_image_phase_status``); kept here so direct callers also stay legal.
 ALLOWED_TRANSITIONS = {
-    PhaseStatus.NOT_STARTED: {PhaseStatus.QUEUED, PhaseStatus.RUNNING},
-    PhaseStatus.QUEUED:      {PhaseStatus.RUNNING, PhaseStatus.CANCEL_REQUESTED, PhaseStatus.SKIPPED},
-    PhaseStatus.RUNNING:     {PhaseStatus.PAUSED, PhaseStatus.DONE, PhaseStatus.FAILED, PhaseStatus.SKIPPED, PhaseStatus.CANCEL_REQUESTED, PhaseStatus.RESTARTING},
-    PhaseStatus.PAUSED:      {PhaseStatus.RUNNING, PhaseStatus.CANCEL_REQUESTED, PhaseStatus.RESTARTING},
-    PhaseStatus.CANCEL_REQUESTED: {PhaseStatus.SKIPPED, PhaseStatus.FAILED, PhaseStatus.NOT_STARTED},
-    PhaseStatus.RESTARTING:  {PhaseStatus.QUEUED, PhaseStatus.RUNNING, PhaseStatus.FAILED},
-    PhaseStatus.DONE:        {PhaseStatus.RESTARTING, PhaseStatus.RUNNING},      # rerun
-    PhaseStatus.FAILED:      {PhaseStatus.RESTARTING, PhaseStatus.RUNNING},      # retry
-    PhaseStatus.SKIPPED:     {PhaseStatus.RESTARTING, PhaseStatus.RUNNING},      # explicit rerun
+    PhaseStatus.NOT_STARTED: {
+        PhaseStatus.NOT_STARTED, PhaseStatus.QUEUED, PhaseStatus.RUNNING,
+        PhaseStatus.DONE, PhaseStatus.SKIPPED, PhaseStatus.FAILED,  # one-shot writes
+    },
+    PhaseStatus.QUEUED: {
+        PhaseStatus.QUEUED, PhaseStatus.RUNNING, PhaseStatus.NOT_STARTED,
+        PhaseStatus.CANCEL_REQUESTED, PhaseStatus.SKIPPED,
+    },
+    PhaseStatus.RUNNING: {
+        PhaseStatus.RUNNING, PhaseStatus.PAUSED, PhaseStatus.DONE, PhaseStatus.FAILED,
+        PhaseStatus.SKIPPED, PhaseStatus.CANCEL_REQUESTED, PhaseStatus.RESTARTING,
+        PhaseStatus.NOT_STARTED,  # heal reset of in-flight ghost rows
+    },
+    PhaseStatus.PAUSED: {
+        PhaseStatus.PAUSED, PhaseStatus.RUNNING, PhaseStatus.CANCEL_REQUESTED,
+        PhaseStatus.RESTARTING, PhaseStatus.NOT_STARTED,
+    },
+    PhaseStatus.CANCEL_REQUESTED: {
+        PhaseStatus.CANCEL_REQUESTED, PhaseStatus.SKIPPED, PhaseStatus.FAILED,
+        PhaseStatus.NOT_STARTED,
+    },
+    PhaseStatus.RESTARTING: {
+        PhaseStatus.RESTARTING, PhaseStatus.QUEUED, PhaseStatus.RUNNING,
+        PhaseStatus.FAILED, PhaseStatus.NOT_STARTED,
+    },
+    PhaseStatus.DONE: {
+        PhaseStatus.DONE, PhaseStatus.RESTARTING, PhaseStatus.RUNNING,
+        PhaseStatus.NOT_STARTED,  # heal reset
+    },
+    PhaseStatus.FAILED: {
+        PhaseStatus.FAILED, PhaseStatus.RESTARTING, PhaseStatus.RUNNING,
+        PhaseStatus.NOT_STARTED,
+    },
+    PhaseStatus.SKIPPED: {
+        PhaseStatus.SKIPPED, PhaseStatus.RESTARTING, PhaseStatus.RUNNING,
+        PhaseStatus.NOT_STARTED,
+    },
 }
+
+
+def is_transition_allowed(from_status, to_status) -> bool:
+    """Membership check against ``ALLOWED_TRANSITIONS``; tolerant to str inputs."""
+    def _coerce(s):
+        if isinstance(s, PhaseStatus):
+            return s
+        try:
+            return PhaseStatus(str(s).strip().lower())
+        except (ValueError, AttributeError):
+            return None
+
+    a = _coerce(from_status)
+    b = _coerce(to_status)
+    if a is None or b is None:
+        return True  # unknown status — let caller proceed; not our place to gate
+    return b in ALLOWED_TRANSITIONS.get(a, set())
 
 
 # ---------------------------------------------------------------------------

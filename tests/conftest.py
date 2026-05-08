@@ -9,6 +9,10 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# Default local unit tests to connect to the isolated db-e2e container port
+if "POSTGRES_PORT" not in os.environ:
+    os.environ["POSTGRES_PORT"] = "5433"
+
 from modules.test_db_constants import (
     POSTGRES_TEST_DB,
     postgres_production_allowed_in_pytest,

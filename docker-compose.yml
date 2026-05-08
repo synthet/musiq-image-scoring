@@ -61,5 +61,57 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
 
+  db-e2e:
+    image: pgvector/pgvector:pg17
+    container_name: image-scoring-postgres-e2e
+    shm_size: 512mb
+    ports:
+      - "5433:5432"
+    profiles:
+      - e2e-inference
+    environment:
+      - POSTGRES_DB=image_scoring_test
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_e2e_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  inference-e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: image-scoring:latest
+    container_name: image-scoring-inference-e2e
+    profiles:
+      - e2e-inference
+    depends_on:
+      db-e2e:
+        condition: service_healthy
+    environment:
+      - DOCKER_CONTAINER=1
+      - WEBUI_HOST=127.0.0.1
+      - POSTGRES_HOST=db-e2e
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=image_scoring_test
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - WEBUI_OPEN_UI=0
+    entrypoint: ["/bin/bash", "scripts/docker_inference_e2e.sh"]
+    gpus: all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
 volumes:
   postgres_data:
+  postgres_e2e_data:
