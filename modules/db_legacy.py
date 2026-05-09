@@ -3769,6 +3769,36 @@ def invalidate_folder_phase_aggregates(folder_id=None, folder_path=None):
     )
 
 
+def refresh_folder_phase_aggregates_with_ancestors(folder_path=None, folder_id=None):
+    """Force-recompute the folder phase aggregate cache for ``folder_path`` and
+    every ancestor up to the root.
+
+    Pairs with :func:`invalidate_folder_phase_aggregates`, which marks the same
+    chain dirty. Without an ancestor walk, only the leaf gets recomputed at a
+    phase boundary and ancestor caches stay ``phase_agg_dirty=1`` forever (UI
+    badges show stale state).
+    """
+    if not folder_id and folder_path:
+        folder_id = get_or_create_folder(folder_path)
+    if not folder_id:
+        return
+
+    ancestor_ids = _get_folder_ancestor_ids(folder_id) or [folder_id]
+    placeholders = ",".join(["?"] * len(ancestor_ids))
+    rows = get_connector().query(
+        f"SELECT path FROM folders WHERE id IN ({placeholders})",
+        tuple(ancestor_ids),
+    )
+    for r in rows or []:
+        path = (r or {}).get("path")
+        if not path:
+            continue
+        try:
+            get_folder_phase_summary(path, force_refresh=True)
+        except Exception as e:
+            logger.debug("ancestor refresh failed for %s: %s", path, e)
+
+
 def register_image_for_import(file_path, file_name, file_type, folder_id, image_uuid=None):
     """
     Insert a minimal image record for import (no scoring).
@@ -4103,6 +4133,117 @@ def backfill_index_meta_for_folder(folder_path: str) -> int:
     if image_ids:
         invalidate_folder_phase_aggregates(folder_path=target_path)
     return len(image_ids)
+
+
+_DEFAULT_REQUIRED_PHASES_FOR_BACKFILL = ("indexing", "metadata", "scoring", "keywords", "culling")
+
+
+def backfill_missing_phase_rows(
+    folder_path=None,
+    phase_codes=None,
+    limit=None,
+    dry_run=True,
+):
+    """Insert ``not_started`` ``image_phase_status`` rows for images that have
+    no row at all for one or more required phases.
+
+    Targets the partial-failure cohort where an indexing crash left an
+    ``images`` row but no IPS rows — the next pipeline phase then can't see
+    the image because its phase queries match on ``ips.status``. Without IPS
+    rows the image is invisible to scoring/keywords/culling planners.
+
+    Args:
+        folder_path: Restrict to images under this folder (and descendants).
+            ``None`` walks every image in the DB.
+        phase_codes: Iterable of phase codes to backfill. Defaults to the
+            five required phases (``indexing, metadata, scoring, keywords,
+            culling``); explicitly omits the optional ``bird_species`` phase.
+        limit: Cap the number of (image_id, phase_code) pairs touched.
+        dry_run: When ``True`` (default) only counts; no writes.
+
+    Returns:
+        ``{"matched": int, "inserted": int, "by_phase": {code: count}, "dry_run": bool}``
+    """
+    from modules import utils
+
+    codes = tuple(phase_codes) if phase_codes else _DEFAULT_REQUIRED_PHASES_FOR_BACKFILL
+    if not codes:
+        return {"matched": 0, "inserted": 0, "by_phase": {}, "dry_run": dry_run}
+
+    folder_filter_clause = ""
+    folder_params: tuple = ()
+    target_path = None
+    if folder_path:
+        wsl_path = utils.convert_path_to_wsl(folder_path) if hasattr(utils, "convert_path_to_wsl") else folder_path
+        target_path = wsl_path or folder_path
+        folder_filter_clause = (
+            " AND i.folder_id IN ("
+            "SELECT id FROM folders WHERE path = ? OR path LIKE ? OR path LIKE ?)"
+        )
+        folder_params = (target_path, target_path + "/%", target_path + "\\%")
+
+    matched_pairs: list[tuple[int, str, int]] = []
+    by_phase: dict[str, int] = {}
+
+    for code in codes:
+        phase_id = get_phase_id(code)
+        if phase_id is None:
+            logger.warning("backfill_missing_phase_rows: unknown phase '%s' (skipping)", code)
+            continue
+        rows = get_connector().query(
+            f"""
+            SELECT i.id
+            FROM images i
+            WHERE NOT EXISTS (
+                SELECT 1 FROM image_phase_status ips
+                WHERE ips.image_id = i.id AND ips.phase_id = ?
+            ){folder_filter_clause}
+            ORDER BY i.id
+            """,
+            (phase_id,) + folder_params,
+        )
+        ids = [int(r["id"]) for r in rows]
+        by_phase[code] = len(ids)
+        for iid in ids:
+            matched_pairs.append((iid, code, phase_id))
+
+    if isinstance(limit, int) and limit > 0:
+        matched_pairs = matched_pairs[:limit]
+
+    if dry_run:
+        return {
+            "matched": len(matched_pairs),
+            "inserted": 0,
+            "by_phase": by_phase,
+            "dry_run": True,
+        }
+
+    inserted = 0
+    touched_folder_ids: set[int] = set()
+    for iid, code, _phase_id in matched_pairs:
+        try:
+            folder_id = set_image_phase_status(iid, code, "not_started")
+            if folder_id:
+                touched_folder_ids.add(int(folder_id))
+            inserted += 1
+        except Exception as e:
+            logger.warning(
+                "backfill_missing_phase_rows: failed (img=%s, phase=%s): %s",
+                iid, code, e,
+            )
+
+    if target_path:
+        try:
+            invalidate_folder_phase_aggregates(folder_path=target_path)
+        except Exception:
+            pass
+
+    return {
+        "matched": len(matched_pairs),
+        "inserted": inserted,
+        "by_phase": by_phase,
+        "dry_run": False,
+    }
 
 
 def backfill_index_meta_global(limit=None, dry_run=False) -> int:
@@ -6149,9 +6290,12 @@ def resume_job_phases(job_id):
 
 def set_job_phase_state(job_id, phase_code, state, error_message=None, tx=None):
     """Update state metadata for one phase of a job and auto-advance next pending phase."""
+    # update_job_status(..., completed) × _resolve_multi_phase_job_phases_sync_code may target the
+    # next backlog row before it entered running (dispatcher timing). Allow terminal completion from
+    # pending/queued so multi-phase bulk sync does not deadlock.
     allowed = {
-        "pending": {"queued", "running", "skipped", "canceled", "failed"},
-        "queued": {"running", "paused", "cancel_requested", "canceled", "failed"},
+        "pending": {"queued", "running", "skipped", "canceled", "failed", "completed"},
+        "queued": {"running", "paused", "cancel_requested", "canceled", "failed", "completed"},
         "running": {
             "paused",
             "completed",
@@ -6195,6 +6339,10 @@ def set_job_phase_state(job_id, phase_code, state, error_message=None, tx=None):
             fields.append("started_at = COALESCE(started_at, ?)")
             params.append(now)
             fields.append("error_message = NULL")
+        elif (state or "").strip().lower() == "completed" and old_state in ("pending", "queued"):
+            # Backfill implicit start when bulk-completing a backlog phase (see allowed transition).
+            fields.append("started_at = COALESCE(started_at, ?)")
+            params.append(now)
         if state in {"completed", "failed", "skipped", "interrupted"}:
             fields.append("completed_at = ?")
             params.append(now)

@@ -14,6 +14,7 @@ __pycache__/
 venv/
 **/venv/
 .pytest_cache/
+.venv_wsl/
 
 # Node (frontend build runs on host; image does not need node_modules)
 node_modules/
@@ -37,6 +38,7 @@ models/
 backups/
 data/
 research_output/
+dumps/
 
 # IDE & Config
 .idea/

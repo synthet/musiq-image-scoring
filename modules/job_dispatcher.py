@@ -186,6 +186,25 @@ class JobDispatcher:
         job_id = int(job["id"])
         input_path = job.get("input_path")
 
+        # Multi-phase pipeline jobs keep ``job_type`` stable (e.g. "pipeline"); the
+        # actual phase to dispatch lives in ``job_phases``. Resolve it from the
+        # first queued/running job_phases row when no override is supplied.
+        if phase_override is None and phase in ("pipeline", "ui_pipeline"):
+            try:
+                rows = db.get_job_phases(job_id) or []
+            except Exception:
+                rows = []
+            resolved = next(
+                (
+                    (r.get("phase_code") or "").strip().lower()
+                    for r in rows
+                    if (r.get("state") or "").strip().lower() in ("queued", "running", "pending")
+                ),
+                "",
+            )
+            if resolved:
+                phase = resolved
+
         if phase_override:
             try:
                 from modules.run_log import emit_run_log

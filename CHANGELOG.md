@@ -15,6 +15,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.14.0] - 2026-05-09
+
+### Added
+
+- **PostgreSQL — `jobs.status` vocabulary lock**: Alembic **`0020_jobs_status_check.py`** adds **`ck_jobs_status`** (`CHECK`) so **`jobs.status`** stays within the canonical set (**`pending`**, **`queued`**, **`running`**, **`paused`**, **`user_pause`**, **`completed`**, **`failed`**, **`cancelled`**, **`interrupted`**); see **`docs/planning/database/STATUS_VOCABULARY.md`**.
+- **Legacy DB — `backfill_missing_phase_rows`**: Inserts **`not_started`** **`image_phase_status`** rows for images missing required phase rows (partial indexing recovery); optional folder scope, phase list, **`limit`**, and **`dry_run`** (**`modules/db_legacy.py`**).
+- **`refresh_folder_phase_aggregates_with_ancestors`**: Recomputes folder phase aggregate caches for the target folder **and ancestors** (**`modules/db_legacy.py`**), paired with **`invalidate_folder_phase_aggregates`**.
+
+### Changed
+
+- **`GET /api/jobs/recent`**: Default (non-history) responses are now **`{"runs":[...],"jobs":[...]}`** (same array duplicated under both keys) instead of a bare JSON array **`[...]`**; **`history=true`** also includes **`jobs`** alongside **`runs`** and **`total`**. Existing **`/ui/`** client code already accepts object payloads.
+
+### Fixed
+
+- **Pipeline dispatch**: **`JobDispatcher`** resolves the active phase from **`job_phases`** when **`phase`** is **`pipeline`** / **`ui_pipeline`** (**`modules/job_dispatcher.py`**).
+- **Folder pipeline badges**: Pipeline orchestrator refresh walks **ancestors** after phase updates so **`phase_agg_dirty`** chains do not leave stale root/intermediate summaries (**`modules/pipeline_orchestrator.py`**, **`modules/db_legacy.py`**).
+- **Multi-phase job phases**: **`set_job_phase_state`** allows **`completed`** from **`pending`** / **`queued`** (with **`started_at`** backfill) to avoid bulk-sync deadlocks (**`modules/db_legacy.py`**).
+- **Workflow healing round-robin**: Folder ordering uses **`MAX(pt.last_touched_at)`** with **`GROUP BY`** (**`modules/workflow_healing.py`**).
+
+### Tests & ops
+
+- **Docker inference E2E**: **`tests/e2e_docker/test_inference_via_live_api.py`** reads **`jobs`** / **`runs`** from the recent-jobs payload.
+- **Samples & harness**: Additional public XMP sidecars under **`tests/fixtures/testing_samples/`**, synthetic sidecars, **`scripts/docker_inference_e2e.sh`** / **`docker-compose.yml`** / **`Dockerfile`** tweaks; removed ad-hoc GPU/WSL env check scripts and obsolete tests (**`tests/check_*.py`**, **`tests/bench_db_performance.py`**, **`tests/test_connectivity.py`**, **`tests/test_tagging.py`**).
+
 ## [7.13.0] - 2026-05-07
 
 ### Added

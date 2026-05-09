@@ -3261,10 +3261,10 @@ def create_api_router() -> APIRouter:
             result = [_normalize_jobs_table_row(dict(j)) for j in jobs]
             if history:
                 return _json_response_db(
-                    {"runs": result, "total": int(total or 0)},
+                    {"runs": result, "jobs": result, "total": int(total or 0)},
                     "GET /api/jobs/recent",
                 )
-            return _json_response_db(result, "GET /api/jobs/recent")
+            return _json_response_db({"runs": result, "jobs": result}, "GET /api/jobs/recent")
         except asyncio.TimeoutError:
             raise HTTPException(
                 status_code=504,

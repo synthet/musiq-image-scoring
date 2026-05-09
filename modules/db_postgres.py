@@ -477,74 +477,6 @@ def _init_db_transaction():
             """)
 
             # ------------------------------------------------------------------
-            # JOB_PHASES — persisted multi-step pipeline plans
-            # ------------------------------------------------------------------
-            cur.execute("""
-            CREATE TABLE IF NOT EXISTS job_phases (
-                id              SERIAL PRIMARY KEY,
-                job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-                phase_order     INTEGER NOT NULL,
-                phase_code      VARCHAR(50) NOT NULL,
-                state           VARCHAR(20) NOT NULL,
-                started_at      TIMESTAMP,
-                completed_at    TIMESTAMP,
-                error_message   TEXT
-            );
-            """)
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_job_phases_job_id ON job_phases(job_id);")
-            cur.execute("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS description TEXT;")
-            cur.execute("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS report_json JSONB;")
-
-            # job_phases counter columns
-            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_in_scope INTEGER DEFAULT 0;")
-            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_targeted INTEGER DEFAULT 0;")
-            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_processed INTEGER DEFAULT 0;")
-            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_skipped INTEGER DEFAULT 0;")
-            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_failed INTEGER DEFAULT 0;")
-
-            # ------------------------------------------------------------------
-            # JOB_STEPS — sub-phase telemetry
-            # ------------------------------------------------------------------
-            cur.execute("""
-            CREATE TABLE IF NOT EXISTS job_steps (
-                id              SERIAL PRIMARY KEY,
-                job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-                phase_code      VARCHAR(50) NOT NULL,
-                step_code       VARCHAR(50) NOT NULL,
-                step_name       VARCHAR(100) NOT NULL,
-                status          VARCHAR(20) DEFAULT 'pending',
-                started_at      TIMESTAMP,
-                completed_at    TIMESTAMP,
-                items_total     INTEGER DEFAULT 0,
-                items_done      INTEGER DEFAULT 0,
-                throughput_rps  DOUBLE PRECISION,
-                error_message   TEXT
-            );
-            """)
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_job_steps_job_id ON job_steps(job_id);")
-
-            # ------------------------------------------------------------------
-            # JOB_IMAGE_ACTIONS — per-image execution trail with before/after snapshots
-            # ------------------------------------------------------------------
-            cur.execute("""
-            CREATE TABLE IF NOT EXISTS job_image_actions (
-                id              SERIAL PRIMARY KEY,
-                job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-                image_id        INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
-                phase_code      VARCHAR(50) NOT NULL,
-                action          VARCHAR(30) NOT NULL,
-                reason          TEXT,
-                before_snapshot JSONB,
-                after_snapshot  JSONB,
-                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """)
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_job_id ON job_image_actions(job_id);")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_job_phase ON job_image_actions(job_id, phase_code);")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_image_id ON job_image_actions(image_id);")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_created_at ON job_image_actions(created_at);")
-
-            # ------------------------------------------------------------------
             # IMAGES  (full column set)
             # ------------------------------------------------------------------
             cur.execute("""
@@ -616,6 +548,75 @@ def _init_db_transaction():
             CREATE INDEX IF NOT EXISTS idx_images_embedding_hnsw
               ON images USING hnsw (image_embedding vector_cosine_ops);
             """)
+
+            # ------------------------------------------------------------------
+            # JOB_PHASES — persisted multi-step pipeline plans
+            # ------------------------------------------------------------------
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS job_phases (
+                id              SERIAL PRIMARY KEY,
+                job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+                phase_order     INTEGER NOT NULL,
+                phase_code      VARCHAR(50) NOT NULL,
+                state           VARCHAR(20) NOT NULL,
+                started_at      TIMESTAMP,
+                completed_at    TIMESTAMP,
+                error_message   TEXT
+            );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_job_phases_job_id ON job_phases(job_id);")
+            cur.execute("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS description TEXT;")
+            cur.execute("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS report_json JSONB;")
+
+            # job_phases counter columns
+            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_in_scope INTEGER DEFAULT 0;")
+            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_targeted INTEGER DEFAULT 0;")
+            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_processed INTEGER DEFAULT 0;")
+            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_skipped INTEGER DEFAULT 0;")
+            cur.execute("ALTER TABLE job_phases ADD COLUMN IF NOT EXISTS images_failed INTEGER DEFAULT 0;")
+
+            # ------------------------------------------------------------------
+            # JOB_STEPS — sub-phase telemetry
+            # ------------------------------------------------------------------
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS job_steps (
+                id              SERIAL PRIMARY KEY,
+                job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+                phase_code      VARCHAR(50) NOT NULL,
+                step_code       VARCHAR(50) NOT NULL,
+                step_name       VARCHAR(100) NOT NULL,
+                status          VARCHAR(20) DEFAULT 'pending',
+                started_at      TIMESTAMP,
+                completed_at    TIMESTAMP,
+                items_total     INTEGER DEFAULT 0,
+                items_done      INTEGER DEFAULT 0,
+                throughput_rps  DOUBLE PRECISION,
+                error_message   TEXT
+            );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_job_steps_job_id ON job_steps(job_id);")
+
+            # ------------------------------------------------------------------
+            # JOB_IMAGE_ACTIONS — per-image execution trail with before/after snapshots
+            # ------------------------------------------------------------------
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS job_image_actions (
+                id              SERIAL PRIMARY KEY,
+                job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+                image_id        INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                phase_code      VARCHAR(50) NOT NULL,
+                action          VARCHAR(30) NOT NULL,
+                reason          TEXT,
+                before_snapshot JSONB,
+                after_snapshot  JSONB,
+                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_job_id ON job_image_actions(job_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_job_phase ON job_image_actions(job_id, phase_code);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_image_id ON job_image_actions(image_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_created_at ON job_image_actions(created_at);")
+
 
             # ------------------------------------------------------------------
             # EMBEDDING_SPACES — registry of vector kinds (fixed dim per row)

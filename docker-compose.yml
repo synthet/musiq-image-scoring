@@ -102,6 +102,9 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - WEBUI_OPEN_UI=0
+    volumes:
+      - ./tests:/app/tests
+      - ./scripts:/app/scripts
     entrypoint: ["/bin/bash", "scripts/docker_inference_e2e.sh"]
     gpus: all
     deploy:

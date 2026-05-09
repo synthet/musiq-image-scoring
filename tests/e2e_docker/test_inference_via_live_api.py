@@ -61,7 +61,8 @@ def test_inference_via_live_api():
         while time.time() < deadline:
             r = client.get("/api/jobs/recent")
             assert r.status_code == 200
-            jobs = r.json().get("jobs", [])
+            resp_data = r.json()
+            jobs = resp_data.get("jobs", []) if isinstance(resp_data, dict) else resp_data
             job = next((j for j in jobs if j.get("id") == int(run_id)), None)
             
             if job:
@@ -71,10 +72,10 @@ def test_inference_via_live_api():
             
             time.sleep(5.0)
             
-        assert status == "completed", f"Job failed to complete in time. Last status: {status}"
+        assert status == "completed", f"Job failed. Last status: {status}, Job: {job}"
         
         # Assert scores were written by checking the database directly
-        images = db.execute_query("SELECT id, file_path, general_score, technical_score FROM images WHERE file_path LIKE ?", ('%testing_samples%',))
+        images = db.execute_readonly_sql_for_api("SELECT id, file_path, general_score, technical_score FROM images WHERE file_path LIKE ?", ['%testing_samples%'])
         
         assert len(images) > 0, "No images found in the database after processing"
         

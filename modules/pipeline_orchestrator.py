@@ -134,16 +134,18 @@ class PipelineOrchestrator:
 
         Without this, the next phase may read a stale cached summary (phase_agg_dirty
         not yet flipped, or flipped but cache still serving old JSON) and skip or
-        double-process images.
+        double-process images. Ancestors are refreshed too — ``set_image_phase_status``
+        marks the entire chain dirty, so refreshing only the leaf leaves ancestor
+        caches stuck (root cause of folder badges drifting from per-image truth).
         """
         try:
             db.invalidate_folder_phase_aggregates(folder_path=folder_path)
         except Exception as e:
             logger.debug("invalidate_folder_phase_aggregates failed for %s: %s", folder_path, e)
         try:
-            db.get_folder_phase_summary(folder_path, force_refresh=True)
+            db.refresh_folder_phase_aggregates_with_ancestors(folder_path=folder_path)
         except Exception as e:
-            logger.debug("get_folder_phase_summary refresh failed for %s: %s", folder_path, e)
+            logger.debug("refresh_folder_phase_aggregates_with_ancestors failed for %s: %s", folder_path, e)
 
     def _run_loop(self):
         tick_count = 0

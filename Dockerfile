@@ -55,8 +55,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Copy source code
 COPY . .
 
-# Ensure entrypoint script is executable
-RUN chmod +x scripts/docker_entrypoint.sh
+# Ensure entrypoint scripts are executable
+RUN chmod +x scripts/docker_entrypoint.sh scripts/docker_inference_e2e.sh
 
 # Expose WebUI port
 EXPOSE 7860

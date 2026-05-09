@@ -178,16 +178,17 @@ Then add `CHECK (status IN ('pending', 'queued', 'running', 'paused', 'user_paus
 | Column | Has CHECK today? | D2 status | Blocked by |
 |--------|------------------|-----------|------------|
 | `image_phase_status.status` | **Yes** (`ck_image_phase_status_status`, rev. 0014) | **Done** | — |
-| `jobs.status` | No | Pending CHECK | Spelling normalized in rev. 0015; CHECK migration outstanding |
+| `jobs.status` | **Yes** (`ck_jobs_status`, rev. 0020) | **Done** | — |
 | `job_phases.state` | No | Pending CHECK | Spelling normalized in rev. 0015; reconcile code-vs-data writer set before CHECK |
 | `job_steps.status` | No | Defer | No active writer |
 | `culling_sessions.status` | No | Defer | No active writer |
 
-**Realized D2 work so far (2026-04-25):**
+**Realized D2 work so far (2026-05-09):**
 - Alembic revision `0014_status_check_constraints.py` adds the `image_phase_status` CHECK; production rows verified non-violating (`done`/`skipped`/`not_started`/`running` only).
 - Alembic revision `0015_normalize_canceled_status.py` rewrites `jobs.status = 'canceled'` → `'cancelled'` (21 rows) and `job_phases.state = 'canceled'` → `'cancelled'` (17 rows). Idempotent; downgrade is a no-op.
+- Alembic revision `0020_jobs_status_check.py` adds the `jobs.status` CHECK pinning the §2 vocabulary. Idempotent (guarded by `pg_constraint` lookup); downgrade drops the constraint.
 
-**Remaining D2 work:** add the `jobs.status` CHECK (vocabulary in §2 above). For `job_phases.state`, audit the empirical-only values (`pending`, `interrupted`, `paused`, `skipped`) against current writers before finalizing the allowed set.
+**Remaining D2 work:** for `job_phases.state`, audit the empirical-only values (`pending`, `interrupted`, `paused`, `skipped`) against current writers before finalizing the allowed set.
 
 ---
 

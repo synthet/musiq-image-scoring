@@ -120,6 +120,16 @@ python -m pytest tests/test_phases.py -v  # specific file
 
 Tests live in `tests/`. Markers defined in `pytest.ini`:
 
+### E2E naming (tell an agent which suite you mean)
+
+| You say | Canonical name | Where | Notes |
+|---------|----------------|-------|--------|
+| Integration E2E, API E2E, “e2e unit” (ambiguous—prefer below) | **Postgres API E2E** | `tests/integration/*_e2e.py` | `pytest -m postgres` or `RUN_POSTGRES_TESTS=1`; FastAPI `TestClient`, fake runners; **not** Docker-only |
+| Docker E2E, inference E2E, GPU E2E in container | **Docker inference E2E** | `tests/e2e_docker/` | `IMAGE_SCORING_DOCKER_INFERENCE_E2E=1`; run via Compose profile `e2e-inference` (see `docker-compose.yml`) |
+| Unit tests (not E2E) | **Fast / unit subset** | most of `tests/` outside the above | e.g. `pytest -m "not gpu and not db and not ml and not firebird"` |
+
+Avoid saying **“e2e unit tests”** alone; use **Postgres API E2E** or **unit tests** explicitly. Full commands: **`AGENTS.md`** (section **Pytest E2E vocabulary**).
+
 | Marker | Meaning |
 |--------|---------|
 | `gpu` | Requires CUDA GPU |
@@ -129,6 +139,8 @@ Tests live in `tests/`. Markers defined in `pytest.ini`:
 | `network` | Requires outbound network |
 | `sample_data` | Requires local sample image files |
 | `firebird` | Requires Firebird client libraries |
+| `postgres` | Postgres-backed API/integration E2E (`tests/integration/*_e2e.py`) |
+| `inference_e2e` | Docker-backed live inference E2E (`tests/e2e_docker/`) |
 
 Skip hardware-dependent tests with: `python -m pytest -m "not gpu and not db and not ml and not firebird"`
 

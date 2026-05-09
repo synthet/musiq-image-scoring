@@ -183,7 +183,7 @@ def heal_phase_data(
     )
     grp_order = (
         " GROUP BY f.id, f.path "
-        "ORDER BY pt.last_touched_at NULLS FIRST, COUNT(*) DESC, f.path ASC"
+        "ORDER BY MAX(pt.last_touched_at) NULLS FIRST, COUNT(*) DESC, f.path ASC"
         if use_touch_rr
         else " GROUP BY f.path ORDER BY image_count DESC"
     )

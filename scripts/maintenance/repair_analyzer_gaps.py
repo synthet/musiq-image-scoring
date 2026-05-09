@@ -9,8 +9,10 @@ Repairs:
   --stuck-running   GAP-K: IPS rows stuck in running/queued -> failed (with message)
   --culling-ips     GAP-C: culling IPS=failed but has stack_id/embedding -> set done
   --folder-agg      GAP-F: recompute folders.phase_agg_json (SLOW — run separately)
+  --missing-rows    GAP-J: insert ``not_started`` IPS rows for images that have no
+                    row at all for required phases (partial-failure indexing cohort)
 
---all runs keywords + keywords-ips + index-meta + stuck-running + culling-ips (not folder-agg). Add --folder-agg to include cache rebuild.
+--all runs keywords + keywords-ips + index-meta + stuck-running + culling-ips (not folder-agg, not missing-rows). Add --folder-agg or --missing-rows to include those.
 
 Bird species (GAP-I) is NOT fixed here — re-run the Bird Species job from the UI/API.
 
@@ -49,6 +51,18 @@ def main() -> None:
     parser.add_argument('--stuck-running', action='store_true', help='Mark old running/queued IPS as failed')
     parser.add_argument('--culling-ips', action='store_true', help='Reset culling IPS=failed to done if data present')
     parser.add_argument('--folder-agg', action='store_true', help='Recompute folder phase aggregate cache')
+    parser.add_argument(
+        '--missing-rows',
+        action='store_true',
+        help='Insert not_started IPS rows for images with no row for required phases',
+    )
+    parser.add_argument(
+        '--missing-rows-folder',
+        type=str,
+        default=None,
+        metavar='PATH',
+        help='Restrict --missing-rows to images under this folder (and descendants)',
+    )
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Max images for keywords/index-meta')
     parser.add_argument('--stuck-hours', type=int, default=2, metavar='N', help='Age threshold for stuck IPS')
     parser.add_argument('--stuck-phase', type=str, default=None, metavar='CODE', help='Only this phase (e.g. culling)')
@@ -67,8 +81,9 @@ def main() -> None:
     run_stuck = args.stuck_running or args.all
     run_cull = args.culling_ips or args.all
     run_fa = args.folder_agg  # not implied by --all (too slow for typical runs)
+    run_mr = args.missing_rows  # not implied by --all (operator opts in)
 
-    if not (run_kw or run_kw_ips or run_im or run_stuck or run_cull or run_fa):
+    if not (run_kw or run_kw_ips or run_im or run_stuck or run_cull or run_fa or run_mr):
         parser.error('Specify --all or one of the repair flags')
 
     print('[repair] running init_db() (schema / pool; may take a moment)…', flush=True)
@@ -121,6 +136,22 @@ def main() -> None:
             )
             out = db.backfill_folder_phase_aggregates(limit=args.folder_agg_limit)
             print(f"[folder-agg] recomputed={out['recomputed']:,}  selected={out['total']:,}", flush=True)
+
+    if run_mr:
+        scope = args.missing_rows_folder or '<all folders>'
+        print(f'[repair] missing IPS rows backfill (scope={scope})…', flush=True)
+        r = db.backfill_missing_phase_rows(
+            folder_path=args.missing_rows_folder,
+            limit=args.limit,
+            dry_run=args.dry_run,
+        )
+        action = 'would_insert' if args.dry_run else 'inserted'
+        by_phase_str = ', '.join(f"{k}={v:,}" for k, v in (r.get('by_phase') or {}).items())
+        print(
+            f"[missing-rows] matched={r['matched']:,}  {action}={r['inserted']:,}  "
+            f"by_phase=[{by_phase_str}]  dry_run={args.dry_run}",
+            flush=True,
+        )
 
 
 if __name__ == '__main__':
