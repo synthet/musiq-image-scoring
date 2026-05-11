@@ -19,6 +19,23 @@ python scripts/doctor.py --json
 
 Implementation: [`scripts/doctor.py`](../scripts/doctor.py), [`modules/doctor_cli.py`](../modules/doctor_cli.py).
 
+## Watch a run (HTTP poll)
+
+With the **Web UI up** (same host/port as the React `/ui/runs/:id` page), poll `GET /api/jobs/{run_id}` until the job hits a terminal status:
+
+```bash
+source ~/.venvs/tf/bin/activate
+python scripts/watch_run_http.py 2365
+python scripts/watch_run_http.py 2365 --interval 5 --verbose
+python scripts/watch_run_http.py 2365 --once
+python scripts/watch_run_http.py 2365 --verbose --wsl-gateway   # Python in WSL, Web UI on Windows
+```
+
+When scripts run inside **WSL** but FastAPI listens on **Windows**, `127.0.0.1` points at Linux — use **`--wsl-gateway`** (reads `/etc/resolv.conf` nameserver, port from **`--port`**, default **7860**) or **`--base-url http://<windows-host>:7860`**.
+
+`--verbose` also calls `GET /api/runs/{id}/stages` so per-stage `items_done` / `items_total` appear when the API provides them.
+
+Implementation: [`scripts/watch_run_http.py`](../scripts/watch_run_http.py).
 ## Redacted debug bundle
 
 For support or bug reports, generate a **zip** with redacted config and doctor output (no secrets):

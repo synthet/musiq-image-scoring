@@ -15,6 +15,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.15.0] - 2026-05-10
+
+### Added
+
+- **`repair_zombie_score_rows`**: Clears bogus **`images.score = 0`** / legacy label placeholders where **`score_general`** is still **`NULL`** (partial-failure artifact; **`dry_run`** by default) (**`modules/db_legacy.py`**).
+- **`scripts/maintenance/repair_analyzer_gaps.py`**: **`--zombie-scores`** invokes the repair above (GAP-K; not implied by **`--all`**).
+- **`find_active_job_for_folder`**: Finds an existing **active** job (**`queued`**, **`running`**, **`paused`**, **`user_pause`**, **`restarting`**) targeting the same canonical folder path (Windows vs WSL forms collapse) — duplicate-submit guard helper for dispatch layers (**`modules/db_legacy.py`**).
+- **Phase status grid defaults**: **`get_batch_image_phase_statuses`** / **`get_image_phase_statuses`** include every enabled **`pipeline_phases.code`** per image, defaulting missing **`image_phase_status`** rows to **`not_started`** (**`modules/db_legacy.py`**).
+- **Tests**: **`tests/test_consistency_repair_helpers.py`** (mocked connector paths for ancillaries above); Firebird **`tests/test_db_core.py`** uses unique folder paths per case.
+- **Ops scripts**: **`scripts/debug/audit_runs_new_folders_today.py`**, **`scripts/watch_run_http.py`** (recent-runs poller).
+
+### Changed
+
+- **PostgreSQL schema note**: Comments that **`folders.image_count`** is unmaintained (readers use live **`COUNT`**) (**`modules/db_postgres.py`**).
+- **Static `/app` bundle**: Rebuilt hashed assets (**`static/app/index.html`**, JS chunks).
+- **Docs**: Diagnostics, API contract nits, pipeline terminology, run options matrix, Electron sync/phases reference (**`docs/technical/ELECTRON_SYNC_IMPORT_AND_PHASES.md`**).
+
+### Removed
+
+- Obsolete **`scripts/archive/debug/`** helpers and **`scripts/debug/debug_firebird.py`**; scratch artifacts under **`artifacts/brain/`** / **`brain/`**; vendored TF Hub descriptor text files under **`models/tfhub_cache/`**; root **`mcp_config.json`** (prefer **`.cursor/mcp.json`** / user-level MCP settings).
+
 ## [7.14.0] - 2026-05-09
 
 ### Added

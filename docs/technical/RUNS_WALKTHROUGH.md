@@ -54,6 +54,8 @@ sequenceDiagram
    - Creates **`job_phases`** for the selected pipeline.
 3. Response includes **`run_id`** (the `jobs.id`) and **`queue_position`** (approximate place in the queue).
 
+**Execution options:** the modal’s four choices (Process NEW, Process ALL, Fix incomplete, Validation-repair) map to canonical **`run_mode`** values and dispatcher flags. Matrix, per-phase behavior, audit notes, and known gaps: **[RUN_OPTIONS_MODE_MATRIX.md](RUN_OPTIONS_MODE_MATRIX.md)**.
+
 Nothing runs until the dispatcher dequeues that row.
 
 ---

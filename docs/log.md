@@ -6,6 +6,26 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-05-10] updated | Electron sync import and pipeline phase semantics
+
+Reflected gallery v7.7 bundle (G1/G5/G6) and backend G7 in [technical/ELECTRON_SYNC_IMPORT_AND_PHASES.md](technical/ELECTRON_SYNC_IMPORT_AND_PHASES.md): post-import pipeline scheduling now pre-seeds **`image_phase_status`** rows in the API-success branch (G5); `db.get_image_phase_statuses` LEFT JOINs from `pipeline_phases` so all enabled phases are always returned with `not_started` defaults (G7); gallery sidebar reads real IPS via `getImagePhaseStatuses` (G6). New **Known issues** section captures three independent bugs observed during run 2365 end-to-end monitoring on 2026-05-10: scoring runner short-circuit (`images_in_scope=0` with explicit ids), culling runner same pattern (likely cascades from scoring), and `job_phases` counter flush only at phase finalize (Runs UI shows `0 / 0` during active phases).
+
+## [2026-05-10] updated | watch_run_http CLI
+
+`scripts/watch_run_http.py`: handle `GET /api/runs/*/stages` JSON **array** in `--verbose`; line-buffer **`flush=True`**; **`--base-url`** / **`--port`** restored; **`--wsl-gateway`** for WSL→Windows Web UI; [DIAGNOSTICS.md](DIAGNOSTICS.md) examples updated.
+
+## [2026-05-10] created | watch_run_http CLI
+
+Added [`scripts/watch_run_http.py`](../scripts/watch_run_http.py) — stdlib HTTP poll of `GET /api/jobs/{run_id}` until terminal status; optional `--verbose` merges `GET /api/runs/{id}/stages`. Documented under [DIAGNOSTICS.md](DIAGNOSTICS.md) § Watch a run.
+
+## [2026-05-10] created | Electron sync import and pipeline phase semantics
+
+Added [technical/ELECTRON_SYNC_IMPORT_AND_PHASES.md](technical/ELECTRON_SYNC_IMPORT_AND_PHASES.md) — maps gallery **Sync from device** to Postgres **`image_phase_status`**, **`jobs`**, and product stage names; clarifies **`indexing`** (Discovery) vs later phases; notes Image Inspector vs gallery heuristics; indexed from [technical/INDEX.md](technical/INDEX.md). Companion (gallery): [06-sync-from-device-workflow.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/features/implemented/06-sync-from-device-workflow.md).
+
+## [2026-05-07] created | Run options mode matrix + audit findings
+
+Added [technical/RUN_OPTIONS_MODE_MATRIX.md](technical/RUN_OPTIONS_MODE_MATRIX.md) — four **New Run** (ScopeSelector) options vs canonical `run_mode`, flag matrix, dispatcher→runner wiring, orchestrator scope, deliberate gaps (culling queues, bird_species overwrite), Runs **Heal** tools pinned to `validate_and_repair`, and **2026-05-07 audit** (validation-repair `run_mode` fix in `modules/api.py`). Indexed from [technical/INDEX.md](technical/INDEX.md), [INDEX.md](INDEX.md), [CANONICAL_SOURCES.md](CANONICAL_SOURCES.md), [technical/RUNS_WALKTHROUGH.md](technical/RUNS_WALKTHROUGH.md), [technical/PIPELINE_TERMINOLOGY.md](technical/PIPELINE_TERMINOLOGY.md), [technical/API_CONTRACT.md](technical/API_CONTRACT.md).
+
 ## [2026-04-25] ingested | AI agent infrastructure (doctor + bundles + hub docs)
 
 Cross-referenced infrastructure work from the agent run summarized in `cursor_ai_coding_agent_infrastructure`: linked hub pages in [INDEX.md](INDEX.md) (new **Infra and diagnostics** section), [CANONICAL_SOURCES.md](CANONICAL_SOURCES.md) (diagnostics row), [WIKI_SCHEMA.md](WIKI_SCHEMA.md) (repo-root hub pages), [README.md](README.md) (INFRA_QUICKSTART bullet). Hub pages: [DEVELOPMENT.md](DEVELOPMENT.md), [TESTING.md](TESTING.md), [TROUBLESHOOTING.md](TROUBLESHOOTING.md), [DIAGNOSTICS.md](DIAGNOSTICS.md), [DATABASE.md](DATABASE.md), [ARCHITECTURE.md](ARCHITECTURE.md), [IMAGE_PIPELINE.md](IMAGE_PIPELINE.md), [EXPORT_PIPELINE.md](EXPORT_PIPELINE.md), [EMBEDDINGS.md](EMBEDDINGS.md); code: `scripts/doctor.py`, `scripts/export_debug_bundle.py`, `modules/doctor_cli.py`, `modules/debug_bundle_export.py`; [.agent/INFRA_QUICKSTART.md](../.agent/INFRA_QUICKSTART.md).

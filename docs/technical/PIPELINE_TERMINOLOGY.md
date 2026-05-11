@@ -41,6 +41,8 @@ These are **not** the same as stage titles; UIs should map them when showing not
 
 ## Related docs
 
+- [ELECTRON_SYNC_IMPORT_AND_PHASES.md](ELECTRON_SYNC_IMPORT_AND_PHASES.md) — After **image-scoring-gallery** “Sync from device”: IPS rows, `jobs`, and common confusion between **`indexing`** (Discovery) vs **Inspection** / downstream phases
+- [RUN_OPTIONS_MODE_MATRIX.md](RUN_OPTIONS_MODE_MATRIX.md) — New Run execution options vs `run_mode` / dispatcher (supplements stage naming above)
 - [PIPELINE_ARCHITECTURE.md](PIPELINE_ARCHITECTURE.md) — sequence and orchestrator
 - [GRADIO_UI_UX_SPEC_FOR_ELECTRON_MIGRATION.md](GRADIO_UI_UX_SPEC_FOR_ELECTRON_MIGRATION.md) — Gradio UX mirror for Electron
 - [API_CONTRACT.md](API_CONTRACT.md) — REST overview

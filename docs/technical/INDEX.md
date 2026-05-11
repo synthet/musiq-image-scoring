@@ -70,6 +70,7 @@ High-level overviews and diagrams live under [`../architecture/`](../architectur
 | [API_CONTRACT.md](API_CONTRACT.md) | API contract summary (endpoints, response models) |
 | [RUNS_QUEUE_AND_RESTART.md](RUNS_QUEUE_AND_RESTART.md) | `jobs` queue persistence, `JobDispatcher`, and behavior on WebUI restart |
 | [RUNS_WALKTHROUGH.md](RUNS_WALKTHROUGH.md) | End-to-end walkthrough: submit → dispatcher → runners, pause/resume/retry/force, UI tabs |
+| [RUN_OPTIONS_MODE_MATRIX.md](RUN_OPTIONS_MODE_MATRIX.md) | New Run four options vs `run_mode`, dispatcher wiring, audit findings (2026-05-07), known gaps |
 | [MCP_DEBUGGING_TOOLS.md](MCP_DEBUGGING_TOOLS.md) | MCP server tools for Cursor |
 
 ## Cross-project (image-scoring-gallery)
@@ -77,6 +78,7 @@ High-level overviews and diagrams live under [`../architecture/`](../architectur
 | Document / topic | Description |
 |------------------|-------------|
 | [AGENT_COORDINATION.md](AGENT_COORDINATION.md) | Integration protocols with **image-scoring-gallery** ([canonical on GitHub](https://github.com/synthet/image-scoring-backend/blob/main/docs/technical/AGENT_COORDINATION.md)) |
+| [ELECTRON_SYNC_IMPORT_AND_PHASES.md](ELECTRON_SYNC_IMPORT_AND_PHASES.md) | After **Sync from device**: `image_phase_status`, `jobs`, `indexing` vs Inspection, links to gallery workflow doc |
 | [CROSS_APP_INTEGRATION_AUDIT.md](../testing/CROSS_APP_INTEGRATION_AUDIT.md) | Automated integration coverage between backend and gallery |
 
 **See also:** [Main docs index](../INDEX.md) · [reference/models/](../reference/models/INDEX.md) · [reference/api/](../reference/api/INDEX.md) · [planning/](../planning/INDEX.md) · [image-scoring-gallery docs](https://github.com/synthet/image-scoring-gallery/blob/main/docs/README.md)

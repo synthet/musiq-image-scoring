@@ -4138,6 +4138,57 @@ def backfill_index_meta_for_folder(folder_path: str) -> int:
 _DEFAULT_REQUIRED_PHASES_FOR_BACKFILL = ("indexing", "metadata", "scoring", "keywords", "culling")
 
 
+def repair_zombie_score_rows(dry_run=True):
+    """Clear bogus ``score = 0`` rows produced by partial-failure scoring runs.
+
+    Cohort definition: ``images.score = 0`` while ``images.score_general IS NULL``
+    — i.e. the composite score is a hard zero without any model score backing it.
+    These rows arise from an old code path that pre-wrote default values before
+    scoring completed, then crashed; the audit on 2026-05-09 found 203 such
+    rows clustered in five folders (Issue A3).
+
+    Fix: set ``score = NULL`` and ``label = NULL`` so the next scoring pass can
+    replace the placeholders. ``rating`` is intentionally left alone because
+    ``rating = 0`` is a legal operator-set value; only the score-side defaults
+    are unambiguously wrong.
+
+    Idempotent: re-running after the first pass touches 0 rows.
+
+    Args:
+        dry_run: When ``True`` (default) only counts; no writes.
+
+    Returns:
+        ``{"matched": int, "cleared": int, "dry_run": bool}``
+    """
+    rows = get_connector().query(
+        """
+        SELECT id FROM images
+        WHERE score = 0 AND score_general IS NULL
+        """
+    )
+    ids = [int(r["id"]) for r in rows]
+
+    if dry_run:
+        return {"matched": len(ids), "cleared": 0, "dry_run": True}
+
+    if not ids:
+        return {"matched": 0, "cleared": 0, "dry_run": False}
+
+    placeholders = ",".join(["?"] * len(ids))
+    affected = get_connector().execute(
+        f"""
+        UPDATE images
+        SET score = NULL,
+            label = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id IN ({placeholders})
+          AND score = 0 AND score_general IS NULL
+        """,
+        tuple(ids),
+    )
+    return {"matched": len(ids), "cleared": int(affected or 0), "dry_run": False}
+
+
 def backfill_missing_phase_rows(
     folder_path=None,
     phase_codes=None,
@@ -5155,6 +5206,60 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
                 "update_job_status: post-run data quality audit failed for job %s",
                 job_id,
             )
+
+
+_ACTIVE_JOB_STATUSES = ("queued", "running", "paused", "user_pause", "restarting")
+
+
+def find_active_job_for_folder(input_path, job_type=None):
+    """Return the id of an existing active job targeting the same logical folder.
+
+    "Same logical folder" means the canonicalized (WSL) form matches: a Windows
+    submission ``D:\\Photos\\Z8\\2026-05-09`` and a WSL submission
+    ``/mnt/d/Photos/Z8/2026-05-09`` collapse to the same key. This is the
+    duplicate-job hazard the audit on 2026-05-09 surfaced (jobs 2351 vs 2352).
+
+    "Active" means ``status IN (queued, running, paused, user_pause, restarting)``.
+    Terminal jobs (completed/failed/cancelled/interrupted/skipped) are ignored —
+    re-running a folder after a terminal job is a legitimate operation.
+
+    Args:
+        input_path: Path the new submission would use (Windows or WSL form).
+        job_type: Optional ``jobs.job_type`` filter (e.g. ``"indexing"``,
+            ``"scoring"``). When ``None`` matches any type.
+
+    Returns:
+        Existing job id (int) or ``None`` if no active duplicate exists.
+    """
+    from modules import utils
+
+    if not input_path:
+        return None
+
+    canonical = utils.convert_path_to_wsl(input_path) if hasattr(utils, "convert_path_to_wsl") else input_path
+    canonical = canonical or input_path
+
+    placeholders = ",".join(["?"] * len(_ACTIVE_JOB_STATUSES))
+    sql = (
+        "SELECT id, input_path FROM jobs "
+        f"WHERE status IN ({placeholders})"
+    )
+    params: list = list(_ACTIVE_JOB_STATUSES)
+    if job_type:
+        sql += " AND job_type = ?"
+        params.append(job_type)
+
+    rows = get_connector().query(sql, tuple(params)) or []
+    for r in rows:
+        existing_path = r.get("input_path") if isinstance(r, dict) else None
+        if not existing_path:
+            continue
+        existing_canonical = utils.convert_path_to_wsl(existing_path) \
+            if hasattr(utils, "convert_path_to_wsl") else existing_path
+        existing_canonical = existing_canonical or existing_path
+        if existing_canonical == canonical:
+            return int(r["id"])
+    return None
 
 
 def enqueue_job(input_path, phase_code=None, job_type=None, queue_payload=None, description=None):
@@ -11486,16 +11591,44 @@ def set_image_phase_status(image_id, phase_code, status,
     # (see _tx above), so we no longer need a post-commit call here.
 
 
+def _default_phase_status_entry():
+    return {
+        "status": "not_started",
+        "executor_version": None,
+        "app_version": None,
+        "updated_at": None,
+        "attempt_count": 0,
+        "last_error": None,
+        "skip_reason": None,
+        "skipped_by": None,
+    }
+
+
+def _list_pipeline_phase_codes_ordered():
+    """Return enabled `pipeline_phases.code` values in `sort_order`. Caller-side
+    fallback fills missing image_phase_status rows with `not_started`."""
+    rows = get_connector().query(
+        "SELECT code FROM pipeline_phases WHERE COALESCE(enabled, 1) = 1 ORDER BY sort_order"
+    )
+    return [(r["code"] or "").strip() for r in rows if (r["code"] or "").strip()]
+
+
 def get_batch_image_phase_statuses(image_ids):
     """
     Return phase statuses for multiple images.
+
+    Every requested image_id appears in the result, and every enabled phase code
+    appears for each image — phases with no `image_phase_status` row default to
+    ``status="not_started"``. This lets clients render the full pipeline without
+    needing to know which phases the backend has touched yet.
 
     Returns:
         dict: {image_id: {phase_code: {status, updated_at, ...}}}
     """
     if not image_ids:
         return {}
-    
+
+    phase_codes = _list_pipeline_phase_codes_ordered()
     placeholders = ','.join(['?'] * len(image_ids))
     rows = get_connector().query(
         "SELECT ips.image_id, pp.code, ips.status, ips.executor_version, ips.app_version, "
@@ -11505,14 +11638,14 @@ def get_batch_image_phase_statuses(image_ids):
         f"WHERE ips.image_id IN ({placeholders}) ORDER BY ips.image_id, pp.sort_order",
         tuple(image_ids)
     )
-    
-    result = {}
+
+    result = {int(img_id): {code: _default_phase_status_entry() for code in phase_codes}
+              for img_id in image_ids}
     for r in rows:
-        img_id = r["image_id"]
-        if img_id not in result:
-            result[img_id] = {}
-            
+        img_id = int(r["image_id"])
         code = (r["code"] or "").strip()
+        if img_id not in result or not code:
+            continue
         result[img_id][code] = {
             "status": (r["status"] or "not_started").strip(),
             "executor_version": r["executor_version"],
@@ -11528,7 +11661,10 @@ def get_batch_image_phase_statuses(image_ids):
 
 def get_image_phase_statuses(image_id):
     """
-    Return phase statuses for one image.
+    Return phase statuses for one image, including defaults for phases with no
+    `image_phase_status` row. Every enabled `pipeline_phases.code` value is in
+    the result so clients can render the full pipeline regardless of how far
+    the backend has progressed.
 
     Returns:
         dict: {phase_code: {status, executor_version, app_version, updated_at, attempt_count, last_error}}
@@ -11536,14 +11672,17 @@ def get_image_phase_statuses(image_id):
     rows = get_connector().query(
         "SELECT pp.code, ips.status, ips.executor_version, ips.app_version, "
         "       ips.updated_at, ips.attempt_count, ips.last_error, ips.skip_reason, ips.skipped_by "
-        "FROM image_phase_status ips "
-        "JOIN pipeline_phases pp ON pp.id = ips.phase_id "
-        "WHERE ips.image_id = ? ORDER BY pp.sort_order",
+        "FROM pipeline_phases pp "
+        "LEFT JOIN image_phase_status ips ON ips.phase_id = pp.id AND ips.image_id = ? "
+        "WHERE COALESCE(pp.enabled, 1) = 1 "
+        "ORDER BY pp.sort_order",
         (image_id,)
     )
     result = {}
     for r in rows:
         code = (r["code"] or "").strip()
+        if not code:
+            continue
         result[code] = {
             "status": (r["status"] or "not_started").strip(),
             "executor_version": r["executor_version"],

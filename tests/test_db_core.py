@@ -185,9 +185,10 @@ def test_dequeue_next_job_returns_job_or_none(test_db):
 # ---------------------------------------------------------------------------
 
 def test_set_image_phase_status_inserts_row(test_db):
-    folder_id = db.get_or_create_folder("/test/phase_status")
-    image_id = db.register_image_for_import(
-        "/test/phase_status/phase_img.jpg", "phase_img.jpg", "jpg", folder_id
+    suffix = uuid.uuid4().hex[:12]
+    folder_id = db.get_or_create_folder(f"/test/phase_status_{suffix}")
+    image_id, _ = db.register_image_for_import(
+        f"/test/phase_status_{suffix}/phase_img.jpg", "phase_img.jpg", "jpg", folder_id
     )
     # Should not raise
     db.set_image_phase_status(image_id, "scoring", "done")
@@ -197,9 +198,10 @@ def test_set_image_phase_status_inserts_row(test_db):
 
 
 def test_set_image_phase_status_upserts_on_second_call(test_db):
-    folder_id = db.get_or_create_folder("/test/phase_upsert")
-    image_id = db.register_image_for_import(
-        "/test/phase_upsert/upsert_img.jpg", "upsert_img.jpg", "jpg", folder_id
+    suffix = uuid.uuid4().hex[:12]
+    folder_id = db.get_or_create_folder(f"/test/phase_upsert_{suffix}")
+    image_id, _ = db.register_image_for_import(
+        f"/test/phase_upsert_{suffix}/upsert_img.jpg", "upsert_img.jpg", "jpg", folder_id
     )
     db.set_image_phase_status(image_id, "scoring", "running")
     db.set_image_phase_status(image_id, "scoring", "done")

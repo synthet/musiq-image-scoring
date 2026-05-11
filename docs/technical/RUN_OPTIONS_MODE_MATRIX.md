@@ -2,6 +2,21 @@
 
 The **New Run** modal ([`frontend/src/components/scope/ScopeSelector.tsx`](../../frontend/src/components/scope/ScopeSelector.tsx)) exposes four options. They map to [`POST /api/runs/submit`](../../modules/api.py) fields, then to a canonical **`run_mode`** ([`modules/run_modes.py`](../../modules/run_modes.py)) and queue payload flags.
 
+## Audit findings (logged 2026-05-07)
+
+These items were verified against [`modules/job_dispatcher.py`](../../modules/job_dispatcher.py), [`modules/run_modes.py`](../../modules/run_modes.py), [`modules/workflow_healing.py`](../../modules/workflow_healing.py), and the React Runs UI.
+
+| Finding | Severity | Resolution / notes |
+|---------|----------|---------------------|
+| **Validation-repair vs `run_mode`** | Correctness | With `validation_repair_mode=True`, the request validator previously returned early and left **`run_mode`** at its default **`process_unprocessed_or_empty`**. Submit still set `payload["skip_existing"]=False`, but **`JobDispatcher._run_mode_flags`** recomputes flags from **`run_mode`** (+ booleans) and ignored that lone override—so indexing/metadata/scoring could still behave like “skip done” internally. **`RunSubmitRequest`** now forces **`run_mode="validate_and_repair"`** when `validation_repair_mode` is true ([`modules/api.py`](../../modules/api.py)). |
+| **Dispatcher vs payload `skip_existing`** | Design | Runners are driven by flags derived from canonical `run_mode`, not by mutating `queue_payload` in isolation. Any future mode must keep **`run_mode`** and payload booleans aligned. |
+| **Culling + repair queues** | Gap | `resolved_image_ids` / per-stage queues are **not** applied to **`SelectionRunner`** (culling); dispatch logs this. Full-folder culling runs even when a repair plan targeted a subset. |
+| **Bird species + overwrite** | Gap | Bird-species dispatch uses **`payload.get("overwrite", False)`** only; global **`process_all_overwrite`** does not automatically set that field on the payload today. |
+| **Runs → Tools “Heal”** | UX / safety | Workflow heal ([`POST /api/maintenance/heal/{phase_code}`](../../modules/api.py)) should only spawn jobs with **`validate_and_repair`** (`fix_incomplete_stages` semantics). The Runs **Tools** tab no longer exposes other execution modes; it always sends `validate_and_repair` ([`frontend/src/components/runs/RunsToolsTab.tsx`](../../frontend/src/components/runs/RunsToolsTab.tsx)). |
+| **Tests** | Coverage | [`tests/integration/test_runs_submit_modes_e2e.py`](../../tests/integration/test_runs_submit_modes_e2e.py) (`pytest -m postgres`) asserts queue payload and scoring `skip_existing` for all four SPA-shaped modes. |
+
+**Related walkthrough:** [RUNS_WALKTHROUGH.md](RUNS_WALKTHROUGH.md) §3.
+
 ## 1. Canonical `run_mode` and flag matrix
 
 | UI option | `skip_done`¹ | `force_rerun`¹ | `fix_incomplete_stages`¹ | `validation_repair_mode` | Canonical **`run_mode`** | `skip_done`² | `skip_existing`² | `force_rerun`² | `fix_incomplete_stages`² | `overwrite`² | `force_rescan`² |
@@ -59,7 +74,7 @@ The queue-based **`job_phases`** flow advances phases after each runner complete
 ## 5. Related files
 
 - UI: [`frontend/src/components/scope/ScopeSelector.tsx`](../../frontend/src/components/scope/ScopeSelector.tsx) — `RUN_OPTION_COPY_BY_MODE`, `submit()`.
-- API: [`modules/api.py`](../../modules/api.py) — `RunSubmitRequest`, `submit_run`.
+- API: [`modules/api.py`](../../modules/api.py) — `RunSubmitRequest`, `submit_run` (normalization of `validation_repair_mode` → `run_mode`).
 - Flags: [`modules/run_modes.py`](../../modules/run_modes.py).
 - Dispatch: [`modules/job_dispatcher.py`](../../modules/job_dispatcher.py).
 - Integration coverage: [`tests/integration/test_runs_submit_modes_e2e.py`](../../tests/integration/test_runs_submit_modes_e2e.py).

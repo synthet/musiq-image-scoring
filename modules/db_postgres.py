@@ -411,6 +411,10 @@ def _init_db_transaction():
                 phase_agg_dirty     INTEGER DEFAULT 1,
                 phase_agg_updated_at TIMESTAMP,
                 phase_agg_json      TEXT,
+                -- DEPRECATED: image_count is unmaintained (no backend writer).
+                -- Every backend reader uses ``COUNT(i.id) ... JOIN images i ON i.folder_id = f.id``;
+                -- the column is retained only until the Electron consumer is audited
+                -- (see audit Issue B3 / Fix 3 in the v7.14 consistency plan).
                 image_count         INTEGER DEFAULT 0,
                 created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
