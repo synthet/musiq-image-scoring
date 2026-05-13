@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-05-13] updated | RCA correction in ELECTRON_SYNC_IMPORT_AND_PHASES.md
+
+Corrected the **Known issues** section after a deeper repro. The original "scoring runner short-circuits when given explicit image_ids" diagnosis was wrong — the webui runs in WSL where `/mnt/d/...` paths resolve, so `scoring.py:256`'s `os.path.exists(fp)` is not the bug. Replicating with a single-stage scoring submit (job 2374, `skip_existing=false`, same 733 ids) succeeded fully — 38 min runtime, all 733 scored. The actual bug only manifests for **scoring run as a middle stage of a multi-stage WorkflowRun with `skip_existing=true`** (run 2365 path). `jobs.log` is NULL for 2365 so root cause is not yet pinned; updated [#156](https://github.com/synthet/image-scoring-backend/issues/156). Also clarified [#157](https://github.com/synthet/image-scoring-backend/issues/157): the "culling short-circuit" was downstream of #156 (no scores → nothing to cluster); separately, `SelectionRunner.start_batch` documents in code that it ignores `resolved_image_ids`, and interrupted selection jobs leave IPS rows stuck in `running` with no auto-reconciliation.
+
 ## [2026-05-10] updated | Electron sync import and pipeline phase semantics
 
 Reflected gallery v7.7 bundle (G1/G5/G6) and backend G7 in [technical/ELECTRON_SYNC_IMPORT_AND_PHASES.md](technical/ELECTRON_SYNC_IMPORT_AND_PHASES.md): post-import pipeline scheduling now pre-seeds **`image_phase_status`** rows in the API-success branch (G5); `db.get_image_phase_statuses` LEFT JOINs from `pipeline_phases` so all enabled phases are always returned with `not_started` defaults (G7); gallery sidebar reads real IPS via `getImagePhaseStatuses` (G6). New **Known issues** section captures three independent bugs observed during run 2365 end-to-end monitoring on 2026-05-10: scoring runner short-circuit (`images_in_scope=0` with explicit ids), culling runner same pattern (likely cascades from scoring), and `job_phases` counter flush only at phase finalize (Runs UI shows `0 / 0` during active phases).

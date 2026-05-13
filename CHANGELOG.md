@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.15.1] - 2026-05-13
+
+### Changed
+
+- **Electron sync import RCA**: Corrected the known-issues diagnosis for multi-stage WorkflowRun scoring with `skip_existing=true`, and clarified that the culling symptom was downstream of the scoring gap (`docs/technical/ELECTRON_SYNC_IMPORT_AND_PHASES.md`, `docs/log.md`).
+- **Static `/app` bundle**: Refreshed hashed React bundle references and assets (`static/app/index.html`, `static/app/assets/`).
+
 ## [7.15.0] - 2026-05-10
 
 ### Added
