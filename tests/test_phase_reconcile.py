@@ -132,3 +132,60 @@ def test_count_reconcilable_terminal_job_phases(monkeypatch):
 
     monkeypatch.setattr("modules.db.get_connector", lambda: FakeConn())
     assert db.count_reconcilable_terminal_job_phases() == 42
+
+
+# --- Issue #157: orphan-interrupted sweep ---------------------------------
+
+
+def test_reconcile_orphan_interrupted_no_candidates(monkeypatch):
+    """When no interrupted jobs have stuck running IPS rows, sweep is a no-op."""
+    class FakeConn:
+        def query(self, sql, params=None):
+            return []
+
+    monkeypatch.setattr("modules.db.get_connector", lambda: FakeConn())
+    called = []
+    monkeypatch.setattr(
+        "modules.db.reconcile_stale_running_phases_for_jobs",
+        lambda *a, **kw: called.append((a, kw)) or 0,
+    )
+
+    result = db.reconcile_orphan_interrupted_job_phases()
+    assert result == {"swept_job_ids": [], "reconciled_rows": 0}
+    assert called == []  # reconcile not invoked when nothing to do
+
+
+def test_reconcile_orphan_interrupted_sweeps_jobs(monkeypatch):
+    """Interrupted jobs with stuck running IPS rows are reconciled to not_started."""
+    class FakeConn:
+        def query(self, sql, params=None):
+            assert "status = 'interrupted'" in sql
+            assert "ips.status = 'running'" in sql
+            return [{"job_id": 2371}, {"job_id": 2369}]
+
+    captured = {}
+    def fake_reconcile(job_ids, error_message=None, in_flight_to="failed"):
+        captured["job_ids"] = list(job_ids)
+        captured["error_message"] = error_message
+        captured["in_flight_to"] = in_flight_to
+        return 733
+
+    monkeypatch.setattr("modules.db.get_connector", lambda: FakeConn())
+    monkeypatch.setattr("modules.db.reconcile_stale_running_phases_for_jobs", fake_reconcile)
+
+    result = db.reconcile_orphan_interrupted_job_phases()
+    assert result == {"swept_job_ids": [2371, 2369], "reconciled_rows": 733}
+    assert captured["job_ids"] == [2371, 2369]
+    assert captured["in_flight_to"] == "not_started"
+    assert "orphan_interrupted_sweep" in (captured["error_message"] or "")
+
+
+def test_reconcile_orphan_interrupted_swallows_scan_failure(monkeypatch):
+    """Best-effort: a scan failure does not propagate; an empty result is returned."""
+    class FakeConn:
+        def query(self, sql, params=None):
+            raise RuntimeError("simulated outage")
+
+    monkeypatch.setattr("modules.db.get_connector", lambda: FakeConn())
+    result = db.reconcile_orphan_interrupted_job_phases()
+    assert result == {"swept_job_ids": [], "reconciled_rows": 0}

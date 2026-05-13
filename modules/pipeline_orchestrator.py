@@ -432,6 +432,14 @@ class PipelineOrchestrator:
 
         with self._lock:
             recovered_job_ids = db.recover_running_jobs(mark_as="interrupted")
+            # Sweep IPS rows still 'running' under jobs that were already
+            # 'interrupted' before this startup (e.g. crash between status
+            # flip and reconcile in update_job_status). See issue #157.
+            try:
+                orphan_summary = db.reconcile_orphan_interrupted_job_phases()
+            except Exception:
+                logger.exception("recover_interrupted_jobs: orphan interrupted IPS sweep failed")
+                orphan_summary = {"swept_job_ids": [], "reconciled_rows": 0}
             interrupted = db.get_interrupted_jobs(job_type="pipeline", limit=1)
 
             auto_resumed = False
@@ -446,6 +454,7 @@ class PipelineOrchestrator:
 
             info = {
                 "recovered_running_jobs": recovered_job_ids,
+                "orphan_interrupted_sweep": orphan_summary,
                 "interrupted_pipeline_jobs": [j.get("id") for j in interrupted],
                 "auto_resume_enabled": self._resume_policy,
                 "auto_resumed": auto_resumed,

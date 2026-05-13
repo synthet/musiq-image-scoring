@@ -6841,6 +6841,61 @@ def reconcile_stale_running_phases_for_jobs(job_ids, error_message=None, in_flig
     return rc
 
 
+def reconcile_orphan_interrupted_job_phases(limit_jobs: int = 200) -> dict:
+    """Sweep ``status='interrupted'`` jobs that still have stale ``running`` IPS rows.
+
+    Closes a recovery gap: ``update_job_status(..., 'interrupted')`` already runs
+    ``reconcile_stale_running_phases_for_jobs`` synchronously, but a crash between
+    the status flip and the reconcile call can leave IPS rows stuck. ``recover_running_jobs``
+    on startup only scans ``status='running'`` jobs, so previously-interrupted jobs are not
+    re-swept. This helper finds interrupted jobs whose IPS rows are still ``running`` and
+    transitions them to ``not_started`` (resumable, matches the live-reconcile semantics).
+
+    Returns a dict with ``swept_job_ids`` and ``reconciled_rows`` for telemetry.
+    Best-effort: any failure is logged and an empty result is returned.
+    """
+    try:
+        limit = max(1, int(limit_jobs))
+    except (TypeError, ValueError):
+        limit = 200
+    try:
+        rows = get_connector().query(
+            """
+            SELECT DISTINCT j.id AS job_id
+            FROM jobs j
+            JOIN image_phase_status ips ON ips.job_id = j.id
+            WHERE j.status = 'interrupted' AND ips.status = 'running'
+            ORDER BY j.id DESC
+            FETCH FIRST ? ROWS ONLY
+            """,
+            (limit,),
+        )
+    except Exception:
+        logger.exception("reconcile_orphan_interrupted_job_phases: scan failed")
+        return {"swept_job_ids": [], "reconciled_rows": 0}
+
+    job_ids = [int(r["job_id"]) for r in rows if r and r.get("job_id") is not None]
+    if not job_ids:
+        return {"swept_job_ids": [], "reconciled_rows": 0}
+
+    try:
+        n = reconcile_stale_running_phases_for_jobs(
+            job_ids,
+            error_message=f"{STALE_RUNNING_RECONCILED_MSG}:orphan_interrupted_sweep",
+            in_flight_to="not_started",
+        )
+    except Exception:
+        logger.exception("reconcile_orphan_interrupted_job_phases: reconcile failed for jobs=%s", job_ids)
+        return {"swept_job_ids": job_ids, "reconciled_rows": 0}
+
+    if n:
+        logger.info(
+            "reconcile_orphan_interrupted_job_phases: swept %s IPS rows across %s interrupted job(s): %s",
+            n, len(job_ids), job_ids,
+        )
+    return {"swept_job_ids": job_ids, "reconciled_rows": int(n or 0)}
+
+
 def reconcile_duplicate_running_job_phases(job_id=None, limit_jobs=500):
     """
     Fix ``job_phases`` rows where more than one phase is ``running`` for the same job

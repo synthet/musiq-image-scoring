@@ -270,10 +270,27 @@ class JobDispatcher:
         queue_key = phase_alias.get(phase_key, phase_key)
         stage_queues = payload.get("resolved_image_ids_by_stage")
         scoped_resolved = payload.get("resolved_image_ids")
+        source = "root"
         if isinstance(stage_queues, dict):
             per_stage = stage_queues.get(queue_key)
             if isinstance(per_stage, list):
                 scoped_resolved = per_stage
+                source = "by_stage"
+            else:
+                source = "by_stage_missing"
+        # Structured log so multi-stage WorkflowRun handoffs are visible without
+        # relying on runner-side log_history (see issue #156).
+        logger.info(
+            "[DISPATCHER] dispatch job_id=%s phase=%s queue_key=%s resolved_count=%d source=%s "
+            "input_path=%r has_stage_queues=%s",
+            job_id,
+            phase_key,
+            queue_key,
+            len(scoped_resolved or []) if isinstance(scoped_resolved, list) else -1,
+            source,
+            payload.get("input_path", input_path),
+            isinstance(stage_queues, dict),
+        )
 
         if phase_key == "indexing":
             mode_flags = self._run_mode_flags(payload)

@@ -228,3 +228,121 @@ def test_dispatcher_scoring_preserves_target_phases(monkeypatch):
     assert args[1] == 88
     assert args[2] is False
     assert kwargs["target_phases"] == ["indexing", "metadata"]
+
+
+def test_dispatcher_multi_stage_continuation_preserves_resolved_image_ids(monkeypatch):
+    """Issue #156: second-or-later stage must see the same resolved_image_ids
+    as the first stage when the workflow payload carries the root ``resolved_image_ids``
+    list (no per-stage queue dict). Regression for the silently-zero-scoped stage 1+
+    observed in production runs 2365/2393.
+    """
+    scoring_runner = DummyRunner()
+    tagging_runner = DummyRunner()
+    dispatcher = JobDispatcher(scoring_runner=scoring_runner, tagging_runner=tagging_runner)
+
+    payload = {
+        "input_path": "/mnt/d/Photos/Z8/180-600mm/2026/2026-05-10",
+        "workspace_target": "/mnt/d/Photos/Z8/180-600mm/2026/2026-05-10",
+        "workflow_template": "custom",
+        "stage_codes": ["metadata", "score", "tag", "cluster"],
+        "skip_existing": True,
+        "resolved_image_ids": [101, 202, 303],
+        "selector_preview_count": 3,
+    }
+
+    # First stage 0 (metadata) has finished; dispatcher's continuation tick
+    # picks up job_phases.state='running' for ``scoring``.
+    continuation_job = {
+        "id": 2365,
+        "job_type": "metadata",  # job_type stays as the originally-queued first op
+        "input_path": "/mnt/d/Photos/Z8/180-600mm/2026/2026-05-10",
+        "queue_payload": json.dumps(payload),
+        "_active_phase_code": "scoring",
+    }
+
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: None)
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.get_running_job_for_phase_continuation",
+        lambda: dict(continuation_job),
+    )
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *a, **k: None)
+    # ReportCollector path inside scoring dispatch issues a query; stub it out.
+    class _StubConn:
+        def query(self, *a, **k):
+            return []
+    monkeypatch.setattr("modules.job_dispatcher.db.get_connector", lambda: _StubConn())
+    monkeypatch.setattr("modules.job_dispatcher.db.get_image_count", lambda **k: 0)
+
+    dispatcher._tick()
+
+    assert len(scoring_runner.calls) == 1
+    args, kwargs = scoring_runner.calls[0]
+    # ``resolved_image_ids`` is the third positional after input_path/job_id/skip_existing
+    # — verify it's the original 3-item list, not None and not empty.
+    assert kwargs.get("resolved_image_ids") == [101, 202, 303]
+
+
+def test_dispatcher_multi_stage_continuation_keywords_preserves_resolved_image_ids(monkeypatch):
+    """Same as above but for the ``keywords`` (tag) stage after another phase finished."""
+    tagging_runner = DummyRunner()
+    dispatcher = JobDispatcher(tagging_runner=tagging_runner)
+
+    payload = {
+        "input_path": "/mnt/d/Photos/Z8/180-600mm/2026/2026-05-10",
+        "stage_codes": ["cluster", "tag"],
+        "resolved_image_ids": [101, 202, 303],
+        "skip_existing": False,
+    }
+    continuation_job = {
+        "id": 2393,
+        "job_type": "clustering",
+        "input_path": "/mnt/d/Photos/Z8/180-600mm/2026/2026-05-10",
+        "queue_payload": json.dumps(payload),
+        "_active_phase_code": "keywords",
+    }
+
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: None)
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.get_running_job_for_phase_continuation",
+        lambda: dict(continuation_job),
+    )
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *a, **k: None)
+
+    dispatcher._tick()
+
+    assert len(tagging_runner.calls) == 1
+    _, kwargs = tagging_runner.calls[0]
+    assert kwargs.get("resolved_image_ids") == [101, 202, 303]
+
+
+def test_dispatcher_logs_resolved_count_at_entry(monkeypatch, caplog):
+    """Issue #156: dispatch must emit a structured log line with resolved_count
+    so multi-stage handoffs are diagnosable from server logs alone.
+    """
+    import logging
+    caplog.set_level(logging.INFO, logger="modules.job_dispatcher")
+
+    tagging_runner = DummyRunner()
+    dispatcher = JobDispatcher(tagging_runner=tagging_runner)
+
+    queued_job = {
+        "id": 4242,
+        "job_type": "tagging",
+        "input_path": "/mnt/d/foo",
+        "queue_payload": json.dumps({
+            "input_path": "/mnt/d/foo",
+            "resolved_image_ids": [1, 2, 3, 4, 5],
+        }),
+    }
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *a, **k: None)
+
+    dispatcher._tick()
+
+    msgs = [r.getMessage() for r in caplog.records if r.name == "modules.job_dispatcher"]
+    dispatch_lines = [m for m in msgs if "[DISPATCHER] dispatch" in m and "queue_key=keywords" in m]
+    assert dispatch_lines, f"missing structured dispatch log, got: {msgs}"
+    line = dispatch_lines[0]
+    assert "resolved_count=5" in line
+    assert "source=root" in line
+    assert "job_id=4242" in line
