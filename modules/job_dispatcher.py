@@ -1,7 +1,7 @@
 import json
 import logging
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import time
 
@@ -179,6 +179,48 @@ class JobDispatcher:
         except Exception:
             logger.debug("Failed to create ReportCollector for job %s phase %s", job_id, phase_code, exc_info=True)
             return None
+
+    @staticmethod
+    def _seed_phase_scope(
+        job_id: int,
+        phase_code: str,
+        payload: Dict[str, Any],
+        resolved: Optional[List[int]],
+    ) -> None:
+        """Push `job_phases.images_in_scope/targeted` for `job_id`/`phase_code` immediately.
+
+        This is the issue #159 lightweight fix: dispatch branches whose runners do
+        not yet accept a ``report_collector`` (tag, cluster, selection) can call this
+        before invoking ``start_batch`` so the Runs UI denominator is visible from
+        phase start. Best-effort — failures are logged and swallowed.
+
+        The collector is short-lived and discarded after seeding; per-image
+        progress (record_after / record_skip / record_failure) is NOT recorded
+        here. Wiring those callbacks into the runners is left for Stage B.
+        """
+        try:
+            collector = JobDispatcher._make_collector(job_id, phase_code, payload)
+            if collector is None:
+                return
+            total_in_scope = 0
+            scope_paths = payload.get("scope_paths")
+            if isinstance(scope_paths, list) and scope_paths:
+                for p in scope_paths:
+                    try:
+                        total_in_scope += db.get_image_count(folder_path=str(p))
+                    except Exception:
+                        pass
+            if total_in_scope == 0:
+                total_in_scope = len(resolved) if resolved else 0
+            collector.set_scope_counts(
+                in_scope=total_in_scope,
+                targeted=len(resolved) if resolved else total_in_scope,
+            )
+        except Exception:
+            logger.debug(
+                "Failed to seed job_phases scope for job %s phase %s",
+                job_id, phase_code, exc_info=True,
+            )
 
     def _start_job(self, job: Dict[str, Any], payload: Dict[str, Any], phase_override: Optional[str] = None) -> tuple:
         """Try to start the job. Returns (success: bool, error_msg: str|None)."""
@@ -377,6 +419,11 @@ class JobDispatcher:
 
         if phase_key in ("tag", "tagging", "keywords"):
             mode_flags = self._run_mode_flags(payload)
+            # Issue #159 Stage A: seed job_phases.images_in_scope/targeted so the
+            # Runs UI denominator shows from phase start. The tagging runner does
+            # not yet consume a ReportCollector, so per-image progress (processed
+            # count) is not recorded — that's Stage B.
+            self._seed_phase_scope(job_id, "keywords", payload, scoped_resolved)
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
@@ -390,6 +437,8 @@ class JobDispatcher:
             mode_flags = self._run_mode_flags(payload)
             # POST /api/clustering/start sets force_rescan on queue_payload; it is not part of run_mode.
             force_rescan = bool(mode_flags["force_rescan"]) or bool(payload.get("force_rescan"))
+            # Issue #159 Stage A: seed denominator. Same caveat as tagging above.
+            self._seed_phase_scope(job_id, "culling", payload, scoped_resolved)
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 threshold=payload.get("threshold"),
@@ -415,6 +464,10 @@ class JobDispatcher:
                     "culling queue constraints are advisory only (job_id=%s)",
                     job_id,
                 )
+            # Issue #159 Stage A: seed denominator for selection too. Note the
+            # selection runner doesn't filter by `scoped_resolved`, so `targeted`
+            # falls back to `in_scope` (all images under scope_paths).
+            self._seed_phase_scope(job_id, "culling", payload, scoped_resolved)
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,

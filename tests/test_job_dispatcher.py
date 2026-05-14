@@ -346,3 +346,149 @@ def test_dispatcher_logs_resolved_count_at_entry(monkeypatch, caplog):
     assert "resolved_count=5" in line
     assert "source=root" in line
     assert "job_id=4242" in line
+
+
+# ── Issue #159 Stage A: seed job_phases denominator for tag/cluster/selection ──
+
+
+def _capture_scope_pushes(monkeypatch):
+    """Capture every db.update_job_phase_counters call from any dispatcher seed/finalize."""
+    calls = []
+    def _capture(job_id, phase_code, *, in_scope, targeted, processed, skipped, failed):
+        calls.append({
+            "job_id": job_id, "phase_code": phase_code,
+            "in_scope": in_scope, "targeted": targeted,
+            "processed": processed, "skipped": skipped, "failed": failed,
+        })
+    monkeypatch.setattr("modules.db.update_job_phase_counters", _capture)
+    return calls
+
+
+def test_dispatcher_seeds_job_phases_scope_for_tagging(monkeypatch):
+    """Tagging dispatch must push job_phases.images_in_scope/targeted before runner starts (issue #159)."""
+    tagging_runner = DummyRunner()
+    dispatcher = JobDispatcher(tagging_runner=tagging_runner)
+
+    queued_job = {
+        "id": 7001,
+        "job_type": "tagging",
+        "input_path": "/mnt/d/foo",
+        "queue_payload": json.dumps({
+            "input_path": "/mnt/d/foo",
+            "resolved_image_ids": [11, 22, 33, 44, 55, 66, 77],
+        }),
+    }
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *a, **k: None)
+    monkeypatch.setattr("modules.job_dispatcher.db.get_image_count", lambda **kw: 0)
+    pushes = _capture_scope_pushes(monkeypatch)
+
+    dispatcher._tick()
+
+    # Runner was still invoked.
+    assert len(tagging_runner.calls) == 1
+    # And a denominator push happened before that.
+    keywords_pushes = [p for p in pushes if p["phase_code"] == "keywords"]
+    assert keywords_pushes, f"expected a job_phases push for keywords, got pushes={pushes}"
+    p = keywords_pushes[0]
+    assert p["job_id"] == 7001
+    # No scope_paths supplied → falls back to resolved set size.
+    assert p["in_scope"] == 7
+    assert p["targeted"] == 7
+    # Stage A: no per-image accounting yet, processed/skipped/failed must be 0.
+    assert p["processed"] == 0 and p["skipped"] == 0 and p["failed"] == 0
+
+
+def test_dispatcher_seeds_job_phases_scope_for_clustering(monkeypatch):
+    """Clustering dispatch must push job_phases scope (issue #159)."""
+    clustering_runner = DummyRunner()
+    dispatcher = JobDispatcher(clustering_runner=clustering_runner)
+
+    queued_job = {
+        "id": 7002,
+        "job_type": "clustering",
+        "input_path": "/mnt/d/foo",
+        "queue_payload": json.dumps({
+            "input_path": "/mnt/d/foo",
+            "resolved_image_ids": [1, 2, 3],
+        }),
+    }
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *a, **k: None)
+    monkeypatch.setattr("modules.job_dispatcher.db.get_image_count", lambda **kw: 0)
+    pushes = _capture_scope_pushes(monkeypatch)
+
+    dispatcher._tick()
+
+    assert len(clustering_runner.calls) == 1
+    culling_pushes = [p for p in pushes if p["phase_code"] == "culling"]
+    assert culling_pushes, f"expected a job_phases push for culling, got pushes={pushes}"
+    p = culling_pushes[0]
+    assert p["job_id"] == 7002
+    assert p["in_scope"] == 3
+    assert p["targeted"] == 3
+
+
+def test_dispatcher_seeds_job_phases_scope_for_selection(monkeypatch):
+    """Selection dispatch must push job_phases scope (issue #159).
+
+    Selection doesn't filter by resolved_image_ids (folder-only scoping), so when
+    scope_paths is supplied it derives in_scope from db.get_image_count; when not,
+    it falls back to the resolved set size.
+    """
+    selection_runner = DummyRunner()
+    dispatcher = JobDispatcher(selection_runner=selection_runner)
+
+    queued_job = {
+        "id": 7003,
+        "job_type": "selection",
+        "input_path": "/mnt/d/foo",
+        "queue_payload": json.dumps({
+            "input_path": "/mnt/d/foo",
+            "scope_paths": ["/mnt/d/foo"],
+            "resolved_image_ids": [9, 8, 7, 6, 5],
+            "run_mode": "process_unprocessed_or_empty",
+        }),
+    }
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *a, **k: None)
+    monkeypatch.setattr("modules.job_dispatcher.db.get_image_count", lambda **kw: 42)
+    pushes = _capture_scope_pushes(monkeypatch)
+
+    dispatcher._tick()
+
+    assert len(selection_runner.calls) == 1
+    culling_pushes = [p for p in pushes if p["phase_code"] == "culling"]
+    assert culling_pushes, f"expected a job_phases push for culling (selection), got pushes={pushes}"
+    p = culling_pushes[0]
+    assert p["job_id"] == 7003
+    # scope_paths supplied → in_scope from db.get_image_count.
+    assert p["in_scope"] == 42
+    # targeted prefers resolved set size when present, even though selection ignores it.
+    assert p["targeted"] == 5
+
+
+def test_dispatcher_seed_phase_scope_swallows_db_failures(monkeypatch):
+    """Seeding is best-effort: a DB outage at seed time must not block the runner."""
+    tagging_runner = DummyRunner()
+    dispatcher = JobDispatcher(tagging_runner=tagging_runner)
+
+    queued_job = {
+        "id": 7004,
+        "job_type": "tagging",
+        "input_path": "/mnt/d/foo",
+        "queue_payload": json.dumps({"input_path": "/mnt/d/foo", "resolved_image_ids": [1]}),
+    }
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *a, **k: None)
+    monkeypatch.setattr("modules.job_dispatcher.db.get_image_count", lambda **kw: 0)
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("pool down")
+    monkeypatch.setattr("modules.db.update_job_phase_counters", _boom)
+
+    # Should not raise.
+    dispatcher._tick()
+
+    # Runner was still invoked despite the seed failing.
+    assert len(tagging_runner.calls) == 1
