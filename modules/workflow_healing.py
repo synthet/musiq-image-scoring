@@ -74,6 +74,22 @@ def normalize_heal_root(root: Optional[str]) -> Optional[str]:
         s = os.path.dirname(s)
     return s.rstrip("/\\") or None
 
+
+def _canon_path_for_active_match(raw: str) -> str:
+    """Normalize paths so WSL ``/mnt/d/...`` and Windows ``D:/...`` compare equal.
+
+    Used to skip scheduling a folder while a job for the same tree is already
+    ``running``/``queued`` even when ``folders.path`` and ``jobs.input_path`` differ
+    only by host path style.
+    """
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    loc = utils.convert_path_to_local(s)
+    w = utils.convert_path_to_wsl(loc)
+    return w.replace("\\", "/").rstrip("/").lower()
+
+
 def heal_phase_data(
     phase_code: str,
     *,
@@ -262,12 +278,20 @@ def heal_phase_data(
     
     # Filter out folders already being processed (active/queued runs)
     active_jobs = _get_active_jobs_snapshot()
-    active_paths = {str(j.get("input_path")).strip().lower() for j in active_jobs if j.get("input_path")}
-    
+    active_canon = [
+        _canon_path_for_active_match(str(j.get("input_path")))
+        for j in active_jobs
+        if j.get("input_path")
+    ]
+
     def is_under_active_run(folder_path: str) -> bool:
-        fp = folder_path.strip().lower()
-        for active in active_paths:
-            if fp == active or fp.startswith(active + "/") or fp.startswith(active + "\\"):
+        fp = _canon_path_for_active_match(folder_path)
+        if not fp:
+            return False
+        for active in active_canon:
+            if not active:
+                continue
+            if fp == active or fp.startswith(active + "/"):
                 return True
         return False
         

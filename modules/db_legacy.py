@@ -817,14 +817,12 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(_PROJECT_ROOT, DB_FILE)
 
 def _to_win_path(p_str: str) -> str:
-    """Convert a WSL /mnt/ path to a Windows drive path."""
-    if p_str.startswith("/mnt/"):
-        parts = p_str.split('/')
-        if len(parts) >= 3 and parts[1] == 'mnt':
-            drive = parts[2]
-            rest = "\\".join(parts[3:])
-            return f"{drive}:\\{rest}"
-    return p_str.replace("/", "\\")
+    """Convert a WSL /mnt/ path to a Windows drive path.
+
+    Delegates to :func:`modules.paths.to_windows`.
+    """
+    from modules import paths as _paths
+    return _paths.to_windows(p_str) or p_str.replace("/", "\\")
 
 
 def _is_wsl() -> bool:
@@ -3519,37 +3517,11 @@ def _convert_to_windows_path(path):
     Convert any path format to Windows format.
     Handles WSL paths (/mnt/d/...) -> (D:\...).
     Repairs hybrid paths (D:/mnt/d/...) where a drive letter was prefixed to a /mnt/... tail.
+
+    Delegates to :func:`modules.paths.to_windows`.
     """
-    if not path:
-        return None
-
-    path_normalized = path.replace("\\", "/")
-
-    # Hybrid: D:/mnt/d/Photos/... — prefer drive letter from /mnt/<letter>/
-    hm = re.match(r"^([A-Za-z]):/?mnt/([A-Za-z])(?:/(.*))?$", path_normalized)
-    if hm:
-        drive = hm.group(2).upper()
-        rest = (hm.group(3) or "").strip("/")
-        if rest:
-            rest_win = rest.replace("/", "\\")
-            return f"{drive}:\\{rest_win}"
-        return f"{drive}:\\"
-
-    # Already Windows format?
-    if len(path) >= 2 and path[1] == ":":
-        # Normalize slashes
-        return path.replace("/", "\\")
-
-    # WSL format?
-    if path_normalized.startswith("/mnt/"):
-        parts = path_normalized.split("/")
-        if len(parts) > 2 and len(parts[2]) == 1:
-            drive = parts[2].upper()
-            rest = "\\".join(parts[3:])
-            return f"{drive}:\\{rest}"
-
-    # Unknown format, return as-is with backslashes
-    return path.replace("/", "\\")
+    from modules import paths as _paths
+    return _paths.to_windows(path)
 
 
 def resolve_windows_path(image_id, wsl_path, verify=True):
@@ -3852,9 +3824,9 @@ def get_or_create_folder(folder_path, _depth=0):
     # but UI runs in Windows (sending D:\...)
     # This MUST happen before os.path.abspath to prevent Linux from prepending cwd to Windows paths
     try:
-        from modules import utils
+        from modules import paths as _paths
         if ":" in folder_path or "\\" in folder_path:
-             wsl_path = utils.convert_path_to_wsl(folder_path)
+             wsl_path = _paths.to_wsl(folder_path)
              if wsl_path != folder_path:
                  logging.debug(f"Converted {folder_path} to {wsl_path}")
                  folder_path = wsl_path
@@ -3865,10 +3837,14 @@ def get_or_create_folder(folder_path, _depth=0):
     
     # Check if this is a WSL path (starts with /mnt/)
     # On Windows, os.path.abspath will mangle it (D:\mnt\...)
-    normalized_unix = folder_path.replace('\\', '/')
-    is_wsl_path = normalized_unix.startswith('/mnt/') or normalized_unix == '/mnt' or normalized_unix == '/'
+    try:
+        from modules import paths as _paths
+        _is_wsl = _paths.is_wsl_path(folder_path)
+    except ImportError:
+        normalized_unix = folder_path.replace('\\', '/')
+        _is_wsl = normalized_unix.startswith('/mnt/') or normalized_unix == '/mnt' or normalized_unix == '/'
     
-    if not is_wsl_path:
+    if not _is_wsl:
         folder_path = os.path.abspath(folder_path)
         folder_path = os.path.normpath(folder_path)
     else:
@@ -8329,27 +8305,28 @@ def update_image_pick_status(image_id: int, pick_status: int) -> bool:
 
 
 def _incomplete_images_where_sql(table_alias: str = "") -> str:
-    """SQL fragment for scoring completeness — composite + model scores only.
+    """SQL fragment for scoring completeness — aligned with :func:`is_image_scoring_complete`.
 
     rating and label are user-edited fields the scoring runner never writes,
     so including them here would mark every freshly-scored-but-unrated image
     incomplete forever and trap heal in a re-target loop.
+
+    Semantics mirror ``is_image_scoring_complete`` (not stricter): require
+    ``score_general > 0`` and **at least one** of the usual model columns
+    ``> 0``. A model score of exactly ``0`` on a 0–1 scale is valid and must not
+    force incompleteness while another model is positive. Legacy ``score`` is
+    not consulted here so policy, healing, and ``explain_phase_run_decision``
+    stay consistent.
     """
     prefix = f"{table_alias}." if table_alias else ""
-    score_checks = [
-        f"{prefix}score_general IS NULL OR {prefix}score_general <= 0",
-        f"{prefix}score_technical IS NULL OR {prefix}score_technical <= 0",
-    ]
-    # Only check for models that are consistently used in the default pipeline.
-    # koniq and paq2piq are excluded as they are optional/not currently loaded by default.
-    models = ['spaq', 'ava', 'liqe']
-    for m in models:
-        score_checks.append(f"{prefix}score_{m} IS NULL OR {prefix}score_{m} <= 0")
-    score_cond = " OR ".join(score_checks)
+    models_any_positive = " OR ".join(
+        f"({prefix}score_{m} IS NOT NULL AND {prefix}score_{m} > 0)"
+        for m in ("spaq", "ava", "liqe", "paq2piq", "koniq")
+    )
     return f"""(
-            ({prefix}score IS NULL OR {prefix}score <= 0) OR
-            ({score_cond})
-        )"""
+        ({prefix}score_general IS NULL OR {prefix}score_general <= 0)
+        OR NOT ({models_any_positive})
+    )"""
 
 
 def culling_cohesion_folders_aggregate_sql() -> str:
@@ -8464,9 +8441,16 @@ def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
     code = (phase_code or "").strip().lower()
 
     if code == "indexing":
+        # NOTE: ``is_image_indexing_complete`` tests ``image_embedding``; this predicate
+        # tests ``image_hash``. Keep both in mind when interpreting "indexing" gaps: a row
+        # can have a hash but no embedding (policy may still want a run) without matching
+        # workflow heal's false-done reset for hash.
         return f"({prefix}image_hash IS NULL OR TRIM(CAST({prefix}image_hash AS VARCHAR(128))) = '')"
 
     if code == "metadata":
+        # NOTE: ``is_image_metadata_complete`` checks rating/label for phase policy; this
+        # predicate matches "no thumbnails and no EXIF/XMP rows" (workflow heal copy).
+        # They intentionally differ — do not merge without reconciling product meaning.
         return f"""(
             COALESCE(TRIM({prefix}thumbnail_path), '') = ''
             AND COALESCE(TRIM({prefix}thumbnail_path_win), '') = ''
@@ -8764,13 +8748,11 @@ def is_image_culling_similarity_artefacts_missing(image_id: int) -> bool:
 
 def get_incomplete_records(limit: int | None = None):
     """
-    Retrieves records that have missing scores or metadata.
-    Criteria:
-    - Composite scores (score_general / score_technical) missing or non-positive
-    - Legacy score column missing or non-positive
-    - Any model score <= 0 or NULL
-    - Rating <= 0 or NULL
-    - Label empty or NULL
+    Retrieves records that fail :func:`_incomplete_images_where_sql` (scoring completeness).
+
+    Criteria match :func:`is_image_scoring_complete`: ``score_general`` must be
+    positive and at least one model score among spaq/ava/liqe/paq2piq/koniq must
+    be positive. (Rating/label are intentionally excluded.)
     """
     inc = _incomplete_images_where_sql("")
     query = f"""

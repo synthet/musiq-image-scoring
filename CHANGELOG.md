@@ -15,6 +15,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.15.5] - 2026-05-14
+
+### Fixed
+
+- **Workflow healing — active job dedupe**: Canonicalize `folders.path` vs `jobs.input_path` (WSL `/mnt/...` vs Windows `D:\...`) when skipping folders already under **queued/running** jobs so the same tree is not scheduled twice (**`modules/workflow_healing.py`**).
+- **Scoring heal / completeness drift**: **`_incomplete_images_where_sql`** now matches **`is_image_scoring_complete`** — require **`score_general > 0`** and **at least one** positive model score among spaq/ava/liqe/koniq/paq2piq (avoids infinite heal loops on valid **0** subscores such as technical). **`get_incomplete_records`** docstring updated (**`modules/db_legacy.py`**).
+- **Runs report text**: **`describe_incomplete_fields`** no longer flags arbitrary normalized **0** model columns as “incomplete” (still surfaces **0** on legacy **`score`** / **`score_general`** and NULLs) (**`modules/report_collector.py`**).
+
+### Added
+
+- **`tests/test_scoring_incomplete_sql.py`**: regression coverage for scoring incompleteness SQL and heal active-path canonicalization.
+
+### Changed
+
+- **Docs in code**: Comments on **indexing** / **metadata** workflow-heal predicates vs **`is_image_*_complete`** policy helpers (**`modules/db_legacy.py`**).
+
 ## [7.15.4] - 2026-05-13
 
 ### Fixed

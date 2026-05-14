@@ -66,8 +66,12 @@ def describe_incomplete_fields(row: dict) -> str:
                 parts.append(f"{col}=empty")
         elif val is None:
             parts.append(f"{col}=NULL")
-        elif isinstance(val, (int, float)) and val <= 0:
+        elif isinstance(val, (int, float)) and val < 0:
             parts.append(f"{col}={val}")
+        elif isinstance(val, (int, float)) and val == 0:
+            # Zero can be a valid normalized score; only flag when policy treats zero as empty.
+            if col in ("score", "score_general"):
+                parts.append(f"{col}=0")
     return ", ".join(parts) if parts else ""
 
 
