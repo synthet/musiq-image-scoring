@@ -129,9 +129,57 @@ def test_record_failure():
 
 def test_set_scope_counts():
     c = _make_collector_no_db()
-    c.set_scope_counts(1200, 45)
+    with patch("modules.db.update_job_phase_counters") as mock_upd:
+        c.set_scope_counts(1200, 45)
     assert c._images_in_scope == 1200
     assert c._images_targeted == 45
+    # Issue #158: scope counts are pushed to job_phases immediately so the
+    # Runs UI sees a non-zero denominator from phase start.
+    mock_upd.assert_called_once_with(
+        c.job_id, c.phase_code,
+        in_scope=1200, targeted=45, processed=0, skipped=0, failed=0,
+    )
+
+
+def test_set_scope_counts_swallows_db_failure():
+    """A DB outage on the scope-counter push must not break in-memory accounting."""
+    c = _make_collector_no_db()
+    with patch("modules.db.update_job_phase_counters", side_effect=RuntimeError("pool down")):
+        # Should not raise.
+        c.set_scope_counts(50, 10)
+    assert c._images_in_scope == 50
+    assert c._images_targeted == 10
+
+
+def test_flush_pushes_phase_counters_after_successful_insert():
+    """During-run progress: each batch flush also refreshes job_phases counters (issue #158)."""
+    c = _make_collector_no_db()
+    with patch("modules.db.update_job_phase_counters") as mock_upd, \
+         patch("modules.db.insert_job_image_actions"):
+        c.set_scope_counts(100, 100)  # one push
+        c.record_after(1, {"score": 0.7})
+        c.record_skip(2, "already_done")
+        c.flush()  # explicit flush → second push
+    # set_scope_counts pushed once, flush pushed once more after the insert.
+    assert mock_upd.call_count == 2
+    last_call_kwargs = mock_upd.call_args_list[-1].kwargs
+    assert last_call_kwargs["in_scope"] == 100
+    assert last_call_kwargs["processed"] == 1
+    assert last_call_kwargs["skipped"] == 1
+    assert last_call_kwargs["failed"] == 0
+
+
+def test_flush_does_not_push_counters_when_insert_fails():
+    """If insert_job_image_actions raises, counters are not pushed (avoid lying)."""
+    c = _make_collector_no_db()
+    with patch("modules.db.insert_job_image_actions", side_effect=RuntimeError("DB error")), \
+         patch("modules.db.update_job_phase_counters") as mock_upd:
+        c._pending.append({"job_id": 1, "image_id": 5, "phase_code": "scoring", "action": "processed"})
+        n = c.flush()
+    assert n == 0
+    # The action insert failed, so the counter push must not happen for this flush.
+    # (set_scope_counts wasn't called either, so total expected calls == 0.)
+    mock_upd.assert_not_called()
 
 
 def test_total_recorded():

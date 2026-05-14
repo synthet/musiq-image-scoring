@@ -113,10 +113,15 @@ class ReportCollector:
     # ------------------------------------------------------------------
 
     def set_scope_counts(self, in_scope: int, targeted: int) -> None:
-        """Set the total image counts for this phase."""
+        """Set the total image counts for this phase and push them to ``job_phases``.
+
+        The push makes the denominator visible in the Runs UI from the moment the
+        runner knows scope, instead of waiting for ``finalize()`` (see issue #158).
+        """
         with self._lock:
             self._images_in_scope = in_scope
             self._images_targeted = targeted
+            self._push_phase_counters_unlocked()
 
     def record_before(
         self,
@@ -213,7 +218,6 @@ class ReportCollector:
             db.insert_job_image_actions(batch)
             # Only clear after successful write so rows aren't lost on failure.
             self._pending.clear()
-            return len(batch)
         except Exception:
             logger.exception(
                 "ReportCollector: failed to flush %d action rows for job %s phase %s — "
@@ -221,6 +225,38 @@ class ReportCollector:
                 len(batch), self.job_id, self.phase_code,
             )
             return 0
+        # Piggyback on the flush cadence to push counters to job_phases so the
+        # Runs UI moves during the run (see issue #158).
+        self._push_phase_counters_unlocked()
+        return len(batch)
+
+    def _push_phase_counters_unlocked(self) -> bool:
+        """Push the current counter snapshot to ``job_phases``.
+
+        Best-effort: any failure is logged and not propagated so the in-memory
+        accounting (and the per-row ``image_phase_status`` writes) are unaffected.
+        Caller must hold ``self._lock`` so the snapshot is consistent.
+        """
+        try:
+            from modules import db
+            db.update_job_phase_counters(
+                self.job_id,
+                self.phase_code,
+                in_scope=self._images_in_scope,
+                targeted=self._images_targeted,
+                processed=self._processed,
+                skipped=self._skipped,
+                failed=self._failed,
+            )
+            return True
+        except Exception:
+            logger.exception(
+                "ReportCollector: failed to push job_phases counters for job %s phase %s "
+                "(in_scope=%d processed=%d skipped=%d failed=%d)",
+                self.job_id, self.phase_code,
+                self._images_in_scope, self._processed, self._skipped, self._failed,
+            )
+            return False
 
     def get_pending_records(self) -> list:
         """Return a shallow copy of pending (unflushed) records for aggregation purposes.
