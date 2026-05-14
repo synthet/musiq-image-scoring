@@ -22,7 +22,7 @@ import re
 from typing import Any, List, Dict, Optional
 from urllib.parse import urlparse
 
-from modules import db
+from modules import db, utils
 from modules.phases import PhaseCode, sort_phase_value_strings
 from modules.phases_policy import get_phase_executor_version
 from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
@@ -342,11 +342,13 @@ def _enqueue_heal_run(folder_path: str, phase_code: str, run_mode: str = "valida
     interpret a dict in slot 1 as a structured "skipped, missing prereqs"
     result rather than a real queue position.
     """
-    import os
     from modules.phases import assert_prereqs_for_scope
-    if not os.path.isdir(folder_path):
+
+    resolved, _candidates = utils.resolve_scope_input_path(folder_path)
+    if not resolved or not os.path.isdir(resolved):
         logger.info("Heal skip (missing on disk): %s", folder_path)
         return None, None
+    folder_path = resolved
 
     # Mapping phase codes to job types (same as schedule_folder_quality_runs)
     job_type_map = {

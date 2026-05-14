@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.15.2] - 2026-05-13
+
+### Fixed
+
+- **Workflow healing**: Resolve heal folder scope through **`utils.resolve_scope_input_path`** before the on-disk directory check so Windows/WSL path variants enqueue correctly (**`modules/workflow_healing.py`**).
+
 ## [7.15.1] - 2026-05-13
 
 ### Changed
