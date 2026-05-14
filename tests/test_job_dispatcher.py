@@ -492,3 +492,74 @@ def test_dispatcher_seed_phase_scope_swallows_db_failures(monkeypatch):
 
     # Runner was still invoked despite the seed failing.
     assert len(tagging_runner.calls) == 1
+
+
+# ── Issue #160: tag dispatch hands a full-lifecycle ReportCollector to the runner ──
+
+
+def test_dispatcher_tag_passes_collector_to_runner(monkeypatch):
+    """Tag dispatch must build a ReportCollector and pass it to TaggingRunner.start_batch
+    so per-image record_after/skip/failure increments job_phases counters during the run.
+    Stage B for issue #159 (tagging side). See issue #160.
+    """
+    tagging_runner = DummyRunner()
+    dispatcher = JobDispatcher(tagging_runner=tagging_runner)
+
+    queued_job = {
+        "id": 8001,
+        "job_type": "tagging",
+        "input_path": "/mnt/d/foo",
+        "queue_payload": json.dumps({
+            "input_path": "/mnt/d/foo",
+            "resolved_image_ids": [10, 20, 30],
+        }),
+    }
+    pushes = _capture_scope_pushes(monkeypatch)
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *a, **k: None)
+    monkeypatch.setattr("modules.job_dispatcher.db.get_image_count", lambda **kw: 0)
+
+    dispatcher._tick()
+
+    assert len(tagging_runner.calls) == 1
+    _, kwargs = tagging_runner.calls[0]
+
+    # The runner must receive a non-None report_collector.
+    rc = kwargs.get("report_collector")
+    assert rc is not None, "tag dispatch must pass a ReportCollector to start_batch (#160)"
+
+    # It's the keywords collector (phase_code attribute mirrors phase).
+    assert rc.phase_code == "keywords"
+    assert rc.job_id == 8001
+
+    # And the dispatcher seeded job_phases.images_in_scope/targeted before dispatch
+    # so the Runs UI denominator shows from phase start (#159).
+    keywords_pushes = [p for p in pushes if p["phase_code"] == "keywords"]
+    assert keywords_pushes, "expected dispatcher to push initial scope for keywords"
+    assert keywords_pushes[0]["in_scope"] == 3
+    assert keywords_pushes[0]["targeted"] == 3
+
+
+def test_dispatcher_compute_phase_scope_prefers_scope_paths_over_resolved(monkeypatch):
+    """_compute_phase_scope: scope_paths drives in_scope (via db.get_image_count) when supplied."""
+    monkeypatch.setattr("modules.job_dispatcher.db.get_image_count", lambda **kw: 42)
+    payload = {"scope_paths": ["/mnt/d/foo", "/mnt/d/bar"]}
+    # 2 scope paths × 42 each → 84 in_scope; targeted from resolved set size.
+    in_scope, targeted = JobDispatcher._compute_phase_scope(payload, resolved=[1, 2, 3])
+    assert in_scope == 84
+    assert targeted == 3
+
+
+def test_dispatcher_compute_phase_scope_falls_back_to_resolved_when_no_scope_paths():
+    payload = {}
+    in_scope, targeted = JobDispatcher._compute_phase_scope(payload, resolved=[1, 2, 3, 4, 5])
+    assert in_scope == 5
+    assert targeted == 5
+
+
+def test_dispatcher_compute_phase_scope_handles_empty_resolved():
+    """No scope_paths and no resolved → (0, 0). The seed call still happens; UI shows 0/0."""
+    payload = {}
+    in_scope, targeted = JobDispatcher._compute_phase_scope(payload, resolved=None)
+    assert in_scope == 0
+    assert targeted == 0

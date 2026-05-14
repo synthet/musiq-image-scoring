@@ -37,7 +37,6 @@ class JobDispatcher:
         self.poll_interval = max(0.2, float(poll_interval or 1.0))
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
-        self._thread: Optional[threading.Thread] = None
         self._dispatch_lock = threading.Lock()
         self._last_busy_logged: float = 0
 
@@ -181,6 +180,25 @@ class JobDispatcher:
             return None
 
     @staticmethod
+    def _compute_phase_scope(payload: Dict[str, Any], resolved: Optional[List[int]]) -> tuple:
+        """Return ``(in_scope, targeted)`` derived from ``payload['scope_paths']``
+        with a fallback to ``len(resolved)``. Mirrors the scoring dispatch's
+        scope computation so all phases use the same accounting (see issue #159).
+        """
+        total_in_scope = 0
+        scope_paths = payload.get("scope_paths")
+        if isinstance(scope_paths, list) and scope_paths:
+            for p in scope_paths:
+                try:
+                    total_in_scope += db.get_image_count(folder_path=str(p))
+                except Exception:
+                    pass
+        if total_in_scope == 0:
+            total_in_scope = len(resolved) if resolved else 0
+        targeted = len(resolved) if resolved else total_in_scope
+        return total_in_scope, targeted
+
+    @staticmethod
     def _seed_phase_scope(
         job_id: int,
         phase_code: str,
@@ -202,20 +220,8 @@ class JobDispatcher:
             collector = JobDispatcher._make_collector(job_id, phase_code, payload)
             if collector is None:
                 return
-            total_in_scope = 0
-            scope_paths = payload.get("scope_paths")
-            if isinstance(scope_paths, list) and scope_paths:
-                for p in scope_paths:
-                    try:
-                        total_in_scope += db.get_image_count(folder_path=str(p))
-                    except Exception:
-                        pass
-            if total_in_scope == 0:
-                total_in_scope = len(resolved) if resolved else 0
-            collector.set_scope_counts(
-                in_scope=total_in_scope,
-                targeted=len(resolved) if resolved else total_in_scope,
-            )
+            in_scope, targeted = JobDispatcher._compute_phase_scope(payload, resolved)
+            collector.set_scope_counts(in_scope=in_scope, targeted=targeted)
         except Exception:
             logger.debug(
                 "Failed to seed job_phases scope for job %s phase %s",
@@ -419,11 +425,20 @@ class JobDispatcher:
 
         if phase_key in ("tag", "tagging", "keywords"):
             mode_flags = self._run_mode_flags(payload)
-            # Issue #159 Stage A: seed job_phases.images_in_scope/targeted so the
-            # Runs UI denominator shows from phase start. The tagging runner does
-            # not yet consume a ReportCollector, so per-image progress (processed
-            # count) is not recorded — that's Stage B.
-            self._seed_phase_scope(job_id, "keywords", payload, scoped_resolved)
+            # Issue #159 Stage A + #160 Stage B: create a full-lifecycle ReportCollector,
+            # seed job_phases scope so the Runs UI denominator shows immediately, and
+            # hand the collector to the runner so per-image record_after/skip/failure
+            # increments job_phases.images_processed/skipped/failed during the run.
+            report_collector = self._make_collector(job_id, "keywords", payload)
+            if report_collector is not None:
+                try:
+                    in_scope, targeted = self._compute_phase_scope(payload, scoped_resolved)
+                    report_collector.set_scope_counts(in_scope=in_scope, targeted=targeted)
+                except Exception:
+                    logger.debug(
+                        "Failed to seed job_phases scope for tagging job %s",
+                        job_id, exc_info=True,
+                    )
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
@@ -431,6 +446,7 @@ class JobDispatcher:
                 overwrite=bool(mode_flags["overwrite"]),
                 generate_captions=bool(payload.get("generate_captions", False)),
                 resolved_image_ids=scoped_resolved,
+                report_collector=report_collector,
             )
 
         if phase_key in ("cluster", "clustering"):

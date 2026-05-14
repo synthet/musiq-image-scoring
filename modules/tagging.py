@@ -285,7 +285,8 @@ class KeywordScorer:
             
             valid_results = []
             for i, score in enumerate(probs_list):
-                 valid_results.append((target_keywords[i], score))
+                if score >= threshold:
+                    valid_results.append((target_keywords[i], score))
             
             valid_results.sort(key=lambda x: x[1], reverse=True)
             final_keywords = [k for k, s in valid_results[:top_k]]
@@ -385,31 +386,31 @@ class TaggingRunner:
     def get_status(self):
         return self.is_running, "\n".join(self.log_history), self.status_message, self.current_count, self.total_count
         
-    def start_batch(self, input_path: str, job_id: int = None, custom_keywords: List[str] = None, overwrite: bool = False, generate_captions: Optional[bool] = None, resolved_image_ids: List[int] = None):
+    def start_batch(self, input_path: str, job_id: int = None, custom_keywords: List[str] = None, overwrite: bool = False, generate_captions: Optional[bool] = None, resolved_image_ids: List[int] = None, report_collector=None):
         # Resolve generate_captions from config if not provided
         if generate_captions is None:
             from modules import config
             generate_captions = config.get_config_section('tagging').get('captions_default', True)
         if self.is_running:
             return "Error: Already running."
-            
+
         self.is_running = True
         self.log_history = []
         self.status_message = "Starting..."
         self.current_count = 0
         self.total_count = 0
-        
+
         if job_id is None:
             from modules import db
             job_id = db.create_job(input_path or "ALL_IMAGES_TAGGING")
-            
+
         def target():
             from modules.pipeline import safe_runner_thread
             def target_wrapper():
                 try:
                     from modules.pipeline_diagnostics import phase_timer
                     with phase_timer("TaggingRunner.batch", job_id):
-                        self._run_batch_internal(input_path, custom_keywords, overwrite, generate_captions, job_id=job_id, resolved_image_ids=resolved_image_ids)
+                        self._run_batch_internal(input_path, custom_keywords, overwrite, generate_captions, job_id=job_id, resolved_image_ids=resolved_image_ids, report_collector=report_collector)
                 except Exception:
                     self.status_message = "Failed"
                     raise
@@ -425,7 +426,7 @@ class TaggingRunner:
         self._thread.start()
         return "Started"
 
-    def _run_batch_internal(self, input_path: str, custom_keywords: List[str] = None, overwrite: bool = False, generate_captions: bool = False, job_id: int = None, resolved_image_ids: List[int] = None):
+    def _run_batch_internal(self, input_path: str, custom_keywords: List[str] = None, overwrite: bool = False, generate_captions: bool = False, job_id: int = None, resolved_image_ids: List[int] = None, report_collector=None):
         """
         Internal sync runner for tagging process.
         """
@@ -558,6 +559,7 @@ class TaggingRunner:
         all_images = filter_image_rows_for_nef_policy(all_images)
 
         # Filtering logic for phase policy
+        in_scope_total = len(all_images)
         final_images = []
         for row in all_images:
             decision = explain_phase_run_decision(
@@ -570,11 +572,27 @@ class TaggingRunner:
                 final_images.append(row)
             else:
                 logger.info("Skipping keywords image_id=%s: %s", row['id'], decision['reason'])
+                # Issue #160: record filtered-out images as skipped so job_phases.images_skipped
+                # reflects the phase-policy filter, not just per-image failures inside the loop.
+                if report_collector is not None:
+                    try:
+                        report_collector.record_skip(int(row['id']), decision.get('reason') or 'phase_policy_skip')
+                    except Exception:
+                        logger.debug("tagging: record_skip failed for image_id=%s", row.get('id'), exc_info=True)
 
         all_images = final_images
         log(f"Found {len(all_images)} images to process.")
         self.total_count = len(all_images)
         self.current_count = 0
+
+        # Issue #160: push the post-filter scope so job_phases denominator reflects what
+        # the runner will actually attempt. The dispatcher seeded with the pre-filter
+        # count (#159); this overwrites with the accurate targeted value.
+        if report_collector is not None:
+            try:
+                report_collector.set_scope_counts(in_scope=in_scope_total, targeted=len(all_images))
+            except Exception:
+                logger.debug("tagging: set_scope_counts failed for job_id=%s", job_id, exc_info=True)
         
         processed_count = 0
         skipped_count = 0
@@ -692,6 +710,16 @@ class TaggingRunner:
                         executor_version=TAGGER_VERSION,
                         job_id=job_id,
                     )
+                    # Issue #160: increment job_phases.images_processed via the collector.
+                    if report_collector is not None:
+                        try:
+                            report_collector.record_after(
+                                int(row['id']),
+                                {"keywords": tags_str, "title": title or None, "description": caption or None},
+                                action="processed",
+                            )
+                        except Exception:
+                            logger.debug("tagging: record_after failed for image_id=%s", row.get('id'), exc_info=True)
                 else:
                     skipped_count += 1
                     db.set_image_phase_status(
@@ -704,6 +732,12 @@ class TaggingRunner:
                         skip_reason="no tags produced",
                         skipped_by="tagging",
                     )
+                    # Issue #160: increment job_phases.images_skipped.
+                    if report_collector is not None:
+                        try:
+                            report_collector.record_skip(int(row['id']), "no tags produced")
+                        except Exception:
+                            logger.debug("tagging: record_skip failed for image_id=%s", row.get('id'), exc_info=True)
             except Exception as e:
                 log(f"Error processing {path}: {e}", "ERROR", image_id=row["id"])
                 skipped_count += 1
@@ -722,6 +756,12 @@ class TaggingRunner:
                         "tagging: failed to record FAILED phase status for image_id=%s",
                         row.get('id'),
                     )
+                # Issue #160: increment job_phases.images_failed.
+                if report_collector is not None:
+                    try:
+                        report_collector.record_failure(int(row['id']), str(e)[:1024])
+                    except Exception:
+                        logger.debug("tagging: record_failure failed for image_id=%s", row.get('id'), exc_info=True)
 
             self.current_count += 1
             if self.current_count % 5 == 0:
@@ -737,6 +777,14 @@ class TaggingRunner:
                 )
                 
         log(f"Done. Processed: {processed_count}, Skipped: {skipped_count}")
+
+        # Issue #160: flush collector — writes final job_phases counters and any
+        # pending job_image_actions rows. Best-effort; never blocks job completion.
+        if report_collector is not None:
+            try:
+                report_collector.finalize()
+            except Exception:
+                logger.exception("tagging: report_collector.finalize() failed for job_id=%s", job_id)
 
         # Update Job Status
         if job_id:
