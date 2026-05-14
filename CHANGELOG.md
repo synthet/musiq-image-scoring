@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.15.3] - 2026-05-14
+
+### Fixed
+
+- **Runs UI denominator for keywords / culling phases (#159, Stage A)**: `JobDispatcher` now seeds `job_phases.images_in_scope/targeted` before invoking the `tag`, `cluster`, or `selection` runners via a new `_seed_phase_scope(...)` helper that builds a short-lived `ReportCollector` and pushes scope counters immediately (`modules/job_dispatcher.py`). Closes the residual of #158 for the two phases whose dispatch paths did not yet create a collector. Stage B (per-image `record_after/skip/failure` wiring for the tagging/clustering/selection runners) remains a separate ticket.
+
 ## [7.15.2] - 2026-05-13
 
 ### Fixed
