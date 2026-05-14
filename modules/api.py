@@ -350,6 +350,22 @@ def _row_to_dict(row, exclude_keys=None):
     return out
 
 
+def _parse_rating_filter(rating: Optional[str]) -> Optional[list]:
+    """Parse comma-separated rating integers; raise 400 on invalid tokens."""
+    if not rating or not rating.strip():
+        return None
+    parts = [p.strip() for p in rating.split(",") if p.strip()]
+    if not parts:
+        return None
+    try:
+        return [int(p) for p in parts]
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid rating parameter: expected comma-separated integers (e.g. 3,4,5).",
+        )
+
+
 def _images_list_payload(
     page: int,
     page_size: int,
@@ -365,7 +381,7 @@ def _images_list_payload(
     stack_id: Optional[int],
 ) -> dict:
     """Paginated image rows as JSON (embeddings excluded). Used by /api/images and /public/api/images."""
-    rating_filter = [int(r) for r in rating.split(",")] if rating else None
+    rating_filter = _parse_rating_filter(rating)
     label_filter = label.split(",") if label else None
     try:
         images, total_count = db.get_images_paginated_with_count(
@@ -420,7 +436,7 @@ def _image_neighbors_payload(
     stack_id: Optional[int],
 ) -> dict:
     """Find neighbor image IDs for navigation."""
-    rating_filter = [int(r) for r in rating.split(",")] if rating else None
+    rating_filter = _parse_rating_filter(rating)
     label_filter = label.split(",") if label else None
     try:
         prev_id, next_id = db.get_image_neighbors(

@@ -1,8 +1,8 @@
 import os
 import logging
+import uuid
 import numpy as np
 import threading
-import sqlite3
 import time
 import json
 from datetime import datetime
@@ -722,7 +722,6 @@ class ClusteringEngine(IClusteringEngine):
             
             # ===== PRE-GROUP BY BURSTUUID =====
             # Images with same BurstUUID go directly into stacks, skip visual clustering
-            import uuid
             from modules import xmp
             
             burst_groups = {}  # BurstUUID -> list of rows

@@ -15,6 +15,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.15.4] - 2026-05-13
+
+### Fixed
+
+- **WebSocket `EventManager`**: Guard `active_connections` with **`threading.RLock`** so `disconnect_sync` and async `connect` / `disconnect` / `broadcast` cannot corrupt the client list concurrently (**`modules/events.py`**).
+- **REST API**: Invalid `rating` query values on paginated image list and image-neighbor endpoints return **HTTP 400** instead of **500** (**`modules/api.py`**; tests in **`tests/test_api_endpoints.py`**).
+- **NEF sample tests**: `test_rawpy_postprocess_to_rgb` skips on **`LibRawFileUnsupportedError`** when LibRaw cannot unpack the raw (e.g. some Z8 compressions on older LibRaw), matching the existing skip behavior for **`LibRawDataError`** (**`tests/test_nef_camera_lens_diversity.py`**).
+
+### Added
+
+- **`tests/test_keyword_scorer_predict.py`**: Unit coverage for **`KeywordScorer.predict`** threshold filtering and `top_k` (marked **`ml`**).
+
+### Changed
+
+- **`modules/clustering.py`**: Remove unused **`sqlite3`** import; hoist **`uuid`** to module scope.
+- **`modules/engine.py`**: Trim obsolete inline commentary around directory scanning and job id handoff.
+
 ## [7.15.3] - 2026-05-14
 
 ### Fixed

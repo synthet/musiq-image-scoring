@@ -295,7 +295,7 @@ class TestRawpyDecode:
                     half_size=True,  # faster for testing
                     no_auto_bright=True,
                 )
-            except rawpy.LibRawDataError:
+            except (rawpy.LibRawDataError, rawpy.LibRawFileUnsupportedError):
                 pytest.skip(
                     f"LibRaw cannot postprocess {rel} "
                     f"(likely unsupported compression, e.g. Z8 high-efficiency NRPC)"

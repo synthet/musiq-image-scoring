@@ -357,6 +357,23 @@ def test_images_returns_empty_list(monkeypatch):
     assert data["total"] == 0
 
 
+def test_images_returns_400_for_invalid_rating_query(monkeypatch):
+    monkeypatch.setattr(db, "get_images_paginated_with_count", lambda **kw: ([], 0))
+    with _build_client() as client:
+        r_api = client.get("/api/images?rating=abc")
+        r_pub = client.get("/public/api/images?rating=not_a_number")
+    assert r_api.status_code == 400
+    assert r_pub.status_code == 400
+    assert "rating" in r_api.json()["detail"].lower()
+
+
+def test_image_neighbors_returns_400_for_invalid_rating(monkeypatch):
+    monkeypatch.setattr(db, "get_image_neighbors", lambda **kw: (None, None))
+    with _build_client() as client:
+        response = client.get("/api/images/1/neighbors?rating=xyz")
+    assert response.status_code == 400
+
+
 def test_image_by_id_returns_404_for_missing(monkeypatch):
     class _FakeConn:
         def cursor(self):

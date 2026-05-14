@@ -85,9 +85,7 @@ class BatchImageProcessor:
             self.log("Error: Scorer not provided!", "ERROR")
             return
 
-        # 2. Find Images
         # 2. Find Images (using os.walk for folder-level control)
-        # import glob # No longer used
         extensions = discovery_extensions()
         files = []
         visited_folders = set()
@@ -198,23 +196,7 @@ class BatchImageProcessor:
         for w in workers:
             w.start()
             
-        # 4. Feed the Beast
-        # Creates a Job ID for this batch run (optional, or per file?)
-        # db.py create_job was called by webui. 
-        # But upsert_image needs a job_id. 
-        # We need to pass the job_id down.
-        # Wait, the current architecture passed `job_id` into `run_batch` in `scoring.py`.
-        # But `process_directory` doesn't accept `job_id`. 
-        # We need to hack/fix this.
-        # I'll update `process_directory` signature or assume we can get it.
-        # Actually `scoring.py` calls `process_directory`.
-        
-        # HACK: Retrieve job_id from somewhere or update signature?
-        # Update signature is better but requires changing base class or calls.
-        # Let's check `scoring.py` again. It calls `processor.process_directory`.
-        # I can update `scoring.py` to inject job_id into the processor instance OR pass it.
-        # I will inject it into the processor instance before calling process_directory.
-        
+        # 4. Feed the Beast — enqueue ImageJob rows with job_id for DB upserts / stop checks
         current_job_id = job_id or getattr(self, "current_job_id", 0) 
         
         for i, f in enumerate(files):

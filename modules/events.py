@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import json
 import logging
+import threading
 from typing import List, Any, Dict
 
 from pydantic import BaseModel, Field
@@ -29,26 +30,34 @@ class EventManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
         self.loop = None
-        self._lock = asyncio.Lock()
+        self._connections_lock = threading.RLock()
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
-        async with self._lock:
+        with self._connections_lock:
             self.active_connections.append(websocket)
-        logger.info(f"Client connected. Total connections: {len(self.active_connections)}")
+            n = len(self.active_connections)
+        logger.info("Client connected. Total connections: %d", n)
 
     async def disconnect(self, websocket: WebSocket):
-        """Remove a WebSocket from active connections (async-safe with lock)."""
-        async with self._lock:
+        """Remove a WebSocket from active connections (thread-safe)."""
+        with self._connections_lock:
             if websocket in self.active_connections:
                 self.active_connections.remove(websocket)
-                logger.info(f"Client disconnected. Total connections: {len(self.active_connections)}")
+                n = len(self.active_connections)
+            else:
+                return
+        logger.info("Client disconnected. Total connections: %d", n)
 
     def disconnect_sync(self, websocket: WebSocket):
         """Synchronous version for cleanup from non-async contexts."""
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-            logger.info(f"Client disconnected. Total connections: {len(self.active_connections)}")
+        with self._connections_lock:
+            if websocket in self.active_connections:
+                self.active_connections.remove(websocket)
+                n = len(self.active_connections)
+            else:
+                return
+        logger.info("Client disconnected. Total connections: %d", n)
 
     async def broadcast(self, event_type: str, data: Any = None):
         """
@@ -62,8 +71,8 @@ class EventManager:
         
         logger.debug(f"Broadcasting event: {event_type}")
         
-        # Take a snapshot under the lock to avoid concurrent modification
-        async with self._lock:
+        # Snapshot under lock so disconnect_sync / other threads cannot mutate mid-copy
+        with self._connections_lock:
             connections = self.active_connections[:]
         
         for connection in connections:
