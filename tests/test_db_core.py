@@ -66,6 +66,19 @@ def test_get_or_create_folder_nested_creates_parents(test_db):
     assert folder_id > 0
 
 
+def test_get_or_create_folder_wsl_path_stops_at_mnt_parent(test_db):
+    """Regression: posixpath.dirname('/mnt/d/...') becomes '/mnt'; must not recurse infinitely.
+
+    On Windows-native Python, ``/mnt`` is not treated as a WSL path by ``paths.is_wsl_path``,
+    so the old logic could hit ``os.path.abspath`` and RecursionError during prerequisite checks.
+    """
+    suffix = uuid.uuid4().hex[:12]
+    folder_path = f"/mnt/d/test_wsl_mnt_boundary_{suffix}/photos/nested/leaf"
+    folder_id = db.get_or_create_folder(folder_path)
+    assert isinstance(folder_id, int)
+    assert folder_id > 0
+
+
 # ---------------------------------------------------------------------------
 # Image CRUD
 # ---------------------------------------------------------------------------

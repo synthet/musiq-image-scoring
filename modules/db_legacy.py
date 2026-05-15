@@ -3834,15 +3834,26 @@ def get_or_create_folder(folder_path, _depth=0):
         pass
 
     import posixpath
-    
+
     # Check if this is a WSL path (starts with /mnt/)
     # On Windows, os.path.abspath will mangle it (D:\mnt\...)
+    # Note: paths.is_wsl_path matches only /mnt/<letter>/..., so we additionally treat
+    # the POSIX-root boundaries (/mnt and /) as WSL too. Without this, recursing up to
+    # '/mnt' on Windows abspath-mangles it to 'D:\\mnt' and ping-pongs back to '/mnt/d/'
+    # forever via the to_wsl conversion above
+    # (see test_get_or_create_folder_wsl_path_stops_at_mnt_parent).
     try:
         from modules import paths as _paths
         _is_wsl = _paths.is_wsl_path(folder_path)
     except ImportError:
+        _is_wsl = False
+    if not _is_wsl:
         normalized_unix = folder_path.replace('\\', '/')
-        _is_wsl = normalized_unix.startswith('/mnt/') or normalized_unix == '/mnt' or normalized_unix == '/'
+        _is_wsl = (
+            normalized_unix.startswith('/mnt/')
+            or normalized_unix == '/mnt'
+            or normalized_unix == '/'
+        )
     
     if not _is_wsl:
         folder_path = os.path.abspath(folder_path)
@@ -3861,23 +3872,32 @@ def get_or_create_folder(folder_path, _depth=0):
          logging.warning(f"Deep folder path detected: {folder_path} (Depth: {folder_path.count('/')})")
     
     # Base case for recursion / root check
-    # On Windows, os.path.dirname("D:\\") is "D:\\". 
+    # On Windows, os.path.dirname("D:\\") is "D:\\".
     # Stop if parent is same as current or empty.
-    
-    import posixpath
+    #
+    # WSL: posixpath.dirname("/mnt/d/...") eventually yields "/mnt". paths.is_wsl_path("/mnt")
+    # is false (pattern requires /mnt/<letter>/...), so the recursive call would take the
+    # non-WSL branch and os.path.abspath("/mnt") on Windows-native Python corrupts the chain
+    # (infinite recursion / RecursionError during prerequisite checks — see folder hierarchy).
+    if _depth > 128:
+        logging.error(
+            "get_or_create_folder: max recursion depth exceeded (path=%r depth=%s)",
+            folder_path,
+            _depth,
+        )
+        return None
+
     if folder_path.startswith('/mnt/'):
         parent_path = posixpath.dirname(folder_path)
     else:
         parent_path = os.path.dirname(folder_path)
-    
-    if not parent_path or parent_path == folder_path:
-        # It's a root or top level?
-        # Just create/get it with no parent.
+
+    if folder_path.startswith("/mnt/") and parent_path == "/mnt":
+        parent_id = None
+    elif not parent_path or parent_path == folder_path:
         parent_id = None
     else:
-        # Recursive call to get/create parent first
-        # We assume this won't be too deep (max 10-20 levels typically)
-        parent_id = get_or_create_folder(parent_path, _depth=_depth+1)
+        parent_id = get_or_create_folder(parent_path, _depth=_depth + 1)
 
     try:
         row = get_connector().query_one("SELECT id, parent_id FROM folders WHERE path = ?", (folder_path,))
