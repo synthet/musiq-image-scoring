@@ -2,9 +2,8 @@ import os
 import torch
 import logging
 import threading
-import queue
-from typing import List, Dict, Optional, Tuple
-from modules import db, thumbnails, xmp
+from typing import List, Dict, Optional
+from modules import db, xmp
 from modules.events import event_manager
 from modules.phases import PhaseCode, PhaseStatus
 from modules.phases_policy import explain_phase_run_decision
@@ -974,7 +973,8 @@ class TaggingRunner:
                     # Sync keywords to normalized schema (dual-write)
                     db._sync_image_keywords(image_id, tags_str)
                     success_msg = f"Tags: {len(tags)} found"
-                    if caption: success_msg += ", Caption generated"
+                    if caption:
+                        success_msg += ", Caption generated"
                 except Exception as e:
                     logger.error(f"Error updating image tags: {e}", exc_info=True)
                     return False, f"Database error: {e}"
