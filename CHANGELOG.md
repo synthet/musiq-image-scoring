@@ -15,6 +15,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.16.0] - 2026-05-15
+
+### Fixed
+
+- **Phase reconciliation (#161)**: `reconcile_stale_running_phases_for_jobs` now **salvages** scoring `image_phase_status` rows to **`done`** when canonical outputs already exist on **`images`** before flipping remaining **`running`** rows to **`failed`**, avoiding cancel/recover paths that looked like failures and drove **scoring heal** loops.
+- **Batch pipeline directory scan**: **`BatchImageProcessor`** treats **single-file** scopes correctly (**`os.walk`** on a file path yields no rows) so file-scoped jobs still enqueue work and emit discovery events (**`modules/engine.py`**).
+- **Indexing / metadata runners**: Stop calling **`set_image_phase_status`** to rewrite **`done` → `skipped`** for already-indexed / metadata-complete images; per-run skips remain on the **report collector** / **`job_image_actions`** (**`modules/indexing_runner.py`**, **`modules/metadata_runner.py`**). Doc clarified on **`set_image_phase_status`** (**`modules/db_legacy.py`**).
+
+### Added
+
+- **`modules/paths.py`**: Unified **Windows ↔ WSL ↔ Docker** path normalization and conversion helpers (single source of truth) with **`tests/test_paths.py`** coverage.
+- **`count_incomplete_records`**: **`COUNT(*)`** helper aligned with **`get_incomplete_records`** plus **`tests/test_count_incomplete_records.py`** (marked **`db`**).
+- **Phase status APIs**: **`get_batch_image_phase_statuses`** / **`get_image_phase_statuses`** attach **`last_run_action`** (latest **`job_image_actions`** row per phase).
+- **React Image Inspector** (**`/ui/`**): Phase grid distinguishes **data status** vs **last run activity**, plus **Run** for **file-scoped** pipeline submit (**`frontend/src/pages/ImageInspectorPage.tsx`**).
+- **`tests/test_phase_reconcile.py`**: Expanded reconciliation coverage.
+
+### Changed
+
+- **REST — retry / force-run jobs**: Job **description** building avoids stacking duplicate **`(retry from Runs UI)`** / **`(re-queued via force_run)`** suffixes when the prior description already ends with that marker (**`modules/api.py`**).
+- **`metadata_runner`**: Trim redundant import / typing noise.
+- **Static `/app` bundle**: Rebuilt hashed assets (**`static/app/index.html`**, JS).
+
 ## [7.15.5] - 2026-05-14
 
 ### Fixed

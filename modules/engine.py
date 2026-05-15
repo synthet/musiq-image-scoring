@@ -4,7 +4,6 @@ import queue
 import time
 import threading
 import logging
-from datetime import datetime
 from modules import pipeline, db, config
 from modules.indexing_policy import (
     discovery_extensions,
@@ -92,48 +91,79 @@ class BatchImageProcessor:
         
         # Normalize input_dir
         input_dir = os.path.normpath(input_dir)
-        
-        for root, dirs, filenames in os.walk(input_dir):
-            prune_indexing_excluded_walk_dirs(root, dirs)
-            # Check folder flag if we are skipping existing
+
+        # Single file: os.walk(file_path) yields nothing — file-scoped runs must still enqueue one image.
+        if os.path.isfile(input_dir):
+            if path_is_indexing_excluded(input_dir):
+                self.log("No images found (path excluded from indexing).")
+                return
+            ext = os.path.splitext(input_dir)[1].lower()
+            if ext not in extensions:
+                self.log(f"No images found (unsupported extension {ext!r}).")
+                return
+            parent = os.path.normpath(os.path.dirname(input_dir))
             if self.skip_existing:
                 try:
-                    if db.is_folder_scored(root):
-                        # One-time validation: does the flag still hold?
-                        if not db.check_and_update_folder_status(root):
-                            # Flag was stale; don't skip — fall through to scan.
+                    if db.is_folder_scored(parent):
+                        if not db.check_and_update_folder_status(parent):
                             pass
                         else:
-                            self.log(f"Skipping fully scored folder: {root}")
-                            # We do not process files in this folder.
-                            # We DO continue into subdirectories (os.walk default), 
-                            # because they might not be scored.
-                            continue
+                            self.log(f"Skipping fully scored folder: {parent}")
+                            return
                 except Exception as e:
-                    self.log(f"Error checking folder status for {root}: {e}", "WARNING")
-
-            # Broadcast folder discovery
+                    self.log(f"Error checking folder status for {parent}: {e}", "WARNING")
             try:
                 from modules.events import event_manager
-                event_manager.broadcast_threadsafe("folder_discovered", {"path": root})
-            except Exception: pass
-
-            visited_folders.add(root)
-            
-            for filename in filenames:
-                file_path = os.path.join(root, filename)
-                if path_is_indexing_excluded(file_path):
-                    continue
-                ext = os.path.splitext(filename)[1].lower()
-                if ext in extensions:
-                    files.append(file_path)
-                    # Broadcast image discovery
+                event_manager.broadcast_threadsafe("folder_discovered", {"path": parent})
+                event_manager.broadcast_threadsafe("image_discovered", {"path": input_dir})
+            except Exception:
+                pass
+            visited_folders.add(parent)
+            files.append(input_dir)
+        else:
+            for root, dirs, filenames in os.walk(input_dir):
+                prune_indexing_excluded_walk_dirs(root, dirs)
+                # Check folder flag if we are skipping existing
+                if self.skip_existing:
                     try:
-                        from modules.events import event_manager
-                        event_manager.broadcast_threadsafe("image_discovered", {"path": file_path})
-                    except Exception: pass
+                        if db.is_folder_scored(root):
+                            # One-time validation: does the flag still hold?
+                            if not db.check_and_update_folder_status(root):
+                                # Flag was stale; don't skip — fall through to scan.
+                                pass
+                            else:
+                                self.log(f"Skipping fully scored folder: {root}")
+                                # We do not process files in this folder.
+                                # We DO continue into subdirectories (os.walk default),
+                                # because they might not be scored.
+                                continue
+                    except Exception as e:
+                        self.log(f"Error checking folder status for {root}: {e}", "WARNING")
 
-        files = sorted(list(set(files))) # Dedup just in case
+                # Broadcast folder discovery
+                try:
+                    from modules.events import event_manager
+                    event_manager.broadcast_threadsafe("folder_discovered", {"path": root})
+                except Exception:
+                    pass
+
+                visited_folders.add(root)
+
+                for filename in filenames:
+                    file_path = os.path.join(root, filename)
+                    if path_is_indexing_excluded(file_path):
+                        continue
+                    ext = os.path.splitext(filename)[1].lower()
+                    if ext in extensions:
+                        files.append(file_path)
+                        # Broadcast image discovery
+                        try:
+                            from modules.events import event_manager
+                            event_manager.broadcast_threadsafe("image_discovered", {"path": file_path})
+                        except Exception:
+                            pass
+
+        files = sorted(list(set(files)))  # Dedup just in case
 
         
         if not files:
@@ -142,8 +172,10 @@ class BatchImageProcessor:
             if visited_folders:
                 self.log("Verifying empty folders...")
                 for f in visited_folders:
-                     try: db.check_and_update_folder_status(f)
-                     except Exception: pass
+                    try:
+                        db.check_and_update_folder_status(f)
+                    except Exception:
+                        pass
             return
 
         self.log(f"Found {len(files)} images to process.")

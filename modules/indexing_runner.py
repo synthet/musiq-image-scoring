@@ -589,16 +589,8 @@ class IndexingRunner:
                         and _image_row_has_identity_hash(existing_by_path)
                     ):
                         sid = int(existing_by_path["id"])
-                        db.set_image_phase_status(
-                            sid,
-                            PhaseCode.INDEXING,
-                            PhaseStatus.SKIPPED,
-                            app_version=APP_VERSION,
-                            executor_version=INDEXING_VERSION,
-                            job_id=job_id,
-                            skip_reason="already_indexed",
-                            skipped_by="indexing_runner",
-                        )
+                        # Do not overwrite IPS done→skipped (illegal transition; reads like regression in UI).
+                        # Per-run "no work" stays on the job report / job_image_actions.
                         skipped_count += 1
                         if report_collector:
                             report_collector.record_skip(sid, "already_indexed")

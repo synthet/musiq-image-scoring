@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft } from 'lucide-react'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { ArrowLeft, Play } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
+import { runsApi } from '@/api/runs'
 import { imageInspectorPath, embeddingsPathFor } from '@/utils/routes'
 import { useUiStore } from '@/stores/uiStore'
+import { Button } from '@/components/ui/button'
 import { CollapsibleInspectorSection, KeyValueTable, formatInspectorValue } from '@/components/images/InspectorPrimitives'
 import { statusLabel } from '@/components/ui/badge'
 import { PhaseStatusIcon, normalizeLegacyPhaseStatus } from '@/components/status/PhaseStatusIcon'
@@ -104,7 +106,8 @@ function PhaseStatusTable({ phases }: { phases: NonNullable<ImageDetail['phase_s
         <thead className="bg-[#1e1e1e] sticky top-0">
           <tr className="text-left text-[#9d9d9d] border-b border-[#3c3c3c]">
             <th className="px-2 py-1 font-semibold">Phase</th>
-            <th className="px-2 py-1 font-semibold">Status</th>
+            <th className="px-2 py-1 font-semibold">Data Status</th>
+            <th className="px-2 py-1 font-semibold">Last Run Activity</th>
             <th className="px-2 py-1 font-semibold">Updated</th>
             <th className="px-2 py-1 font-semibold">Attempts</th>
             <th className="px-2 py-1 font-semibold">Error</th>
@@ -118,19 +121,36 @@ function PhaseStatusTable({ phases }: { phases: NonNullable<ImageDetail['phase_s
             const legacyKey = normalizeLegacyPhaseStatus(
               typeof rawStatus === 'string' ? rawStatus : '',
             )
-            const statusText = isString
+            const dataStatusText = isString
               ? row
               : rawStatus
                 ? statusLabel(legacyKey)
                 : '—'
+            
+            const lastRunAction = isString ? null : r?.last_run_action;
+            const actionText = lastRunAction?.action ? lastRunAction.action : '—';
+            const actionReason = lastRunAction?.reason ? `(${lastRunAction.reason})` : '';
+            const actionDisplay = lastRunAction ? `${actionText} ${actionReason}`.trim() : '—';
+            
             return (
               <tr key={code} className="border-b border-[var(--color-border-muted)] hover:bg-[var(--color-bg-tertiary)]">
                 <td className="px-2 py-1 font-mono text-[var(--color-accent-bright)]">{code}</td>
                 <td className="px-2 py-1">
                   <div className="flex items-center gap-1.5">
                     <PhaseStatusIcon status={typeof rawStatus === 'string' ? rawStatus : ''} />
-                    <span>{statusText}</span>
+                    <span>{dataStatusText}</span>
                   </div>
+                </td>
+                <td className="px-2 py-1">
+                  <span className={`px-1.5 py-0.5 rounded ${
+                    lastRunAction?.action === 'failed' ? 'bg-[var(--color-danger-muted)] text-[var(--color-danger)]' :
+                    lastRunAction?.action === 'processed' ? 'bg-[var(--color-success-muted)] text-[var(--color-success)]' :
+                    lastRunAction?.action === 'skipped' ? 'bg-[var(--color-warning-muted)] text-[var(--color-warning)]' :
+                    lastRunAction?.action === 'unchanged' ? 'text-[var(--color-text-muted)]' :
+                    'text-[var(--color-text-muted)]'
+                  }`}>
+                    {actionDisplay}
+                  </span>
                 </td>
                 <td className="px-2 py-1 text-[var(--color-text-muted)] font-mono">
                   {isString ? '—' : r?.updated_at ? String(r.updated_at).slice(0, 19) : '—'}
@@ -249,6 +269,22 @@ export function ImageInspectorPage() {
     enabled: Number.isFinite(id) && id > 0,
   })
 
+  const runJobMut = useMutation({
+    mutationFn: () => {
+      const path = data?.resolved_path || data?.file_path
+      if (!path) throw new Error('No path available to run job')
+      return runsApi.submit({
+        scope_type: 'file',
+        scope_paths: [path],
+      })
+    },
+    onSuccess: (res) => {
+      if (res?.run_id) {
+        navigate(`/runs/${res.run_id}`)
+      }
+    },
+  })
+
   if (!Number.isFinite(id) || id <= 0) {
     return <div className="p-4 text-sm text-[#6d6d6d]">Invalid image id.</div>
   }
@@ -283,14 +319,25 @@ export function ImageInspectorPage() {
           <ArrowLeft size={12} /> Images
         </Link>
         <span className="text-sm font-medium text-[#cccccc] truncate">{data.file_name}</span>
-        <div className="ml-auto shrink-0 flex items-center gap-2">
-          <Link
-            to={embeddingsPathFor(data.id)}
-            className="text-[10px] text-[#9d9d9d] hover:text-[#4fc1ff] transition-colors"
-            title="Open this image in Vector DB"
+        <div className="ml-auto shrink-0 flex items-center gap-3">
+          <Button
+            size="xs"
+            variant="secondary"
+            onClick={() => runJobMut.mutate()}
+            loading={runJobMut.isPending}
+            title="Run pipeline for this image"
           >
-            Vector DB
-          </Link>
+            <Play size={12} />
+            Run Job
+          </Button>
+          <div className="flex items-center gap-2 border-l border-[#3c3c3c] pl-3">
+            <Link
+              to={embeddingsPathFor(data.id)}
+              className="text-[10px] text-[#9d9d9d] hover:text-[#4fc1ff] transition-colors"
+              title="Open this image in Vector DB"
+            >
+              Vector DB
+            </Link>
           <span className="text-[10px] text-[#6d6d6d] font-mono">
             id{' '}
             <Link
@@ -300,6 +347,7 @@ export function ImageInspectorPage() {
               {data.id}
             </Link>
           </span>
+          </div>
         </div>
       </div>
 

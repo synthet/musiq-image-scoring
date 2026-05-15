@@ -1,7 +1,7 @@
 import os
 import threading
 import logging
-from typing import List, Dict, Optional
+from typing import List, Optional
 from modules import db, thumbnails, xmp, exif_extractor, utils
 from modules.version import APP_VERSION
 from modules.phases import PhaseCode, PhaseStatus
@@ -72,7 +72,6 @@ class MetadataRunner:
             runner_emit(self.log_history, job_id, msg, level, phase="metadata", image_id=image_id)
 
         # Handle WSL path conversion if needed (e.g. running on Windows but path is /mnt/d/...)
-        from modules import utils
         converted = utils.convert_path_to_local(input_path)
         if converted != input_path:
             log(f"Normalized path: {input_path} -> {converted}", "DEBUG")
@@ -217,16 +216,6 @@ class MetadataRunner:
                 # Check if 'metadata' phase is already DONE
                 phase_status = db.get_image_phase_status(image_id, PhaseCode.METADATA)
                 if phase_status and phase_status.get('status') == PhaseStatus.DONE:
-                    db.set_image_phase_status(
-                        image_id,
-                        PhaseCode.METADATA,
-                        PhaseStatus.SKIPPED,
-                        app_version=APP_VERSION,
-                        executor_version=METADATA_VERSION,
-                        job_id=job_id,
-                        skip_reason="metadata_already_done",
-                        skipped_by="metadata_runner",
-                    )
                     skipped_count += 1
                     if report_collector:
                         report_collector.record_skip(image_id, "metadata_already_done")

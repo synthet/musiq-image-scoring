@@ -6803,6 +6803,7 @@ def reconcile_stale_running_phases_for_jobs(job_ids, error_message=None, in_flig
     folder_ids = [r["folder_id"] for r in folder_rows if r and r.get("folder_id") is not None]
 
     now = datetime.datetime.now()
+    salvaged = 0
     if mode == "not_started":
         params = [msg, now] + job_ids
         rowcount = get_connector().execute(
@@ -6814,6 +6815,31 @@ def reconcile_stale_running_phases_for_jobs(job_ids, error_message=None, in_flig
             params,
         )
     else:
+        # Issue #161: before flipping running rows to 'failed', salvage scoring rows
+        # whose canonical outputs are already persisted on ``images``. The reconciler
+        # otherwise marks fully-scored images as failed on job cancel, which drives
+        # an infinite heal_workflow_scoring loop because each rerun produces the
+        # same (already-saved) result.
+        salvage_msg = (msg + ":outputs_present")[:255]
+        salvage_params = [salvage_msg, now, now] + job_ids
+        salvaged_rc = get_connector().execute(
+            f"""
+            UPDATE image_phase_status
+            SET status = 'done', last_error = ?, finished_at = ?, updated_at = ?
+            WHERE job_id IN ({placeholders})
+              AND status = 'running'
+              AND phase_id = (SELECT id FROM pipeline_phases WHERE code = 'scoring')
+              AND image_id IN (
+                  SELECT id FROM images WHERE score IS NOT NULL AND scores_json IS NOT NULL
+              )
+            """,
+            salvage_params,
+        )
+        try:
+            salvaged = int(salvaged_rc) if salvaged_rc is not None else 0
+        except (TypeError, ValueError):
+            salvaged = 0
+
         params = [msg, now, now] + job_ids
         rowcount = get_connector().execute(
             f"""
@@ -6827,6 +6853,12 @@ def reconcile_stale_running_phases_for_jobs(job_ids, error_message=None, in_flig
         rc = int(rowcount) if rowcount is not None else 0
     except (TypeError, ValueError):
         rc = 0
+    if salvaged:
+        logger.info(
+            "reconcile_stale_running_phases_for_jobs: salvaged %s scoring row(s) "
+            "with outputs already persisted (jobs=%s)", salvaged, job_ids,
+        )
+        rc += salvaged
 
     for fid in folder_ids:
         try:
@@ -8784,6 +8816,21 @@ def get_incomplete_records(limit: int | None = None):
         query = query.strip() + f"\n        FETCH FIRST {int(limit)} ROWS ONLY"
 
     return list(get_connector().query(query))
+
+
+def count_incomplete_records() -> int:
+    """Return COUNT(*) for the same predicate as :func:`get_incomplete_records`."""
+    inc = _incomplete_images_where_sql("")
+    row = get_connector().query_one(f"SELECT COUNT(*) AS c FROM images WHERE {inc}")
+    if not row:
+        return 0
+    v = row.get("c")
+    if v is None:
+        v = row.get("C")
+    try:
+        return int(v or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def get_newly_imported_folders(days: int = 7, min_images: int = 1, path_pattern: str = None):
@@ -11467,8 +11514,11 @@ def set_image_phase_status(image_id, phase_code, status,
     Skip-reason taxonomy: reasons starting with ``already_done_``, ``already_indexed``,
     or ``metadata_already_done`` denote "this work was already complete at the current
     executor version" and are aggregate-wise equivalent to ``done`` (see
-    ``get_folder_phase_summary``). Other ``skipped`` reasons mean "no work needed /
-    not applicable" and are also terminal but distinct from ``done`` semantically.
+    ``get_folder_phase_summary``). Runners must **not** rewrite an existing ``done``
+    row to ``skipped`` for those reasons (illegal ``done``→``skipped`` transition and
+    confusing UX); record per-run skips via report collectors / ``job_image_actions``.
+    Other ``skipped`` reasons mean "no work needed / not applicable" and are also
+    terminal but distinct from ``done`` semantically.
     """
     from modules.phases import PhaseStatus, is_transition_allowed
 
@@ -11696,6 +11746,29 @@ def get_batch_image_phase_statuses(image_ids):
         tuple(image_ids)
     )
 
+    action_rows = get_connector().query(
+        "SELECT image_id, phase_code, action, reason, created_at, job_id "
+        "FROM ("
+        "  SELECT image_id, phase_code, action, reason, created_at, job_id, "
+        "         ROW_NUMBER() OVER(PARTITION BY image_id, phase_code ORDER BY created_at DESC) as rn "
+        "  FROM job_image_actions "
+        f"  WHERE image_id IN ({placeholders})"
+        ") t WHERE rn = 1",
+        tuple(image_ids)
+    )
+    
+    actions_by_img_phase = {}
+    for ar in action_rows:
+        img_id = int(ar["image_id"])
+        if img_id not in actions_by_img_phase:
+            actions_by_img_phase[img_id] = {}
+        actions_by_img_phase[img_id][ar["phase_code"]] = {
+            "action": ar["action"],
+            "reason": ar["reason"],
+            "created_at": ar["created_at"],
+            "job_id": ar["job_id"]
+        }
+
     result = {int(img_id): {code: _default_phase_status_entry() for code in phase_codes}
               for img_id in image_ids}
     for r in rows:
@@ -11712,6 +11785,7 @@ def get_batch_image_phase_statuses(image_ids):
             "last_error": r["last_error"],
             "skip_reason": r["skip_reason"],
             "skipped_by": r["skipped_by"],
+            "last_run_action": actions_by_img_phase.get(img_id, {}).get(code, None)
         }
     return result
 
@@ -11724,7 +11798,7 @@ def get_image_phase_statuses(image_id):
     the backend has progressed.
 
     Returns:
-        dict: {phase_code: {status, executor_version, app_version, updated_at, attempt_count, last_error}}
+        dict: {phase_code: {status, executor_version, app_version, updated_at, attempt_count, last_error, last_run_action}}
     """
     rows = get_connector().query(
         "SELECT pp.code, ips.status, ips.executor_version, ips.app_version, "
@@ -11735,11 +11809,33 @@ def get_image_phase_statuses(image_id):
         "ORDER BY pp.sort_order",
         (image_id,)
     )
+
+    action_rows = get_connector().query(
+        "SELECT phase_code, action, reason, created_at, job_id "
+        "FROM ("
+        "  SELECT phase_code, action, reason, created_at, job_id, "
+        "         ROW_NUMBER() OVER(PARTITION BY phase_code ORDER BY created_at DESC) as rn "
+        "  FROM job_image_actions "
+        "  WHERE image_id = ?"
+        ") t WHERE rn = 1",
+        (image_id,)
+    )
+    
+    actions_by_phase = {}
+    for ar in action_rows:
+        actions_by_phase[ar["phase_code"]] = {
+            "action": ar["action"],
+            "reason": ar["reason"],
+            "created_at": ar["created_at"],
+            "job_id": ar["job_id"]
+        }
+
     result = {}
     for r in rows:
         code = (r["code"] or "").strip()
         if not code:
             continue
+            
         result[code] = {
             "status": (r["status"] or "not_started").strip(),
             "executor_version": r["executor_version"],
@@ -11749,6 +11845,7 @@ def get_image_phase_statuses(image_id):
             "last_error": r["last_error"],
             "skip_reason": r["skip_reason"],
             "skipped_by": r["skipped_by"],
+            "last_run_action": actions_by_phase.get(code, None)
         }
     return result
 

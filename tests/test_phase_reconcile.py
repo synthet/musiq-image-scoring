@@ -122,6 +122,86 @@ def test_strict_verify_fails_when_image_not_terminal(monkeypatch):
     assert "non-terminal" in msg
 
 
+# --- Issue #161: salvage scoring rows whose outputs already exist -------------
+
+
+def _make_reconcile_fake(executed_log):
+    """Connector double that records execute() calls and returns deterministic rowcounts."""
+
+    class FakeConn:
+        def query(self, sql, params=None):
+            return []
+
+        def execute(self, sql, params=None):
+            executed_log.append((sql, list(params) if params else []))
+            sql_upper = sql.upper()
+            if "SET STATUS = 'DONE'" in sql_upper:
+                return 17
+            if "SET STATUS = 'FAILED'" in sql_upper:
+                return 3
+            if "SET STATUS = 'NOT_STARTED'" in sql_upper:
+                return 4
+            return 0
+
+    return FakeConn()
+
+
+def test_reconcile_failed_salvages_scoring_rows_with_outputs(monkeypatch):
+    """Issue #161: scoring rows whose outputs are persisted on ``images`` must be
+    flipped to ``done`` (with a ``:outputs_present`` marker), not ``failed``.
+    """
+    executed = []
+    monkeypatch.setattr("modules.db.get_connector", lambda: _make_reconcile_fake(executed))
+    monkeypatch.setattr("modules.db.invalidate_folder_phase_aggregates", lambda **kw: None)
+
+    rc = db.reconcile_stale_running_phases_for_jobs(
+        [2423], error_message="stale_running_reconciled:job_cancelled", in_flight_to="failed",
+    )
+
+    update_calls = [(s, p) for s, p in executed if "UPDATE IMAGE_PHASE_STATUS" in s.upper()]
+    assert len(update_calls) == 2, update_calls
+
+    salvage_sql, salvage_params = update_calls[0]
+    assert "SET status = 'done'" in salvage_sql
+    assert "pipeline_phases" in salvage_sql.lower()
+    assert "score IS NOT NULL" in salvage_sql
+    assert "scores_json IS NOT NULL" in salvage_sql
+    assert salvage_params[0] == "stale_running_reconciled:job_cancelled:outputs_present"
+
+    fail_sql, _ = update_calls[1]
+    assert "SET status = 'failed'" in fail_sql
+
+    # Total = salvaged (17) + failed (3).
+    assert rc == 20
+
+
+def test_reconcile_not_started_mode_skips_salvage(monkeypatch):
+    """Resumable reconcile (``in_flight_to='not_started'``) must not run the
+    salvage path: rows are intentionally left for the runner to pick up again.
+    """
+    executed = []
+    monkeypatch.setattr("modules.db.get_connector", lambda: _make_reconcile_fake(executed))
+    monkeypatch.setattr("modules.db.invalidate_folder_phase_aggregates", lambda **kw: None)
+
+    rc = db.reconcile_stale_running_phases_for_jobs(
+        [99], error_message="stale_running_reconciled:job_interrupted", in_flight_to="not_started",
+    )
+    update_calls = [(s, p) for s, p in executed if "UPDATE IMAGE_PHASE_STATUS" in s.upper()]
+    assert len(update_calls) == 1
+    assert "SET status = 'not_started'" in update_calls[0][0]
+    assert "SET status = 'done'" not in update_calls[0][0]
+    assert rc == 4
+
+
+def test_reconcile_empty_job_ids_short_circuits(monkeypatch):
+    """No job ids → zero work and no UPDATE."""
+    executed = []
+    monkeypatch.setattr("modules.db.get_connector", lambda: _make_reconcile_fake(executed))
+    rc = db.reconcile_stale_running_phases_for_jobs([], error_message=None, in_flight_to="failed")
+    assert rc == 0
+    assert executed == []
+
+
 def test_count_reconcilable_terminal_job_phases(monkeypatch):
     class FakeConn:
         def query_one(self, sql, params=None):

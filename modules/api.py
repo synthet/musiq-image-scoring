@@ -6418,15 +6418,24 @@ def create_api_router() -> APIRouter:
         phase_code = _phase_code_map.get(orig_job_type, "scoring")
 
         prior = original_job.get("description")
+        _retry_ui = "(retry from Runs UI)"
+        _force_q = "(re-queued via force_run)"
+
+        def _with_suffix(base: str, suffix: str) -> str:
+            p = (base or "").strip()
+            if not p:
+                return ""
+            return p if p.endswith(suffix) else f"{p} {suffix}"
+
         if source == "force_run":
             retry_desc = (
-                f"{str(prior).strip()} (re-queued via force_run)"
+                _with_suffix(str(prior).strip() if prior else "", _force_q)
                 if prior and str(prior).strip()
                 else f"Retry via force_run of job #{original_job.get('id')} ({orig_job_type}) for {original_job.get('input_path') or ''}."
             )
         else:  # "retry_run"
             retry_desc = (
-                f"{str(prior).strip()} (retry from Runs UI)"
+                _with_suffix(str(prior).strip() if prior else "", _retry_ui)
                 if prior and str(prior).strip()
                 else f"Retry of run #{original_job.get('id')} ({orig_job_type}) for {original_job.get('input_path') or ''}."
             )
