@@ -293,6 +293,12 @@ export interface ImagePhaseStatusRow {
   last_error?: string | null
   skip_reason?: string | null
   skipped_by?: string | null
+  last_run_action?: {
+    action: 'processed' | 'skipped' | 'failed' | 'unchanged'
+    reason: string | null
+    created_at: string
+    job_id: number | null
+  } | null
 }
 
 /** Payload from GET /api/images/{id}, by-uuid, or by-hash */
