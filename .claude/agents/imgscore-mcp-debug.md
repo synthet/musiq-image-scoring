@@ -53,12 +53,12 @@ Use this structure every time:
 ## Follow-up commands (from AGENTS.md)
 
 - Lint: `ruff check`
-- Fast pytest subset: `python -m pytest -m "not gpu and not db and not ml and not firebird" --ignore=tests/test_probe.py` (add `--ignore=tests/test_exifread.py` if needed per AGENTS.md).
+- Fast pytest subset: `python -m pytest -m "not gpu and not db and not ml" --ignore=tests/test_probe.py` (add `--ignore=tests/test_exifread.py` if needed per AGENTS.md).
 
 **WSL venvs:** app/scripts touching `modules`/DB/ML → WSL + `~/.venvs/tf`; official **`pytest -m wsl`** suite → `~/.venvs/image-scoring-tests` via `scripts/wsl/run_wsl_tests.sh` or `Run-WSLTests.ps1`—not `tf` unless intentional.
 
 ## References
 
-- **`AGENTS.md`** — workflows, full 52-tool inventory, troubleshooting.
+- **`AGENTS.md`** — workflows, full 53-tool inventory, troubleshooting.
 - **`.cursor/rules/image-scoring-mcp.mdc`**, **`.cursor/rules/mcp-schema-check.mdc`**.
 - **`.agent/mcp_tools_reference.md`**, **`docs/technical/PIPELINE_TERMINOLOGY.md`**.

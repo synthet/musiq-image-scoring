@@ -1,0 +1,64 @@
+# Agent infrastructure inventory — image-scoring-backend
+
+**Last reviewed:** 2026-05-16. **Maintainer:** repo maintainers; schema authority in `docs/CANONICAL_SOURCES.md`. Machine-readable mirror: [`AGENT_INFRA_STATUS.json`](AGENT_INFRA_STATUS.json).
+
+| Path | Purpose | Scope | Status | Upstream authority | Recommended action |
+|------|---------|--------|--------|--------------------|--------------------|
+| [AGENTS.md](../AGENTS.md) | MCP config, commands, E2E vocabulary, tool list | backend, MCP | active | This file | Keep in sync with `modules/mcp_server.py` tool count |
+| [CLAUDE.md](../CLAUDE.md) | Human + agent orientation, backlog, architecture | cross-repo | active | AGENTS.md, CANONICAL_SOURCES | Link new `.agent/*` hubs |
+| [.agent/INFRA_QUICKSTART.md](INFRA_QUICKSTART.md) | Doctor, bundles, safe commands | diagnostics | active | DIAGNOSTICS.md | None |
+| [.agent/mcp_tools_reference.md](mcp_tools_reference.md) | MCP tool quick reference | MCP | active | `modules/mcp_server.py`, AGENTS.md inventory | Regenerate table via generate_mcp_tool_inventory.py |
+| [.agent/ai_edit_spec.md](ai_edit_spec.md) | AI editing conventions | coding | active | — | None |
+| [.agent/SKILL_INVENTORY.md](SKILL_INVENTORY.md) | Skills + subagents index (AST09) | governance | active | `.cursor/skills/` | Update dates when skills change |
+| [.agent/SKILL_CHANGE_AST10_REVIEW.md](SKILL_CHANGE_AST10_REVIEW.md) | PR checklist for skill drift | cross-repo | active | OWASP AST10 | None |
+| [.agent/PROJECT_GUIDE.md](PROJECT_GUIDE.md) | Navigation for `.agent/` | docs-only | active | — | Add pointer to this inventory |
+| [.agent/COMMANDS.md](COMMANDS.md) | Verified command quick reference | testing, diagnostics | active | AGENTS.md, DEVELOPMENT.md | Maintain when scripts change |
+| [.agent/SAFETY.md](SAFETY.md) | Secrets, bundles, git hygiene | governance | active | SAFETY + CLAUDE.md | None |
+| [.agent/AGENT_INFRA_STATUS.json](AGENT_INFRA_STATUS.json) | Machine-readable infra status | governance | active | This file | Bump `review_date` each pass |
+| [.agent/subagents/README.md](subagents/README.md) | Logical roles ↔ `.cursor/agents` | coding | active | .cursor/agents | None |
+| [.cursor/rules/agent-canonical-sources.mdc](../.cursor/rules/agent-canonical-sources.mdc) | Authority stack, Postgres primary, doctor/pytest | backend, cross-repo | active | docs/CANONICAL_SOURCES.md | Mirror `.claude/rules/` |
+| [.cursor/rules/*.mdc](../.cursor/rules/) | Other Cursor rules (MCP, WSL, pytest E2E, backlog, …) | backend, MCP, testing | active | CANONICAL_SOURCES, AGENTS.md | Edits in same PR as `.claude` mirrors when mirrored |
+| [.cursor/commands/*.md](../.cursor/commands/) | Slash commands | workflow | active | agent-sdlc | Mirror wiki commands into .claude if missing |
+| [.cursor/skills/*/SKILL.md](../.cursor/skills/) | Canonical skills (AST10) | coding, MCP | active | SKILL_INVENTORY | Mirror to `.claude/skills/` |
+| [.cursor/agents/*.md](../.cursor/agents/) | Subagent role YAML | coding | active | AGENTS.md | Keep synced to `.claude/agents/` |
+| [.claude/skills/*/SKILL.md](../.claude/skills/) | Claude mirror of skills | coding | duplicate-of | `.cursor/skills/` | Same-PR sync |
+| [.claude/commands/*.md](../.claude/commands/) | Claude slash commands | workflow | partial-mirror | `.cursor/commands/` | Align sets (wiki commands may differ) |
+| [.claude/agents/*.md](../.claude/agents/) | Claude mirror of agents | coding | duplicate-of | `.cursor/agents/` | Same-PR sync |
+| [.claude/rules/*.mdc](../.claude/rules/) | Claude rules (`documentation`, `agent-canonical-sources`, `image-scoring-mcp`) | governance | active | .cursor/rules | Same-PR sync with Cursor rules |
+| [.agent/skills/*/SKILL.md](skills/) | Agent-loader-only skills | MCP, docs | active | .cursor/skills for overlap | Mark deprecated skills in-table |
+| [.agent/workflows/*.md](workflows/) | Reusable workflows | workflow | mixed | INFRA_QUICKSTART | Fix stale `verify_system.md`, add debug/*.md |
+| [docs/CANONICAL_SOURCES.md](../docs/CANONICAL_SOURCES.md) | Authority map | cross-repo | active | code | None |
+| [docs/DIAGNOSTICS.md](../docs/DIAGNOSTICS.md) | Doctor, logs, MCP | diagnostics | active | scripts/doctor.py | None |
+| [docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md) | Dev setup | testing | active | — | None |
+| [docs/TESTING.md](../docs/TESTING.md) | Pytest markers | testing | active | pytest.ini | None |
+| [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) | Issue hub | diagnostics | active | — | None |
+| [docs/WIKI_SCHEMA.md](../docs/WIKI_SCHEMA.md) | Wiki taxonomy | docs-only | active | documentation.mdc | None |
+| [docs/log.md](../docs/log.md) | Wiki changelog | docs-only | active | WIKI_SCHEMA | Append on infra changes |
+| [docs/technical/API_CONTRACT.md](../docs/technical/API_CONTRACT.md) | REST contract | backend | active | modules/api.py | None |
+| [docs/reference/api/openapi.yaml](../docs/reference/api/openapi.yaml) | OpenAPI artifact | backend | active | API generation pipeline | None |
+| [docs/technical/PIPELINE_TERMINOLOGY.md](../docs/technical/PIPELINE_TERMINOLOGY.md) | Phases / labels | cross-repo | active | modules/phases.py | None |
+| [docs/technical/DB_SCHEMA.md](../docs/technical/DB_SCHEMA.md) | DB reference | backend | active | db_postgres, migrations | None |
+| [docs/technical/AGENT_COORDINATION.md](../docs/technical/AGENT_COORDINATION.md) | Cross-repo protocol | cross-repo | active | — | None |
+| [.cursorrules](../.cursorrules) | IDE stub pointing at CLAUDE.md / .cursor/rules / CANONICAL_SOURCES | coding | active (rewritten 2026-05-15) | CANONICAL_SOURCES, CLAUDE.md | Keep thin; do not let it drift back into a full duplicate |
+| [.agent/AGENT_INFRA_STATUS.json](AGENT_INFRA_STATUS.json) | Machine-readable status snapshot | governance | active | This file | Regenerate when entries here change |
+
+## Deprecated / historical
+
+| Path | Issue | Action |
+|------|--------|--------|
+| `.agent/workflows/verify_system.md` (pre-2026-05) | SQLite / `scoring_history.db` references | **Rewritten** — wraps `scripts/doctor.py` |
+| `tests/archive_firebird/` | Legacy Firebird tests | Excluded from collection via `pytest.ini norecursedirs`; do not write new tests there |
+| `firebird` pytest marker | Marker removed 2026-05-15 (collection blocked above) | Drop `not firebird` from any new test command |
+
+## Glob coverage (not every row expanded)
+
+- **Rules:** `.cursor/rules/*.mdc`
+- **Commands:** `.cursor/commands/*.md`
+- **Skills:** `.cursor/skills/*/SKILL.md`, `.claude/skills/*/SKILL.md`
+- **Agents:** `.cursor/agents/*.md`, `.claude/agents/*.md`
+- **Workflows:** `.agent/workflows/*.md`
+
+## Drift watchlist
+
+- **MCP tool count:** Authoritative count comes from `modules/mcp_server.py` (`@mcp.tool` registrations); regenerate AGENTS.md inventory via `python scripts/generate_mcp_tool_inventory.py --update-docs AGENTS.md ...` when tools change.
+- **Firebird:** Legacy engine; Postgres + pgvector is primary. Firebird MCP rows in rules are for rare compatibility / inspection only.

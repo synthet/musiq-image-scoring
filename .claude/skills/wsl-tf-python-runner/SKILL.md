@@ -1,6 +1,6 @@
 ---
 name: wsl-tf-python-runner
-description: Runs Python, scripts, and tests the way image-scoring-backend expects — WSL, ~/.venvs/tf for app and scripts that import modules/DB/ML, separate ~/.venvs/image-scoring-tests for pytest -m wsl, LD_LIBRARY_PATH for bundled Firebird when DB/Firebird FFI is involved. Use when running launch.py or webui.py, scripts under scripts/, anything importing modules.*, resolving Windows vs WSL Python confusion, or choosing the correct pytest environment and markers.
+description: Runs Python, scripts, and tests the way image-scoring-backend expects — WSL, ~/.venvs/tf for app and scripts that import modules/DB/ML, separate ~/.venvs/image-scoring-tests for pytest -m wsl. Use when running webui.py, scripts under scripts/, anything importing modules.*, resolving Windows vs WSL Python confusion, or choosing the correct pytest environment and markers.
 ---
 
 # WSL / tf Python runner
@@ -13,31 +13,25 @@ Canonical environment rules live in root **AGENTS.md** (Commands, Testing, Curso
 
 | Task | Environment | Notes |
 |------|-------------|--------|
-| Web UI, `launch.py`, `webui.py`, `scripts/**`, `modules.*`, DB, config, ML | **WSL** + `~/.venvs/tf` | Same as `run_webui.bat` inner WSL setup |
+| Web UI, `webui.py`, `scripts/**`, `modules.*`, DB, config, ML | **WSL** + `~/.venvs/tf` | Same as `run_webui.bat` inner WSL setup |
 | Pytest tests marked **`wsl`** | **WSL** + `~/.venvs/image-scoring-tests` | `scripts/wsl/run_wsl_tests.sh` or `scripts/powershell/Run-WSLTests.ps1` — **not** `tf` unless intentional |
-| Fast CPU-only subset (no GPU/DB/ML/Firebird) | Per AGENTS.md | e.g. `pytest -m "not gpu and not db and not ml and not firebird"` — still use the venv the project documents for that command |
+| Fast CPU-only subset (no GPU/DB/ML) | Per AGENTS.md | e.g. `pytest -m "not gpu and not db and not ml"` — still use the venv the project documents for that command |
 | Web UI on Windows native only | Project **`.venv`** | `run_webui_windows.bat` — exception path |
 
-When in doubt for anything touching **`modules`**, the database, or Firebird client libs: **WSL + `tf`**.
+When in doubt for anything touching **`modules`**, the database, or pgvector: **WSL + `tf`**.
 
 ## Proposed commands (copy-paste)
 
-Replace `REPO_WSL` with the repo’s WSL path (example: `/mnt/d/Projects/image-scoring-backend`). Replace drive letter if the project is not on `D:`.
-
-**One-liner shell pattern** (app/scripts with Firebird lib on `LD_LIBRARY_PATH`):
-
-```bash
-cd REPO_WSL && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:REPO_WSL/FirebirdLinux/Firebird-5.0.0.1306-0-linux-x64/opt/firebird/lib && source ~/.venvs/tf/bin/activate && python PATH_TO_SCRIPT.py
-```
+Replace `REPO_WSL` with the repo's WSL path (example: `/mnt/d/Projects/image-scoring-backend`). Replace drive letter if the project is not on `D:`.
 
 **Examples:**
 
 ```bash
-cd /mnt/d/Projects/image-scoring-backend && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/FirebirdLinux/Firebird-5.0.0.1306-0-linux-x64/opt/firebird/lib && source ~/.venvs/tf/bin/activate && python launch.py
+cd /mnt/d/Projects/image-scoring-backend && source ~/.venvs/tf/bin/activate && python webui.py
 ```
 
 ```bash
-cd /mnt/d/Projects/image-scoring-backend && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/FirebirdLinux/Firebird-5.0.0.1306-0-linux-x64/opt/firebird/lib && source ~/.venvs/tf/bin/activate && python -m pytest -m "not gpu and not db and not ml and not firebird"
+cd /mnt/d/Projects/image-scoring-backend && source ~/.venvs/tf/bin/activate && python -m pytest -m "not gpu and not db and not ml"
 ```
 
 **Official `wsl` pytest suite** (correct venv — do not claim green without this when `-m wsl` matters):
@@ -56,7 +50,7 @@ Optional setup if the test venv is missing: `bash ./scripts/wsl/setup_wsl_test_e
 
 ## Pytest markers
 
-Definitions are in **`pytest.ini`** (`gpu`, `db`, `ml`, `wsl`, `network`, `sample_data`, `firebird`, `postgres`, …). Do **not** assert that tests passed without running them in the **intended** venv for that marker (especially **`wsl`** → `image-scoring-tests` venv via the scripts above).
+Definitions are in **`pytest.ini`** (`gpu`, `db`, `ml`, `wsl`, `network`, `sample_data`, `postgres`, `inference_e2e`). Do **not** assert that tests passed without running them in the **intended** venv for that marker (especially **`wsl`** → `image-scoring-tests` venv via the scripts above).
 
 ## Behavior constraints
 

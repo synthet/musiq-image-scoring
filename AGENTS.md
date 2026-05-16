@@ -360,7 +360,7 @@ Users and docs sometimes overload **“E2E.”** Map phrases to suites as follow
 |--------------------|----------------------|-------|-----------------|----------------------------------------------------------------------------------------|
 | **Integration E2E**, **API E2E**, **runs submit E2E**, **postgres E2E** | Postgres API E2E | `tests/integration/test_runs_*_e2e.py` | `@pytest.mark.postgres`; enable with **`RUN_POSTGRES_TESTS=1`** or **`pytest -m postgres`** | `pytest tests/integration/ -m postgres -v` (requires PostgreSQL reachable for `image_scoring_test`; see `tests/conftest.py`) |
 | **Docker E2E**, **inference E2E**, **GPU E2E in Docker**, **`e2e-inference` profile** | Docker inference E2E | `tests/e2e_docker/` | `@pytest.mark.inference_e2e` + **`IMAGE_SCORING_DOCKER_INFERENCE_E2E=1`** | `docker compose --profile e2e-inference run --rm inference-e2e` (runs `scripts/docker_inference_e2e.sh` → pytest `-m inference_e2e`). Not the same as integration E2E. |
-| **Unit tests**, **fast tests** (not E2E) | Default / fast subset | Most tests outside the two rows above | Exclude heavy markers | `pytest -m "not gpu and not db and not ml and not firebird" --ignore=tests/test_probe.py` |
+| **Unit tests**, **fast tests** (not E2E) | Default / fast subset | Most tests outside the two rows above | Exclude heavy markers | `pytest -m "not gpu and not db and not ml" --ignore=tests/test_probe.py` |
 
 **Disambiguation:** The phrase **“e2e unit tests”** is ambiguous (some people mean integration E2E; others misspeak for unit tests). If the user does not specify, **ask once**: Postgres API E2E (`tests/integration/*_e2e.py`), Docker inference E2E (`tests/e2e_docker/`), or ordinary unit/fast pytest?
 

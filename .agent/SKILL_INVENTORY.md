@@ -49,7 +49,7 @@ Project subagents live under **`.cursor/agents/`** (canonical) and are mirrored 
 | Subagent `name` | Path | Purpose (short) | Risk | Claude mirror | Last reviewed |
 |-----------------|------|-----------------|------|---------------|---------------|
 | imgscore-backend-implementer | `.cursor/agents/imgscore-backend-implementer.md` | Scoped backend implementation, minimal diff | L2 | Yes | 2026-05-15 |
-| imgscore-mcp-debug | `.cursor/agents/imgscore-mcp-debug.md` | Read-only MCP triage (52-tool surface) | L1 | Yes | 2026-05-15 |
+| imgscore-mcp-debug | `.cursor/agents/imgscore-mcp-debug.md` | Read-only MCP triage (53-tool surface) | L1 | Yes | 2026-05-15 |
 | critical-commit-audit | `.cursor/agents/critical-commit-audit.md` | High-severity post-commit bug hunt | L2 | Yes | 2026-05-15 |
 | pr-ready-hygiene | `.cursor/agents/pr-ready-hygiene.md` | Scoped lint/tests; PR-ready checklist | L2 | Yes | 2026-05-15 |
 | wsl-tf-python-runner | `.cursor/agents/wsl-tf-python-runner.md` | WSL / venv / pytest marker resolution | L2 | Yes | 2026-05-15 |

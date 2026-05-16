@@ -2,7 +2,7 @@
 Reconcile Image Phase Status
 
 This maintenance script audits the image_phase_status table against the 
-ground-truth data stored in the main images and image_exif tables.
+ground-truth data stored in the main images table.
 It identifies cases of "status drift" where the recorded status is 
 e.g., 'skipped' or 'not_started', but the underlying data is actually 
 present, and corrects the status to 'done'. 
@@ -30,7 +30,7 @@ def reconcile(dry_run: bool = False):
     
     # Process phases
     phases_to_check = {
-        'indexing': "i.id IS NOT NULL",
+        'indexing': "i.image_embedding IS NOT NULL",
         'metadata': "(i.rating IS NOT NULL AND i.label IS NOT NULL)",
         'scoring': "(i.score_general IS NOT NULL AND i.score_general > 0)",
         'keywords': "(i.keywords IS NOT NULL AND i.keywords != '')"

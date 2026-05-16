@@ -81,8 +81,8 @@ Run in order, **stopping early** if the answer is clear. Adjust when the questio
 From **`AGENTS.md`** (repo root):
 
 - **Lint:** `ruff check`
-- **Fast tests (no gpu/db/ml/firebird):**  
-  `python -m pytest -m "not gpu and not db and not ml and not firebird" --ignore=tests/test_probe.py`  
+- **Fast tests (no gpu/db/ml):**  
+  `python -m pytest -m "not gpu and not db and not ml" --ignore=tests/test_probe.py`  
   (Add `--ignore=tests/test_exifread.py` if `exifread` is missing—see AGENTS.md.)
 
 From **`.cursor/rules/python-wsl-webapp-env.mdc`**:

@@ -41,6 +41,7 @@ AI image scoring, tagging, clustering, and gallery APIs — Python backend (Fast
 
 - [docs/DIAGNOSTICS.md](../docs/DIAGNOSTICS.md) — doctor, bundles, logs, MCP tools.
 - [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) — hub links.
+- [.agent/AGENT_INFRA_INVENTORY.md](AGENT_INFRA_INVENTORY.md) — catalog of agent-facing rules, skills, workflows (see also [COMMANDS.md](COMMANDS.md), [SAFETY.md](SAFETY.md), [workflows/](workflows/)).
 
 ## Electron gallery (sibling repo)
 
