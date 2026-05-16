@@ -8363,22 +8363,22 @@ def _incomplete_images_where_sql(table_alias: str = "") -> str:
     so including them here would mark every freshly-scored-but-unrated image
     incomplete forever and trap heal in a re-target loop.
 
-    Semantics mirror ``is_image_scoring_complete`` (not stricter): require
-    ``score_general > 0`` and **at least one** of the usual model columns
-    ``> 0``. A model score of exactly ``0`` on a 0–1 scale is valid and must not
-    force incompleteness while another model is positive. Legacy ``score`` is
-    not consulted here so policy, healing, and ``explain_phase_run_decision``
-    stay consistent.
+    Semantics mirror ``is_image_scoring_complete`` (not stricter): the sole
+    criterion is **at least one** positive model column among
+    ``spaq/ava/liqe/paq2piq/koniq``. The aggregated ``score_general`` is a
+    derived weighted value that can legitimately be ``0`` (e.g. when the
+    technical sub-aggregate is ``0`` for a particular image), so requiring
+    ``score_general > 0`` would re-introduce the same kind of infinite heal
+    loop the per-model rule was meant to avoid (see issue #162). Legacy
+    ``score`` is not consulted here so policy, healing, and
+    ``explain_phase_run_decision`` stay consistent.
     """
     prefix = f"{table_alias}." if table_alias else ""
     models_any_positive = " OR ".join(
         f"({prefix}score_{m} IS NOT NULL AND {prefix}score_{m} > 0)"
         for m in ("spaq", "ava", "liqe", "paq2piq", "koniq")
     )
-    return f"""(
-        ({prefix}score_general IS NULL OR {prefix}score_general <= 0)
-        OR NOT ({models_any_positive})
-    )"""
+    return f"(NOT ({models_any_positive}))"
 
 
 def culling_cohesion_folders_aggregate_sql() -> str:
@@ -8651,29 +8651,27 @@ def is_image_scoring_complete(image_id: int) -> bool:
     """
     Check if an image has all required scores in the database.
     Used by phases_policy to verify 'DONE' status.
+
+    Aligned with :func:`_incomplete_images_where_sql`: completeness is decided
+    solely by the presence of at least one positive per-model score. The
+    aggregated ``score_general`` is intentionally not consulted because a
+    derived weighted score of exactly ``0`` is a legitimate scorer output and
+    must not flip a successfully-scored image back to incomplete (issue #162).
     """
     row = get_connector().query_one(
-        "SELECT score_general, score_technical, score_spaq, score_ava, score_paq2piq, score_liqe "
+        "SELECT score_spaq, score_ava, score_paq2piq, score_liqe "
         "FROM images WHERE id = ?",
         (image_id,)
     )
     if not row:
         return False
 
-    # Check general scores
-    if not row.get("score_general") or row.get("score_general") <= 0:
-        return False
-
-    # Check basic model scores (at least some should be present)
     model_scores = ["score_spaq", "score_ava", "score_paq2piq", "score_liqe"]
-    present_count = 0
     for m in model_scores:
         val = row.get(m)
         if val is not None and val > 0:
-            present_count += 1
-
-    # At least general + 2 models (or just general if that's all that's configured)
-    return present_count >= 1
+            return True
+    return False
 
 
 def is_image_metadata_complete(image_id: int) -> bool:
@@ -8802,9 +8800,11 @@ def get_incomplete_records(limit: int | None = None):
     """
     Retrieves records that fail :func:`_incomplete_images_where_sql` (scoring completeness).
 
-    Criteria match :func:`is_image_scoring_complete`: ``score_general`` must be
-    positive and at least one model score among spaq/ava/liqe/paq2piq/koniq must
-    be positive. (Rating/label are intentionally excluded.)
+    Criteria match :func:`is_image_scoring_complete`: at least one model score
+    among spaq/ava/liqe/paq2piq/koniq must be positive. The aggregated
+    ``score_general`` is not consulted (issue #162 — it can legitimately be
+    ``0`` for a successfully-scored image). Rating/label are intentionally
+    excluded.
     """
     inc = _incomplete_images_where_sql("")
     query = f"""
