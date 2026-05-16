@@ -126,30 +126,29 @@ Tests live in `tests/`. Markers defined in `pytest.ini`:
 |---------|----------------|-------|--------|
 | Integration E2E, API E2E, “e2e unit” (ambiguous—prefer below) | **Postgres API E2E** | `tests/integration/*_e2e.py` | `pytest -m postgres` or `RUN_POSTGRES_TESTS=1`; FastAPI `TestClient`, fake runners; **not** Docker-only |
 | Docker E2E, inference E2E, GPU E2E in container | **Docker inference E2E** | `tests/e2e_docker/` | `IMAGE_SCORING_DOCKER_INFERENCE_E2E=1`; run via Compose profile `e2e-inference` (see `docker-compose.yml`) |
-| Unit tests (not E2E) | **Fast / unit subset** | most of `tests/` outside the above | e.g. `pytest -m "not gpu and not db and not ml and not firebird"` |
+| Unit tests (not E2E) | **Fast / unit subset** | most of `tests/` outside the above | e.g. `pytest -m "not gpu and not db and not ml"` |
 
 Avoid saying **“e2e unit tests”** alone; use **Postgres API E2E** or **unit tests** explicitly. Full commands: **`AGENTS.md`** (section **Pytest E2E vocabulary**).
 
 | Marker | Meaning |
 |--------|---------|
 | `gpu` | Requires CUDA GPU |
-| `db` | Requires database connection (PostgreSQL or Firebird) |
+| `db` | Requires database connection (PostgreSQL) |
 | `ml` | Requires ML dependencies (TF, PyTorch, pyiqa) |
 | `wsl` | Must run in WSL/Linux |
 | `network` | Requires outbound network |
 | `sample_data` | Requires local sample image files |
-| `firebird` | Requires Firebird client libraries |
 | `postgres` | Postgres-backed API/integration E2E (`tests/integration/*_e2e.py`) |
 | `inference_e2e` | Docker-backed live inference E2E (`tests/e2e_docker/`) |
 
-Skip hardware-dependent tests with: `python -m pytest -m "not gpu and not db and not ml and not firebird"`
+Skip hardware-dependent tests with: `python -m pytest -m "not gpu and not db and not ml"`
 
 ## Electron Frontend Integration Points
 
-- **Shared DB (current):** Electron still reads `SCORING_HISTORY.FDB` (Firebird) via `node-firebird` — Phase 4 migration to PostgreSQL is pending
-- **REST API:** Electron calls `http://localhost:7860` for scoring/tagging/clustering jobs (WebUI port)
-- **IPC contract:** Electron expects specific column names and result shapes from DB queries — do not rename columns without updating `electron/db.ts`
-- **Migration note:** The Python backend now writes exclusively to PostgreSQL. Until Electron Phase 4 is complete, Electron will not see new writes unless re-enabled via `dual_write` or migrated to Postgres
+- **Shared DB:** Electron reads PostgreSQL via `electron/db/provider.ts` (or the backend HTTP API; see `electron/apiService.ts`). Firebird is decommissioned.
+- **REST API:** Electron calls `http://localhost:7860` for scoring/tagging/clustering jobs (WebUI port). Backend URL is discovered via `webui.lock` with fallback to port 7860.
+- **IPC contract:** Electron expects specific column names and result shapes from DB queries — do not rename columns without coordinated changes to `electron/db.ts` and the sibling repo. Cross-repo procedure: [`.agent/workflows/cross_repo_contract_change.md`](.agent/workflows/cross_repo_contract_change.md).
+- **API types:** Gallery generates TypeScript types from `docs/reference/api/openapi.yaml` via the gallery's `npm run generate:api-types`. Keep OpenAPI in sync when changing endpoints.
 
 ## Schema Migration Pattern
 
@@ -252,6 +251,8 @@ val = get_config_value("scoring.force_rescore_default", default=False)
 ## Documentation
 
 Start with **[`docs/CANONICAL_SOURCES.md`](docs/CANONICAL_SOURCES.md)** (contract and schema authority), then **[`docs/WIKI_SCHEMA.md`](docs/WIKI_SCHEMA.md)** when adding or moving wiki pages.
+
+**Agent infra:** **[`.agent/AGENT_INFRA_INVENTORY.md`](.agent/AGENT_INFRA_INVENTORY.md)**, **[`.agent/COMMANDS.md`](.agent/COMMANDS.md)**, **[`.agent/SAFETY.md`](.agent/SAFETY.md)**, **[`.agent/subagents/README.md`](.agent/subagents/README.md)**, **[`.agent/workflows/`](.agent/workflows/)**.
 
 - `docs/README.md` — Documentation hub and quick links
 - `docs/technical/DB_SCHEMA.md` — Database schema reference

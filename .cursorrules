@@ -1,310 +1,74 @@
-# Vexlum Scoring (image-scoring-backend)
+# Vexlum Scoring (`image-scoring-backend`)
 
-## Project Overview
+> Stub — the authoritative agent rules live in `CLAUDE.md`, `AGENTS.md`,
+> `.cursor/rules/*.mdc`, and `docs/CANONICAL_SOURCES.md`. This file exists
+> for Cursor IDE compatibility and provides a brief orientation only.
 
-This is a comprehensive Python-based image quality assessment and digital asset management system. It uses Google's MUSIQ (Multi-scale Image Quality Transformer) models along with other state-of-the-art AI models for image scoring, automatic keyword extraction, and photo culling workflows.
+## What this is
 
-## Core Technologies
+AI image quality scoring, tagging, clustering, and gallery API backend.
+Python 3.10+, FastAPI on port 7860, PostgreSQL + pgvector as primary store.
 
-- **Python 3.10+** (runs in WSL for VILA model support)
-- **TensorFlow 2.15** for MUSIQ models
-- **PyTorch** for LIQE and CLIP/BLIP models
-- **SQLite** for persistent database (`scoring_history.db`)
-- **Gradio** for the web-based UI (`webui.py`)
-- **rawpy/dcraw/exiftool** for NEF/RAW file support
+## Where to look first
 
-## Key Entry Points
+- `CLAUDE.md` — project overview, backlog contract, key modules.
+- `AGENTS.md` — MCP server registration and tool inventory.
+- `docs/CANONICAL_SOURCES.md` — authoritative file map (API, schema, phases).
+- `docs/technical/PIPELINE_TERMINOLOGY.md` — canonical phase codes.
+- `docs/technical/API_CONTRACT.md` and `docs/reference/api/openapi.yaml` — REST contract.
+- `docs/technical/DB_SCHEMA.md` — schema reference.
+- `.cursor/rules/` — short, focused rules (each `.mdc` documents its scope).
+- `.agent/SAFETY.md` — agent guardrails and forbidden actions.
+- `.agent/COMMANDS.md` — verified commands quick reference.
+- `.agent/AGENT_INFRA_INVENTORY.md` — every agent-facing file with its status.
 
-- `webui.py` - Gradio-based web interface (main application)
-- `launch.py` - Main launcher (starts webui via WSL)
-- `run_webui.bat` / `Run-Scoring.ps1` - Windows batch launchers
+## Core technologies (current)
 
-## Directory Structure
+- Python 3.10+ in WSL (`~/.venvs/tf`).
+- FastAPI (`webui.py` entrypoint) + Gradio operator page mounted at `/app`.
+- PostgreSQL + pgvector via `modules/db_postgres.py`; routed by `modules/db.py`.
+- Models: MUSIQ (TF), LIQE / TOPIQ / Q-Align (PyTorch via pyiqa), BLIP/CLIP for captioning.
+- Embeddings: 1280-d MobileNetV2 default space (see `docs/EMBEDDINGS.md`).
+- Pipeline phases: `indexing` → `metadata` → `scoring` → `culling` → `keywords`.
 
-```
-image-scoring/
-├── modules/               # Core Python modules
-│   ├── db.py              # SQLite database operations
-│   ├── scoring.py         # ScoringRunner - orchestrates batch scoring jobs
-│   ├── engine.py          # BatchImageProcessor - threaded pipeline controller
-│   ├── pipeline.py        # Worker threads (PrepWorker, ScoringWorker, ResultWorker)
-│   ├── tagging.py         # CLIP/BLIP keyword extraction (KeywordScorer, CaptionGenerator)
-│   ├── clustering.py      # Image stacking/grouping for photo culling
-│   ├── thumbnails.py      # Thumbnail generation (NEF/RAW support)
-│   ├── liqe.py            # LIQE model wrapper (PyTorch)
-│   ├── config.py          # JSON-based config management
-│   ├── ui_tree.py         # Folder tree UI component
-│   └── utils.py           # Path conversion, hashing utilities
-├── scripts/
-│   ├── python/            # Python utilities
-│   │   ├── run_all_musiq_models.py  # MultiModelMUSIQ class (core scorer)
-│   │   ├── batch_process_images.py  # CLI batch processor
-│   │   ├── gallery_generator.py     # HTML gallery generator
-│   │   ├── score_liqe.py            # LIQE CLI wrapper
-│   │   └── keyword_extractor.py     # Keyword extraction CLI
-│   ├── batch/             # Windows batch files (*.bat)
-│   ├── powershell/        # PowerShell scripts (*.ps1)
-│   ├── analysis/          # Analysis scripts
-│   ├── maintenance/       # DB maintenance scripts
-│   └── debug/             # Debug utilities
-├── docs/                  # Documentation (organized by category)
-│   ├── getting-started/   # Quick start guides
-│   ├── technical/         # Technical documentation
-│   ├── setup/             # Environment setup guides
-│   ├── vila/              # VILA model docs
-│   └── gallery/           # Gallery generation docs
-├── tests/                 # Test files
-├── requirements/          # Environment-specific requirements
-├── musiq/                 # MUSIQ model wrapper (simplified TF Hub)
-├── musiq_original/        # Original Google MUSIQ implementation
-├── models/tfhub_cache/    # Cached TensorFlow Hub models
-├── thumbnails/            # Generated thumbnail cache
-├── backups/               # Database backups
-└── output/                # Generated outputs (galleries, exports)
-```
+## Diagnostics
 
-## Database Schema
+- `python scripts/doctor.py` — config + DB + pgvector (`--no-gpu` to skip CUDA).
+- `python scripts/export_debug_bundle.py` — redacted support zip; review before sharing.
+- See `docs/DIAGNOSTICS.md` and `docs/TROUBLESHOOTING.md`.
 
-The SQLite database (`scoring_history.db`) contains:
+## Tests
 
-### Main Tables
-- **images** - Primary table with file paths, scores, metadata, keywords
-  - `id`, `job_id`, `file_path` (UNIQUE), `file_name`, `file_type`
-  - `score` (legacy), `score_general`, `score_technical`, `score_aesthetic`
-  - `score_spaq`, `score_ava`, `score_koniq`, `score_paq2piq`, `score_liqe`
-  - `model_version`, `image_hash`, `folder_id`, `stack_id`
-  - `rating` (0-5), `label` (color label)
-  - `keywords`, `title`, `description`, `metadata` (JSON)
-  - `thumbnail_path`, `scores_json` (full JSON output)
-  - `created_at`
-- **folders** - Cached folder hierarchy for fast tree navigation
-  - `id`, `path` (UNIQUE), `parent_id`, `created_at`
-- **stacks** - Image grouping/clustering data
-  - `id`, `name`, `best_image_id`, `created_at`
-- **jobs** - Background job tracking
-  - `id`, `input_path`, `status`, `created_at`, `completed_at`, `log`
-- **file_paths** - Multi-path support (same image, different locations)
-  - `id`, `image_id`, `path`, `last_seen`
-- **cluster_progress** - Tracks clustered folders
-
-## Scoring Models
-
-The system uses a weighted multi-model approach:
-
-| Model    | Weight | Purpose                    | Framework   |
-|----------|--------|----------------------------|-------------|
-| KONIQ    | 30%    | Technical reliability      | TensorFlow  |
-| SPAQ     | 25%    | Technical discrimination   | TensorFlow  |
-| PAQ2PIQ  | 20%    | Artifact/detail detection  | TensorFlow  |
-| LIQE     | 15%    | Aesthetic/semantic (CLIP)  | PyTorch     |
-| AVA      | 10%    | Legacy aesthetic           | TensorFlow  |
-
-Three score types are computed:
-- `score_technical` - Technical quality (sharpness, noise)
-- `score_aesthetic` - Artistic/aesthetic quality
-- `score_general` - Weighted combination (main score, 0-1 normalized)
-
-## Architecture Patterns
-
-### Threaded Pipeline Architecture
-The scoring system uses a 3-stage queue-based pipeline:
-1. **PrepWorker** - Hash calculation, thumbnail generation, RAW conversion, skip logic
-2. **ScoringWorker** - GPU inference (TF/PyTorch models)
-3. **ResultWorker** - DB upsert, metadata writing, cleanup
-
-Workers communicate via `queue.Queue` with sentinel values (`None`) for shutdown.
-
-### Path Handling
-- Windows paths are converted to WSL paths using `/mnt/[drive]/...` format
-- All database paths are stored as **Windows-style** for portability
-- Helper functions in `modules/utils.py`:
-  - `convert_path_to_local()` - WSL path to Windows when on Windows
-  - `convert_path_to_wsl()` - Windows path to WSL format
-  - `compute_file_hash()` - SHA256 hash for deduplication
-
-### Image Deduplication
-- Images are identified by content hash (`image_hash` column)
-- Hash-based lookup allows detecting moved/renamed files
-- `file_paths` table tracks all known locations of each image
-
-### Background Jobs
-- Scoring and tagging run as background threads via `ScoringRunner` and `TaggingRunner`
-- Progress is tracked via instance state (`is_running`, `log_history`, `current_count`, `total_count`)
-- UI polls `get_status()` for updates
-
-### Model Loading (Triple Fallback)
-1. **TensorFlow Hub** (primary) - Fast, no auth
-2. **Kaggle Hub** (fallback) - Requires `kaggle.json`
-3. **Local Checkpoints** (offline) - `.npz` files in `musiq_original/checkpoints/`
-
-## Git Configuration — Do Not Modify
-
-**Never modify `.git/config`** — do not set `extensions.worktreeConfig`, change `core.repositoryformatversion`, or add any git extensions. Third-party tools (Gemini Code Assist / Antigravity) use embedded git libraries that fail on non-standard extensions, breaking workspace resolution. If a worktree is needed, use a temporary one and clean it up immediately — do not leave worktree config persisted in the repo.
-
-## Code Conventions
-
-### General
-- Use Python `logging` module (not print statements)
-- Thread-safe database operations (new connection per operation)
-- Gradio components use `gr.` prefix
-- File paths should be absolute when possible
-- NEF files require special handling via rawpy/dcraw/exiftool
-
-### Debug Logging Pattern
-The codebase uses an inline debug logging pattern for AI agent observability:
-```python
-# #region agent log
-import json, time
-_DBG_LOG = r'd:\Projects\image-scoring\.cursor\debug.log'
-def _dbg(loc, msg, data=None, hyp=None):
-    try: open(_DBG_LOG,'a').write(json.dumps({"location":loc,"message":msg,"data":data,"hypothesisId":hyp,"timestamp":time.time()})+'\n')
-    except: pass
-# #endregion
-```
-
-### Database Pattern
-```python
-def some_db_function():
-    conn = get_db()  # Opens new connection with row_factory
-    c = conn.cursor()
-    try:
-        # ... operations ...
-        conn.commit()
-    finally:
-        conn.close()
-```
-
-### Gradio Event Handler Pattern
-```python
-def handler_function(input1, input2):
-    # Process inputs
-    result = do_work(input1, input2)
-    # Return updates for multiple components
-    return result, gr.update(interactive=True), gr.update(visible=False)
-```
-
-## Common Tasks
-
-### Adding a new scoring model
-1. Add model config to `scripts/python/run_all_musiq_models.py` (`MultiModelMUSIQ`)
-2. Update weights in `calculate_weighted_score()` method
-3. Add database column in `modules/db.py` `init_db()` migration
-4. Update `upsert_image()` to store the new score
-5. Update `webui.py` display/sorting options
-
-### Adding UI features
-1. Define Gradio components in `webui.py`
-2. Add event handlers with `.click()` or `.change()`
-3. For persistent state, use `modules/config.py` `save_config_value()`
-4. For complex state, use Gradio `gr.State`
-
-### Database migrations
-1. Modify schema in `modules/db.py` `init_db()`
-2. Check column existence: `PRAGMA table_info(images)`
-3. Use `ALTER TABLE ... ADD COLUMN` for new columns
-4. Test with existing `scoring_history.db`
-
-### Processing RAW files
-1. Check if RAW: `scorer.is_raw_file(path)` or check extension
-2. Generate thumbnail: `thumbnails.generate_thumbnail(path)`
-3. Convert for scoring: Use `MultiModelMUSIQ.convert_raw_to_jpeg()`
-4. Write metadata back: Use `exiftool` subprocess
-
-## Key Classes
-
-### `MultiModelMUSIQ` (scripts/python/run_all_musiq_models.py)
-Core scoring engine that loads and runs all MUSIQ models.
-- `VERSION` - Current model version string
-- `load_model(name)` - Loads a specific model
-- `run_all_models(path, external_scores)` - Runs all models, returns full result dict
-- `score_to_rating(score)` - Converts 0-1 score to 1-5 rating
-- `write_metadata_to_nef(path, rating, label)` - Writes EXIF metadata
-
-### `ScoringRunner` (modules/scoring.py)
-Manages batch scoring jobs in background threads.
-- `start_batch(input_path, job_id, skip_existing)` - Starts scoring
-- `get_status()` - Returns (is_running, log, status_msg, current, total)
-- `stop()` - Sets stop_event to gracefully stop
-
-### `TaggingRunner` (modules/tagging.py)
-Manages keyword extraction jobs.
-- Uses `KeywordScorer` (CLIP) and `CaptionGenerator` (BLIP)
-- Similar interface to `ScoringRunner`
-
-### `BatchImageProcessor` (modules/engine.py)
-Orchestrates the threaded pipeline.
-- `process_directory(input_dir)` - Process all images in directory
-- `process_list(jobs_list)` - Process specific ImageJob list
-
-### `ImageJob` (modules/pipeline.py)
-Dataclass representing a single image processing job.
-- `image_path`, `job_id`, `skip_existing`
-- `status` - "pending", "skipped", "success", "failed"
-- `result` - Full scoring result dict
-- `external_scores` - Pre-computed scores to reuse
-- `temp_files` - Files to cleanup after processing
-
-## Development Environment
-
-### WSL Setup (Required for full functionality)
 ```bash
-source ~/.venvs/tf/bin/activate
-cd /path/to/image-scoring-backend
-python webui.py
+# Fast subset, no hardware deps
+python -m pytest -m "not gpu and not db and not ml" --ignore=tests/test_probe.py
 ```
 
-### Running the Application
-```bash
-# From WSL (recommended)
-python webui.py
+Markers: `gpu`, `db`, `ml`, `wsl`, `network`, `sample_data`, `postgres`, `inference_e2e`.
+See `docs/TESTING.md`.
 
-# From Windows (launches via WSL)
-python launch.py
-```
+## Hard rules
 
-### Running Tests
-```bash
-# Run specific test
-python tests/test_liqe_simple.py
+- **PostgreSQL is primary.** Firebird is decommissioned; tests live under
+  `tests/archive_firebird/` and are not collected.
+- **Do not invent endpoints, columns, phase names, or config keys.** Cite
+  `docs/CANONICAL_SOURCES.md` if unsure.
+- **Never modify `.git/config`** — see CLAUDE.md for the rationale.
+- **Do not commit** `secrets.json`, debug bundles, thumbnails, model caches,
+  or anything under `.agent/scratch/`.
+- **Backlog contract** — every task starts from the GitHub Project board
+  (https://github.com/users/synthet/projects/1). See CLAUDE.md "Backlog & queue".
 
-# GPU verification
-python tests/check_gpu_wsl.py
+## Cross-repo
 
-# Model source testing
-python tests/test_model_sources.py
-```
+- Sibling: `image-scoring-gallery` (Electron + React).
+- API/schema/phase changes flow backend → gallery. See
+  `.agent/workflows/cross_repo_contract_change.md`.
 
-## Key Dependencies
+## Git configuration — do not modify
 
-### Core
-- tensorflow-cpu==2.15.0
-- tensorflow-hub==0.16.1
-- gradio
-- Pillow
-- numpy
-
-### Scoring
-- pyiqa (for LIQE)
-- kagglehub (for model downloads)
-
-### Tagging
-- transformers (for BLIP/CLIP)
-- torch, torchvision
-
-### RAW Processing
-- rawpy
-- exiftool (system command)
-
-## Files to Watch
-
-### High-Impact Files
-- `webui.py` - Main UI, most user-facing changes
-- `modules/db.py` - Database schema and queries
-- `scripts/python/run_all_musiq_models.py` - Core scoring logic
-
-### Configuration
-- `config.json` - Persistent user settings
-- `requirements.txt` - Python dependencies
-
-### Database
-- `scoring_history.db` - All scoring data (back up before schema changes!)
+Never modify `.git/config` — do not set `extensions.worktreeConfig`, change
+`core.repositoryformatversion`, or add any git extensions. Third-party tools
+(Gemini Code Assist / Antigravity) use embedded git libraries that fail on
+non-standard extensions, breaking workspace resolution. If a worktree is
+needed, use a temporary one and clean it up immediately.

@@ -133,7 +133,19 @@
       "mcp__imgscore-py-sse__get_job_details",
       "mcp__imgscore-py-sse__get_job_phases",
       "mcp__imgscore-py-sse__get_job_execution_report",
-      "Bash(powershell.exe *)"
+      "Bash(powershell.exe *)",
+      "Read(//c/Users/dmnsy/Downloads/**)",
+      "Bash(git stash *)",
+      "Bash(wsl -d Ubuntu -- bash -lc 'cd /mnt/d/Projects/image-scoring-backend && source ~/.venvs/tf/bin/activate && ruff check tests/test_phase_reconcile.py 2>&1 | tail -5 && python -m pytest tests/test_phase_reconcile.py -x -q 2>&1 | tail -25')",
+      "Bash(wsl -e bash -lc 'source ~/.venvs/tf/bin/activate && python scripts/doctor.py --no-gpu 2>&1 | tail -20')",
+      "Bash(wsl -e bash -lc 'source ~/.venvs/tf/bin/activate && python -m pytest -m \"not gpu and not db and not ml\" --ignore=tests/test_probe.py -q 2>&1 | tail -30')",
+      "Bash(wsl -e bash -lc 'source ~/.venvs/tf/bin/activate && python -m pytest -m \"not gpu and not db and not ml\" --ignore=tests/test_probe.py -q 2>&1 | tail -25')",
+      "Bash(gh pr *)",
+      "Bash(git fetch *)",
+      "Bash(git rev-list *)",
+      "Bash(gh issue *)",
+      "Bash(gh repo *)",
+      "Bash(git checkout *)"
     ]
   },
   "enableAllProjectMcpServers": true,

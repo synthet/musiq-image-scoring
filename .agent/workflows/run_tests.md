@@ -4,7 +4,7 @@ description: Run pytest with correct markers and venv (image-scoring-backend)
 
 ## Purpose
 
-Run automated tests without pulling in GPU, production DB, ML-only, or Firebird-only suites unless needed.
+Run automated tests without pulling in GPU, production DB, or ML-only suites unless needed.
 
 ## When to use
 
@@ -23,13 +23,13 @@ Run automated tests without pulling in GPU, production DB, ML-only, or Firebird-
 ```bash
 # WSL + ~/.venvs/tf for most unit tests; use image-scoring-tests venv for pytest -m wsl only
 source ~/.venvs/tf/bin/activate
-python -m pytest -m "not gpu and not db and not ml and not firebird" --ignore=tests/test_probe.py
+python -m pytest -m "not gpu and not db and not ml" --ignore=tests/test_probe.py
 ```
 
 **If collection fails on optional deps:**
 
 ```bash
-python -m pytest -m "not gpu and not db and not ml and not firebird" --ignore=tests/test_probe.py --ignore=tests/test_exifread.py
+python -m pytest -m "not gpu and not db and not ml" --ignore=tests/test_probe.py --ignore=tests/test_exifread.py
 ```
 
 **Targeted:**

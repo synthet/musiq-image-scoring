@@ -16,6 +16,8 @@ It spans `image-scoring-backend` and `image-scoring-gallery`. Every agent must f
 
 Before changing API contracts, phase names, or schema: read **[`docs/CANONICAL_SOURCES.md`](../docs/CANONICAL_SOURCES.md)**. When editing or moving wiki pages under `docs/`, follow **[`docs/WIKI_SCHEMA.md`](../docs/WIKI_SCHEMA.md)** and append to **`docs/log.md`**.
 
+**Agent infra:** catalog **[`AGENT_INFRA_INVENTORY.md`](AGENT_INFRA_INVENTORY.md)**, command list **[`COMMANDS.md`](COMMANDS.md)**, **[`SAFETY.md`](SAFETY.md)**, **[`subagents/README.md`](subagents/README.md)**, workflows under **[`workflows/`](workflows/)**, status **[`AGENT_INFRA_STATUS.json`](AGENT_INFRA_STATUS.json)**.
+
 ## Project Context
 `image-scoring` is a multi-model quality assessment tool with a hybrid architecture (Windows + WSL 2). It uses TensorFlow and PyTorch for scoring, and PostgreSQL for storage.
 

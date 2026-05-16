@@ -1,0 +1,88 @@
+{
+  "repo": "image-scoring-backend",
+  "review_date": "2026-05-16",
+  "status": "green",
+  "active_files": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".agent/AGENT_INFRA_INVENTORY.md",
+    ".agent/AGENT_INFRA_STATUS.json",
+    ".agent/COMMANDS.md",
+    ".agent/SAFETY.md",
+    ".agent/INFRA_QUICKSTART.md",
+    ".agent/PROJECT_GUIDE.md",
+    ".agent/SKILL_INVENTORY.md",
+    ".agent/subagents/README.md",
+    ".agent/workflows/",
+    ".cursor/rules/agent-canonical-sources.mdc",
+    ".cursor/rules/image-scoring-mcp.mdc",
+    ".cursor/rules/",
+    ".cursor/skills/",
+    ".cursor/agents/",
+    ".cursor/commands/",
+    ".claude/rules/agent-canonical-sources.mdc",
+    ".claude/rules/image-scoring-mcp.mdc",
+    ".claude/skills/",
+    ".claude/agents/",
+    ".claude/commands/",
+    "docs/CANONICAL_SOURCES.md",
+    "docs/DIAGNOSTICS.md",
+    "docs/DEVELOPMENT.md",
+    "docs/TESTING.md",
+    "docs/TROUBLESHOOTING.md",
+    "docs/WIKI_SCHEMA.md",
+    "docs/log.md",
+    "docs/technical/MCP_DEBUGGING_TOOLS.md",
+    "modules/mcp_server.py"
+  ],
+  "created_files": [
+    ".agent/AGENT_INFRA_INVENTORY.md",
+    ".agent/AGENT_INFRA_STATUS.json",
+    ".agent/COMMANDS.md",
+    ".agent/SAFETY.md",
+    ".agent/subagents/README.md",
+    ".agent/workflows/debug_backend.md",
+    ".agent/workflows/debug_database.md",
+    ".agent/workflows/debug_pipeline_run.md",
+    ".agent/workflows/update_docs_wiki.md",
+    ".agent/workflows/update_api_contract.md",
+    ".agent/workflows/update_db_schema.md",
+    ".agent/workflows/safe_mcp_diagnostics.md",
+    ".agent/workflows/export_support_bundle.md",
+    ".agent/workflows/cross_repo_contract_change.md",
+    ".cursor/rules/agent-canonical-sources.mdc",
+    ".claude/rules/agent-canonical-sources.mdc",
+    ".claude/rules/image-scoring-mcp.mdc"
+  ],
+  "updated_files": [
+    ".agent/INFRA_QUICKSTART.md",
+    ".agent/PROJECT_GUIDE.md",
+    ".agent/mcp_tools_reference.md",
+    ".agent/workflows/verify_system.md",
+    ".agent/workflows/run_tests.md",
+    ".agent/workflows/run_webui.md",
+    ".agent/skills/image-scoring-mcp/SKILL.md",
+    ".cursor/rules/image-scoring-mcp.mdc",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "docs/log.md",
+    "docs/technical/MCP_DEBUGGING_TOOLS.md"
+  ],
+  "deprecated_files": [
+    ".cursorrules (SQLite-era snapshot; use docs/CANONICAL_SOURCES.md and .cursor/rules/agent-canonical-sources.mdc)"
+  ],
+  "missing_recommended_files": [],
+  "validation_commands": [
+    "source ~/.venvs/tf/bin/activate && python scripts/doctor.py --no-gpu",
+    "source ~/.venvs/tf/bin/activate && python -m pytest -m \"not gpu and not db and not ml and not firebird\" --ignore=tests/test_probe.py"
+  ],
+  "known_risks": [
+    "MCP high-impact tools (execute_code, set_config_value, run_processing_job, process_newly_imported_folders, rebase_file_paths, prune_missing_files, set_image_metadata, propagate_tags, manage_runners) — disable in user MCP config unless explicitly needed (.agent/workflows/safe_mcp_diagnostics.md).",
+    "SSE MCP attaches to a live WebUI; shared-host caution when ENABLE_MCP_EXECUTE_CODE=1.",
+    "Tool count is driven by @mcp.tool in modules/mcp_server.py (53 at review); regenerate AGENTS.md inventory via scripts/generate_mcp_tool_inventory.py after tool changes."
+  ],
+  "next_actions": [
+    "Optional: trim duplicate facts in .cursorrules now superseded by agent-canonical-sources.mdc.",
+    "Prune or archive third-party-only .agent/skills if unused (separate issue)."
+  ]
+}
