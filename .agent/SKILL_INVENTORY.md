@@ -42,6 +42,18 @@ Skills listed with **Mirror = Yes** must stay in sync with **`.cursor/skills/<na
 | webui-dev | `.agent/skills/webui-dev/SKILL.md` | WebUI dev workflow | L1 | 2026-04-25 |
 | webui-gradio | `.agent/skills/webui-gradio/SKILL.md` | Gradio UI architecture | L1 | 2026-04-25 |
 
+## Subagents (Cursor / Claude Code)
+
+Project subagents live under **`.cursor/agents/`** (canonical) and are mirrored to **`.claude/agents/`** for Claude Code parity. Same risk-tier convention as skills.
+
+| Subagent `name` | Path | Purpose (short) | Risk | Claude mirror | Last reviewed |
+|-----------------|------|-----------------|------|---------------|---------------|
+| imgscore-backend-implementer | `.cursor/agents/imgscore-backend-implementer.md` | Scoped backend implementation, minimal diff | L2 | Yes | 2026-05-15 |
+| imgscore-mcp-debug | `.cursor/agents/imgscore-mcp-debug.md` | Read-only MCP triage (52-tool surface) | L1 | Yes | 2026-05-15 |
+| critical-commit-audit | `.cursor/agents/critical-commit-audit.md` | High-severity post-commit bug hunt | L2 | Yes | 2026-05-15 |
+| pr-ready-hygiene | `.cursor/agents/pr-ready-hygiene.md` | Scoped lint/tests; PR-ready checklist | L2 | Yes | 2026-05-15 |
+| wsl-tf-python-runner | `.cursor/agents/wsl-tf-python-runner.md` | WSL / venv / pytest marker resolution | L2 | Yes | 2026-05-15 |
+
 ## Related repository
 
 **image-scoring-gallery** maintains its own inventory: [../image-scoring-gallery/.agent/SKILL_INVENTORY.md](../image-scoring-gallery/.agent/SKILL_INVENTORY.md) when both repos are sibling checkouts.

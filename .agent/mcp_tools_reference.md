@@ -1,6 +1,6 @@
 # MCP Tools Quick Reference for AI Agents
 
-This document tracks the tools registered in [`modules/mcp_server.py`](../modules/mcp_server.py) (**46** tools).
+This document tracks the tools registered in [`modules/mcp_server.py`](../modules/mcp_server.py). **Tool count** matches `@mcp.tool` registrations in that file (regenerate the numbered inventory in [`AGENTS.md`](../AGENTS.md) with `python scripts/generate_mcp_tool_inventory.py --update-docs AGENTS.md docs/technical/MCP_DEBUGGING_TOOLS.md`). For **safe vs high-risk** tools, see [workflows/safe_mcp_diagnostics.md](workflows/safe_mcp_diagnostics.md).
 
 ## Connection modes
 

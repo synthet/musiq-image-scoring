@@ -1,10 +1,10 @@
 # Diagnostics
 
-This page lists **how to inspect** a local image-scoring-backend install without starting the full Web UI.
+Use this page to inspect a local backend without guessing at config, database state, logs, or runner health.
 
-## Project doctor (CLI)
+## Project Doctor
 
-From the repository root, prefer **WSL** with the same venv as the Web UI (`~/.venvs/tf` per [DEVELOPMENT.md](DEVELOPMENT.md)):
+From the repository root, prefer WSL with the same virtual environment as the Web UI:
 
 ```bash
 source ~/.venvs/tf/bin/activate
@@ -13,32 +13,37 @@ python scripts/doctor.py --no-gpu
 python scripts/doctor.py --json
 ```
 
-- **PASS / WARN / FAIL** summary is printed at the end.
-- Exit code **1** only on **FAIL** (so CI can gate on `python scripts/doctor.py`).
-- Checks: structural `config.json` / `environment.json` validation, DB init, simple query ping, **pgvector** extension on PostgreSQL, optional **CUDA** probe (unless `--no-gpu`).
+The doctor reports `PASS`, `WARN`, and `FAIL` checks and exits non-zero only on `FAIL`.
 
-Implementation: [`scripts/doctor.py`](../scripts/doctor.py), [`modules/doctor_cli.py`](../modules/doctor_cli.py).
+Checks include:
 
-## Watch a run (HTTP poll)
+- `config.json` and `environment.json` structural sanity.
+- Database initialization/connectivity.
+- Simple query ping.
+- PostgreSQL `vector` extension / pgvector availability.
+- Optional CUDA/GPU probe unless `--no-gpu` is used.
 
-With the **Web UI up** (same host/port as the React `/ui/runs/:id` page), poll `GET /api/jobs/{run_id}` until the job hits a terminal status:
+Implementation: [scripts/doctor.py](../scripts/doctor.py), [modules/doctor_cli.py](../modules/doctor_cli.py).
+
+## Watch A Run
+
+With the Web UI running, poll a job/run:
 
 ```bash
 source ~/.venvs/tf/bin/activate
 python scripts/watch_run_http.py 2365
 python scripts/watch_run_http.py 2365 --interval 5 --verbose
 python scripts/watch_run_http.py 2365 --once
-python scripts/watch_run_http.py 2365 --verbose --wsl-gateway   # Python in WSL, Web UI on Windows
+python scripts/watch_run_http.py 2365 --verbose --wsl-gateway
 ```
 
-When scripts run inside **WSL** but FastAPI listens on **Windows**, `127.0.0.1` points at Linux — use **`--wsl-gateway`** (reads `/etc/resolv.conf` nameserver, port from **`--port`**, default **7860**) or **`--base-url http://<windows-host>:7860`**.
+Use `--wsl-gateway` when Python runs in WSL but FastAPI is listening on Windows. Use `--base-url` when the server is not on the default host/port.
 
-`--verbose` also calls `GET /api/runs/{id}/stages` so per-stage `items_done` / `items_total` appear when the API provides them.
+Implementation: [scripts/watch_run_http.py](../scripts/watch_run_http.py).
 
-Implementation: [`scripts/watch_run_http.py`](../scripts/watch_run_http.py).
-## Redacted debug bundle
+## Redacted Debug Bundle
 
-For support or bug reports, generate a **zip** with redacted config and doctor output (no secrets):
+Generate a support bundle:
 
 ```bash
 source ~/.venvs/tf/bin/activate
@@ -46,36 +51,40 @@ python scripts/export_debug_bundle.py
 python scripts/export_debug_bundle.py --output /tmp/my-bundle.zip
 ```
 
-Redaction uses **`redact_json_obj`** — implemented in [`modules/redact_sensitive.py`](../modules/redact_sensitive.py) and re-exported from [`modules/doctor_cli.py`](../modules/doctor_cli.py) for doctor/tests/bundles (key substrings such as `password`, `secret`, `token`, `api_key`, …). `secrets.json` is never included. Review the zip before sharing.
-
-## MCP tools (when the MCP server or Web UI is running)
-
-When Cursor (or another MCP client) is attached to **image-scoring**, use tools such as `validate_config`, `verify_environment`, `get_database_engine_info`, `check_database_health`, and log tails — see [AGENTS.md](../AGENTS.md) and [.agent/mcp_tools_reference.md](../.agent/mcp_tools_reference.md).
-
-### Read-only MCP profile (`imgscore-py-sse` / `imgscore-el-sse`)
-
-The SSE server runs inside the live Web UI process. To reduce accidental writes or arbitrary code execution, Cursor supports **`disabledTools`** on each MCP server entry. For a diagnostics-only profile, disable at least:
-
-- `execute_code` (requires `ENABLE_MCP_EXECUTE_CODE=1`; still high risk on shared hosts)
-- `set_config_value`
-- `run_processing_job`
-- `process_newly_imported_folders`
-- `rebase_file_paths`
-- `prune_missing_files`
-- `set_image_metadata`
-- `propagate_tags`
-- `manage_runners` (can stop in-process runners)
-
-Keep read tools such as `get_error_summary`, `get_failed_images`, `get_db_schema`, `execute_sql`, `search_logs`, `get_job_details`, and `export_debug_bundle` enabled for triage. Adjust the list to your workflow (e.g. allow `run_processing_job` only when you intentionally start runs from the agent).
+The bundle uses redaction helpers in [modules/redact_sensitive.py](../modules/redact_sensitive.py) and [modules/doctor_cli.py](../modules/doctor_cli.py). `secrets.json` is excluded. Review the zip before sharing; do not commit debug bundles without explicit review.
 
 ## Logs
 
-Typical locations (see also `get_server_log_tail`, `read_debug_log`, and `search_logs` in MCP):
+Typical local files:
 
-- `webui.log` — server / request issues
-- `debug.log` — structured JSON lines from pipeline components (path may depend on `system.log_dir` in config)
+- `webui.log` - server, request, runner, and startup logs.
+- `debug.log` - structured pipeline/debug events when configured.
+
+MCP log tools include `read_debug_log`, `get_server_log_tail`, and `search_logs`.
+
+## MCP Diagnostics
+
+When an MCP client is attached, use read-oriented tools before mutating anything:
+
+- `validate_config`
+- `verify_environment`
+- `get_database_engine_info`
+- `check_database_health`
+- `get_error_summary`
+- `get_failed_images`
+- `get_recent_jobs`
+- `get_job_details`
+- `get_job_phases`
+- `get_run_diagnostics`
+- `get_stale_running_phase_status`
+- `search_logs`
+
+For a diagnostics-only MCP profile, disable write/code tools such as `execute_code`, `set_config_value`, `run_processing_job`, `process_newly_imported_folders`, `rebase_file_paths`, `prune_missing_files`, `set_image_metadata`, `propagate_tags`, and `manage_runners`.
+
+Full MCP catalog: [AGENTS.md](../AGENTS.md) and [.agent/mcp_tools_reference.md](../.agent/mcp_tools_reference.md).
 
 ## Related
 
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — where to look when something fails
-- [TESTING.md](TESTING.md) — running tests after infra changes
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- [TESTING.md](TESTING.md)
+- [.agent/INFRA_QUICKSTART.md](../.agent/INFRA_QUICKSTART.md)

@@ -1,62 +1,51 @@
-# Documentation
+# Vexlum Scoring Documentation
 
-Complete documentation for **Vexlum Scoring** (`image-scoring-backend`).
+This is the documentation hub for **image-scoring-backend**, the Python scoring engine and FastAPI/Gradio service behind Vexlum Scoring.
 
 ## Quick Links
 
-- **[Documentation Index](INDEX.md)** — Full index of all docs, organized by category
-- **[Canonical sources](CANONICAL_SOURCES.md)** — API, schema, pipeline vocabulary, cross-repo coordination
-- **[Project backlog](../TODO.md)** — Canonical open work; **[00-backlog-workflow](project/00-backlog-workflow.md)** — picking tasks, sync order, counts (aligned with [image-scoring-gallery `docs/project/00-backlog-workflow.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/project/00-backlog-workflow.md))
-- **Subfolder indexes** — Each docs subfolder has its own [INDEX.md](INDEX.md) (e.g. [technical/](technical/INDEX.md), [guides/setup/](guides/setup/INDEX.md), [gallery/](gallery/INDEX.md), [planning/](planning/INDEX.md), [features/planned/](features/planned/INDEX.md), [features/implemented/](features/implemented/INDEX.md))
-- **[Project README](../README.md)** — Main project overview and quick start
-- **[CHANGELOG](../CHANGELOG.md)** — Version history and release notes
+- [Full documentation index](INDEX.md) - categorized map of the wiki.
+- [Canonical sources](CANONICAL_SOURCES.md) - authority map for API, schema, phases, testing, diagnostics, and cross-repo coordination.
+- [Project README](../README.md) - product overview and user-facing quick start.
+- [Implemented features](features/implemented/INDEX.md) - shipped behavior by area.
+- [Planned features](features/planned/INDEX.md) - specs and non-shipped work.
+- [Wiki schema](WIKI_SCHEMA.md) - page types, link rules, and maintenance process.
+- [Wiki log](log.md) - append-only record of docs changes.
 
-## Getting Started
+## Getting Started Path
 
-- New to the project? Start with the [Project README](../README.md), then [SCORING_GUIDE.md](guides/getting-started/SCORING_GUIDE.md) or [SIMPLE_CLI_GUIDE.md](guides/getting-started/SIMPLE_CLI_GUIDE.md).
-- Creating a gallery? See [GALLERY_CREATION.md](gallery/GALLERY_CREATION.md) or [QUICK_REFERENCE.md](gallery/QUICK_REFERENCE.md).
+1. Start with the [Project README](../README.md).
+2. Follow the scoring path in [guides/getting-started/SCORING_GUIDE.md](guides/getting-started/SCORING_GUIDE.md) or the simpler CLI path in [guides/getting-started/SIMPLE_CLI_GUIDE.md](guides/getting-started/SIMPLE_CLI_GUIDE.md).
+3. Use [ARCHITECTURE.md](ARCHITECTURE.md), [DATABASE.md](DATABASE.md), and [IMAGE_PIPELINE.md](IMAGE_PIPELINE.md) for the system model.
+4. Use [TESTING.md](TESTING.md), [DIAGNOSTICS.md](DIAGNOSTICS.md), and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) before changing infrastructure, database, or runner behavior.
 
-## Wiki Maintenance
+## Canonical Sources
 
-This documentation is an LLM-maintained wiki — see [WIKI_SCHEMA.md](WIKI_SCHEMA.md) for conventions. Prefer **small linked pages** (entities/concepts) over monolithic dumps; example hubs: [PHASE4_KEYWORDS_HUB.md](planning/database/PHASE4_KEYWORDS_HUB.md), [DEBUGGING_SESSIONS_HUB.md](reports/DEBUGGING_SESSIONS_HUB.md).
+Before changing API paths, request/response fields, database columns, phase codes, config keys, or cross-repo integration behavior, read [CANONICAL_SOURCES.md](CANONICAL_SOURCES.md). In short:
 
-- **[WIKI_SCHEMA.md](WIKI_SCHEMA.md)** — Page types, naming, linking rules, operations
-- **[log.md](log.md)** — Chronological record of all wiki operations
-- **Slash commands:** `/wiki-ingest`, `/wiki-query`, `/wiki-lint`
+- REST API authority: [technical/API_CONTRACT.md](technical/API_CONTRACT.md) and [reference/api/openapi.yaml](reference/api/openapi.yaml).
+- Database authority: [technical/DB_SCHEMA.md](technical/DB_SCHEMA.md), [modules/db_postgres.py](../modules/db_postgres.py), and [migrations/versions/](../migrations/versions/).
+- Phase terminology authority: [technical/PIPELINE_TERMINOLOGY.md](technical/PIPELINE_TERMINOLOGY.md).
+- Cross-repo coordination authority: [technical/AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md).
 
-## AI & Agent Helpers
+## Infra And Diagnostics
 
-- [AGENTS.md](../AGENTS.md) — MCP server configuration
-- [.agent/mcp_tools_reference.md](../.agent/mcp_tools_reference.md) — MCP tools quick reference
-- [.agent/workflows/](../.agent/workflows/) — Workflows for run_scoring, verify_system, etc.
+- [.agent/INFRA_QUICKSTART.md](../.agent/INFRA_QUICKSTART.md) - safe commands, doctor CLI, debug bundles, and known pitfalls for agents.
+- [DEVELOPMENT.md](DEVELOPMENT.md) - local environment notes.
+- [DIAGNOSTICS.md](DIAGNOSTICS.md) - `scripts/doctor.py`, redacted debug bundle export, logs, and MCP diagnostics.
+- [TESTING.md](TESTING.md) - pytest markers and fast local test command.
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - first triage steps and common failure categories.
 
-## Shipped features (catalog)
+## Sibling Gallery
 
-- **[features/implemented/INDEX.md](features/implemented/INDEX.md)** — What exists today (API areas, modules, links to deep docs); companion to [features/planned/](features/planned/INDEX.md).
+The desktop app lives in **image-scoring-gallery** and consumes backend-owned API, schema, and pipeline terminology.
 
-## Infra hubs (quick entry points)
+| Topic | Gallery documentation |
+|---|---|
+| Docs hub | [image-scoring-gallery docs/README.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/README.md) |
+| Canonical source map | [image-scoring-gallery docs/CANONICAL_SOURCES.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/CANONICAL_SOURCES.md) |
+| Architecture | [image-scoring-gallery docs/architecture/01-system-overview.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/architecture/01-system-overview.md) |
+| Implemented features | [image-scoring-gallery docs/features/implemented/INDEX.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/features/implemented/INDEX.md) |
+| Integration backlog | [image-scoring-gallery docs/integration/TODO.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/integration/TODO.md) |
 
-- [.agent/INFRA_QUICKSTART.md](../.agent/INFRA_QUICKSTART.md) — one-page safe commands and pitfalls for agents
-- [DEVELOPMENT.md](DEVELOPMENT.md) — venvs, WSL, doctor CLI
-- [TESTING.md](TESTING.md) — pytest markers and fast subsets
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — where to look when something fails
-- [DIAGNOSTICS.md](DIAGNOSTICS.md) — `scripts/doctor.py`, redacted debug zip, logs
-- [DATABASE.md](DATABASE.md) — schema and migrations index
-- [ARCHITECTURE.md](ARCHITECTURE.md) — system and pipeline overview index
-- [IMAGE_PIPELINE.md](IMAGE_PIPELINE.md) — RAW/NEF, phases, scoring index
-- [EXPORT_PIPELINE.md](EXPORT_PIPELINE.md) — API / integration outputs index
-- [EMBEDDINGS.md](EMBEDDINGS.md) — link to vector / pgvector docs
-
-## Sibling repository: image-scoring-gallery
-
-Electron desktop app (**[image-scoring-gallery](https://github.com/synthet/image-scoring-gallery)**) shares the API contract and database design with this repo.
-
-| Topic | Documentation (GitHub) |
-|--------|-------------------------|
-| Docs index | [docs/README.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/README.md) |
-| Integration backlog | [docs/integration/TODO.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/integration/TODO.md) |
-| DB refactor impact (gallery) | [DATABASE_REFACTOR_ANALYSIS.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/technical/DATABASE_REFACTOR_ANALYSIS.md) |
-| Planned embedding UI | [features/planned/embeddings/README.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/features/planned/embeddings/README.md) |
-| Shipped feature catalog (gallery) | [docs/features/implemented/INDEX.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/features/implemented/INDEX.md) |
-
-Cross-project protocol: [AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md).
+Cross-project rule: update backend canonical docs first for API, schema, phase, or terminology changes, then update gallery code/docs, and append entries to both `docs/log.md` files.

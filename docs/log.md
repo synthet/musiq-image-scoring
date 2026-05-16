@@ -6,6 +6,18 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-05-16] updated | Agent infrastructure inventory and workflows
+
+Added [.agent/AGENT_INFRA_INVENTORY.md](../.agent/AGENT_INFRA_INVENTORY.md), [.agent/AGENT_INFRA_STATUS.json](../.agent/AGENT_INFRA_STATUS.json), [.agent/COMMANDS.md](../.agent/COMMANDS.md), [.agent/SAFETY.md](../.agent/SAFETY.md), [.agent/subagents/README.md](../.agent/subagents/README.md); new/rewrote [.agent/workflows/](../.agent/workflows/) (verify/run/debug/cross-repo/MCP safety/export bundle). New [.cursor/rules/agent-canonical-sources.mdc](../.cursor/rules/agent-canonical-sources.mdc); expanded [.cursor/rules/image-scoring-mcp.mdc](../.cursor/rules/image-scoring-mcp.mdc) (read-only triage, high-risk tools, Postgres-primary Firebird note); mirrored to [.claude/rules/](../.claude/rules/). Regenerated MCP tool inventory (**53** tools) in [AGENTS.md](../AGENTS.md) and [technical/MCP_DEBUGGING_TOOLS.md](technical/MCP_DEBUGGING_TOOLS.md). Linked infra from [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md), [.agent/INFRA_QUICKSTART.md](../.agent/INFRA_QUICKSTART.md).
+
+## [2026-05-16] updated | Documentation hubs and canonical source map
+
+Reworked backend documentation hubs for a PostgreSQL + pgvector primary architecture: [README.md](README.md), [INDEX.md](INDEX.md), [CANONICAL_SOURCES.md](CANONICAL_SOURCES.md), [ARCHITECTURE.md](ARCHITECTURE.md), [DATABASE.md](DATABASE.md), [IMAGE_PIPELINE.md](IMAGE_PIPELINE.md), [DIAGNOSTICS.md](DIAGNOSTICS.md), [TESTING.md](TESTING.md), [TROUBLESHOOTING.md](TROUBLESHOOTING.md), and [features/implemented/INDEX.md](features/implemented/INDEX.md). Updated [technical/DB_SCHEMA.md](technical/DB_SCHEMA.md) from a Firebird-first schema page into a PostgreSQL authority map/table catalog, and refreshed [architecture/pipeline-architecture.md](architecture/pipeline-architecture.md) to describe the current phase/run model with backend-owned schema and API contracts. Companion gallery docs were updated in the sibling repository during the same pass.
+
+## [2026-05-15] created | Phase status decoupling spec
+
+Added [`features/implemented/10-phase-status-decoupling.md`](features/implemented/10-phase-status-decoupling.md) to document the migration from history-based phase status to the strict data-driven cache approach with split UI telemetry. Indexed in [`features/implemented/INDEX.md`](features/implemented/INDEX.md).
+
 ## [2026-05-13] updated | RCA correction in ELECTRON_SYNC_IMPORT_AND_PHASES.md
 
 Corrected the **Known issues** section after a deeper repro. The original "scoring runner short-circuits when given explicit image_ids" diagnosis was wrong — the webui runs in WSL where `/mnt/d/...` paths resolve, so `scoring.py:256`'s `os.path.exists(fp)` is not the bug. Replicating with a single-stage scoring submit (job 2374, `skip_existing=false`, same 733 ids) succeeded fully — 38 min runtime, all 733 scored. The actual bug only manifests for **scoring run as a middle stage of a multi-stage WorkflowRun with `skip_existing=true`** (run 2365 path). `jobs.log` is NULL for 2365 so root cause is not yet pinned; updated [#156](https://github.com/synthet/image-scoring-backend/issues/156). Also clarified [#157](https://github.com/synthet/image-scoring-backend/issues/157): the "culling short-circuit" was downstream of #156 (no scores → nothing to cluster); separately, `SelectionRunner.start_batch` documents in code that it ignores `resolved_image_ids`, and interrupted selection jobs leave IPS rows stuck in `running` with no auto-reconciliation.

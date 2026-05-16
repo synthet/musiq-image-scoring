@@ -15,6 +15,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.17.0] - 2026-05-15
+
+### Added
+
+- **Phase status vs run telemetry**: **`image_phase_status`** remains the **data-completeness** cache (**`done`** is terminal while underlying data exists); runners no longer clobber **`done`** with **`skipped`** / **`not_started`**. **`last_run_action`** (from **`job_image_actions`**) is the separate surface for **what last happened in a run** — wired through APIs and the **`/ui/`** Image Inspector phase grid (**`PhaseStatusTable`**).
+- **`scripts/maintenance/reconcile_phase_status.py`**: Heals drift in both directions (promote rows to **`done`** when data is present; demote **`done`** when canonical data is missing).
+
+### Changed
+
+- **Documentation**: Refreshed hub pages and references (**`docs/INDEX.md`**, **`docs/README.md`**, architecture/pipeline/diagnostics/testing guides, **`DB_SCHEMA`** summary, **`MCP_DEBUGGING_TOOLS`**).
+- **Agent docs**: **`AGENTS.md`**, **`.agent/`** inventory/MCP reference/workflows, and **`.claude/agents/`** subagent prompts aligned with current tooling.
+
+### Fixed
+
+- **Inspector regression**: Reprocessed images no longer **appear** to lose completed scoring/metadata after fast-path skips when status and telemetry were overloaded on one column.
+
 ## [7.16.0] - 2026-05-15
 
 ### Fixed

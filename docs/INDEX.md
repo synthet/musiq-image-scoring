@@ -1,335 +1,190 @@
 # Documentation Index
 
-Complete index of all documentation files for **Vexlum Scoring** (`image-scoring-backend`).
-
----
+Full categorized index for **image-scoring-backend**. Prefer small linked pages over large duplicated dumps; when a topic has a canonical source, link to it rather than restating it.
 
 ## Getting Started
 
-Essential documentation for new users. → [guides/getting-started/INDEX.md](guides/getting-started/INDEX.md)
+| Page | Purpose |
+|---|---|
+| [README.md](README.md) | Documentation hub and recommended reading path. |
+| [../README.md](../README.md) | Project overview and user-facing quick start. |
+| [guides/getting-started/INDEX.md](guides/getting-started/INDEX.md) | Getting-started guide index. |
+| [guides/getting-started/SCORING_GUIDE.md](guides/getting-started/SCORING_GUIDE.md) | Scoring workflow guide. |
+| [guides/getting-started/SIMPLE_CLI_GUIDE.md](guides/getting-started/SIMPLE_CLI_GUIDE.md) | Simplified CLI-oriented guide. |
 
-| Document | Description |
-|----------|-------------|
-| [README.md](../README.md) | Main project overview and quick start guide |
-| [SIMPLE_CLI_GUIDE.md](guides/getting-started/SIMPLE_CLI_GUIDE.md) | Simplified guide / educational CLI tool |
-| [SCORING_GUIDE.md](guides/getting-started/SCORING_GUIDE.md) | Detailed NEF scoring instructions |
-| [CHANGELOG.md](../CHANGELOG.md) | Version history and release notes |
+## Architecture
 
----
-
-## Architecture & Structure
-
-High-level system design and project layout. → [architecture/](architecture/) · [technical/INDEX.md](technical/INDEX.md)
-
-| Document | Description |
-|----------|-------------|
-| [system-overview.md](architecture/system-overview.md) | System architecture (components, data flow, deployment) |
-| [pipeline-architecture.md](architecture/pipeline-architecture.md) | Pipeline sequence, flowchart, and Electron integration |
-| [GRADIO_SERVING_DECISION.md](reports/GRADIO_SERVING_DECISION.md) | Gradio vs dedicated inference servers for this product shape |
-| [technical-summary.md](architecture/technical-summary.md) | Technical summary with mermaid diagrams |
-| [project-structure.md](architecture/project-structure.md) | Repository structure (merged, updated 2026-03-08) |
-| [DB_CONNECTOR.md](architecture/DB_CONNECTOR.md) | DB Connector transport layer — IConnector, FirebirdConnector, PostgresConnector, ApiConnector |
-| [microservices_proposal.md](architecture/microservices_proposal.md) | Abstraction layers roadmap (DbConnector ✅, DbClient ✅, API split, runner refactor) |
-
----
+| Page | Purpose |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Architecture hub. |
+| [architecture/system-overview.md](architecture/system-overview.md) | Component and data-flow overview. |
+| [architecture/pipeline-architecture.md](architecture/pipeline-architecture.md) | Pipeline sequence and run model. |
+| [architecture/project-structure.md](architecture/project-structure.md) | Repository layout. |
+| [architecture/DB_CONNECTOR.md](architecture/DB_CONNECTOR.md) | Connector/transport architecture and compatibility notes. |
+| [architecture/technical-summary.md](architecture/technical-summary.md) | Compact technical summary. |
 
 ## Database
 
-| Document | Description |
-|----------|-------------|
-| [DB_SCHEMA.md](technical/DB_SCHEMA.md) | Firebird database schema (tables, columns, relationships) |
-| [DB_RECOVERY_FROM_CORRUPTION.md](technical/DB_RECOVERY_FROM_CORRUPTION.md) | Recovery procedures for database corruption |
+| Page | Purpose |
+|---|---|
+| [DATABASE.md](DATABASE.md) | PostgreSQL + pgvector hub. |
+| [technical/DB_SCHEMA.md](technical/DB_SCHEMA.md) | Schema authority map and table catalog. |
+| [planning/database/FIREBIRD_POSTGRES_MIGRATION.md](planning/database/FIREBIRD_POSTGRES_MIGRATION.md) | Historical Firebird to PostgreSQL migration. |
+| [planning/database/DB_VECTORS_REFACTOR.md](planning/database/DB_VECTORS_REFACTOR.md) | Vector schema and embedding storage planning/worklog. |
+| [planning/database/POSTGRES_SCHEMA_OPTIMIZATIONS.md](planning/database/POSTGRES_SCHEMA_OPTIMIZATIONS.md) | PostgreSQL schema optimization notes. |
+| [technical/DB_RECOVERY_FROM_CORRUPTION.md](technical/DB_RECOVERY_FROM_CORRUPTION.md) | Recovery procedures. |
 
-*Planning:* [Phase 4 keywords hub](planning/database/PHASE4_KEYWORDS_HUB.md) · [DB refactor](planning/database/DB_SCHEMA_REFACTOR_PLAN.md) · [Firebird→Postgres migration](planning/database/FIREBIRD_POSTGRES_MIGRATION.md) · [archived Phase 4 execution docs](archive/plans/database/INDEX.md)
+## Image Pipeline
 
----
+| Page | Purpose |
+|---|---|
+| [IMAGE_PIPELINE.md](IMAGE_PIPELINE.md) | Pipeline hub: ingestion, metadata, scoring, culling, keywords, embeddings, RAW/NEF. |
+| [technical/PIPELINE_TERMINOLOGY.md](technical/PIPELINE_TERMINOLOGY.md) | Canonical phase codes, operation tokens, and UI labels. |
+| [technical/PIPELINE_PHASE_RUNNERS.md](technical/PIPELINE_PHASE_RUNNERS.md) | Runner behavior by phase. |
+| [technical/RUN_OPTIONS_MODE_MATRIX.md](technical/RUN_OPTIONS_MODE_MATRIX.md) | Runs submit modes and dispatcher options. |
+| [technical/RUNS_QUEUE_AND_RESTART.md](technical/RUNS_QUEUE_AND_RESTART.md) | Queue and restart behavior. |
+| [technical/ELECTRON_SYNC_IMPORT_AND_PHASES.md](technical/ELECTRON_SYNC_IMPORT_AND_PHASES.md) | Gallery sync import and backend phase semantics. |
 
-## Models & Scoring
+## API And MCP
 
-Model specifications, scoring strategy, and fallback systems.
+| Page | Purpose |
+|---|---|
+| [technical/API_CONTRACT.md](technical/API_CONTRACT.md) | REST API contract summary. |
+| [reference/api/openapi.yaml](reference/api/openapi.yaml) | OpenAPI specification. |
+| [reference/api/API.md](reference/api/API.md) | REST API documentation. |
+| [reference/api/API_SCHEMA_IMPLEMENTATION.md](reference/api/API_SCHEMA_IMPLEMENTATION.md) | API schema implementation notes. |
+| [reference/api/API_SCHEMA_LLM.md](reference/api/API_SCHEMA_LLM.md) | LLM-oriented API schema summary. |
+| [technical/MCP_DEBUGGING_TOOLS.md](technical/MCP_DEBUGGING_TOOLS.md) | MCP debugging tools reference. |
+| [../AGENTS.md](../AGENTS.md) | Agent/MCP configuration and tool inventory. |
+| [technical/AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md) | Cross-repo integration protocol. |
 
-| Document | Description |
-|----------|-------------|
-| [MODELS_SUMMARY.md](technical/MODELS_SUMMARY.md) | Overview of all models (MUSIQ, LIQE) |
-| [MODEL_INPUT_SPECIFICATIONS.md](technical/MODEL_INPUT_SPECIFICATIONS.md) | Input formats, score ranges, constraints |
-| [WEIGHTED_SCORING_STRATEGY.md](technical/WEIGHTED_SCORING_STRATEGY.md) | Hybrid pipeline scoring weights (v2.5.2) |
-| [MODEL_WEIGHTS.md](reference/models/MODEL_WEIGHTS.md) | Current model weights and scoring logic |
-| [MULTI_MODEL_SCORING.md](technical/MULTI_MODEL_SCORING.md) | Multi-model MUSIQ assessment runner |
-| [MODEL_SOURCE_TESTING.md](technical/MODEL_SOURCE_TESTING.md) | Model source URL verification guide |
+## Models And Scoring
 
-*Research:* [IAA paper analysis](reports/IAA_PAPER_ANALYSIS.md) · [IAA models](reports/IAA_MODELS_LOCAL_DEPLOYMENT.md) · [IAA survey 2024–25](reports/IAA_MODELS_SURVEY_2024_2025.md) · *Proposals:* [IQA model stack](planning/models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md) · [Suggested scoring](planning/models/SUGGESTED_SCORING_ADJUSTMENTS.md)
+| Page | Purpose |
+|---|---|
+| [features/implemented/02-scoring-and-models.md](features/implemented/02-scoring-and-models.md) | Shipped scoring behavior. |
+| [technical/MODELS_SUMMARY.md](technical/MODELS_SUMMARY.md) | Model overview. |
+| [technical/MODEL_INPUT_SPECIFICATIONS.md](technical/MODEL_INPUT_SPECIFICATIONS.md) | Model input requirements. |
+| [technical/MULTI_MODEL_SCORING.md](technical/MULTI_MODEL_SCORING.md) | Multi-model scoring notes. |
+| [technical/WEIGHTED_SCORING_STRATEGY.md](technical/WEIGHTED_SCORING_STRATEGY.md) | Weighted scoring strategy. |
+| [reference/models/MODEL_WEIGHTS.md](reference/models/MODEL_WEIGHTS.md) | Current model weights and scoring logic. |
+| [planning/models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md](planning/models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md) | Planned model stack changes. |
 
----
+## Embeddings
 
-## Features
+| Page | Purpose |
+|---|---|
+| [EMBEDDINGS.md](EMBEDDINGS.md) | Embeddings hub. |
+| [technical/EMBEDDINGS.md](technical/EMBEDDINGS.md) | Registered vector spaces, dimensions, producers, and gotchas. |
+| [features/implemented/05-embeddings-and-similarity.md](features/implemented/05-embeddings-and-similarity.md) | Shipped similarity behavior. |
+| [features/planned/embeddings/EMBEDDING_APPLICATIONS_INDEX.md](features/planned/embeddings/EMBEDDING_APPLICATIONS_INDEX.md) | Planned embedding app specs. |
+| [planning/database/DB_VECTORS_REFACTOR.md](planning/database/DB_VECTORS_REFACTOR.md) | Vector storage planning/worklog. |
 
-### Implemented (catalog)
+## Features Implemented
 
-| Document | Description |
-|----------|-------------|
-| [features/implemented/INDEX.md](features/implemented/INDEX.md) | Hub: shipped behavior by area (pipeline, scoring, tagging, stacks, embeddings, RAW, WebUI, MCP, config) |
+| Page | Purpose |
+|---|---|
+| [features/implemented/INDEX.md](features/implemented/INDEX.md) | Shipped feature catalog. |
+| [features/implemented/01-pipeline-and-runs.md](features/implemented/01-pipeline-and-runs.md) | Pipeline, jobs, runs, queue. |
+| [features/implemented/03-tagging-and-keywords.md](features/implemented/03-tagging-and-keywords.md) | Tagging and keywords. |
+| [features/implemented/04-clustering-culling-stacks.md](features/implemented/04-clustering-culling-stacks.md) | Culling, clustering, stacks. |
+| [features/implemented/06-import-metadata-thumbnails-raw.md](features/implemented/06-import-metadata-thumbnails-raw.md) | Import, metadata, thumbnails, RAW. |
+| [features/implemented/07-webui-and-operator-surfaces.md](features/implemented/07-webui-and-operator-surfaces.md) | Web UI/operator surfaces. |
+| [features/implemented/08-mcp-and-agents.md](features/implemented/08-mcp-and-agents.md) | MCP and agents. |
+| [features/implemented/09-configuration-and-limits.md](features/implemented/09-configuration-and-limits.md) | Config and limits. |
+| [features/implemented/10-phase-status-decoupling.md](features/implemented/10-phase-status-decoupling.md) | Phase status telemetry. |
 
-### Stacking & Culling
+## Features Planned
 
-| Document | Description |
-|----------|-------------|
-| [CULLING_FEATURE.md](technical/CULLING_FEATURE.md) | AI Culling feature (v3.6.0) |
-| [CULLING_REWORK_DESIGN_REVIEW.md](technical/CULLING_REWORK_DESIGN_REVIEW.md) | Pick/Reject flag rework review |
-| [STACKS_MANUAL_MANAGEMENT.md](technical/STACKS_MANUAL_MANAGEMENT.md) | Manual stack management design |
-| [CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md](reports/CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md) | Investigation: culling done but no stacks (runner phase-order bug) |
+| Page | Purpose |
+|---|---|
+| [features/planned/INDEX.md](features/planned/INDEX.md) | Planned feature index. |
+| [features/planned/ui-pipeline-redesign.md](features/planned/ui-pipeline-redesign.md) | Pipeline UI redesign plan. |
+| [features/planned/import-discovery-alignment.md](features/planned/import-discovery-alignment.md) | Import/discovery alignment plan. |
+| [features/planned/image-identity-and-hashing-improvements.md](features/planned/image-identity-and-hashing-improvements.md) | Image identity and hashing improvements. |
+| [features/planned/fix-thumbnail-generation-spec.md](features/planned/fix-thumbnail-generation-spec.md) | Thumbnail generation plan. |
+| [features/planned/embeddings/EMBEDDING_APPLICATIONS.md](features/planned/embeddings/EMBEDDING_APPLICATIONS.md) | Embedding application plan. |
 
-*Plan:* [Stack/Culling refactor](planning/refactoring/STACK_CULLING_REFACTOR_PLAN.md) · *Planned:* [Embedding applications](features/planned/embeddings/EMBEDDING_APPLICATIONS.md) · [Feature specs index](features/planned/INDEX.md)
+## Setup And Deployment
 
-### Keyword Extraction
-
-| Document | Description |
-|----------|-------------|
-| [KEYWORD_EXTRACTION_GUIDE.md](technical/KEYWORD_EXTRACTION_GUIDE.md) | BLIP + CLIP keyword extraction tool |
-
-### RAW Processing
-
-| Document | Description |
-|----------|-------------|
-| [RAW_PROCESSING_GUIDE.md](technical/RAW_PROCESSING_GUIDE.md) | RAW file processing pipeline |
-| [INBROWSER_RAW_PREVIEW.md](technical/INBROWSER_RAW_PREVIEW.md) | In-browser NEF preview (LibRaw/JS) |
-
-### Gallery
-
-→ [gallery/INDEX.md](gallery/INDEX.md)
-
-| Document | Description |
-|----------|-------------|
-| [GALLERY_GUIDE.md](gallery/GALLERY_GUIDE.md) | Interactive HTML gallery features and scripts |
-| [GALLERY_CREATION.md](gallery/GALLERY_CREATION.md) | Step-by-step gallery creation |
-| [QUICK_REFERENCE.md](gallery/QUICK_REFERENCE.md) | Gallery creation quick reference |
-
-### Lazy Loading
-
-| Document | Description |
-|----------|-------------|
-| [LAZY_LOAD_DESIGN.md](technical/LAZY_LOAD_DESIGN.md) | Full-resolution lazy loading design |
-| [LAZY_LOAD_DESIGN_REVIEW.md](technical/LAZY_LOAD_DESIGN_REVIEW.md) | Design review with issues found |
-
-### Analysis Script
-
-| Document | Description |
-|----------|-------------|
-| [ANALYSIS_SCRIPT_DOCUMENTATION.md](technical/ANALYSIS_SCRIPT_DOCUMENTATION.md) | JSON results analysis script docs |
-
----
-
-## API & MCP
-
-| Document | Description |
-|----------|-------------|
-| [API.md](reference/api/API.md) | REST API documentation |
-| [API_CONTRACT.md](technical/API_CONTRACT.md) | API contract summary (endpoints, response models) |
-| [RUNS_QUEUE_AND_RESTART.md](technical/RUNS_QUEUE_AND_RESTART.md) | Runs queue (`jobs`), dispatcher, WebUI restart recovery |
-| [RUN_OPTIONS_MODE_MATRIX.md](technical/RUN_OPTIONS_MODE_MATRIX.md) | New Run modes vs backend; validation-repair/`run_mode` behavior; Heal tools |
-| [API_SCHEMA_IMPLEMENTATION.md](reference/api/API_SCHEMA_IMPLEMENTATION.md) | API schema implementation summary |
-| [API_SCHEMA_LLM.md](reference/api/API_SCHEMA_LLM.md) | LLM-optimized API schema |
-| [openapi.yaml](reference/api/openapi.yaml) | OpenAPI specification |
-| [MCP_DEBUGGING_TOOLS.md](technical/MCP_DEBUGGING_TOOLS.md) | MCP server tools for Cursor |
-
----
-
-## Setup & Deployment
-
-→ [guides/setup/INDEX.md](guides/setup/INDEX.md)
-
-### Docker
-
-| Document | Description |
-|----------|-------------|
-| [DOCKER_SETUP.md](guides/setup/DOCKER_SETUP.md) | Docker installation (WSL2) + running the app |
-
-### GPU & CUDA
-
-| Document | Description |
-|----------|-------------|
-| [GPU_SETUP.md](guides/setup/GPU_SETUP.md) | GPU setup guide (merged) |
-| [INSTALL_CUDA.md](guides/setup/INSTALL_CUDA.md) | CUDA installation (RTX 4060) |
-| [WSL2_TENSORFLOW_GPU_SETUP.md](guides/setup/WSL2_TENSORFLOW_GPU_SETUP.md) | TensorFlow GPU in WSL2 |
-
-### WSL Environment
-
-| Document | Description |
-|----------|-------------|
-| [ENVIRONMENTS.md](guides/setup/ENVIRONMENTS.md) | Virtual environments (.venv, ~/.venvs/tf, tests) |
-| [WINDOWS_WSL_DEPLOYMENT.md](guides/setup/WINDOWS_WSL_DEPLOYMENT.md) | Windows + WSL2 deployment guide |
-| [WSL_PYTHON_PACKAGES.md](guides/setup/WSL_PYTHON_PACKAGES.md) | Python packages in WSL2 venv |
-| [WSL_UBUNTU_PACKAGES.md](guides/setup/WSL_UBUNTU_PACKAGES.md) | Ubuntu packages in WSL2 |
-| [WSL_WRAPPER_VERIFICATION.md](guides/setup/WSL_WRAPPER_VERIFICATION.md) | WSL wrapper script verification |
-
-### Windows Scripts
-
-| Document | Description |
-|----------|-------------|
-| [WINDOWS_SCRIPTS_README.md](guides/setup/WINDOWS_SCRIPTS_README.md) | Windows batch/PS scripts for GPU runner |
-
-*Plan:* [Windows native WebUI](planning/setup/WINDOWS_NATIVE_WEBUI_PLAN.md)
-
----
-
-## Design
-
-| Document | Description |
-|----------|-------------|
-| [ui-pipeline-redesign.md](features/planned/ui-pipeline-redesign.md) | Pipeline-centric UI redesign proposal |
-| [design/](design/) | Mockups (HTML, Python) for pipeline UI |
-
----
+| Page | Purpose |
+|---|---|
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Local development environment. |
+| [guides/setup/INDEX.md](guides/setup/INDEX.md) | Setup guide index. |
+| [guides/setup/DOCKER_SETUP.md](guides/setup/DOCKER_SETUP.md) | Docker setup. |
+| [guides/setup/GPU_SETUP.md](guides/setup/GPU_SETUP.md) | GPU setup. |
+| [guides/setup/ENVIRONMENTS.md](guides/setup/ENVIRONMENTS.md) | Environment and venv notes. |
+| [guides/setup/PYTHON_VERSION_CAVEATS.md](guides/setup/PYTHON_VERSION_CAVEATS.md) | Python dependency caveats. |
+| [guides/setup/WINDOWS_WSL_DEPLOYMENT.md](guides/setup/WINDOWS_WSL_DEPLOYMENT.md) | Windows + WSL deployment. |
+| [guides/setup/WINDOWS_SCRIPTS_README.md](guides/setup/WINDOWS_SCRIPTS_README.md) | Windows scripts. |
 
 ## Testing
 
-→ [testing/INDEX.md](testing/INDEX.md)
+| Page | Purpose |
+|---|---|
+| [TESTING.md](TESTING.md) | Testing hub and fast command. |
+| [testing/INDEX.md](testing/INDEX.md) | Testing subfolder index. |
+| [testing/TEST_STATUS.md](testing/TEST_STATUS.md) | Current testing status. |
+| [testing/WSL_TESTS.md](testing/WSL_TESTS.md) | WSL test notes. |
+| [testing/AUTOMATED_VS_MANUAL_CHECKS.md](testing/AUTOMATED_VS_MANUAL_CHECKS.md) | Manual vs automated checks. |
+| [testing/CROSS_APP_INTEGRATION_AUDIT.md](testing/CROSS_APP_INTEGRATION_AUDIT.md) | Backend/gallery integration test audit. |
 
-| Document | Description |
-|----------|-------------|
-| [CROSS_APP_INTEGRATION_AUDIT.md](testing/CROSS_APP_INTEGRATION_AUDIT.md) | Audit of shared **image-scoring-backend** ↔ **image-scoring-gallery** integration coverage and gaps; gallery tasks: [`docs/integration/TODO.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/integration/TODO.md) |
-| [TEST_STATUS.md](testing/TEST_STATUS.md) | Unit test status overview |
-| [WSL_TESTS.md](testing/WSL_TESTS.md) | WSL-only pytest markers |
-| [archive/testing/DOCUMENTATION_ISSUES.md](archive/testing/DOCUMENTATION_ISSUES.md) | Archived pointer (issues folded into WSL_TESTS / TEST_STATUS) |
+## Troubleshooting
 
----
+| Page | Purpose |
+|---|---|
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Troubleshooting hub. |
+| [DIAGNOSTICS.md](DIAGNOSTICS.md) | Doctor, debug bundle, logs, MCP diagnostics. |
+| [.agent/INFRA_QUICKSTART.md](../.agent/INFRA_QUICKSTART.md) | Agent-safe infra quick reference. |
+| [reports/DEBUGGING_SESSIONS_HUB.md](reports/DEBUGGING_SESSIONS_HUB.md) | Indexed debugging write-ups. |
 
-## Infra and diagnostics (repo root hubs)
+## Reports
 
-Quick entry points at `docs/` root (doctor, bundles, env, troubleshooting). See also [.agent/INFRA_QUICKSTART.md](../.agent/INFRA_QUICKSTART.md).
+| Page | Purpose |
+|---|---|
+| [reports/INDEX.md](reports/INDEX.md) | Reports index. |
+| [reports/RUN_ORCHESTRATION_AUDIT_2026-04-17.md](reports/RUN_ORCHESTRATION_AUDIT_2026-04-17.md) | Run orchestration audit. |
+| [reports/CODE_REVIEW_2026-04-15.md](reports/CODE_REVIEW_2026-04-15.md) | Code review report. |
+| [reports/CODE_DESIGN_REVIEW_2026-04-18.md](reports/CODE_DESIGN_REVIEW_2026-04-18.md) | Code/design review. |
+| [reports/GRADIO_SERVING_DECISION.md](reports/GRADIO_SERVING_DECISION.md) | Gradio/FastAPI product rationale. |
+| [reports/project-reviews/INDEX.md](reports/project-reviews/INDEX.md) | Project review index. |
 
-| Document | Description |
-|----------|-------------|
-| [DEVELOPMENT.md](DEVELOPMENT.md) | Venvs, WSL, `scripts/doctor.py` |
-| [TESTING.md](TESTING.md) | Pytest markers and fast subsets |
-| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Where to look when something fails |
-| [DIAGNOSTICS.md](DIAGNOSTICS.md) | Doctor CLI, redacted debug zip, MCP read-only profile notes |
-| [DATABASE.md](DATABASE.md) | Schema and migrations index |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | System and pipeline overview index |
-| [IMAGE_PIPELINE.md](IMAGE_PIPELINE.md) | RAW/NEF, phases, scoring index |
-| [EXPORT_PIPELINE.md](EXPORT_PIPELINE.md) | API / integration outputs index |
-| [EMBEDDINGS.md](EMBEDDINGS.md) | Vector / pgvector entry → `technical/EMBEDDINGS.md` |
+## Planning
 
----
+| Page | Purpose |
+|---|---|
+| [planning/INDEX.md](planning/INDEX.md) | Planning index. |
+| [project/INDEX.md](project/INDEX.md) | Project/backlog docs index. |
+| [project/00-backlog-workflow.md](project/00-backlog-workflow.md) | Backlog workflow. |
+| [../TODO.md](../TODO.md) | Canonical root backlog. |
+| [planning/database/](planning/database/) | Database planning. |
+| [planning/refactoring/](planning/refactoring/) | Refactoring plans. |
+| [planning/models/](planning/models/) | Model plans. |
+| [planning/setup/](planning/setup/) | Setup/deployment plans. |
 
-## Reports — Debugging sessions (historical)
+## Archive
 
-Hub and archive (not a dump of every note in the master index). → [reports/DEBUGGING_SESSIONS_HUB.md](reports/DEBUGGING_SESSIONS_HUB.md) · [archive/reports/debugging-sessions/INDEX.md](archive/reports/debugging-sessions/INDEX.md)
-
----
-
-## AI & Agent Helpers
-
-→ [ai/INDEX.md](ai/INDEX.md)
-
-| Document | Description |
-|----------|-------------|
-| [AGENTS.md](../AGENTS.md) | MCP server and AI agent configuration |
-| [LLM_CONTEXT.md](ai/LLM_CONTEXT.md) | High-density project context for AI agents |
-| [.agent/mcp_tools_reference.md](../.agent/mcp_tools_reference.md) | Quick reference for MCP debugging tools |
-| [.agent/ai_edit_spec.md](../.agent/ai_edit_spec.md) | Guidelines for AI agents editing code |
-| [.agent/workflows/](../.agent/workflows/) | Workflows: run_scoring, verify_system, run_webui, run_tests, etc. |
-
----
-
-## Sibling repository: image-scoring-gallery
-
-Electron app (**[image-scoring-gallery](https://github.com/synthet/image-scoring-gallery)**) — shared API and DB design.
-
-| Topic | Link (GitHub) |
-|--------|----------------|
-| Docs index | [docs/README.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/README.md) |
-| Integration backlog | [docs/integration/TODO.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/integration/TODO.md) |
-| DB refactor impact | [DATABASE_REFACTOR_ANALYSIS.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/technical/DATABASE_REFACTOR_ANALYSIS.md) |
-| Planned embedding UI | [features/planned/embeddings/README.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/features/planned/embeddings/README.md) |
-
-Protocol: [AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md).
-
----
-
-## Reports & Reviews
-
-→ [reports/INDEX.md](reports/INDEX.md)
-
-| Document | Description |
-|----------|-------------|
-| [WORK_SUMMARY_2026-03-08.md](reports/WORK_SUMMARY_2026-03-08.md) | Work summary |
-| [DEEP_RESEARCH_REPORT.md](reports/DEEP_RESEARCH_REPORT.md) | Deep research report |
-| [PARTNER_UPDATES.md](reports/PARTNER_UPDATES.md) | Updates from partner agents |
-| [IAA_PAPER_ANALYSIS.md](reports/IAA_PAPER_ANALYSIS.md) | Analysis of modern IAA models paper |
-| [IAA_MODELS_LOCAL_DEPLOYMENT.md](reports/IAA_MODELS_LOCAL_DEPLOYMENT.md) | IAA models overview (from PDF) |
-| [IAA_MODELS_SURVEY_2024_2025.md](reports/IAA_MODELS_SURVEY_2024_2025.md) | 2024–2025 IAA models survey |
-| [GRADIO_SERVING_DECISION.md](reports/GRADIO_SERVING_DECISION.md) | Gradio + FastAPI product rationale |
-| [DEBUGGING_SESSIONS_HUB.md](reports/DEBUGGING_SESSIONS_HUB.md) | Historical Gradio/fullscreen debugging (links to archive) |
-| [RELEASE_HANDOFF_2026-04-10_2026-04-11.md](reports/RELEASE_HANDOFF_2026-04-10_2026-04-11.md) | Dated cross-repo release handoff snapshot |
-| [CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md](reports/CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md) | Culling done / no stacks investigation |
-| [RUN_ORCHESTRATION_AUDIT_2026-04-17.md](reports/RUN_ORCHESTRATION_AUDIT_2026-04-17.md) | Run orchestration audit (jobs, phases, dispatcher, MCP SSE) |
-| [CODE_REVIEW_2026-04-15.md](reports/CODE_REVIEW_2026-04-15.md) | Code review of 2026-04-15 commits (job_type stability, MUSIQ imports, indexing logs, conflict-marker CI guard, `a6fdb34` junk/binary blockers) |
-| [PROJECT_REVIEW_2026-01-31.md](reports/project-reviews/PROJECT_REVIEW_2026-01-31.md) | Project review summary |
-| [PROJECT_REVIEW_DETAILED_2026-01-31.md](reports/project-reviews/PROJECT_REVIEW_DETAILED_2026-01-31.md) | Detailed project review |
-| [CODE_DESIGN_REVIEW_legacy.md](archive/reports/CODE_DESIGN_REVIEW_legacy.md) | Older code & design review (archived) |
-| [2026_02_09_CODE_AND_DESIGN_REVIEW.md](archive/reports/2026_02_09_CODE_AND_DESIGN_REVIEW.md) | February 2026 review snapshot (archived) |
-
----
-
-## Project Planning
-
-| Document | Description |
-|----------|-------------|
-| [TODO.md](../TODO.md) | Canonical project backlog (repository root) |
-| [00-backlog-workflow.md](project/00-backlog-workflow.md) | Task workflow, sync order, counts — aligned with [image-scoring-gallery `docs/project/00-backlog-workflow.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/project/00-backlog-workflow.md) |
-| [BACKLOG_GOVERNANCE.md](project/BACKLOG_GOVERNANCE.md) | Alias → `00-backlog-workflow.md` |
-| [project/TODO.md](project/TODO.md) | Pointer to root backlog (historical index archived) |
-
----
-
-## Planning & planned features
-
-Migrations and schema work → [planning/INDEX.md](planning/INDEX.md). Product/UI specs not yet shipped → [features/planned/INDEX.md](features/planned/INDEX.md).
-
-| Category | Description |
-|----------|-------------|
-| [planning/database/](planning/database/) | DB refactor, Phase 4 keywords ([hub](planning/database/PHASE4_KEYWORDS_HUB.md)), Firebird→Postgres migration |
-| [planning/refactoring/](planning/refactoring/) | Stack/Culling refactor, webui refactor |
-| [planning/models/](planning/models/) | IQA model stack proposal, suggested scoring |
-| [features/planned/embeddings/](features/planned/embeddings/) | Embedding application specs (planned) |
-| [planning/setup/](planning/setup/) | Windows native WebUI plan |
-| [features/planned/](features/planned/) | UI pipeline redesign, import/discovery alignment, UX plan, thumbnails, hashing |
-
----
-
-## Archive (Legacy / Deprecated)
-
-These files are preserved for historical reference but describe features that have been disabled or superseded. → [archive/INDEX.md](archive/INDEX.md)
-
-| Document | Description | Status |
-|----------|-------------|--------|
-| [archive/vila/README_VILA.md](archive/vila/README_VILA.md) | VILA model integration | Disabled v2.5.1+, replaced by LIQE |
-| [archive/vila/VILA_BATCH_FILES_GUIDE.md](archive/vila/VILA_BATCH_FILES_GUIDE.md) | VILA batch file usage | Disabled v2.5.1+ |
-| [archive/vila/VILA_QUICK_START.md](archive/vila/VILA_QUICK_START.md) | VILA quick start | Disabled v2.5.1+ |
-| [archive/MODEL_FALLBACK_MECHANISM.md](archive/MODEL_FALLBACK_MECHANISM.md) | TFHub → Kaggle fallback (VILA) | Deprecated |
-| [archive/TRIPLE_FALLBACK_SYSTEM.md](archive/TRIPLE_FALLBACK_SYSTEM.md) | Triple fallback (VILA) | Deprecated |
-| [archive/UNCOMMITTED_CHANGES_ANALYSIS.md](archive/UNCOMMITTED_CHANGES_ANALYSIS.md) | Uncommitted changes analysis (2025-01-29) | Archived |
-| [archive/IMPLEMENTATION_SUMMARY_2025-01.md](archive/IMPLEMENTATION_SUMMARY_2025-01.md) | January 2025 implementation summary | Archived |
-| [archive/PROPOSALS_OLD.md](archive/PROPOSALS_OLD.md) | Old feature proposals | Archived |
-
----
+| Page | Purpose |
+|---|---|
+| [archive/INDEX.md](archive/INDEX.md) | Archive index. |
+| [archive/vila/INDEX.md](archive/vila/INDEX.md) | VILA archive. |
+| [archive/plans/database/INDEX.md](archive/plans/database/INDEX.md) | Archived database plans. |
+| [archive/reports/debugging-sessions/INDEX.md](archive/reports/debugging-sessions/INDEX.md) | Archived debugging sessions. |
 
 ## Wiki Maintenance
 
-This documentation is an LLM-maintained wiki. See [WIKI_SCHEMA.md](WIKI_SCHEMA.md) for conventions, page types, and workflows.
+| Page | Purpose |
+|---|---|
+| [CANONICAL_SOURCES.md](CANONICAL_SOURCES.md) | Source-of-truth map. |
+| [WIKI_SCHEMA.md](WIKI_SCHEMA.md) | Wiki conventions. |
+| [log.md](log.md) | Append-only wiki activity log. |
 
-| Document | Description |
-|----------|-------------|
-| [WIKI_SCHEMA.md](WIKI_SCHEMA.md) | Wiki conventions, page types, linking rules, operations |
-| [log.md](log.md) | Chronological record of wiki operations (ingest, query, lint) |
-| [raw/](raw/) | Immutable source documents (articles, papers, PDFs) |
+## Sibling Repository
 
-**Slash commands:** `/wiki-ingest` (process a source), `/wiki-query` (search and cite), `/wiki-lint` (health-check)
-
----
-
-## Getting Help
-
-- **Where do I start?** [README.md](../README.md) for overview, then [SCORING_GUIDE.md](guides/getting-started/SCORING_GUIDE.md) or [SIMPLE_CLI_GUIDE.md](guides/getting-started/SIMPLE_CLI_GUIDE.md).
-- **How do I create a gallery?** [GALLERY_CREATION.md](gallery/GALLERY_CREATION.md) or [QUICK_REFERENCE.md](gallery/QUICK_REFERENCE.md).
-- **What's new?** [CHANGELOG.md](../CHANGELOG.md) has all version changes.
+| Topic | Gallery link |
+|---|---|
+| Docs hub | [image-scoring-gallery docs/README.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/README.md) |
+| Canonical source map | [image-scoring-gallery docs/CANONICAL_SOURCES.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/CANONICAL_SOURCES.md) |
+| Architecture | [image-scoring-gallery docs/architecture/01-system-overview.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/architecture/01-system-overview.md) |
+| Integration TODO | [image-scoring-gallery docs/integration/TODO.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/integration/TODO.md) |
+| Implemented features | [image-scoring-gallery docs/features/implemented/INDEX.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/features/implemented/INDEX.md) |

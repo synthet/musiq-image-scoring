@@ -25,13 +25,17 @@ State briefly which environment row applies (app/scripts vs WSL pytest vs Window
 
 When anything touches **`modules`**, the database, or Firebird client libraries, default to **WSL + `tf`**.
 
-## Firebird / `LD_LIBRARY_PATH`
+## Database engine note
 
-For scripts that need the bundled Firebird client (same as `run_webui.bat` inner setup), include:
+**PostgreSQL** is the primary engine (`database.engine: "postgres"` in `config.json`); Firebird is legacy. Most scripts only need PostgreSQL reachable on `localhost:5432` (local Docker). Only set `LD_LIBRARY_PATH` for the bundled Firebird client when the script genuinely uses Firebird FFI or you are running `run_webui.bat`-equivalent inner setup.
+
+## Firebird / `LD_LIBRARY_PATH` (only when Firebird is in scope)
+
+For scripts that need the bundled Firebird client, include:
 
 `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:<REPO_WSL>/FirebirdLinux/Firebird-5.0.0.1306-0-linux-x64/opt/firebird/lib`
 
-Use the repo’s real WSL path (e.g. `/mnt/d/Projects/image-scoring-backend`; adjust drive if needed).
+Use the repo's real WSL path (e.g. `/mnt/d/Projects/image-scoring-backend`; adjust drive if needed).
 
 ## Command style
 

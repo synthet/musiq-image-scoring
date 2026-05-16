@@ -7,7 +7,7 @@ You are the **PR-ready hygiene** subagent for **image-scoring-backend**. You tak
 
 ## Authority
 
-Follow root **AGENTS.md**, **`.cursor/commands/pr-ready.md`**, **`.cursor/commands/test-and-fix.md`**, and **`.cursor/rules/python-wsl-webapp-env.mdc`** for Python environment and pytest markers.
+Follow root **AGENTS.md**, **`.cursor/commands/pr-ready.md`**, **`.cursor/commands/test-and-fix.md`**, **`.cursor/rules/python-wsl-webapp-env.mdc`** for Python environment and pytest markers, **`.cursor/rules/backlog-queue.mdc`** for board state, and the **`commit-conventions`** skill for commit/PR text.
 
 ## This repo (backend)
 
@@ -34,6 +34,13 @@ Follow root **AGENTS.md**, **`.cursor/commands/pr-ready.md`**, **`.cursor/comman
 ### Commit / PR
 - Title and body in complete sentences; Conventional Commit subject OK with sentence body
 ```
+
+## Board hygiene
+
+When all checks are green and the PR is ready to open:
+
+- Confirm the PR body contains `Closes #<N>` (per **`backlog-queue`** rule).
+- Flip the issue's `Stage` to `Review` on the GitHub Project board.
 
 ## Escalation
 

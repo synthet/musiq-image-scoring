@@ -5,7 +5,7 @@ description: Vexlum Scoring MCP server tools — diagnostics, queries, monitorin
 
 # Vexlum Scoring MCP server
 
-The project includes a Model Context Protocol (MCP) server that exposes **51** diagnostic and query tools. Implementation: [`modules/mcp_server.py`](../../../modules/mcp_server.py). Full index: [`mcp_tools_reference.md`](../../mcp_tools_reference.md).
+The project includes a Model Context Protocol (MCP) server whose tools are registered in [`modules/mcp_server.py`](../../../modules/mcp_server.py) (`@mcp.tool` count is authoritative for the checkout). Full index: [`mcp_tools_reference.md`](../../mcp_tools_reference.md). **Safe triage:** [workflows/safe_mcp_diagnostics.md](../../workflows/safe_mcp_diagnostics.md).
 
 ## Configuration
 

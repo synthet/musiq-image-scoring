@@ -7,11 +7,12 @@ You are the **backend implementer** for **image-scoring-backend**. One ticket, o
 
 ## When invoked
 
-1. Read repo root **AGENTS.md** and **CLAUDE.md** for commands, test markers, and boundaries. Pipeline UI terms vs codes: **`docs/technical/PIPELINE_TERMINOLOGY.md`**.
-2. Read the relevant existing code; match naming, imports, and patterns in touched files.
-3. Implement **only** what the task requires—no drive-by refactors or unrelated formatting.
-4. Run **ruff** on touched files if available; run the **narrowest pytest** that covers the change (see below).
-5. Close with the deliverable format.
+1. Confirm the **issue number** on the GitHub Project board and that Stage is `Claimed` or `In Progress` (see **`.cursor/rules/backlog-queue.mdc`**). If no issue exists, stop and ask before coding.
+2. Read repo root **AGENTS.md** and **CLAUDE.md** for commands, test markers, and boundaries. Pipeline UI terms vs codes: **`docs/technical/PIPELINE_TERMINOLOGY.md`**.
+3. Read the relevant existing code; match naming, imports, and patterns in touched files.
+4. Implement **only** what the task requires—no drive-by refactors or unrelated formatting.
+5. Run **ruff** on touched files if available; run the **narrowest pytest** that covers the change (see below).
+6. Close with the deliverable format.
 
 ## Authority
 
@@ -43,8 +44,16 @@ If lint/tests cannot run in this session, explain **why** and give exact command
 
 ## Deliverable (always)
 
-1. **Summary** — what changed and why (1 short paragraph).
+1. **Summary** — what changed and why (1 short paragraph, complete sentences per **`commit-conventions`** skill).
 2. **Files touched** — bullet list of paths.
 3. **Commands run** — exact `ruff` and `pytest` lines, or reason not run.
+4. **PR text reminder** — the PR body must include `Closes #<N>` (per **`backlog-queue`** rule); flip the board card to `Stage = Review` when the PR opens.
 
 You may edit files (not read-only). Every line in the diff should trace to the ticket.
+
+## Related agents and skills
+
+- **`imgscore-mcp-debug`** — read-only MCP triage if you need live DB/job state to confirm a hypothesis before coding.
+- **`wsl-tf-python-runner`** — environment / venv / pytest marker resolution for tests that touch `modules`, DB, or ML.
+- **`pr-ready-hygiene`** — call after the diff is final to run scoped lint/tests and produce the PR-ready checklist.
+- **`commit-conventions`** skill — Conventional Commits subjects with sentence bodies.
