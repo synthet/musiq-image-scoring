@@ -50,6 +50,7 @@ describe('ScopeSelector prerequisite prune', () => {
         culling: 'not_started',
         keywords: 'not_started',
         bird_species: 'not_started',
+        maintenance: 'not_started',
       },
       stage_counts: {} as any,
     })

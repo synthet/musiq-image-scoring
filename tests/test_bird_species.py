@@ -234,6 +234,64 @@ def test_dispatcher_routes_bird_species(monkeypatch):
     assert kwargs.get("overwrite") is True
 
 
+def test_runner_missing_file_marks_skipped_not_failed(monkeypatch):
+    """File-not-found at classify time must record status='skipped' (terminal at
+    current executor version) so the workflow heal stops re-queuing the folder.
+    Regression: bird_species heal loop on /mnt/d/Photos/Z8/180-600mm/2026/2026-05-09
+    where one image with last_error='File not found' kept respawning the same job.
+    """
+    import modules.bird_species as bs
+
+    class _FakeClassifier:
+        last_image_embedding = None
+        def load_model(self):
+            pass
+        def classify(self, *a, **kw):
+            raise AssertionError("classify must not be called when file is missing")
+
+    runner = BirdSpeciesRunner()
+    runner.classifier = _FakeClassifier()
+
+    calls = []
+
+    def _fake_set_status(image_id, phase_code, status, **kw):
+        calls.append({"image_id": image_id, "phase_code": phase_code, "status": status, **kw})
+
+    monkeypatch.setattr(bs, "_load_default_species", lambda: ["American Robin"])
+    monkeypatch.setattr(bs, "_resolve_inference_path", lambda row, fp: "/does/not/exist/missing.jpg")
+    monkeypatch.setattr(bs.os.path, "exists", lambda p: False)
+
+    import modules.db as _db
+    monkeypatch.setattr(_db, "get_images_with_keyword",
+                        lambda **kw: [{"id": 162932, "file_path": "/mnt/d/Photos/missing.NEF", "keywords": "birds"}])
+    monkeypatch.setattr(_db, "update_job_status", lambda *a, **kw: None)
+    monkeypatch.setattr(_db, "job_should_stop_processing", lambda *a, **kw: False)
+    monkeypatch.setattr(_db, "set_image_phase_status", _fake_set_status)
+    monkeypatch.setattr(bs, "_get_image_ids_with_species_keyword", lambda ids: set())
+
+    from modules.events import event_manager
+    monkeypatch.setattr(event_manager, "broadcast_threadsafe", lambda *a, **kw: None)
+
+    runner._run_batch_internal(
+        input_path="/mnt/d/Photos",
+        candidate_species=None,
+        threshold=0.1,
+        top_k=3,
+        overwrite=True,
+        job_id=12345,
+    )
+
+    status_calls = [c for c in calls if c["image_id"] == 162932]
+    assert len(status_calls) == 1, f"Expected one phase-status write, got {calls}"
+    c = status_calls[0]
+    assert c["status"] == "skipped", (
+        f"Missing file must set status='skipped' (terminal); got {c['status']!r}. "
+        "Using 'failed' would cause heal_workflow_bird_species to re-queue indefinitely."
+    )
+    assert c.get("skip_reason") == "file_missing"
+    assert c.get("executor_version") == bs.BIRD_SPECIES_RUNNER_VERSION
+
+
 def test_dispatcher_bird_species_runner_busy_blocks_dequeue(monkeypatch):
     from modules.job_dispatcher import JobDispatcher
 

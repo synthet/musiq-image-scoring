@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate, Link } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { ChevronLeft, ChevronRight, Database, Scan, FileText, Zap, Layers, Tag, Bird } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Database, Scan, FileText, Zap, Layers, Tag, Bird, Fingerprint, Compass, Dna, MessageSquare } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
 import { useUiStore } from '@/stores/uiStore'
 import { Button } from '@/components/ui/button'
@@ -12,12 +12,13 @@ import type { Image, ImagePhaseStatusRow } from '@/types/api'
 
 const PAGE_SIZES = [25, 50, 100] as const
 
-const SORT_COLUMNS: { key: string; label: string }[] = [
+const SORT_COLUMNS: { key: string; label: string; sortable?: boolean }[] = [
   { key: 'id', label: 'ID' },
   { key: 'file_name', label: 'File' },
   { key: 'file_path', label: 'Path' },
   { key: 'score_general', label: 'Quality' },
   { key: 'phases', label: 'Phases' },
+  { key: 'embeddings', label: 'Embeddings' },
   { key: 'created_at', label: 'Created' },
 ]
 
@@ -73,6 +74,72 @@ function ImagePhases({ phases }: { phases?: Record<string, ImagePhaseStatusRow |
       <PhaseIcon code="culling" icon={Layers} status={getStatus('culling')?.status} error={getStatus('culling')?.last_error} />
       <PhaseIcon code="keywords" icon={Tag} status={getStatus('keywords')?.status} error={getStatus('keywords')?.last_error} />
       <PhaseIcon code="birds" icon={Bird} status={getStatus('bird_species')?.status} error={getStatus('bird_species')?.last_error} />
+    </div>
+  )
+}
+
+function EmbeddingIcon({
+  code,
+  present,
+  icon: Icon,
+  color,
+  label,
+}: {
+  code: string
+  present: boolean
+  icon: any
+  color: string
+  label: string
+}) {
+  const title = `${label}: ${present ? 'Present' : 'Missing'}`
+  return (
+    <div
+      data-code={code}
+      className={clsx(
+        'p-1 rounded-sm transition-colors hover:bg-[#3c3c3c]',
+        present ? 'opacity-100' : 'opacity-30',
+      )}
+      title={title}
+      style={{ color: present ? color : '#6d6d6d' }}
+    >
+      <Icon size={14} strokeWidth={2.5} />
+    </div>
+  )
+}
+
+function ImageEmbeddings({ embeddings }: { embeddings?: Record<string, boolean> | null }) {
+  const present = embeddings || {}
+  
+  return (
+    <div className="flex items-center gap-0.5 justify-start">
+      <EmbeddingIcon 
+        code="mobilenet_v2_imagenet_gap" 
+        label="MobileNetV2 (1280d)" 
+        icon={Fingerprint} 
+        present={!!present['mobilenet_v2_imagenet_gap']} 
+        color="#4fc1ff" 
+      />
+      <EmbeddingIcon 
+        code="clip_vit_b32_image" 
+        label="CLIP (512d)" 
+        icon={Compass} 
+        present={!!present['clip_vit_b32_image']} 
+        color="#4ec9b0" 
+      />
+      <EmbeddingIcon 
+        code="bioclip_2_image" 
+        label="BioCLIP (512d)" 
+        icon={Dna} 
+        present={!!present['bioclip_2_image']} 
+        color="#ce9178" 
+      />
+      <EmbeddingIcon 
+        code="blip_vit_b16_image" 
+        label="BLIP (768d)" 
+        icon={MessageSquare} 
+        present={!!present['blip_vit_b16_image']} 
+        color="#c586c0" 
+      />
     </div>
   )
 }
@@ -176,19 +243,23 @@ export function ImagesPage() {
               <tr>
                 {SORT_COLUMNS.map((col) => (
                   <th key={col.key} className="text-left font-semibold text-[#9d9d9d] px-3 py-2">
-                    <button
-                      type="button"
-                      onClick={() => onHeaderClick(col.key)}
-                      className={clsx(
-                        'inline-flex items-center gap-1 hover:text-[#4fc1ff] transition-colors',
-                        sortBy === col.key && 'text-[#4fc1ff]',
-                      )}
-                    >
-                      {col.label}
-                      {sortBy === col.key && (
-                        <span className="text-[10px] font-mono">{order === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </button>
+                    {col.sortable !== false ? (
+                      <button
+                        type="button"
+                        onClick={() => onHeaderClick(col.key)}
+                        className={clsx(
+                          'inline-flex items-center gap-1 hover:text-[#4fc1ff] transition-colors',
+                          sortBy === col.key && 'text-[#4fc1ff]',
+                        )}
+                      >
+                        {col.label}
+                        {sortBy === col.key && (
+                          <span className="text-[10px] font-mono">{order === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </button>
+                    ) : (
+                      <span className="text-[#9d9d9d]">{col.label}</span>
+                    )}
                   </th>
                 ))}
               </tr>
@@ -221,6 +292,9 @@ export function ImagesPage() {
                   </td>
                   <td className="px-3 py-1.5 text-center">
                     <ImagePhases phases={row.phase_statuses} />
+                  </td>
+                  <td className="px-3 py-1.5 text-center">
+                    <ImageEmbeddings embeddings={row.embeddings_present} />
                   </td>
                   <td className="px-3 py-1.5 text-[#6d6d6d] font-mono">
                     {row.created_at ? String(row.created_at).slice(0, 19) : '—'}

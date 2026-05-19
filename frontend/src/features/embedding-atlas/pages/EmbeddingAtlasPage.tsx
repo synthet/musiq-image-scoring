@@ -46,9 +46,9 @@ export function EmbeddingAtlasPage() {
   }, [selectedPointId, filmstripPanelRef]);
 
   useLayoutEffect(() => {
-    if (sidePanelOpen) inspectorPanelRef.current?.expand();
+    if (sidePanelOpen && selectedPointId) inspectorPanelRef.current?.expand();
     else inspectorPanelRef.current?.collapse();
-  }, [sidePanelOpen, inspectorPanelRef]);
+  }, [sidePanelOpen, selectedPointId, inspectorPanelRef]);
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-950 text-slate-200">

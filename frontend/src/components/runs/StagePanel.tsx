@@ -146,7 +146,9 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
         <div className="px-4 py-3 border-b border-[var(--color-border-muted)]">
           <div className="flex items-center justify-between mb-2 text-xs text-[var(--color-text-secondary)]">
             <span>
-              {done.toLocaleString()} / {total.toLocaleString()} work items
+              {stage.phase_code === 'maintenance'
+                ? `${done}% complete`
+                : `${done.toLocaleString()} / ${total.toLocaleString()} work items`}
             </span>
             <span className="flex items-center gap-3">
               {throughput != null && throughput > 0 && (
@@ -194,36 +196,40 @@ export function StagePanel({ runId, stage }: StagePanelProps) {
       )}
 
       {/* Work items toggle */}
-      <button
-        className="w-full flex items-center justify-between px-4 py-2.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] transition-colors"
-        onClick={() => {
-          setShowItems((v) => {
-            if (!v) setWorkItemsPage(0)
-            return !v
-          })
-        }}
-      >
-        <span>Work Items {total > 0 && `(${total.toLocaleString()})`}</span>
-        {showItems ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-      </button>
+      {stage.phase_code !== 'maintenance' && (
+        <>
+          <button
+            className="w-full flex items-center justify-between px-4 py-2.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] transition-colors"
+            onClick={() => {
+              setShowItems((v) => {
+                if (!v) setWorkItemsPage(0)
+                return !v
+              })
+            }}
+          >
+            <span>Work Items {total > 0 && `(${total.toLocaleString()})`}</span>
+            {showItems ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
 
-      {showItems && workItems && (
-        <div className="border-t border-[var(--color-border-muted)]">
-          {(workItems.total ?? 0) === 0 && total > 0 && (
-            <div className="px-4 py-2 text-xs text-[var(--color-warning)] border-b border-[var(--color-border-muted)]">
-              No per-file rows yet. The progress bar can advance from queued work before this table
-              fills—that is normal. Use Run Log below for live file-by-file output; this list appears
-              when per-image status is stored for this run.
+          {showItems && workItems && (
+            <div className="border-t border-[var(--color-border-muted)]">
+              {(workItems.total ?? 0) === 0 && total > 0 && (
+                <div className="px-4 py-2 text-xs text-[var(--color-warning)] border-b border-[var(--color-border-muted)]">
+                  No per-file rows yet. The progress bar can advance from queued work before this table
+                  fills—that is normal. Use Run Log below for live file-by-file output; this list appears
+                  when per-image status is stored for this run.
+                </div>
+              )}
+              <WorkItemsTable
+                items={workItems.items}
+                total={workItems.total}
+                page={workItemsPage}
+                pageSize={WORK_ITEMS_PAGE_SIZE}
+                onPageChange={setWorkItemsPage}
+              />
             </div>
           )}
-          <WorkItemsTable
-            items={workItems.items}
-            total={workItems.total}
-            page={workItemsPage}
-            pageSize={WORK_ITEMS_PAGE_SIZE}
-            onPageChange={setWorkItemsPage}
-          />
-        </div>
+        </>
       )}
     </div>
   )

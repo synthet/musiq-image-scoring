@@ -75,6 +75,167 @@ def normalize_heal_root(root: Optional[str]) -> Optional[str]:
     return s.rstrip("/\\") or None
 
 
+def _cohesion_reheal_limits() -> tuple[int, float]:
+    """Return (max_attempts, cooldown_hours) for cohesion-only culling re-heals."""
+    from modules.config import get_config_section
+
+    cc = get_config_section("clustering") or {}
+    try:
+        max_attempts = int(cc.get("heal_cohesion_max_attempts", 2))
+    except (TypeError, ValueError):
+        max_attempts = 2
+    try:
+        cooldown_h = float(cc.get("heal_cohesion_cooldown_hours", 168))
+    except (TypeError, ValueError):
+        cooldown_h = 168.0
+    return max(1, max_attempts), max(0.0, cooldown_h)
+
+
+def _count_completed_culling_heals(folder_path: str, within_hours: float) -> int:
+    """Count completed heal-culling jobs for ``folder_path`` (canonical path match)."""
+    target = _canon_path_for_active_match(folder_path)
+    if not target:
+        return 0
+
+    time_filter = ""
+    params: list = []
+    if within_hours > 0:
+        if db._get_db_engine() == "postgres":
+            time_filter = (
+                " AND COALESCE(j.ended_at, j.enqueued_at, j.created_at) > "
+                "(CURRENT_TIMESTAMP - (? * INTERVAL '1 hour'))"
+            )
+            params.append(within_hours)
+        else:
+            # Firebird: approximate via datediff from now (hours)
+            time_filter = (
+                " AND COALESCE(j.ended_at, j.enqueued_at, j.created_at) > "
+                "DATEADD(-? HOUR TO CURRENT_TIMESTAMP)"
+            )
+            params.append(int(within_hours))
+
+    with db.connection() as conn:
+        c = conn.cursor()
+        c.execute(
+            f"""
+            SELECT j.input_path
+            FROM jobs j
+            WHERE LOWER(TRIM(j.status)) = 'completed'
+              AND j.description LIKE '%workflow healing for phase: culling%'
+              AND j.input_path IS NOT NULL AND TRIM(j.input_path) <> ''
+              {time_filter}
+            """,
+            tuple(params),
+        )
+        rows = c.fetchall()
+
+    return sum(
+        1 for (inp,) in rows if _canon_path_for_active_match(str(inp or "")) == target
+    )
+
+
+def _folder_cohesion_only_culling_gaps(folder_path: str) -> bool:
+    """True when the folder's only heal gaps are time-cohesion (not missing cull / stale embeddings).
+
+    Clustering may legitimately leave such folders unstacked (visual threshold). Re-healing
+    in a loop does not help unless the operator changes clustering settings.
+    """
+    from modules.config import get_config_section
+
+    cc = get_config_section("clustering") or {}
+    if not bool(cc.get("heal_folder_cohesion_candidates", True)):
+        return False
+
+    cohesion_sql = db.culling_cohesion_folders_aggregate_sql().strip()
+    missing_cull = (
+        "(i.cull_decision IS NULL OR TRIM(CAST(i.cull_decision AS VARCHAR(20))) = '')"
+    )
+    if db._get_db_engine() == "postgres":
+        stale_emb = (
+            "(i.cull_decision IS NOT NULL AND TRIM(CAST(i.cull_decision AS VARCHAR(20))) <> '' "
+            "AND i.stack_id IS NULL AND i.image_hash IS NOT NULL "
+            "AND TRIM(CAST(i.image_hash AS VARCHAR(128))) <> '' "
+            f"AND NOT ({db._postgres_has_default_embedding_sql('i')}))"
+        )
+    else:
+        stale_emb = (
+            "(i.cull_decision IS NOT NULL AND TRIM(CAST(i.cull_decision AS VARCHAR(20))) <> '' "
+            "AND i.stack_id IS NULL AND i.image_hash IS NOT NULL "
+            "AND TRIM(CAST(i.image_hash AS VARCHAR(128))) <> '' "
+            "AND i.image_embedding IS NULL)"
+        )
+
+    with db.connection() as conn:
+        c = conn.cursor()
+        c.execute(
+            f"""
+            SELECT
+              SUM(CASE WHEN {missing_cull} THEN 1 ELSE 0 END) AS missing_cull_n,
+              SUM(CASE WHEN {stale_emb} THEN 1 ELSE 0 END) AS stale_emb_n,
+              SUM(CASE WHEN i.folder_id IN ({cohesion_sql}) THEN 1 ELSE 0 END) AS in_cohesion_n,
+              SUM(CASE WHEN ({db.get_culling_incomplete_predicate_sql('i', include_folder_cohesion=True)}) THEN 1 ELSE 0 END) AS incomplete_n
+            FROM images i
+            JOIN folders f ON f.id = i.folder_id
+            WHERE f.path = ?
+            """,
+            (folder_path,),
+        )
+        row = c.fetchone()
+    if not row:
+        return False
+    missing_cull_n, stale_emb_n, in_cohesion_n, incomplete_n = (
+        int(row[0] or 0),
+        int(row[1] or 0),
+        int(row[2] or 0),
+        int(row[3] or 0),
+    )
+    return (
+        incomplete_n > 0
+        and in_cohesion_n > 0
+        and missing_cull_n == 0
+        and stale_emb_n == 0
+    )
+
+
+def _apply_cohesion_reheal_suppression(
+    eligible_folders: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Drop cohesion-only folders that already had enough completed heal-culling runs.
+
+    Secondary guard when ``cluster_progress`` was not written (crashed job, old data).
+    Primary loop breaker is ``culling_cohesion_folders_aggregate_sql`` excluding
+    rows present in ``cluster_progress``.
+    """
+    max_attempts, cooldown_h = _cohesion_reheal_limits()
+    kept: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for folder in eligible_folders:
+        fp = folder.get("folder_path") or ""
+        if not _folder_cohesion_only_culling_gaps(fp):
+            kept.append(folder)
+            continue
+        prior = _count_completed_culling_heals(fp, cooldown_h)
+        if prior >= max_attempts:
+            skipped.append({
+                "folder_path": fp,
+                "skipped": True,
+                "reason": "cohesion_heal_exhausted",
+                "prior_heal_attempts": prior,
+                "max_attempts": max_attempts,
+                "cooldown_hours": cooldown_h,
+            })
+            logger.info(
+                "Heal [culling]: skip cohesion-only folder %s (%s prior heal(s) in %sh, max=%s)",
+                fp,
+                prior,
+                cooldown_h,
+                max_attempts,
+            )
+        else:
+            kept.append(folder)
+    return kept, skipped
+
+
 def _canon_path_for_active_match(raw: str) -> str:
     """Normalize paths so WSL ``/mnt/d/...`` and Windows ``D:/...`` compare equal.
 
@@ -296,6 +457,10 @@ def heal_phase_data(
         return False
         
     eligible_folders = [f for f in folders_needing_work if not is_under_active_run(f["folder_path"])]
+
+    cohesion_skipped: list[dict[str, Any]] = []
+    if phase_code == PhaseCode.CULLING.value:
+        eligible_folders, cohesion_skipped = _apply_cohesion_reheal_suppression(eligible_folders)
     
     # 3. Spawn Runs (Up to budget)
     # -----------------------------------------------------------------------
@@ -341,7 +506,8 @@ def heal_phase_data(
         "eligible_folders": len(eligible_folders),
         "capacity_slots": capacity,
         "scheduled": scheduled_detail if not dry_run else to_schedule,
-        "skipped": skipped_detail if not dry_run else [],
+        "skipped": (skipped_detail + cohesion_skipped) if not dry_run else cohesion_skipped,
+        "cohesion_suppressed": len(cohesion_skipped),
         "budget": budget
     }
 

@@ -736,6 +736,22 @@ def _init_db_transaction():
                 "CHECK (status IN ('success', 'failed', 'not_loaded'));"
             )
 
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS image_technical_failures (
+                image_id                INTEGER NOT NULL PRIMARY KEY
+                    REFERENCES images(id) ON DELETE CASCADE,
+                technical_failure_score DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                primary_reject_reason   VARCHAR(128) NOT NULL DEFAULT 'none',
+                blur                    DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                overexposed             DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                underexposed            DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                highlight_clipping      DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                shadow_crushing         DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                created_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+
             # Back-fill FK on stacks.best_image_id now that images exists
             # (Firebird adds this as a separate alter; we declare it inline above for stacks
             #  but stacks was created before images — add it as a constraint now)

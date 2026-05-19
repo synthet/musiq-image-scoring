@@ -60,6 +60,7 @@ export type StageCode =
   | 'culling'       // Similarity Clustering
   | 'keywords'      // Tagging
   | 'bird_species'  // Bird Species ID
+  | 'maintenance'   // System Maintenance
 
 export const STAGE_DISPLAY: Record<StageCode, { name: string; description: string }> = {
   indexing:     { name: 'Discovery', description: 'Scan and register image files' },
@@ -68,6 +69,7 @@ export const STAGE_DISPLAY: Record<StageCode, { name: string; description: strin
   culling:      { name: 'Similarity Clustering', description: 'Group similar images into stacks' },
   keywords:     { name: 'Tagging', description: 'Generate keywords and captions via BLIP/CLIP' },
   bird_species: { name: 'Bird Species ID', description: 'Identify bird species with BioCLIP 2 (run after Tagging)' },
+  maintenance:  { name: 'Maintenance', description: 'Database optimization, tag propagation, or embedding backfills' },
 }
 
 export interface Stage {
@@ -281,6 +283,9 @@ export interface Image {
 
   /** Phase-level status rows (mapping of phase_code -> status row) */
   phase_statuses?: Record<string, ImagePhaseStatusRow | string> | null
+
+  /** Presence flags for embedding spaces (mobilenet, clip, bioclip, blip) */
+  embeddings_present?: Record<string, boolean> | null
 }
 
 /** Per-phase row from `get_image_phase_statuses` (GET /api/images/{id}). */

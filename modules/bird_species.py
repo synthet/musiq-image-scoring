@@ -431,11 +431,16 @@ class BirdSpeciesRunner:
             inference_path = _resolve_inference_path(row, file_path)
 
             if not inference_path or not os.path.exists(inference_path):
+                # Terminal at this executor version: classification can't proceed
+                # until the file reappears (or is pruned). 'skipped' lets the heal
+                # status filter treat it as terminal; 'failed' caused heal to
+                # re-queue the same folder forever.
                 db.set_image_phase_status(
                     row["id"],
                     phase_code,
-                    "failed",
-                    error="File not found",
+                    "skipped",
+                    skip_reason="file_missing",
+                    skipped_by="bird_species_runner",
                     executor_version=BIRD_SPECIES_RUNNER_VERSION,
                 )
                 log(f"Skipped (file not found): {os.path.basename(file_path)}", "WARNING")

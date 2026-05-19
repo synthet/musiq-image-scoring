@@ -133,6 +133,8 @@ GET /api/raw-preview?path=<url-encoded-file-path>
 | GET | `/api/images/{image_id}` | Single image details |
 | GET | `/api/images/by-uuid/{image_uuid}` | Single image details by `images.image_uuid` |
 | GET | `/api/images/by-hash/{image_hash}` | Single image details by `images.image_hash` (optional `hash_version`) |
+
+**Image detail optional field** (when technical failure detection has run): `technical_failure_detection` — `version`, `technical_failure_score` (0–100), `primary_reject_reason`, nested `technical_failures` metrics. Table: `image_technical_failures`; also under `scores_json.summary` after scoring.
 | GET | `/api/folders` | Folder listing |
 | GET | `/api/stacks` | Stacks with cover images |
 | GET | `/api/stacks/{stack_id}/images` | Images in a stack |

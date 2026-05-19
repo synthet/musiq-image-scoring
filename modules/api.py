@@ -304,6 +304,9 @@ def _image_detail_payload(image_id: int) -> dict:
         data["file_paths"] = db.get_all_paths(image_id)
         data["resolved_path"] = db.get_resolved_path(image_id, verified_only=False)
         data["phase_statuses"] = db.get_image_phase_statuses(image_id)
+        tf_det = db.get_image_technical_failure(image_id)
+        if tf_det is not None:
+            data["technical_failure_detection"] = tf_det
         return data
     except HTTPException:
         raise
@@ -406,9 +409,12 @@ def _images_list_payload(
 
         img_ids = [d.get("id") or d.get("ID") for d in payload_images if (d.get("id") or d.get("ID"))]
         phase_map = db.get_batch_image_phase_statuses(img_ids)
+        emb_map = db.get_batch_image_embedding_presence(img_ids)
         for d in payload_images:
             img_id = d.get("id") or d.get("ID")
-            d["phase_statuses"] = phase_map.get(img_id, {}) if img_id else {}
+            img_id_int = int(img_id) if img_id is not None else None
+            d["phase_statuses"] = phase_map.get(img_id_int, {}) if img_id_int else {}
+            d["embeddings_present"] = emb_map.get(img_id_int, {}) if img_id_int else {}
 
         return {
             "images": payload_images,
@@ -4360,7 +4366,7 @@ def create_api_router() -> APIRouter:
     def query_images(
         page: int = Query(1, ge=1, description="Page number (1-based)"),
         page_size: int = Query(50, ge=1, le=500, description="Items per page"),
-        sort_by: str = Query("score", description="Sort field (score, date, name, rating, score_general, score_aesthetic, score_technical)"),
+        sort_by: str = Query("score", description="Sort field (score, date, name, rating, score_general, score_aesthetic, score_technical, phases, embeddings)"),
         order: str = Query("desc", description="Sort order: asc or desc"),
         rating: Optional[str] = Query(None, description="Comma-separated ratings to filter (e.g. '3,4,5')"),
         label: Optional[str] = Query(None, description="Comma-separated labels to filter (e.g. 'Green,Blue')"),

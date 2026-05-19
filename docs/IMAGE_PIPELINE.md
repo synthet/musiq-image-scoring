@@ -16,6 +16,7 @@ Hub page for ingestion, metadata, scoring, culling, keywords, embeddings, and RA
 ## Scoring
 
 - **[features/implemented/02-scoring-and-models.md](features/implemented/02-scoring-and-models.md)** - shipped scoring/model behavior.
+- **[planning/models/TECHNICAL_FAILURE_DETECTION_PLAN.md](planning/models/TECHNICAL_FAILURE_DETECTION_PLAN.md)** - technical failure detection integration during scoring.
 - **[technical/SCORING_CHANGES.md](technical/SCORING_CHANGES.md)** - scoring-related behavior notes.
 - **[technical/MODEL_INPUT_SPECIFICATIONS.md](technical/MODEL_INPUT_SPECIFICATIONS.md)** and **[reference/models/MODEL_WEIGHTS.md](reference/models/MODEL_WEIGHTS.md)** - model inputs and weights.
 

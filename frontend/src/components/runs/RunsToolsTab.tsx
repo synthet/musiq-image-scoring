@@ -196,6 +196,12 @@ export function RunsToolsTab() {
               <div>Eligible Folders: <span className="text-[var(--color-text-primary)]">{healStats.eligible_folders}</span></div>
               <div>Folders Needing Work: <span className="text-[var(--color-text-primary)]">{healStats.folders_needing_work}</span></div>
               <div>Scheduled Runs: <span className="text-[var(--color-accent-bright)] font-bold">{healStats.scheduled.length}</span></div>
+              {(healStats.cohesion_suppressed ?? 0) > 0 && (
+                <div>
+                  Cohesion skipped (prior heals):{' '}
+                  <span className="text-[var(--color-warning)] font-bold">{healStats.cohesion_suppressed}</span>
+                </div>
+              )}
               <div>Used Budget: <span className="text-[var(--color-text-primary)]">{healBudget}</span></div>
             </div>
             {healStats.scheduled.length > 0 && (
