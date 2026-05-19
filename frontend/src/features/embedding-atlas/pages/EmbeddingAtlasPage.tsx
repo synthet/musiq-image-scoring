@@ -30,7 +30,6 @@ export function EmbeddingAtlasPage() {
   const inspectorPanelRef = usePanelRef();
 
   const [params, setParams] = useState<FetchEmbeddingMapParams>({
-    space_code: 'mobilenet_v2_imagenet_gap',
     method: 'umap',
   });
 
