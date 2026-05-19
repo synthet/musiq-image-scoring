@@ -72,3 +72,15 @@ def test_culling_cohesion_folders_aggregate_matches_config_toggle():
         with patch.object(db, "_get_db_engine", return_value="postgres"):
             sql_on = db.culling_cohesion_folders_aggregate_sql()
     assert "HAVING COUNT(*)" in sql_on
+
+
+def test_culling_cohesion_folders_excludes_clustered_progress():
+    with patch("modules.config.get_config_section", return_value={
+        "heal_folder_cohesion_candidates": True,
+        "default_time_gap": 120,
+    }):
+        with patch.object(db, "_get_db_engine", return_value="postgres"):
+            sql = db.culling_cohesion_folders_aggregate_sql()
+    assert "cluster_progress" in sql
+    assert "cp3.folder_path IS NULL" in sql
+

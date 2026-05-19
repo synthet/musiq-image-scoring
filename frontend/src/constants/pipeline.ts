@@ -18,6 +18,7 @@ export const STAGE_PREREQUISITES: Record<StageCode, StageCode[]> = {
   culling: ['scoring'],
   keywords: ['scoring'],
   bird_species: ['keywords'],
+  maintenance: [],
 }
 
 /** True when every prerequisite is scope-complete or selected for this run. */

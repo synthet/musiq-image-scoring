@@ -19,6 +19,15 @@ export interface HealPhaseData {
     job_id?: number
     queue_position?: number
   }>
+  skipped?: Array<{
+    folder_path: string
+    skipped?: boolean
+    reason?: string
+    prior_heal_attempts?: number
+    max_attempts?: number
+    cooldown_hours?: number
+  }>
+  cohesion_suppressed?: number
   budget: number
 }
 

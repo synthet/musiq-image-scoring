@@ -727,7 +727,7 @@ def generate_image_uuid(metadata: dict | None) -> str:
     return str(uuid.uuid4())
 
 # --- Sort validation whitelist (SQL injection prevention) ---
-_VIRTUAL_SORT_KEYS = {"phases"}
+_VIRTUAL_SORT_KEYS = {"phases", "embeddings"}
 ALLOWED_SORT_COLUMNS = {
     "score", "score_general", "score_aesthetic", "score_technical",
     "score_spaq", "score_ava", "score_koniq", "score_paq2piq", "score_liqe",
@@ -1447,6 +1447,16 @@ def _build_image_query_components(
             "(SELECT COALESCE(SUM(CASE WHEN ips.status IN ('done', 'skipped') THEN 1 ELSE 0 END), 0)"
             " FROM image_phase_status ips WHERE ips.image_id = images.id)"
         )
+        order_by = f"{sort_expr} {order}"
+    elif sort_by == "embeddings":
+        if _get_db_engine() == "postgres":
+            sort_expr = (
+                "((SELECT COUNT(*) FROM image_embeddings ie WHERE ie.image_id = images.id) +"
+                " (SELECT COUNT(*) FROM image_embeddings_512 ie512 WHERE ie512.image_id = images.id) +"
+                " (SELECT COUNT(*) FROM image_embeddings_768 ie768 WHERE ie768.image_id = images.id))"
+            )
+        else:
+            sort_expr = "(CASE WHEN images.image_embedding IS NOT NULL THEN 1 ELSE 0 END)"
         order_by = f"{sort_expr} {order}"
     elif need_exif_join and sort_by in exif_sort_cols:
         nulls = " NULLS LAST" if order == "DESC" else " NULLS FIRST"
@@ -7390,6 +7400,76 @@ def _write_image_model_scores(image_id, result, model_version):
             )
 
 
+def _technical_failure_detection_from_row(row) -> dict:
+    from modules.technical_failures.schemas import TECHNICAL_FAILURE_METRIC_KEYS
+
+    metrics = {key: float(row.get(key) or 0.0) for key in TECHNICAL_FAILURE_METRIC_KEYS}
+    return {
+        "version": "1.0.0",
+        "technical_failure_score": float(row.get("technical_failure_score") or 0.0),
+        "primary_reject_reason": row.get("primary_reject_reason") or "none",
+        "technical_failures": metrics,
+    }
+
+
+def get_image_technical_failure(image_id: int):
+    """Return ``technical_failure_detection`` for image detail API, or None."""
+    conn = get_connector()
+    if getattr(conn, "type", None) != "postgres":
+        return None
+    row = conn.query_one(
+        "SELECT * FROM image_technical_failures WHERE image_id = ?",
+        (image_id,),
+    )
+    if not row:
+        return None
+    return _technical_failure_detection_from_row(row)
+
+
+def _write_image_technical_failures(image_id, result):
+    """Dual-write technical failure stats to ``image_technical_failures`` (Postgres)."""
+    tf_data = (result.get("summary") or {}).get("technical_failure_detection")
+    if not tf_data or not isinstance(tf_data, dict):
+        return
+    conn = get_connector()
+    if getattr(conn, "type", None) != "postgres":
+        return
+
+    from modules.technical_failures.schemas import TECHNICAL_FAILURE_METRIC_KEYS
+
+    metrics = tf_data.get("technical_failures") or tf_data
+    row = (
+        image_id,
+        float(tf_data.get("technical_failure_score") or 0.0),
+        tf_data.get("primary_reject_reason") or "none",
+        *[float(metrics.get(key) or 0.0) for key in TECHNICAL_FAILURE_METRIC_KEYS],
+    )
+    sql = (
+        "INSERT INTO image_technical_failures "
+        "(image_id, technical_failure_score, primary_reject_reason, "
+        "blur, overexposed, underexposed, highlight_clipping, shadow_crushing, "
+        "created_at, updated_at) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
+        "ON CONFLICT (image_id) DO UPDATE SET "
+        "technical_failure_score = EXCLUDED.technical_failure_score, "
+        "primary_reject_reason = EXCLUDED.primary_reject_reason, "
+        "blur = EXCLUDED.blur, "
+        "overexposed = EXCLUDED.overexposed, "
+        "underexposed = EXCLUDED.underexposed, "
+        "highlight_clipping = EXCLUDED.highlight_clipping, "
+        "shadow_crushing = EXCLUDED.shadow_crushing, "
+        "updated_at = CURRENT_TIMESTAMP"
+    )
+    try:
+        db_postgres.execute_write(sql, row)
+    except Exception as exc:
+        logger.warning(
+            "image_technical_failures write failed for image=%s: %s",
+            image_id,
+            exc,
+        )
+
+
 def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
     """
     Upsert a single image result from the streaming output.
@@ -7629,6 +7709,7 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                     )
                 _sync_image_keywords(existing_id, keywords)
                 _write_image_model_scores(existing_id, result, model_version)
+                _write_image_technical_failures(existing_id, result)
                 register_image_path(existing_id, image_path)
                 try:
                     resolve_windows_path(existing_id, image_path, verify=False)
@@ -7732,6 +7813,14 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
             _write_image_model_scores(image_id, result, model_version)
         except Exception as ims_err:
             logger.warning("image_model_scores dual-write failed for image %s: %s", image_id, ims_err)
+        try:
+            _write_image_technical_failures(image_id, result)
+        except Exception as tf_err:
+            logger.warning(
+                "image_technical_failures dual-write failed for image %s: %s",
+                image_id,
+                tf_err,
+            )
 
         # Register file path with retry
         try:
@@ -8388,6 +8477,11 @@ def culling_cohesion_folders_aggregate_sql() -> str:
 
     Safe to wrap as ``WITH cohesion_folders AS (<this>)`` or use inside ``IN (...)``.
     Respects ``clustering.heal_folder_cohesion_candidates`` and ``default_time_gap``.
+
+    Folders already recorded in ``cluster_progress`` are excluded: clustering ran and
+    found no multi-image stacks (legitimate singletons). Without this, Heal Culling
+    would re-queue the same folders forever. ``clear_stacks_in_folder`` removes the
+    progress row so a manual re-cluster / force rescan can heal again.
     """
     from modules.config import get_config_section
 
@@ -8406,6 +8500,9 @@ def culling_cohesion_folders_aggregate_sql() -> str:
     return f"""SELECT i3.folder_id
 FROM images i3
 LEFT JOIN image_exif ex3 ON ex3.image_id = i3.id
+JOIN folders f3 ON f3.id = i3.folder_id
+LEFT JOIN cluster_progress cp3 ON LOWER(REPLACE(cp3.folder_path, '\\\\', '/')) = LOWER(REPLACE(f3.path, '\\\\', '/'))
+WHERE cp3.folder_path IS NULL
 GROUP BY i3.folder_id
 HAVING COUNT(*) >= 2
   AND SUM(CASE WHEN i3.stack_id IS NOT NULL THEN 1 ELSE 0 END) = 0
@@ -11718,6 +11815,104 @@ def _list_pipeline_phase_codes_ordered():
         "SELECT code FROM pipeline_phases WHERE COALESCE(enabled, 1) = 1 ORDER BY sort_order"
     )
     return [(r["code"] or "").strip() for r in rows if (r["code"] or "").strip()]
+
+
+def get_batch_image_embedding_presence(image_ids: list[int]) -> dict[int, dict[str, bool]]:
+    """
+    Return a map of image_id to embedding space presence flags.
+    Example: {123: {"mobilenet_v2_imagenet_gap": True, "clip_vit_b32_image": False, ...}}
+    """
+    if not image_ids:
+        return {}
+
+    # Initialize results
+    results = {int(iid): {
+        "mobilenet_v2_imagenet_gap": False,
+        "clip_vit_b32_image": False,
+        "bioclip_2_image": False,
+        "blip_vit_b16_image": False
+    } for iid in image_ids}
+
+    try:
+        engine = _get_db_engine()
+        
+        if engine == "postgres":
+            from modules import db_postgres
+            # Fetch active embedding spaces from postgres
+            try:
+                spaces = db_postgres.execute_select(
+                    "SELECT id, code, dim FROM embedding_spaces WHERE COALESCE(active, 1) = 1"
+                )
+            except Exception:
+                spaces = [
+                    {"id": 1, "code": "mobilenet_v2_imagenet_gap", "dim": 1280},
+                    {"id": 2, "code": "clip_vit_b32_image", "dim": 512},
+                    {"id": 3, "code": "bioclip_2_image", "dim": 512},
+                    {"id": 4, "code": "blip_vit_b16_image", "dim": 768}
+                ]
+
+            # Groups spaces by table dim
+            dim_to_spaces = {}
+            for s in spaces:
+                dim = int(s.get("dim") or 0)
+                dim_to_spaces.setdefault(dim, []).append(s)
+
+            # Query each per-dim fact table
+            for dim, sps in dim_to_spaces.items():
+                try:
+                    table = _pg_embedding_table_for_dim(dim)
+                except ValueError:
+                    continue
+
+                placeholders = ','.join(['%s'] * len(image_ids))
+                space_ids = [int(s["id"]) for s in sps]
+                space_placeholders = ','.join(['%s'] * len(space_ids))
+                
+                query = (
+                    f"SELECT image_id, embedding_space_id FROM {table} "
+                    f"WHERE image_id IN ({placeholders}) AND embedding_space_id IN ({space_placeholders})"
+                )
+                params = list(image_ids) + space_ids
+                
+                rows = db_postgres.execute_select(query, tuple(params))
+                space_by_id = {int(s.get("id") or s.get("ID")): s.get("code") or s.get("CODE") for s in sps}
+                for r in rows:
+                    iid_val = r.get("image_id") or r.get("IMAGE_ID")
+                    sid_val = r.get("embedding_space_id") or r.get("EMBEDDING_SPACE_ID")
+                    if iid_val is not None and sid_val is not None:
+                        iid = int(iid_val)
+                        sid = int(sid_val)
+                        code = space_by_id.get(sid)
+                        if code and iid in results:
+                            results[iid][code] = True
+
+            # Also check legacy images.image_embedding column on Postgres as a fallback
+            placeholders = ','.join(['%s'] * len(image_ids))
+            query = f"SELECT id FROM images WHERE id IN ({placeholders}) AND image_embedding IS NOT NULL"
+            rows = db_postgres.execute_select(query, tuple(image_ids))
+            for r in rows:
+                iid_val = r.get("id") or r.get("ID")
+                if iid_val is not None:
+                    iid = int(iid_val)
+                    if iid in results:
+                        results[iid]["mobilenet_v2_imagenet_gap"] = True
+
+        else:
+            # Firebird legacy fallback - only checks images.image_embedding blob presence
+            placeholders = ','.join(['?'] * len(image_ids))
+            query = f"SELECT id FROM images WHERE id IN ({placeholders}) AND image_embedding IS NOT NULL"
+            rows = get_connector().query(query, tuple(image_ids))
+            for r in rows:
+                iid_val = r.get("id") or r.get("ID")
+                if iid_val is not None:
+                    iid = int(iid_val)
+                    if iid in results:
+                        results[iid]["mobilenet_v2_imagenet_gap"] = True
+                    
+    except Exception as e:
+        logger.error("Error in get_batch_image_embedding_presence: %s", e)
+        
+    return results
 
 
 def get_batch_image_phase_statuses(image_ids):

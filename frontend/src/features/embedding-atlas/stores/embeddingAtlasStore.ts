@@ -38,12 +38,8 @@ export const useEmbeddingAtlasStore = create<EmbeddingAtlasState>((set) => ({
   selectedClusterIds: [],
 
   setHoveredPointId: (id) => set({ hoveredPointId: id }),
-  /** Selection only; open the inspector with setSidePanelOpen / toolbar. Clearing selection closes the inspector. */
-  setSelectedPointId: (id) =>
-    set({
-      selectedPointId: id,
-      ...(id == null ? { sidePanelOpen: false } : {}),
-    }),
+  /** Selection only; inspector visibility is the independent sidePanelOpen user preference. */
+  setSelectedPointId: (id) => set({ selectedPointId: id }),
   setCurrentTool: (tool) => set({ currentTool: tool }),
   setActiveColorMode: (mode) => set({ activeColorMode: mode }),
   setSidePanelOpen: (open) => set({ sidePanelOpen: open }),

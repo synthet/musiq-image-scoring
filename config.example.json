@@ -3,6 +3,14 @@
   "scoring_input_path": "/path/to/your/photos",
   "tagging_input_path": "",
   "stacks_input_path": "/path/to/your/photos",
+  "technical_failures": {
+    "enabled": false,
+    "use_classical_metrics": true,
+    "use_clip_iqa": false,
+    "use_pyiqa": false,
+    "fail_on_detector_error": false,
+    "version": "1.0.0"
+  },
   "scoring": {
     "force_rescore_default": false,
     "default_sort_by": "score_general",
@@ -33,6 +41,8 @@
     "default_threshold": 0.15,
     "default_time_gap": 120,
     "heal_folder_cohesion_candidates": true,
+    "heal_cohesion_max_attempts": 2,
+    "heal_cohesion_cooldown_hours": 168,
     "force_rescan_default": false
   },
   "culling": {

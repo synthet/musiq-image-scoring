@@ -39,6 +39,10 @@ To ensure consistency with the models' training data and optimal inference perfo
 *   **Padding**: Images are **letterboxed** (padded with black) to maintain aspect ratio within the 512x512 square, rather than stretching or cropping.
 *   **Source**: Prioritizes embedded JPEGs (ExifTool) for speed, falling back to `rawpy` preview extraction if needed.
 
+## 5. Technical failure detection (optional)
+
+When `technical_failures.enabled` is true, classical metrics run in `ScoringWorker` after `run_all_models()` on the preprocessed inference path. Results persist to `image_technical_failures` and appear on `GET /api/images/{id}` as `technical_failure_detection`. See `config.example.json` and [TECHNICAL_FAILURE_DETECTION_PLAN.md](../planning/models/TECHNICAL_FAILURE_DETECTION_PLAN.md).
+
 ## 5. Database Updates
 *   **Recalculation**: The `recalc_scores.py` script has updated **38,853** images in the library.
 *   **Backup**: A database backup was automatically created before applying these changes.

@@ -434,7 +434,25 @@ class ScoringWorker(PipelineWorker):
                 logger=_inference_log,
                 write_metadata=False,  # Handled in ResultWorker to avoid I/O blocking GPU
             )
-            
+
+            tf_cfg = (cfg.get("technical_failures") or {})
+            if tf_cfg.get("enabled", False):
+                try:
+                    from modules.technical_failures import detect_technical_failures
+
+                    payload = detect_technical_failures(job.process_path, context=tf_cfg)
+                    results.setdefault("summary", {})[
+                        "technical_failure_detection"
+                    ] = payload.to_detection_dict()
+                except Exception as tf_exc:
+                    logger.warning(
+                        "Technical failure detection failed for %s: %s",
+                        job.image_path,
+                        tf_exc,
+                    )
+                    if tf_cfg.get("fail_on_detector_error", False):
+                        raise
+
             job.result = results
             
             # Post-check

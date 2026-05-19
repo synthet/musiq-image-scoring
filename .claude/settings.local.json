@@ -145,7 +145,10 @@
       "Bash(git rev-list *)",
       "Bash(gh issue *)",
       "Bash(gh repo *)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(wsl bash *)",
+      "Bash(gh project *)",
+      "Bash(sort -t'[' -k2)"
     ]
   },
   "enableAllProjectMcpServers": true,
