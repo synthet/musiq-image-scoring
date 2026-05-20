@@ -27,6 +27,8 @@ The integration relies on two primary shared components:
 * **Agent Action**: Any modification to request/response structures or endpoint paths requires a corresponding update in the gallery.
 * **Sync Point**: The gallery agent must update `electron/apiService.ts` and relevant frontend hooks.
 
+**Culling / stack analytics (2026-05):** Backend exposes `GET /api/analytics/culling`, `GET /api/analytics/culling/sessions/{id}`, `GET /api/analytics/stacks/{id}` (see [CULLING_ANALYTICS.md](CULLING_ANALYTICS.md)). Gallery consumes via IPC `api:get-culling-analytics` and `api:get-stack-analytics`; UI in `src/components/CullingAnalytics/`. No new DB columns — read-only aggregates over existing tables.
+
 ### 3. Shared Resource Configuration
 * **Protocol**: **image-scoring-gallery** `config.json` references API URL, database connection, or paths that pair with **image-scoring-backend** deployment.
 * **Agent Action**: Moving the database container, changing credentials, or changing API base URL requires updates in both projects as applicable.

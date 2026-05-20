@@ -706,6 +706,38 @@
         }
       }
     },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Get application configuration",
+        "description": "Returns the current `config.json` contents. Sections: `scoring`, `processing`,\n        `culling`, `ui`, `tagging`. Used by the Settings tab; Electron should read this\n        on startup and display values in its Settings pane.",
+        "operationId": "get_config_api_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          }
+        }
+      }
+    },
     "/api/db/query": {
       "post": {
         "tags": [
@@ -1052,7 +1084,7 @@
           "Vexlum Scoring API"
         ],
         "summary": "Get recent jobs",
-        "description": "Returns recent job rows as JSON.\n        \n        Jobs are ordered by creation time (most recent first).\n        Each job entry includes:\n        - id: Unique job identifier\n        - input_path: Path that was processed\n        - status: Job status (pending, running, completed, failed, canceled, interrupted)\n        - created_at: Job creation timestamp\n        - current_phase / next_phase_index / runner_state: Persisted execution cursor fields\n        - log: Job log output (if available)\n        \n        **Query Parameters:**\n        - limit: Maximum number of jobs to return (default: 10, max: 1000)\n        - offset: Skip this many jobs (newest-first order; default 0)\n        - history: When true, only terminal statuses (completed/failed/canceled/interrupted);\n          response is JSON `{\"runs\":[...],\"jobs\":[...],\"total\":N}` for pagination.\n        \n        **Default (`history` false):** JSON object `{\"runs\":[...],\"jobs\":[...]}` (same array under both keys; clients that expected a bare array should read `runs` or `jobs`).",
+        "description": "Returns a list of recent job history entries.\n        \n        Jobs are ordered by creation time (most recent first).\n        Each job entry includes:\n        - id: Unique job identifier\n        - input_path: Path that was processed\n        - status: Job status (pending, running, completed, failed, canceled, interrupted)\n        - created_at: Job creation timestamp\n        - current_phase / next_phase_index / runner_state: Persisted execution cursor fields\n        - log: Job log output (if available)\n        \n        **Query Parameters:**\n        - limit: Maximum number of jobs to return (default: 10, max: 1000)\n        - offset: Skip this many jobs (newest-first order; default 0)\n        - history: When true, only terminal statuses (completed/failed/canceled/interrupted);\n          response is JSON `{\"runs\":[...],\"total\":N}` for pagination (default response remains a JSON array).",
         "operationId": "get_recent_jobs_api_jobs_recent_get",
         "parameters": [
           {
@@ -2302,6 +2334,171 @@
         }
       }
     },
+    "/api/geo/images": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API",
+          "Geo"
+        ],
+        "summary": "Get geotagged images for map display",
+        "description": "Return images that have GPS coordinates stored in image_exif,\n        suitable for rendering on an interactive map.\n\n        **Query Parameters:**\n        - folder_path: Optional. Restrict to images under this folder.\n        - keyword: Optional. Filter by keyword (substring match on image_keywords).\n        - min_score: Optional. Minimum score_general threshold.\n        - label: Optional. Filter by label (e.g. 'Green', 'Yellow', 'Red').\n        - rating: Optional. Filter by star rating (1-5).\n        - semantic: Optional. If true, perform semantic search via CLIP.\n        - limit: Maximum number of results (default: 50000, max: 100000).\n\n        **Returns:**\n        - images: List of geotagged image objects with lat/lng and metadata.\n        - count: Number of results.\n        - bounds: Bounding box {sw: [lat, lng], ne: [lat, lng]} or null.",
+        "operationId": "get_geo_images_api_geo_images_get",
+        "parameters": [
+          {
+            "name": "folder_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to folder path",
+              "title": "Folder Path"
+            },
+            "description": "Restrict to folder path"
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by keyword substring",
+              "title": "Keyword"
+            },
+            "description": "Filter by keyword substring"
+          },
+          {
+            "name": "min_score",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 100.0,
+                  "minimum": 0.0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum score_general",
+              "title": "Min Score"
+            },
+            "description": "Minimum score_general"
+          },
+          {
+            "name": "label",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by label",
+              "title": "Label"
+            },
+            "description": "Filter by label"
+          },
+          {
+            "name": "rating",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 5,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by star rating",
+              "title": "Rating"
+            },
+            "description": "Filter by star rating"
+          },
+          {
+            "name": "semantic",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Perform semantic search via CLIP",
+              "default": false,
+              "title": "Semantic"
+            },
+            "description": "Perform semantic search via CLIP"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 1,
+              "description": "Maximum results",
+              "default": 50000,
+              "title": "Limit"
+            },
+            "description": "Maximum results"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/similar": {
       "get": {
         "tags": [
@@ -2612,6 +2809,83 @@
               "title": "Min Similarity"
             },
             "description": "Minimum similarity threshold"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/similarity/example-queries": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API",
+          "Similarity"
+        ],
+        "summary": "Suggested text-search queries from library keywords",
+        "description": "Returns up to ``limit`` display strings derived from ranked keywords in the catalog\n        (``keywords_dim`` / ``image_keywords``), optionally scoped to a folder path.\n        Used by the Semantic Search UI for rotating example chips.\n\n        Always returns HTTP 200; on failure or empty catalog, ``queries`` is an empty list.",
+        "operationId": "get_similarity_example_queries_api_similarity_example_queries_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum keyword phrases to return",
+              "default": 48,
+              "title": "Limit"
+            },
+            "description": "Maximum keyword phrases to return"
+          },
+          {
+            "name": "folder_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scope keywords to images under this folder path",
+              "title": "Folder Path"
+            },
+            "description": "Scope keywords to images under this folder path"
           }
         ],
         "responses": {
@@ -3573,11 +3847,11 @@
             "required": false,
             "schema": {
               "type": "string",
-              "description": "Sort field (score, date, name, rating, score_general, score_aesthetic, score_technical)",
+              "description": "Sort field (score, date, name, rating, score_general, score_aesthetic, score_technical, phases, embeddings)",
               "default": "score",
               "title": "Sort By"
             },
-            "description": "Sort field (score, date, name, rating, score_general, score_aesthetic, score_technical)"
+            "description": "Sort field (score, date, name, rating, score_general, score_aesthetic, score_technical, phases, embeddings)"
           },
           {
             "name": "order",
@@ -4857,6 +5131,219 @@
         }
       }
     },
+    "/api/analytics/culling": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Culling and stack analytics (library or folder)",
+        "description": "Aggregates stack size, pick/reject flags (images.pick_status), scores, EXIF exposure consistency, labels, GPS, keywords, and embedding coverage. PostgreSQL only. Optional folder_path or folder_id filter.",
+        "operationId": "get_culling_analytics_api_analytics_culling_get",
+        "parameters": [
+          {
+            "name": "folder_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to exact folder path",
+              "title": "Folder Path"
+            },
+            "description": "Filter to exact folder path"
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to folder id",
+              "title": "Folder Id"
+            },
+            "description": "Filter to folder id"
+          },
+          {
+            "name": "per_stack_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 0,
+              "default": 50,
+              "title": "Per Stack Limit"
+            }
+          },
+          {
+            "name": "per_stack_offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Per Stack Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CullingAnalyticsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/culling/sessions/{session_id}": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Culling session analytics",
+        "operationId": "get_culling_session_analytics_api_analytics_culling_sessions__session_id__get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CullingAnalyticsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/stacks/{stack_id}": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Per-stack culling analytics",
+        "operationId": "get_stack_analytics_endpoint_api_analytics_stacks__stack_id__get",
+        "parameters": [
+          {
+            "name": "stack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Stack Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CullingAnalyticsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/import/register": {
       "post": {
         "tags": [
@@ -5573,6 +6060,58 @@
         }
       }
     },
+    "/api/folders/cache": {
+      "delete": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Remove empty folder subtree from DB cache",
+        "description": "Deletes the subtree rooted at ``path`` only when ``COUNT(images.folder_id \u2208 subtree)==0``. Does not delete files on disk. Descendant rows are cleared via FK cascade.",
+        "operationId": "delete_empty_folder_cache_route_api_folders_cache_delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteFolderCacheRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/folders/phase-status": {
       "get": {
         "tags": [
@@ -5688,38 +6227,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/api/config": {
-      "get": {
-        "tags": [
-          "Vexlum Scoring API"
-        ],
-        "summary": "Get application configuration",
-        "description": "Returns the current `config.json` contents. Sections: `scoring`, `processing`,\n        `culling`, `ui`, `tagging`. Used by the Settings tab; Electron should read this\n        on startup and display values in its Settings pane.",
-        "operationId": "get_config_api_config_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
           }
         }
       }
@@ -7377,6 +7884,72 @@
         }
       }
     },
+    "/api/models": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API",
+          "General API"
+        ],
+        "summary": "List registered scoring models",
+        "description": "Return the contents of the scoring-model registry: per-model name, version, framework, native score range, and whether the model is enabled (production) or running in shadow mode. Useful for UI / shadow-comparison tooling.",
+        "operationId": "list_scoring_models_api_models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          }
+        }
+      }
+    },
+    "/api/debug/thread-dump": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API",
+          "General API"
+        ],
+        "summary": "Capture Python thread dump",
+        "description": "Returns a full Python thread dump for backend diagnostic and stall debugging.",
+        "operationId": "get_thread_dump_api_debug_thread_dump_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          }
+        }
+      }
+    },
     "/public/api/images": {
       "get": {
         "tags": [
@@ -8301,7 +8874,7 @@
               }
             ],
             "title": "Threshold",
-            "description": "Cosine distance cutoff for visual similarity clustering *within* each time batch (lower = stricter). This is not an image count.",
+            "description": "Distance threshold for clustering (lower = stricter).",
             "example": 0.15
           },
           "time_gap": {
@@ -8314,7 +8887,7 @@
               }
             ],
             "title": "Time Gap",
-            "description": "Seconds: images are sorted by capture time; start a new batch when the gap between two consecutive shots exceeds this value. Only shots in the same batch are compared visually (e.g. 3 for tight bursts).",
+            "description": "Time gap in seconds for burst grouping.",
             "example": 5
           },
           "force_rescan": {
@@ -8327,7 +8900,234 @@
         },
         "type": "object",
         "title": "ClusteringStartRequest",
-        "description": "Request model for starting a clustering job.\n\nClusters images in a folder using (1) temporal batching by capture time gaps, then (2) visual similarity *within* each batch.\n\nAttributes:\n    input_path: Directory path containing images to cluster. If empty, clusters all unprocessed folders.\n    threshold: Cosine distance limit for visual similarity (not a shot count).\n    time_gap: Seconds between consecutive capture times; above this, a new temporal batch starts.\n    force_rescan: If True, re-cluster even if already processed."
+        "description": "Request model for starting a clustering job.\n\nClusters images in a folder based on visual similarity and temporal proximity.\n\nAttributes:\n    input_path: Directory path containing images to cluster. If empty, clusters all unprocessed folders.\n    threshold: Distance threshold for clustering (lower = stricter grouping).\n    time_gap: Time gap in seconds for burst grouping.\n    force_rescan: If True, re-cluster even if already processed."
+      },
+      "ConfigResponse": {
+        "properties": {
+          "enable_culling": {
+            "type": "boolean",
+            "title": "Enable Culling",
+            "description": "True if the experimental culling feature should be visible and accessible.",
+            "default": false
+          },
+          "embedding_map_enabled": {
+            "type": "boolean",
+            "title": "Embedding Map Enabled",
+            "description": "True if the embedding map feature is enabled.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "ConfigResponse",
+        "description": "Response model for public configuration flags.\n\nExposes a safe subset of configuration values to the frontend.",
+        "example": {
+          "embedding_map_enabled": true,
+          "enable_culling": false
+        }
+      },
+      "CullingAnalyticsResponse": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "description": "library | session | stack"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "folder_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Path"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "stack_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stack Id"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "stack_size": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stack Size"
+          },
+          "flags": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flags"
+          },
+          "scores": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scores"
+          },
+          "exposure": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exposure"
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Labels"
+          },
+          "gps": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gps"
+          },
+          "keywords": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keywords"
+          },
+          "embeddings": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embeddings"
+          },
+          "composite": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Composite"
+          },
+          "warnings": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warnings"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "scope"
+        ],
+        "title": "CullingAnalyticsResponse",
+        "description": "Culling and stack analytics payload (library, folder, session, or stack scope)."
       },
       "DbQueryRequest": {
         "properties": {
@@ -8366,6 +9166,21 @@
           "data"
         ],
         "title": "DbQueryResponse"
+      },
+      "DeleteFolderCacheRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "Absolute folder path matching a cached ``folders.path``."
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "DeleteFolderCacheRequest",
+        "description": "Remove a folder subtree from the ``folders`` cache when no images reference it."
       },
       "DiagnosticsResponse": {
         "properties": {
@@ -8835,6 +9650,20 @@
             ],
             "title": "Keywords",
             "description": "Comma-separated keywords string."
+          },
+          "pick_status": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1.0,
+                "minimum": -1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pick Status",
+            "description": "Culling pick: 1 = picked, -1 = rejected, 0 = unflagged. When provided without explicit rating/label, the server mirrors the pick to rating + label so legacy gallery filters keep working."
           },
           "write_sidecar": {
             "type": "boolean",
@@ -9501,7 +10330,7 @@
               }
             ],
             "title": "Clustering Threshold",
-            "description": "Cosine distance for visual clustering within each time batch (if 'cluster' is in stage_codes). Not an image count."
+            "description": "Distance threshold for clustering (if 'cluster' is in stage_codes)."
           },
           "clustering_time_gap": {
             "anyOf": [
@@ -9513,7 +10342,7 @@
               }
             ],
             "title": "Clustering Time Gap",
-            "description": "Seconds: max capture-time gap between consecutive shots in sorted order while keeping them in one batch; larger gaps start a new batch (if 'cluster' is in stage_codes)."
+            "description": "Time gap in seconds for clustering burst grouping (if 'cluster' is in stage_codes)."
           },
           "clustering_force_rescan": {
             "type": "boolean",
@@ -10242,6 +11071,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",

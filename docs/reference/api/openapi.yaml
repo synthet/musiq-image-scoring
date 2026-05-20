@@ -4416,6 +4416,78 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/analytics/culling:
+    get:
+      tags:
+      - General
+      summary: Culling and stack analytics (library or folder)
+      description: Stack size, flags, scores, EXIF, labels, GPS, keywords, embeddings. PostgreSQL only.
+      operationId: get_culling_analytics_api_analytics_culling_get
+      parameters:
+      - name: folder_path
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: folder_id
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: per_stack_limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+      - name: per_stack_offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '501':
+          description: Not supported (non-PostgreSQL engine)
+  /api/analytics/culling/sessions/{session_id}:
+    get:
+      tags:
+      - General
+      summary: Culling session analytics
+      operationId: get_culling_session_analytics_api_analytics_culling_sessions__session_id__get
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Successful Response
+        '404':
+          description: Session not found
+  /api/analytics/stacks/{stack_id}:
+    get:
+      tags:
+      - General
+      summary: Per-stack culling analytics
+      operationId: get_stack_analytics_api_analytics_stacks__stack_id__get
+      parameters:
+      - name: stack_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Successful Response
+        '404':
+          description: Stack not found
   /api/stats:
     get:
       tags:

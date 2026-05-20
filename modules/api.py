@@ -49,6 +49,9 @@ Endpoints:
         GET /api/stacks - Get stacks listing
         GET /api/stacks/{stack_id}/images - Get images in a stack
         GET /api/stats - Get database statistics
+        GET /api/analytics/culling - Culling/stack analytics (library or folder scope)
+        GET /api/analytics/culling/sessions/{session_id} - Culling session analytics
+        GET /api/analytics/stacks/{stack_id} - Per-stack analytics drill-down
 
     Pipeline:
         POST /api/pipeline/submit - Submit to processing pipeline
@@ -1438,6 +1441,30 @@ class OutlierResponse(BaseModel):
             }
         }
     )
+
+
+class CullingAnalyticsResponse(BaseModel):
+    """Culling and stack analytics payload (library, folder, session, or stack scope)."""
+
+    scope: str = Field(..., description="library | session | stack")
+    generated_at: Optional[str] = None
+    folder_id: Optional[int] = None
+    folder_path: Optional[str] = None
+    session_id: Optional[int] = None
+    stack_id: Optional[int] = None
+    error: Optional[str] = None
+    stack_size: Optional[Dict[str, Any]] = None
+    flags: Optional[Dict[str, Any]] = None
+    scores: Optional[Dict[str, Any]] = None
+    exposure: Optional[Dict[str, Any]] = None
+    labels: Optional[Dict[str, Any]] = None
+    gps: Optional[Dict[str, Any]] = None
+    keywords: Optional[Dict[str, Any]] = None
+    embeddings: Optional[Dict[str, Any]] = None
+    composite: Optional[Dict[str, Any]] = None
+    warnings: Optional[List[str]] = None
+
+    model_config = ConfigDict(extra="allow")
 
 
 class ImageUpdateRequest(BaseModel):
@@ -4660,6 +4687,79 @@ def create_api_router() -> APIRouter:
             stats = get_database_stats()
             return stats
         except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get(
+        "/analytics/culling",
+        response_model=CullingAnalyticsResponse,
+        summary="Culling and stack analytics (library or folder)",
+        description=(
+            "Aggregates stack size, pick/reject flags (images.pick_status), scores, "
+            "EXIF exposure consistency, labels, GPS, keywords, and embedding coverage. "
+            "PostgreSQL only. Optional folder_path or folder_id filter."
+        ),
+    )
+    async def get_culling_analytics(
+        folder_path: Optional[str] = Query(None, description="Filter to exact folder path"),
+        folder_id: Optional[int] = Query(None, description="Filter to folder id"),
+        per_stack_limit: int = Query(50, ge=0, le=200),
+        per_stack_offset: int = Query(0, ge=0),
+    ):
+        from modules.culling_analytics.service import get_library_analytics
+
+        try:
+            return get_library_analytics(
+                folder_path=folder_path,
+                folder_id=folder_id,
+                per_stack_limit=per_stack_limit,
+                per_stack_offset=per_stack_offset,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=501, detail=str(e))
+        except Exception as e:
+            logger.exception("get_culling_analytics failed")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get(
+        "/analytics/culling/sessions/{session_id}",
+        response_model=CullingAnalyticsResponse,
+        summary="Culling session analytics",
+    )
+    async def get_culling_session_analytics(session_id: int):
+        from modules.culling_analytics.service import get_session_analytics
+
+        try:
+            result = get_session_analytics(session_id)
+            if result.get("error") == "session_not_found":
+                raise HTTPException(status_code=404, detail="Session not found")
+            return result
+        except ValueError as e:
+            raise HTTPException(status_code=501, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception("get_culling_session_analytics failed")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get(
+        "/analytics/stacks/{stack_id}",
+        response_model=CullingAnalyticsResponse,
+        summary="Per-stack culling analytics",
+    )
+    async def get_stack_analytics_endpoint(stack_id: int):
+        from modules.culling_analytics.service import get_stack_analytics
+
+        try:
+            result = get_stack_analytics(stack_id)
+            if result.get("error") == "stack_not_found":
+                raise HTTPException(status_code=404, detail="Stack not found")
+            return result
+        except ValueError as e:
+            raise HTTPException(status_code=501, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception("get_stack_analytics failed")
             raise HTTPException(status_code=500, detail=str(e))
 
     # ========== Import Register Endpoints ==========
