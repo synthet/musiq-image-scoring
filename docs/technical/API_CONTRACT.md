@@ -242,6 +242,22 @@ These fields serve different purposes. Do not substitute one for another when in
 
 **Note:** Does not include `scored_images` or `tagged_images`.
 
+### GET /api/analytics/culling — Culling analytics (library / folder)
+
+PostgreSQL only. Optional query: `folder_path`, `folder_id`, `per_stack_limit`, `per_stack_offset`.
+
+Response includes: `scope`, `generated_at`, `stack_size`, `flags` (`images.pick_status`), `scores`, `exposure`, `labels`, `gps`, `keywords`, `embeddings`, `composite`, `warnings`.
+
+See [CULLING_ANALYTICS.md](CULLING_ANALYTICS.md).
+
+### GET /api/analytics/culling/sessions/{session_id}
+
+Session-scoped flags from `culling_picks` plus `session_counters` from `get_session_stats`.
+
+### GET /api/analytics/stacks/{stack_id}
+
+Per-stack drill-down: scores, exposure, labels, GPS, keywords, embeddings, `composite`, `warnings`.
+
 ---
 
 

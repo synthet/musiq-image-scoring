@@ -214,8 +214,15 @@ def get_session_stats(session_id) -> dict
 - **Capture One Support** - Additional XMP fields for C1
 - **Session Resume** - UI to continue previous sessions
 
+## Analytics API
+
+Stack and culling statistics (library, folder, session, per-stack) are documented in [CULLING_ANALYTICS.md](CULLING_ANALYTICS.md).
+
+REST: `GET /api/analytics/culling`, `GET /api/analytics/culling/sessions/{id}`, `GET /api/analytics/stacks/{id}`.
+
 ## Related Documents
 
+- [Culling analytics](CULLING_ANALYTICS.md)
 - [Docs index](../README.md)
 - [TODO / roadmap](../../TODO.md)
 - [Stacks manual management](STACKS_MANUAL_MANAGEMENT.md)
