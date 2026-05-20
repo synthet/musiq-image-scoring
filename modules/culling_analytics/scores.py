@@ -86,7 +86,7 @@ def _per_stack_score_summaries(
         ORDER BY sc.image_count DESC, sc.stack_id
         LIMIT ? OFFSET ?
         """,
-        tuple(params) + [limit, offset],
+        tuple(params) + (limit, offset),
     )
     out: list[dict[str, Any]] = []
     for r in rows:

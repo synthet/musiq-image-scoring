@@ -25,7 +25,7 @@ def compute_library_keywords(folder_id: int | None, *, top_n: int = 30) -> dict[
         ORDER BY cnt DESC
         LIMIT ?
         """,
-        tuple(params) + [top_n],
+        tuple(params) + (top_n,),
     )
     top = [
         {"keyword": r.get("keyword_display") or r.get("keyword_norm"), "count": int(r["cnt"])}
