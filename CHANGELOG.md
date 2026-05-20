@@ -15,6 +15,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.18.0] - 2026-05-19
+
+### Added
+
+- **Embedding Atlas (#133)**: Embedding-space dropdown driven by **`GET /api/embedding_spaces`** — **`useEmbeddingSpaces`** hook and dynamic options in **`ProjectionSettingsDialog`** (fallback when the selected code is absent from the registry).
+- **Technical failure detection (#143)**: Classical-metrics MVP — **`modules/technical_failures/`**, Postgres **`image_technical_failures`**, scoring integration, and **`technical_failure_detection`** on image detail APIs / **`/ui/`** surfaces.
+
+### Fixed
+
+- **Embedding Atlas**: Inspector point deselection no longer leaves a stale selection state.
+- **Scoring incompleteness audit (#162)**: Drop **`score_general`** gate from the **`scoring_incomplete`** predicate so heal/audit paths align with canonical completeness checks.
+
+### Changed
+
+- **Agent infrastructure**: Phase 2 backend docs and inventory updates (**#168**).
+- **Static `/app` bundle**: Rebuilt hashed frontend assets for Atlas and inspector changes.
+
 ## [7.17.0] - 2026-05-15
 
 ### Added
