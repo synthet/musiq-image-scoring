@@ -16,6 +16,7 @@ from modules.engines.host import MultiModelHost
 from modules.engines.liqe_model import LiqeModelWrapper
 from modules.engines.musiq_model import MusiqModelWrapper, make_musiq_wrappers
 from modules.engines.registry import ModelRegistry
+from modules.engines.topiq_model import TopiqModelWrapper
 
 
 class _StubMusiqBackend:
@@ -82,6 +83,20 @@ class _StubLiqeScorer:
         if self._status != "success":
             return {"status": "failed", "error": "boom"}
         return {"score": self._score, "status": "success", "score_range": "1.0-5.0"}
+
+
+class _StubTopiqScorer:
+    available = True
+    VERSION = "topiq-stub-1"
+
+    def __init__(self, score: float = 0.62, status: str = "success") -> None:
+        self._score = score
+        self._status = status
+
+    def predict(self, _path: str) -> Dict[str, Any]:
+        if self._status != "success":
+            return {"status": "failed", "error": "boom"}
+        return {"score": self._score, "status": "success", "score_range": "0.0-1.0"}
 
 
 # ---------- MusiqModelWrapper ----------
@@ -181,6 +196,42 @@ def test_liqe_normalize_matches_native_range():
     assert liqe.normalize(1.0) == pytest.approx(0.0)
     assert liqe.normalize(3.0) == pytest.approx(0.5)
     assert liqe.normalize(5.0) == pytest.approx(1.0)
+
+
+# ---------- TopiqModelWrapper ----------
+
+def test_topiq_wrapper_predict_success():
+    topiq = TopiqModelWrapper(scorer=_StubTopiqScorer(score=0.62))
+    assert topiq.name == "topiq"
+    assert topiq.score_range == (0.0, 1.0)
+    assert topiq.framework == "torch"
+    assert topiq.load() is True
+    out = topiq.predict("/x.jpg")
+    assert out == {"score": 0.62, "status": "success", "error": None}
+
+
+def test_topiq_wrapper_failed_status_propagates():
+    topiq = TopiqModelWrapper(scorer=_StubTopiqScorer(status="failed"))
+    topiq.load()
+    out = topiq.predict("/x.jpg")
+    assert out["status"] == "failed"
+    assert out["score"] is None
+
+
+def test_topiq_wrapper_unloaded_returns_not_loaded():
+    class _Unavailable:
+        available = False
+
+    topiq = TopiqModelWrapper(scorer=_Unavailable())
+    out = topiq.predict("/x.jpg")
+    assert out["status"] == "not_loaded"
+
+
+def test_topiq_normalize_matches_native_range():
+    topiq = TopiqModelWrapper(scorer=_StubTopiqScorer())
+    assert topiq.normalize(0.0) == pytest.approx(0.0)
+    assert topiq.normalize(0.5) == pytest.approx(0.5)
+    assert topiq.normalize(1.0) == pytest.approx(1.0)
 
 
 # ---------- MultiModelHost ----------

@@ -21,9 +21,10 @@
       "aesthetic": { "ava": 0.55, "spaq": 0.45 }
     },
     "models": {
-      "spaq": { "enabled": true,  "shadow": false },
-      "ava":  { "enabled": true,  "shadow": false },
-      "liqe": { "enabled": true,  "shadow": false }
+      "spaq":  { "enabled": true,  "shadow": false },
+      "ava":   { "enabled": true,  "shadow": false },
+      "liqe":  { "enabled": true,  "shadow": false },
+      "topiq": { "enabled": false, "shadow": true  }
     }
   },
   "processing": {
