@@ -21,6 +21,7 @@ from modules.engines.registry import (
     get_registry,
     reset_registry,
 )
+from modules.engines.topiq_model import TopiqModelWrapper
 
 __all__ = [
     "IScoringEngine",
@@ -38,5 +39,11 @@ __all__ = [
     "MusiqModelWrapper",
     "make_musiq_wrappers",
     "LiqeModelWrapper",
+    "TopiqModelWrapper",
     "MultiModelHost",
 ]
+
+# Register one shadow-capable instance at import time. The wrapper lazy-loads
+# its pyiqa backend on first `load()`, so this is cheap (no torch import here).
+# Production vs. shadow membership is decided by `scoring.models` in config.
+get_registry().register(TopiqModelWrapper())
