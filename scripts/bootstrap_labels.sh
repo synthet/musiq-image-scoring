@@ -21,6 +21,8 @@ LABELS=(
   "type:refactor|0969da|Internal restructuring"
   "type:test|8250df|Test coverage / verification"
   "type:chore|6e7681|Tooling, deps, infra"
+  "type:epic|7c3aed|Parent issue; tracks linked sub-issues"
+  "status:obsolete|656d76|Superseded or deferred; kept for history (stay open)"
   "cross-repo|0e8a9c|Coordinated change across both repos"
 )
 

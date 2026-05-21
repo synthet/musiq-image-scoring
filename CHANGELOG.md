@@ -15,6 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.19.0] - 2026-05-20
+
+### Added
+
+- **Normalized keyword writes**: **`update_image_keywords_for_image`** dual-writes legacy CSV (when enabled) and **`image_keywords`** / **`keywords_dim`**, with optional per-keyword **`confidence_map`** and **`source_map`** on **`_sync_image_keywords`**.
+- **Bird Species ID**: BioCLIP species tags now sync through the normalized path with per-species confidence and **`bioclip`** source metadata.
+
+### Changed
+
+- **`scripts/bootstrap_labels.sh`**: GitHub label bootstrap adds **`type:epic`** and **`status:obsolete`**.
+
 ## [7.18.0] - 2026-05-19
 
 ### Added

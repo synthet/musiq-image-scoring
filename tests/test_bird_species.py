@@ -292,6 +292,62 @@ def test_runner_missing_file_marks_skipped_not_failed(monkeypatch):
     assert c.get("executor_version") == bs.BIRD_SPECIES_RUNNER_VERSION
 
 
+def test_runner_writes_bioclip_species_confidence_maps(monkeypatch):
+    import modules.bird_species as bs
+
+    class _FakeClassifier:
+        last_image_embedding = None
+
+        def classify(self, *args, **kwargs):
+            return [("American Robin", 0.82), ("Mallard", 0.09)]
+
+    runner = BirdSpeciesRunner()
+    runner.classifier = _FakeClassifier()
+    helper_calls = []
+    status_calls = []
+
+    import modules.db as _db
+
+    monkeypatch.setattr(bs.os.path, "exists", lambda p: True)
+    monkeypatch.setattr(bs, "_resolve_inference_path", lambda row, fp: fp)
+    monkeypatch.setattr(_db, "get_images_with_keyword", lambda **kw: [{
+        "id": 42,
+        "file_path": "/photos/bird.jpg",
+        "keywords": "birds,travel,species:Old Match",
+    }])
+    monkeypatch.setattr(_db, "update_image_keywords_for_image", lambda *args, **kw: helper_calls.append((args, kw)))
+    monkeypatch.setattr(_db, "set_image_phase_status", lambda *args, **kw: status_calls.append((args, kw)))
+
+    runner._run_batch_internal(
+        input_path="/photos",
+        candidate_species=["American Robin", "Mallard"],
+        threshold=0.1,
+        top_k=3,
+        overwrite=True,
+        job_id=None,
+    )
+
+    assert len(helper_calls) == 1
+    args, kwargs = helper_calls[0]
+    assert args[0] == 42
+    merged_keywords = args[1]
+    assert "birds" in merged_keywords
+    assert "travel" in merged_keywords
+    assert "species:Old Match" not in merged_keywords
+    assert "species:American Robin" in merged_keywords
+    assert "species:Mallard" in merged_keywords
+    assert kwargs["source"] == "auto"
+    assert kwargs["confidence_map"] == {
+        "species:american robin": 0.82,
+        "species:mallard": 0.09,
+    }
+    assert kwargs["source_map"] == {
+        "species:american robin": "bioclip",
+        "species:mallard": "bioclip",
+    }
+    assert any(args[2] == "done" for args, _ in status_calls)
+
+
 def test_dispatcher_bird_species_runner_busy_blocks_dequeue(monkeypatch):
     from modules.job_dispatcher import JobDispatcher
 

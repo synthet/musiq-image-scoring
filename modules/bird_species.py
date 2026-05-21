@@ -473,7 +473,21 @@ class BirdSpeciesRunner:
                     merged = base_kws + new_species_kws
                     merged_str = ",".join(merged)
 
-                    db.update_image_fields_batch([(row["id"], {"keywords": merged_str})])
+                    confidence_map = {
+                        f"species:{name}".lower(): float(prob)
+                        for name, prob in predictions
+                    }
+                    source_map = {
+                        f"species:{name}".lower(): "bioclip"
+                        for name, _ in predictions
+                    }
+                    db.update_image_keywords_for_image(
+                        row["id"],
+                        merged_str,
+                        source="auto",
+                        confidence_map=confidence_map,
+                        source_map=source_map,
+                    )
                     db.set_image_phase_status(
                         row["id"],
                         phase_code,

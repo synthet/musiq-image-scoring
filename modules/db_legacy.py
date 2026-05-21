@@ -9573,6 +9573,54 @@ def update_image_fields_batch(updates):
         logging.error(f"Failed batch update_image_fields: {e}")
 
 
+def update_image_keywords_for_image(
+    image_id,
+    keywords_str,
+    source="auto",
+    confidence=1.0,
+    relevance_weight=1.0,
+    confidence_map=None,
+    source_map=None,
+):
+    """
+    Update one image's legacy keywords CSV and normalized keyword rows.
+
+    ``confidence_map`` and ``source_map`` use normalized lowercase keyword strings
+    as keys and are applied only to ``image_keywords`` rows.
+    """
+    if not image_id:
+        return
+
+    keywords_str = keywords_str or ""
+    try:
+        if _write_legacy_keywords_column():
+            get_connector().execute(
+                "UPDATE images SET keywords = ? WHERE id = ?",
+                (keywords_str, image_id),
+            )
+
+        _sync_image_keywords(
+            image_id,
+            keywords_str,
+            source=source,
+            confidence=confidence,
+            relevance_weight=relevance_weight,
+            confidence_map=confidence_map,
+            source_map=source_map,
+        )
+
+        invalidate_folder_images_cache()
+        try:
+            event_manager.broadcast_threadsafe("image_updated", {
+                "image_id": image_id,
+                "updates": {"keywords": keywords_str},
+            })
+        except Exception:
+            pass
+    except Exception as e:
+        logging.error(f"Failed update_image_keywords_for_image for image {image_id}: {e}")
+
+
 def update_image_stack_batch(updates):
     """
     Batch updates image stack_ids.
@@ -12761,6 +12809,8 @@ def _sync_image_keywords(
     source="auto",
     confidence=1.0,
     relevance_weight=1.0,
+    confidence_map=None,
+    source_map=None,
 ):
     """
     Dual-write sync: Parses the legacy keywords CSV string and updates the normalized
@@ -12768,15 +12818,38 @@ def _sync_image_keywords(
 
     ``confidence`` reflects model/source confidence; ``relevance_weight`` is relative
     keyword importance for the image (ranking, propagation, filtering). Defaults to 1.0.
+    ``confidence_map`` and ``source_map`` can override those values per normalized
+    keyword string.
     """
     if not image_id:
         return
 
     source = (source or "auto")[:128]
     try:
+        confidence = float(confidence)
+    except (TypeError, ValueError):
+        confidence = 1.0
+    try:
         relevance_weight = float(relevance_weight)
     except (TypeError, ValueError):
         relevance_weight = 1.0
+
+    normalized_confidence_map = {}
+    for key, value in (confidence_map or {}).items():
+        kw_key = str(key or "").strip().lower()
+        if not kw_key:
+            continue
+        try:
+            normalized_confidence_map[kw_key] = max(0.0, min(1.0, float(value)))
+        except (TypeError, ValueError):
+            continue
+
+    normalized_source_map = {}
+    for key, value in (source_map or {}).items():
+        kw_key = str(key or "").strip().lower()
+        if not kw_key:
+            continue
+        normalized_source_map[kw_key] = str(value or source)[:128]
 
     try:
         def _tx(tx):
@@ -12791,6 +12864,8 @@ def _sync_image_keywords(
 
             for kw in kws:
                 kw_norm = kw.lower()
+                row_source = normalized_source_map.get(kw_norm, source)
+                row_confidence = normalized_confidence_map.get(kw_norm, confidence)
                 row = tx.query_one("SELECT keyword_id FROM keywords_dim WHERE keyword_norm = ?", (kw_norm,))
                 if row:
                     kw_id = row["keyword_id"]
@@ -12802,7 +12877,7 @@ def _sync_image_keywords(
 
                 tx.execute(
                     "UPDATE OR INSERT INTO image_keywords (image_id, keyword_id, source, confidence, relevance_weight) VALUES (?, ?, ?, ?, ?) MATCHING (image_id, keyword_id)",
-                    (image_id, kw_id, source, confidence, relevance_weight))
+                    (image_id, kw_id, row_source, row_confidence, relevance_weight))
 
         get_connector().run_transaction(_tx)
     except Exception as e:
