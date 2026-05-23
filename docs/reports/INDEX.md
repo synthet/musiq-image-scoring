@@ -31,6 +31,7 @@ Historical reports, research, reviews, and debugging sessions.
 | [project-reviews/UX_UI_REVIEW_2026-03-12.md](project-reviews/UX_UI_REVIEW_2026-03-12.md) | UX/UI heuristic review of current WebUI |
 | [CODE_DESIGN_REVIEW_2026-04-18.md](CODE_DESIGN_REVIEW_2026-04-18.md) | Comprehensive code & design review — 3 critical, 5 high, 7 medium findings (execute_code RCE, cancelled/canceled duality, connection leaks, stuck jobs, god object) |
 | [SECURITY_FIXES_2026_04_19.md](SECURITY_FIXES_2026_04_19.md) | Security & architecture fixes (RCE mitigation, connection leaks, thread safety, status normalization) |
+| [STATIC_ANALYSIS_2026-05-23.md](STATIC_ANALYSIS_2026-05-23.md) | Static analysis of v7.20.0 (LLM judges, Runs auto-drive, DB Explorer) — 1 critical, 3 high, 5 medium findings; SQL exfiltration, /transaction DDL bypass, loop-guard blind spot |
 
 ## Archived point-in-time audits
 
