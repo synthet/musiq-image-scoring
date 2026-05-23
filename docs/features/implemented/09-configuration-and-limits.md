@@ -8,7 +8,8 @@
 
 **Representative API-gated features (see OpenAPI / docstrings for exact keys):**
 
-- `POST /api/db/query` — `database.enable_api_db_query`, `database.api_db_query_max_rows`, `database.api_db_allow_write_queries`, engine selection
+- `POST /api/db/query` ([`modules/api_db.py`](../../../modules/api_db.py)) — `database.enable_api_db_query`, `database.api_db_query_max_rows`, write gating via `database.query_token` + `X-DB-Write-Token`; React DB Explorer (`/ui/db`) always sends `write: false`
+- `database.db_explorer_enabled` — show/hide **DB Explorer** nav and route (default `true`)
 - Rate limits on hot `start` endpoints (`modules/ui/security.py`)
 - Maintenance endpoints under `/api/maintenance/*` (heal, backfill EXIF dates, regenerate thumbnails, repair paths, queued `start`, etc.)
 

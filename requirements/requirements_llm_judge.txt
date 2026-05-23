@@ -1,0 +1,13 @@
+# Optional LLM-judge scoring engines (shadow, disabled by default).
+# Install only if you enable `scoring.models.cursor` / `scoring.models.claude`
+# in config.json. See modules/cursor_scorer.py and modules/claude_scorer.py.
+
+# Cursor SDK engine (scoring.models.cursor). Credentials: secrets.json "cursor"
+# {"api_key": "..."} or env CURSOR_API_KEY.
+cursor-sdk
+
+# Claude Agent SDK engine (scoring.models.claude). Credentials: secrets.json
+# "anthropic" {"api_key": "sk-ant-..."} or env ANTHROPIC_API_KEY.
+# Runtime dependency: the Claude Code CLI must be on PATH —
+#   npm install -g @anthropic-ai/claude-code
+claude-agent-sdk

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
 import {
   PanelLeft,
@@ -7,12 +7,13 @@ import {
   Workflow,
   Stethoscope,
   ScrollText,
-  Database,
   Search,
   MapPin,
   ChartScatter,
-  Scissors,
+  Image,
+  Table2,
 } from 'lucide-react'
+import { dispatchDbExplorerToggleTables } from '@/pages/DbPage'
 import { Sidebar } from './Sidebar'
 import { useUiStore } from '@/stores/uiStore'
 import { useWsStore } from '@/stores/wsStore'
@@ -29,7 +30,17 @@ export function Shell() {
   const connected = useWsStore((s) => s.connected)
   const runsVersion = useWsStore((s) => s.runsVersion)
   const qc = useQueryClient()
-  const { isCullingEnabled, isEmbeddingMapEnabled } = useConfig()
+  const { isEmbeddingMapEnabled, isDbExplorerEnabled } = useConfig()
+  const location = useLocation()
+  const isDbPage = location.pathname.startsWith('/db')
+
+  const handlePanelLeft = () => {
+    if (isDbPage) {
+      dispatchDbExplorerToggleTables()
+    } else {
+      toggleSidebar()
+    }
+  }
 
   const { data: runsRaw } = useQuery({
     queryKey: RUNS_ACTIVE_QUERY_KEY,
@@ -51,7 +62,9 @@ export function Shell() {
       {/* Top nav */}
       <header className="flex h-12 items-center gap-3 border-b border-[#3c3c3c] bg-[#252526] px-4 shrink-0">
         <button
-          onClick={toggleSidebar}
+          type="button"
+          onClick={handlePanelLeft}
+          title={isDbPage ? 'Toggle table list' : 'Toggle folder sidebar'}
           className="p-1 rounded text-[#9d9d9d] hover:text-[#cccccc] hover:bg-[#3c3c3c] transition-colors"
         >
           <PanelLeft size={16} />
@@ -64,12 +77,12 @@ export function Shell() {
 
         <nav className="flex items-center gap-1">
           <NavItem to="/runs" icon={<Workflow size={14} />} label="Runs" />
-          <NavItem to="/images" icon={<Database size={14} />} label="Images" />
+          <NavItem to="/images" icon={<Image size={14} />} label="Images" />
           {isEmbeddingMapEnabled && (
             <NavItem to="/embeddings" icon={<ChartScatter size={14} />} label="Atlas" />
           )}
-          {isCullingEnabled && (
-            <NavItem to="/culling" icon={<Scissors size={14} />} label="Culling" />
+          {isDbExplorerEnabled && (
+            <NavItem to="/db" icon={<Table2 size={14} />} label="DB Explorer" />
           )}
           <NavItem to="/search" icon={<Search size={14} />} label="Search" />
           <NavItem to="/map" icon={<MapPin size={14} />} label="Map" />
@@ -103,8 +116,8 @@ export function Shell() {
 
       {/* Body */}
       <div className="flex flex-1 min-h-0">
-        {sidebarOpen && <Sidebar />}
-        <main className="flex-1 min-h-0 min-w-0 overflow-y-auto">
+        {sidebarOpen && !isDbPage && <Sidebar />}
+        <main className={clsx('flex-1 min-h-0 min-w-0', isDbPage ? 'overflow-hidden' : 'overflow-y-auto')}>
           <Outlet />
         </main>
       </div>

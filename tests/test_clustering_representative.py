@@ -13,7 +13,6 @@ import types
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +161,7 @@ class TestSelectBestImageScore:
         img_ids = [1, 2, 3]
         id_to_score = {1: None, 2: None, 3: None}
         with cfg_patch("score"):
-            result = engine._select_best_image(img_ids, id_to_score)
+            result = engine._select_best_image(img_ids, id_to_score, id_to_exif={})
         assert result == 1
 
     def test_equal_scores_lower_iso_wins_with_exif(self):
@@ -183,7 +182,7 @@ class TestSelectBestImageScore:
         img_ids = [10, 20, 30]
         id_to_score = {10: 0.5, 20: 0.5, 30: 0.5}
         with cfg_patch("score"):
-            result = engine._select_best_image(img_ids, id_to_score)
+            result = engine._select_best_image(img_ids, id_to_score, id_to_exif={})
         # No EXIF in stub map → tie-break is lowest id
         assert result == 10
 

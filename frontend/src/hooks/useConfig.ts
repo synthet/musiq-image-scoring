@@ -15,5 +15,6 @@ export function useConfig() {
     // Helper to check if a feature is enabled
     isCullingEnabled: config?.enable_culling ?? false,
     isEmbeddingMapEnabled: config?.embedding_map_enabled ?? false,
+    isDbExplorerEnabled: config?.db_explorer_enabled ?? true,
   }
 }

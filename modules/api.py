@@ -72,7 +72,7 @@ Endpoints:
         GET /api/incidents/{incident_id} - Single incident row
 
     Electron HTTP DB (optional, gated by config):
-        POST /api/db/query - Parameterized SQL for local gallery ``engine: api`` mode (SELECT/WITH or writes)
+        POST /api/db/query - See ``modules/api_db.py`` (SQL bridge for gallery ``engine: api`` mode)
 """
 
 from fastapi import APIRouter, HTTPException, Body, Query
@@ -293,6 +293,30 @@ def _job_phases_for_run_display(
     return _synthetic_bird_species_job_phases(job)
 
 
+def _merge_model_scores_into(data: dict, ims: dict) -> None:
+    """Attach per-model scores from `image_model_scores` to an image payload.
+
+    Adds a structured ``model_scores`` block (all rows, including shadow, with
+    `is_shadow`) plus flat ``{name}_score`` fields for production (non-shadow)
+    models that lack a legacy ``score_{name}`` column. Shadow engines (cursor,
+    claude) surface only in the structured block, never as flat scores.
+    """
+    if not ims:
+        return
+    data["model_scores"] = ims
+    for name, info in ims.items():
+        if info.get("is_shadow"):
+            continue
+        val = info.get("normalized")
+        if val is None:
+            val = info.get("raw_score")
+        if val is None:
+            continue
+        key = f"{name}_score"
+        if key not in data and f"score_{name}" not in data:
+            data[key] = val
+
+
 def _image_detail_payload(image_id: int) -> dict:
     """Full JSON for GET /api/images/{id} and uuid/hash lookups."""
     conn = db.get_db()
@@ -310,6 +334,10 @@ def _image_detail_payload(image_id: int) -> dict:
         tf_det = db.get_image_technical_failure(image_id)
         if tf_det is not None:
             data["technical_failure_detection"] = tf_det
+        try:
+            _merge_model_scores_into(data, db.get_image_model_scores(image_id, include_shadow=True))
+        except Exception as exc:
+            logger.debug("model_scores merge failed for image %s: %s", image_id, exc)
         return data
     except HTTPException:
         raise
@@ -413,11 +441,18 @@ def _images_list_payload(
         img_ids = [d.get("id") or d.get("ID") for d in payload_images if (d.get("id") or d.get("ID"))]
         phase_map = db.get_batch_image_phase_statuses(img_ids)
         emb_map = db.get_batch_image_embedding_presence(img_ids)
+        try:
+            ims_map = db.get_batch_image_model_scores(img_ids, include_shadow=True)
+        except Exception as exc:
+            logger.debug("batch model_scores merge failed: %s", exc)
+            ims_map = {}
         for d in payload_images:
             img_id = d.get("id") or d.get("ID")
             img_id_int = int(img_id) if img_id is not None else None
             d["phase_statuses"] = phase_map.get(img_id_int, {}) if img_id_int else {}
             d["embeddings_present"] = emb_map.get(img_id_int, {}) if img_id_int else {}
+            if img_id_int:
+                _merge_model_scores_into(d, ims_map.get(img_id_int, {}))
 
         return {
             "images": payload_images,
@@ -1073,11 +1108,25 @@ class ConfigResponse(BaseModel):
         False,
         description="True if the embedding map feature is enabled."
     )
+    db_explorer_enabled: bool = Field(
+        True,
+        description="True if the React DB Explorer (/ui/db) should be visible.",
+    )
+    scoring_models: Dict[str, Dict[str, bool]] = Field(
+        default_factory=dict,
+        description="scoring.models membership map: {model_name: {enabled, shadow}}. "
+                    "Lets the UI show known models (and which are active vs. disabled).",
+    )
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "enable_culling": False,
-            "embedding_map_enabled": True
+            "embedding_map_enabled": True,
+            "scoring_models": {
+                "topiq": {"enabled": False, "shadow": False},
+                "cursor": {"enabled": False, "shadow": False},
+                "claude": {"enabled": False, "shadow": False}
+            }
         }
     })
 
@@ -2804,73 +2853,10 @@ def create_api_router() -> APIRouter:
         """Get public configuration flags."""
         return ConfigResponse(
             enable_culling=config.get_config_value("culling.enabled", False),
-            embedding_map_enabled=config.get_config_value("embedding_map.enabled", False)
+            embedding_map_enabled=config.get_config_value("embedding_map.enabled", False),
+            db_explorer_enabled=config.get_config_value("database.db_explorer_enabled", True),
+            scoring_models=config.get_config_value("scoring.models", {}) or {},
         )
-
-    class DbQueryRequest(BaseModel):
-        """Body for POST /api/db/query (Electron ApiConnector)."""
-
-        sql: str = Field(
-            ...,
-            description="SELECT/WITH (read) or INSERT/UPDATE/DELETE; Firebird-style ? placeholders",
-        )
-        params: List[Any] = Field(default_factory=list, description="Bound values for each ? in order")
-
-    class DbQueryResponse(BaseModel):
-        data: List[Dict[str, Any]]
-
-    @router.post(
-        "/db/query",
-        response_model=DbQueryResponse,
-        summary="SQL bridge for Electron API DB mode",
-        description="""
-        Executes parameterized SQL against the configured database engine (Firebird or PostgreSQL).
-        Intended for the Electron gallery when ``database.engine`` is ``api`` and the app talks to this
-        WebUI over HTTP. **Treat like direct DB access** — disable on untrusted networks via config.
-
-        **Reads:** SQL must start with ``SELECT`` or ``WITH`` (``WITH``…``SELECT``). Row cap:
-        ``database.api_db_query_max_rows`` (default 5000, max 50000).
-
-        **Writes:** ``INSERT`` / ``UPDATE`` / ``DELETE`` (including Firebird ``UPDATE OR INSERT``) when
-        ``database.api_db_allow_write_queries`` is true (default). DDL and ``DROP``/``TRUNCATE``/etc. are rejected.
-
-        Uses Firebird-style ``?`` placeholders; translated when ``database.engine`` is ``postgres``.
-        """,
-    )
-    async def api_db_query(request: DbQueryRequest):
-        from modules import config as _cfg
-
-        if not _cfg.get_config_value("database.enable_api_db_query", True):
-            raise HTTPException(
-                status_code=403,
-                detail="POST /api/db/query is disabled (database.enable_api_db_query)",
-            )
-        max_rows = int(_cfg.get_config_value("database.api_db_query_max_rows", 5000))
-        sql_text = (request.sql or "").strip()
-        upper = sql_text.upper()
-        is_read = upper.startswith("SELECT") or upper.startswith("WITH")
-        try:
-            if is_read:
-                rows = db.execute_readonly_sql_for_api(
-                    request.sql,
-                    request.params,
-                    max_rows=max_rows,
-                )
-            elif _cfg.get_config_value("database.api_db_allow_write_queries", True):
-                rows = db.execute_write_sql_for_api(request.sql, request.params)
-            else:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Write SQL is disabled (database.api_db_allow_write_queries)",
-                )
-        except HTTPException:
-            raise
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except Exception as exc:
-            logger.exception("api_db_query failed")
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        return DbQueryResponse(data=rows)
 
     # ========== Debug / Profiling Endpoints ==========
 
@@ -6033,6 +6019,42 @@ def create_api_router() -> APIRouter:
         scope_paths: List[str]
         stages: Optional[List[str]] = None
 
+    class RunsAutoDriveRequest(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        root_path: Optional[str] = Field(
+            None,
+            description="Optional root folder restriction for the bucket planner.",
+        )
+        folder_paths: Optional[List[str]] = Field(
+            None,
+            description="Optional explicit folder paths to queue; used by per-row Queue actions.",
+        )
+        target_phases: Optional[List[str]] = Field(
+            None,
+            description="Pipeline phases the auto-driver should consider. Defaults to the full pipeline.",
+        )
+        limit: int = Field(50, ge=1, le=500, description="Maximum folder runs to queue in this drive tick.")
+        dry_run: bool = Field(False, description="When true, return the proposed queue operations without writing jobs.")
+        run_mode: Literal[
+            "process_all_overwrite",
+            "process_unprocessed_or_empty",
+            "validate_and_repair",
+        ] = Field(
+            "validate_and_repair",
+            description="Run mode for queued jobs. validate_and_repair is safest for healing stale phase rows.",
+        )
+        max_repeats: int = Field(
+            2,
+            ge=1,
+            le=20,
+            description="Skip a folder/phase plan after this many prior terminal auto-drive attempts.",
+        )
+        generate_captions: bool = Field(
+            True,
+            description="Generate captions during keywords runs.",
+        )
+
     @router.post("/runs/validation-repair/preview", summary="Preview validation-repair issues for scope")
     async def preview_validation_repair(request: ValidationRepairPreviewRequest):
         scope_paths = [_normalize_scope_path_input(p) for p in request.scope_paths]
@@ -6049,6 +6071,51 @@ def create_api_router() -> APIRouter:
             return result
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get("/runs/folder-buckets", summary="Paginated folder buckets for Runs auto-queue")
+    async def get_run_folder_buckets(
+        root_path: Optional[str] = None,
+        q: Optional[str] = None,
+        bucket: Optional[str] = None,
+        limit: int = Query(25, ge=1, le=200),
+        offset: int = Query(0, ge=0),
+        include_complete: bool = False,
+    ):
+        try:
+            from modules import runs_autodrive
+
+            return await asyncio.to_thread(
+                runs_autodrive.build_folder_buckets,
+                root_path=root_path,
+                q=q,
+                bucket=bucket,
+                limit=limit,
+                offset=offset,
+                include_complete=include_complete,
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/runs/auto-drive", summary="Auto-queue folder runs from bucket planner")
+    async def auto_drive_runs(request: RunsAutoDriveRequest):
+        try:
+            from modules import runs_autodrive
+
+            return await asyncio.to_thread(
+                runs_autodrive.auto_drive_runs,
+                root_path=request.root_path,
+                folder_paths=request.folder_paths,
+                limit=request.limit,
+                dry_run=request.dry_run,
+                run_mode=request.run_mode,
+                target_phases=request.target_phases,
+                max_repeats=request.max_repeats,
+                generate_captions=request.generate_captions,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/runs/submit", summary="Submit a new Run")
     async def submit_run(request: RunSubmitRequest):

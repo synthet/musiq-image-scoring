@@ -167,6 +167,29 @@ GET /api/raw-preview?path=<url-encoded-file-path>
 }
 ```
 
+### Per-model scores (`model_scores`, `{name}_score`)
+
+Image objects in both `GET /api/images` items and `GET /api/images/{id}` are
+augmented from the `image_model_scores` table:
+
+- **`model_scores`** — structured map of every scored model for the image,
+  including shadow engines:
+  ```json
+  "model_scores": {
+    "topiq":  { "normalized": 0.72, "raw_score": 0.72, "status": "success", "is_shadow": false },
+    "claude": { "normalized": 0.82, "raw_score": 82.0, "status": "success", "is_shadow": true }
+  }
+  ```
+- **`{name}_score`** — flat convenience field (e.g. `topiq_score`) added for
+  **production** (non-shadow) models that do not already have a legacy
+  `score_{name}` column. Value is `normalized` (falls back to `raw_score`).
+  Shadow engines (`cursor`, `claude`) appear **only** in `model_scores`, never as
+  a flat `{name}_score`.
+
+Both fields are omitted when the image has no `image_model_scores` rows (e.g.
+Firebird, or before the model has run). Backed by
+`db.get_image_model_scores` / `db.get_batch_image_model_scores`.
+
 ### Image identity: `image_hash`, `hash_version`, and `image_uuid` (developer reference)
 
 These fields serve different purposes. Do not substitute one for another when integrating.

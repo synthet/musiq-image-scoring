@@ -6,6 +6,18 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-05-22] added | Frontend UX/UI Visual Specification
+
+Added `docs/design/FRONTEND_VISUAL_SPEC.md` documenting the React frontend visual styling (typography, layout, Map UI overrides) building on top of the VS Code Dark+ `DESIGN_SYSTEM.md`. Updated `docs/design/INDEX.md`.
+
+## [2026-05-20] updated | GitHub backlog inventory and epics
+
+Cross-repo issue inventory: new labels `type:epic` and `status:obsolete`, nine epic parents (#198–#203 backend, #108–#110 gallery), sub-issue links, label hygiene (#169–#175), tier-1 closes (#145, #122–#123), tier-2 obsolete markers, body refinements. Docs: [backlog-inventory-2026-05.md](project/backlog-inventory-2026-05.md); scripts `audit_backlog_issues.py`, `apply_backlog_inventory.py`, `refine_issue_bodies.py`; backlog-queue skill and [00-backlog-workflow.md](project/00-backlog-workflow.md) updated.
+
+## [2026-05-18] added | Culling stack analytics API and docs
+
+`modules/culling_analytics/`, REST `/api/analytics/culling` (+ session and per-stack routes), [CULLING_ANALYTICS.md](technical/CULLING_ANALYTICS.md), diagnostic SQL under `scripts/sql/culling_analytics_diagnostics/`. Gallery: Culling insights panel + stack banner ([06-culling-stack-analytics.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/features/implemented/06-culling-stack-analytics.md) in sibling repo).
+
 ## [2026-05-16] added | Technical failure detection MVP (#143)
 
 Classical metrics in `modules/technical_failures/`, Postgres `image_technical_failures`, scoring integration, image detail API field `technical_failure_detection`.

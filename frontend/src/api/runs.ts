@@ -2,6 +2,7 @@ import { api } from './client'
 import { ApiError, parseApiErrorDetail } from './client'
 import type {
   Run, Stage, Step, WorkItem, QueueEntry, JobExecutionReport, ImageActionsResponse, RunReportResponse,
+  RunFolderBucketsResponse, RunsAutoDriveRequest, RunsAutoDriveResult,
 } from '@/types/api'
 
 export interface RunSubmitRequest {
@@ -92,6 +93,28 @@ export const runsApi = {
 
   getDiagnostics: (id: number) =>
     api.get<RunDiagnosticsResponse>(`/runs/${id}/diagnostics`),
+
+  folderBuckets: (params?: {
+    root_path?: string
+    q?: string
+    bucket?: string
+    limit?: number
+    offset?: number
+    include_complete?: boolean
+  }) => {
+    const query = new URLSearchParams()
+    if (params?.root_path) query.set('root_path', params.root_path)
+    if (params?.q) query.set('q', params.q)
+    if (params?.bucket) query.set('bucket', params.bucket)
+    if (params?.limit != null) query.set('limit', String(params.limit))
+    if (params?.offset != null) query.set('offset', String(params.offset))
+    if (params?.include_complete) query.set('include_complete', 'true')
+    const qs = query.toString()
+    return api.get<RunFolderBucketsResponse>(`/runs/folder-buckets${qs ? `?${qs}` : ''}`)
+  },
+
+  autoDrive: (body: RunsAutoDriveRequest) =>
+    api.post<RunsAutoDriveResult>('/runs/auto-drive', body),
 
   getReport: async (id: number): Promise<RunReportResponse> => {
     try {

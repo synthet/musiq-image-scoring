@@ -28,7 +28,7 @@ export function ImageDetailContent({ image }: { image: Image }) {
           <div className="grid grid-cols-2 gap-2 mt-2">
             {[
               { label: 'MUSIQ', value: image.musiq_score },
-              { label: 'TOPIQ', value: image.topiq_score },
+              { label: 'TOPIQ-NR', value: image.topiq_score },
               { label: 'Q-Align', value: image.qalign_score },
             ]
               .filter(({ value }) => value != null)

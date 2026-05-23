@@ -10,7 +10,7 @@ import { ImageInspectorPage } from '@/pages/ImageInspectorPage'
 import { SearchPage } from '@/pages/SearchPage'
 import { GeoMapPage } from '@/pages/GeoMapPage'
 import { EmbeddingAtlasPage } from '@/features/embedding-atlas/pages/EmbeddingAtlasPage'
-import { CullingPage } from '@/features/culling/pages/CullingPage'
+import { DbPage } from '@/pages/DbPage'
 import { ScopeSelector } from '@/components/scope/ScopeSelector'
 
 import { useConfig } from '@/hooks/useConfig'
@@ -24,16 +24,16 @@ const queryClient = new QueryClient({
   },
 })
 
-function ProtectedCullingRoute() {
-  const { isCullingEnabled, isLoading } = useConfig()
-  if (isLoading) return null
-  return isCullingEnabled ? <CullingPage /> : <Navigate to="/runs" replace />
-}
-
 function ProtectedAtlasRoute() {
   const { isEmbeddingMapEnabled, isLoading } = useConfig()
   if (isLoading) return null
   return isEmbeddingMapEnabled ? <EmbeddingAtlasPage /> : <Navigate to="/runs" replace />
+}
+
+function ProtectedDbRoute() {
+  const { isDbExplorerEnabled, isLoading } = useConfig()
+  if (isLoading) return null
+  return isDbExplorerEnabled ? <DbPage /> : <Navigate to="/runs" replace />
 }
 
 export default function App() {
@@ -49,7 +49,7 @@ export default function App() {
             <Route path="/images" element={<ImagesPage />} />
             <Route path="/images/:imageId" element={<ImageInspectorPage />} />
             <Route path="/embeddings" element={<ProtectedAtlasRoute />} />
-            <Route path="/culling" element={<ProtectedCullingRoute />} />
+            <Route path="/db" element={<ProtectedDbRoute />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/map" element={<GeoMapPage />} />
             <Route path="/diagnostics" element={<DiagnosticsPage />} />

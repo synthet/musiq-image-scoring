@@ -8,15 +8,16 @@ import { useUiStore } from '@/stores/uiStore'
 import { ChevronLeft, ChevronRight, Inbox, Plus } from 'lucide-react'
 import type { Run } from '@/types/api'
 import { RunsToolsTab } from '@/components/runs/RunsToolsTab'
+import { RunsBucketsPanel } from '@/components/runs/RunsBucketsPanel'
 
-type TabFilter = 'active' | 'queue' | 'history' | 'tools'
+type TabFilter = 'buckets' | 'active' | 'queue' | 'history' | 'tools'
 
 const HISTORY_PAGE_SIZE = 25
 
 export function RunsPage() {
   const { openNewRun } = useUiStore()
   const runsVersion = useWsStore((s) => s.runsVersion)
-  const [tab, setTab] = useState<TabFilter>('active')
+  const [tab, setTab] = useState<TabFilter>('buckets')
   const [historyPage, setHistoryPage] = useState(0)
   const stableTotal = useRef(0)
 
@@ -84,6 +85,7 @@ export function RunsPage() {
           : []
 
   const listLoading = tab === 'history' ? historyLoading : (tab === 'active' || tab === 'queue' ? activeLoading : overviewLoading)
+  const isRunListTab = tab === 'active' || tab === 'queue' || tab === 'history'
   const historyHasPrev = tab === 'history' && historyPage > 0
   const historyHasNext =
     tab === 'history' && historyPayload && 'total' in historyPayload
@@ -113,6 +115,7 @@ export function RunsPage() {
       {/* Tabs */}
       <div className="flex items-center gap-1 mb-5 border-b border-[var(--color-border-muted)]">
         <TabButton label="Active" count={active.length} active={tab === 'active'} onClick={() => setTab('active')} />
+        <TabButton label="Buckets" active={tab === 'buckets'} onClick={() => setTab('buckets')} />
         <TabButton label="Queued" count={queued.length} active={tab === 'queue'} onClick={() => setTab('queue')} />
         <TabButton
           label="History"
@@ -123,18 +126,19 @@ export function RunsPage() {
         <TabButton label="Tools" active={tab === 'tools'} onClick={() => setTab('tools')} />
       </div>
 
+      {tab === 'buckets' && <RunsBucketsPanel />}
       {tab === 'tools' && <RunsToolsTab />}
 
-      {tab !== 'tools' && listLoading && (
+      {isRunListTab && listLoading && (
         <div className="text-sm text-[var(--color-text-muted)]">Loading…</div>
       )}
 
-      {tab !== 'tools' && !listLoading && displayed.length === 0
+      {isRunListTab && !listLoading && displayed.length === 0
         && (tab !== 'history' || historyPayload !== undefined)
         && (<EmptyState tab={tab} onNewRun={() => openNewRun()} />)
       }
 
-      {tab !== 'tools' && (
+      {isRunListTab && (
         <div className="space-y-3">
           {displayed.map((run) => (
             <RunCard key={run.id} run={run} />
@@ -204,8 +208,8 @@ function TabButton({
   )
 }
 
-function EmptyState({ tab, onNewRun }: { tab: Exclude<TabFilter, 'tools'>; onNewRun: () => void }) {
-  const messages: Record<Exclude<TabFilter, 'tools'>, string> = {
+function EmptyState({ tab, onNewRun }: { tab: Exclude<TabFilter, 'tools' | 'buckets'>; onNewRun: () => void }) {
+  const messages: Record<Exclude<TabFilter, 'tools' | 'buckets'>, string> = {
     active: 'No active runs. Start a new run to begin processing.',
     queue: 'Queue is empty.',
     history: 'No completed runs yet.',

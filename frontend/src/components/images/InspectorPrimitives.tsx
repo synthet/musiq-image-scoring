@@ -54,10 +54,12 @@ export function KeyValueTable({
   entries,
   dense,
   renderValue,
+  labelFor,
 }: {
   entries: [string, unknown][]
   dense?: boolean
   renderValue?: (key: string, value: unknown) => ReactNode
+  labelFor?: (key: string) => string
 }) {
   const sorted = [...entries].sort(([a], [b]) => a.localeCompare(b))
   return (
@@ -72,7 +74,7 @@ export function KeyValueTable({
           {sorted.map(([k, v]) => (
             <tr key={k} className="border-b border-[#3c3c3c] last:border-b-0 hover:bg-[#2a2a2a]">
               <td className="align-top text-[#9d9d9d] px-2 py-1 w-[38%] border-r border-[#3c3c3c] font-mono shrink-0">
-                {k}
+                {labelFor ? labelFor(k) : k}
               </td>
               <td className="align-top text-[#cccccc] px-2 py-1 font-mono whitespace-pre-wrap break-all">
                 {renderValue ? renderValue(k, v) : k === 'label' ? <LabelBadge label={v as string} /> : formatInspectorValue(v)}

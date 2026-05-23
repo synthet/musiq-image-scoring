@@ -333,6 +333,80 @@ class ScoringWorker(PipelineWorker):
             self._liqe_scorer_lazy = LiqeScorer()
         return self._liqe_scorer_lazy
 
+    def _run_registry_models(self, external: dict, image_path: str, log) -> None:
+        """Run registry `IScoringModel`s the legacy backend doesn't produce.
+
+        Mirrors the LIQE injection: results are merged into ``external`` so
+        ``run_all_models`` stores them in ``image_model_scores``. Shadow models
+        are stamped ``is_shadow=True``; ``ResultWorker`` excludes those from
+        fusion. Inert unless a model is marked active in ``scoring.models``
+        config, so it is a no-op by default.
+        """
+        try:
+            from modules.engines.registry import get_registry
+        except Exception:  # engines package unavailable
+            return
+        registry = get_registry()
+        try:
+            active = registry.all_active()
+        except Exception as exc:
+            logger.debug("registry.all_active failed: %s", exc)
+            return
+        legacy_sources = getattr(self.scorer, "model_sources", {}) or {}
+        for model in active:
+            name = getattr(model, "name", "")
+            # Skip models already produced elsewhere (legacy backend or LIQE).
+            if not name or name in external or name in legacy_sources:
+                continue
+            is_shadow = registry.is_shadow(name)
+            try:
+                if not model.load():
+                    external[name] = {
+                        "status": "not_loaded",
+                        "error": "Model not loaded",
+                        "is_shadow": is_shadow,
+                    }
+                    continue
+                payload = model.predict(image_path)
+            except Exception as exc:
+                logger.error("Registry model %s failed: %s", name, exc)
+                external[name] = {"status": "failed", "error": str(exc), "is_shadow": is_shadow}
+                continue
+            external[name] = self._format_registry_payload(model, payload, is_shadow)
+            log(f"  {name.upper()} score injected (shadow={is_shadow})")
+
+    @staticmethod
+    def _format_registry_payload(model, payload: dict, is_shadow: bool) -> dict:
+        """Adapt an IScoringModel.predict() result to the external_scores shape."""
+        status = payload.get("status") if isinstance(payload, dict) else None
+        if status == "success" and payload.get("score") is not None:
+            raw = float(payload["score"])
+            norm = model.normalize(raw)
+            lo, hi = model.score_range
+            out = {
+                "score": round(raw, 2),
+                "score_range": f"{lo}-{hi}",
+                "normalized_score": round(norm, 3),
+                "status": "success",
+                "is_shadow": is_shadow,
+            }
+            sub = payload.get("subscores")
+            if isinstance(sub, dict) and sub:
+                out["subscores"] = sub
+            return out
+        if status == "not_loaded":
+            return {
+                "status": "not_loaded",
+                "error": payload.get("error") or "Model not loaded",
+                "is_shadow": is_shadow,
+            }
+        return {
+            "score": None,
+            "error": (payload.get("error") if isinstance(payload, dict) else None) or "Prediction failed",
+            "status": "failed",
+            "is_shadow": is_shadow,
+        }
+
     def process(self, job: ImageJob):
         if job.status in ["skipped", "failed"]:
             self.output_queue.put(job)
@@ -427,6 +501,10 @@ class ScoringWorker(PipelineWorker):
                         phase="scoring",
                         step="inference",
                     )
+
+            # Inject registry-based models (topiq, cursor, claude, …) not produced
+            # by the legacy backend. No-op unless enabled in scoring.models config.
+            self._run_registry_models(external, job.process_path, _inference_log)
 
             results = self.scorer.run_all_models(
                 job.process_path,

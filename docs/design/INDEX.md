@@ -3,6 +3,7 @@
 | Document | Description |
 |----------|-------------|
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Canonical palette, status mapping, and Lucide icon contract (shared with gallery) |
+| [FRONTEND_VISUAL_SPEC.md](FRONTEND_VISUAL_SPEC.md) | UX/UI Visual Specification for the React frontend |
 | [ui-pipeline-redesign.md](../features/planned/ui-pipeline-redesign.md) | Pipeline-centric UI redesign proposal |
 
 ## Mockups

@@ -7,9 +7,13 @@ Uses scoring_history_test.fdb only (see tests-use-test-db-only rule).
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules import db
+
+pytestmark = pytest.mark.db
 
 # All rows use this path prefix so setup/teardown can isolate from other tests.
 _RP_ROOT = "/mnt/d/__rp_test__"

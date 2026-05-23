@@ -7,7 +7,9 @@
 			"path": "../image-scoring-gallery"
 		}
 	],
-	"settings": {},
+	"settings": {
+		"powershell.cwd": "image-scoring-backend"
+	},
 	"extensions": {
 		"recommendations": [
 			"ms-python.python",

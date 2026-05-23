@@ -225,6 +225,13 @@ class MultiModelHost(IScoringEngine):
                 "status": "success",
                 "is_shadow": is_shadow,
             }
+            # Carry an optional multi-dimensional rubric (e.g. LLM-judge engines
+            # like `cursor`/`claude`) through to `scores_json`. Inert for models
+            # that don't return one. Only the overall `score` above is fused or
+            # written to `image_model_scores`.
+            subscores = payload.get("subscores")
+            if isinstance(subscores, dict) and subscores:
+                results["models"][model.name]["subscores"] = subscores
             if not is_shadow:
                 normalized[model.name] = norm
             results["summary"]["successful_predictions"] += 1

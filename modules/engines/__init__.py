@@ -13,6 +13,8 @@ from modules.engines.mock import (
     MockScoringEngine,
     MockTaggingEngine,
 )
+from modules.engines.claude_model import ClaudeModelWrapper
+from modules.engines.cursor_model import CursorModelWrapper
 from modules.engines.host import MultiModelHost
 from modules.engines.liqe_model import LiqeModelWrapper
 from modules.engines.musiq_model import MusiqModelWrapper, make_musiq_wrappers
@@ -40,6 +42,8 @@ __all__ = [
     "make_musiq_wrappers",
     "LiqeModelWrapper",
     "TopiqModelWrapper",
+    "CursorModelWrapper",
+    "ClaudeModelWrapper",
     "MultiModelHost",
 ]
 
@@ -47,3 +51,9 @@ __all__ = [
 # its pyiqa backend on first `load()`, so this is cheap (no torch import here).
 # Production vs. shadow membership is decided by `scoring.models` in config.
 get_registry().register(TopiqModelWrapper())
+
+# LLM-judge engines (Cursor SDK, Claude Agent SDK). Both lazy-load their
+# optional SDKs on first `load()` and are disabled by default in config, so
+# registering them here is cheap and makes no network calls.
+get_registry().register(CursorModelWrapper())
+get_registry().register(ClaudeModelWrapper())

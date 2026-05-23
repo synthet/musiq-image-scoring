@@ -2,15 +2,18 @@ import { useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { ArrowLeft, Play } from 'lucide-react'
+import { clsx } from 'clsx'
 import { galleryApi } from '@/api/gallery'
 import { runsApi } from '@/api/runs'
 import { imageInspectorPath, embeddingsPathFor } from '@/utils/routes'
 import { useUiStore } from '@/stores/uiStore'
+import { useConfig } from '@/hooks/useConfig'
 import { Button } from '@/components/ui/button'
 import { CollapsibleInspectorSection, KeyValueTable, formatInspectorValue } from '@/components/images/InspectorPrimitives'
 import { statusLabel } from '@/components/ui/badge'
 import { PhaseStatusIcon, normalizeLegacyPhaseStatus } from '@/components/status/PhaseStatusIcon'
-import type { ImageDetail, ImagePhaseStatusRow } from '@/types/api'
+import type { ImageDetail, ImagePhaseStatusRow, ModelScoreEntry } from '@/types/api'
+import type { ModelMembership } from '@/api/config'
 
 function detailPreviewSrc(image: ImageDetail): string | null {
   const full = image.resolved_path || image.file_path
@@ -32,6 +35,105 @@ function isScoreKey(k: string): boolean {
   )
 }
 
+// Friendly display names for score keys / model names. Keyed by the bare model
+// name (after stripping `score_` / `_score`).
+const SCORE_LABELS: Record<string, string> = {
+  topiq: 'TOPIQ-NR',
+  musiq: 'MUSIQ',
+  qalign: 'Q-Align',
+  cursor: 'Cursor (LLM)',
+  claude: 'Claude (LLM)',
+  liqe: 'LIQE',
+  spaq: 'SPAQ',
+  ava: 'AVA',
+  paq2piq: 'PAQ2PIQ',
+  koniq: 'KonIQ',
+  composite: 'Composite',
+  general: 'General',
+  technical: 'Technical',
+  aesthetic: 'Aesthetic',
+}
+
+function scoreLabel(key: string): string {
+  if (key === 'score') return 'Score'
+  const base = key.replace(/^score_/, '').replace(/_score$/, '')
+  return SCORE_LABELS[base] ?? key
+}
+
+// Canonical IQA models shown in the inspector roster. A model renders normally
+// when it is active (enabled/shadow in scoring.models config, or it has a stored
+// value); otherwise it is grayed out as "off". Values resolve from
+// image_model_scores, then a legacy `score_{name}` column, then a flat
+// `{name}_score` field.
+const KNOWN_MODELS = ['spaq', 'ava', 'liqe', 'paq2piq', 'koniq', 'musiq', 'topiq', 'qalign', 'cursor', 'claude']
+
+function resolveModelValue(
+  raw: Record<string, unknown>,
+  entry: ModelScoreEntry | undefined,
+  name: string,
+): number | null {
+  const fromBlock = entry ? entry.normalized ?? entry.raw_score : null
+  if (typeof fromBlock === 'number') return fromBlock
+  const legacy = raw[`score_${name}`]
+  if (typeof legacy === 'number') return legacy
+  const flat = raw[`${name}_score`]
+  if (typeof flat === 'number') return flat
+  return null
+}
+
+function ModelScoresTable({
+  data,
+  modelScores,
+  scoringModels,
+}: {
+  data: ImageDetail
+  modelScores: Record<string, ModelScoreEntry>
+  scoringModels: Record<string, ModelMembership>
+}) {
+  const raw = data as unknown as Record<string, unknown>
+  return (
+    <div className="border border-[#3c3c3c] rounded overflow-hidden mt-2 text-[11px]">
+      <table className="w-full border-collapse">
+        <tbody>
+          {KNOWN_MODELS.map((name) => {
+            const entry = modelScores[name]
+            const value = resolveModelValue(raw, entry, name)
+            const membership = scoringModels[name]
+            const configActive = !!(membership && (membership.enabled || membership.shadow))
+            const isActive = value != null || configActive
+            const isShadow = !!(entry?.is_shadow || membership?.shadow)
+            return (
+              <tr
+                key={name}
+                className={clsx(
+                  'border-b border-[#3c3c3c] last:border-b-0 hover:bg-[#2a2a2a]',
+                  !isActive && 'opacity-45',
+                )}
+              >
+                <td className="align-top text-[#9d9d9d] px-2 py-1 w-[38%] border-r border-[#3c3c3c] font-mono shrink-0">
+                  {scoreLabel(name)}
+                  {isShadow && (
+                    <span className="ml-1 text-[9px] px-1 rounded bg-[#3c3c3c] text-[#9d9d9d]">shadow</span>
+                  )}
+                  {!isActive && (
+                    <span className="ml-1 text-[9px] px-1 rounded bg-[#2a2a2a] text-[#6d6d6d]">off</span>
+                  )}
+                </td>
+                <td className="align-top text-[#cccccc] px-2 py-1 font-mono whitespace-pre-wrap break-all">
+                  {value != null ? formatInspectorValue(value) : '—'}
+                  {entry?.status && entry.status !== 'success' && (
+                    <span className="ml-1 text-[#f44747]">({entry.status})</span>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function partitionScalars(data: ImageDetail): {
   identity: [string, unknown][]
   paths: [string, unknown][]
@@ -40,7 +142,7 @@ function partitionScalars(data: ImageDetail): {
   dates: [string, unknown][]
   other: [string, unknown][]
 } {
-  const skip = new Set(['file_paths', 'resolved_path', 'phase_statuses'])
+  const skip = new Set(['file_paths', 'resolved_path', 'phase_statuses', 'model_scores'])
   const identityKeys = new Set([
     'id',
     'image_uuid',
@@ -227,6 +329,7 @@ export function ImageInspectorPage() {
   const sortBy = useUiStore((s) => s.sortBy)
   const order = useUiStore((s) => s.sortOrder)
   const selectedScopePath = useUiStore((s) => s.selectedScopePath)
+  const { config } = useConfig()
 
   const { data: neighbors } = useQuery({
     queryKey: ['image', 'neighbors', id, sortBy, order, selectedScopePath],
@@ -308,6 +411,12 @@ export function ImageInspectorPage() {
   const parts = partitionScalars(data)
   const filePaths = data.file_paths
   const resolved = data.resolved_path
+  const scoringModels = config?.scoring_models ?? {}
+  const knownModelSet = new Set(KNOWN_MODELS)
+  // Per-model keys are rendered by the roster; keep only aggregates here.
+  const aggregateScores = parts.scores.filter(
+    ([k]) => !knownModelSet.has(k.replace(/^score_/, '').replace(/_score$/, '')),
+  )
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-[#1e1e1e] overflow-hidden">
@@ -410,12 +519,15 @@ export function ImageInspectorPage() {
               </div>
             </CollapsibleInspectorSection>
 
-            <CollapsibleInspectorSection title="Scores" badge={`${parts.scores.length}`} defaultOpen>
-              {parts.scores.length === 0 ? (
-                <div className="text-xs text-[#6d6d6d]">No score columns.</div>
-              ) : (
-                <KeyValueTable entries={parts.scores} dense />
+            <CollapsibleInspectorSection title="Scores" badge={`${KNOWN_MODELS.length}`} defaultOpen>
+              {aggregateScores.length > 0 && (
+                <KeyValueTable entries={aggregateScores} dense labelFor={scoreLabel} />
               )}
+              <ModelScoresTable
+                data={data}
+                modelScores={data.model_scores ?? {}}
+                scoringModels={scoringModels}
+              />
             </CollapsibleInspectorSection>
 
             <CollapsibleInspectorSection title="User metadata" defaultOpen>

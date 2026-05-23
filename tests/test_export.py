@@ -5,9 +5,11 @@ import sys
 # Add project root to path
 sys.path.append(os.getcwd())
 
+import pytest
 from modules import db
 
 
+@pytest.mark.db
 def test_export_db_to_json():
     output_file = "test_export.json"
 

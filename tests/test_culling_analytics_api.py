@@ -1,18 +1,20 @@
 """FastAPI tests for culling analytics routes."""
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from modules import config
+from modules import api, config
 
 
 @pytest.fixture
 def client():
-    from webui import app
-
+    app = FastAPI()
+    app.include_router(api.create_api_router())
     return TestClient(app)
 
 
+@pytest.mark.db
 def test_culling_analytics_endpoint(client):
     if config.get_database_engine() != "postgres":
         pytest.skip("PostgreSQL required")

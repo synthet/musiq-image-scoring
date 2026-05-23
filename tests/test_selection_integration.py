@@ -80,42 +80,37 @@ def test_selection_service_with_diversity_mocked():
         reject_fraction=0.0
     )
     
-    # Mock OS path check
-    with patch('os.path.exists', return_value=True):
-        with patch('modules.utils.convert_path_to_local', return_value='/mock/path'):
-            with patch('modules.db.get_all_folders', return_value=['/mock/path']):
-                # Return a list of mocked images. Stack of 4 images.
-                mock_images = [
-                    {"id": 1, "stack_id": 100, "score_general": 90, "file_path": "/mock/1.jpg"},
-                    {"id": 2, "stack_id": 100, "score_general": 80, "file_path": "/mock/2.jpg"},
-                    {"id": 3, "stack_id": 100, "score_general": 70, "file_path": "/mock/3.jpg"},
-                    {"id": 4, "stack_id": 100, "score_general": 60, "file_path": "/mock/4.jpg"},
-                ]
-                with patch('modules.db.get_images_by_folder', side_effect=[mock_images, mock_images]):
-                    # Mock clustering to just yield (do nothing essentially)
-                    def mock_cluster(*args, **kwargs):
-                        yield
-                    svc._cluster_engine.cluster_images = mock_cluster
-                    
-                    # Mock DB batch update and metadata update to avoid real saves
-                    with patch('modules.db.batch_update_cull_decisions'):
-                        with patch('modules.selection.write_selection_metadata', return_value=(True, True)):
-                            
-                            # Let's mock embeddings dict from db
-                            import numpy as np
-                            e1 = np.array([1.0, 0.0], dtype=np.float32).tobytes()
-                            e2 = np.array([0.9, 0.1], dtype=np.float32).tobytes()
-                            e3 = np.array([0.0, 1.0], dtype=np.float32).tobytes()
-                            # e4 is missing
-                            
-                            with patch('modules.db.get_image_embeddings_batch', return_value={1: e1, 2: e2, 3: e3}):
-                                
-                                # Intercept policy calls or reorder output?
-                                # We can just verify it completes without error.
-                                summary = svc.run("/mock/path", cfg=cfg)
-                                
-                                assert summary.status == "completed"
-                                assert summary.total_images == 4
-                                assert summary.total_stacks == 1
-                                assert summary.picked == 2 # 0.5 fraction of 4
-                                assert summary.sidecar_written == 4
+    import numpy as np
+    e1 = np.array([1.0, 0.0], dtype=np.float32).tobytes()
+    e2 = np.array([0.9, 0.1], dtype=np.float32).tobytes()
+    e3 = np.array([0.0, 1.0], dtype=np.float32).tobytes()
+    # e4 is missing
+
+    mock_images = [
+        {"id": 1, "stack_id": 100, "score_general": 90, "file_path": "/mock/1.jpg"},
+        {"id": 2, "stack_id": 100, "score_general": 80, "file_path": "/mock/2.jpg"},
+        {"id": 3, "stack_id": 100, "score_general": 70, "file_path": "/mock/3.jpg"},
+        {"id": 4, "stack_id": 100, "score_general": 60, "file_path": "/mock/4.jpg"},
+    ]
+
+    def mock_cluster(*args, **kwargs):
+        yield
+
+    svc._cluster_engine.cluster_images = mock_cluster
+
+    with patch('os.path.exists', return_value=True), \
+         patch('modules.utils.convert_path_to_local', return_value='/mock/path'), \
+         patch('modules.db.list_folder_paths_under_scope', return_value=['/mock/path']), \
+         patch('modules.db.get_images_by_folder', side_effect=[mock_images, mock_images]), \
+         patch('modules.db.get_exif_fields_for_quality_tiebreak', return_value={}), \
+         patch('modules.db.batch_update_cull_decisions'), \
+         patch('modules.selection.write_selection_metadata', return_value=(True, True)), \
+         patch('modules.db.get_image_embeddings_batch', return_value={1: e1, 2: e2, 3: e3}):
+
+        summary = svc.run("/mock/path", cfg=cfg)
+
+        assert summary.status == "completed"
+        assert summary.total_images == 4
+        assert summary.total_stacks == 1
+        assert summary.picked == 2  # 0.5 fraction of 4
+        assert summary.sidecar_written == 4

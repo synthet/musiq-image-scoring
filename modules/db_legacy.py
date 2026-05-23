@@ -7400,6 +7400,76 @@ def _write_image_model_scores(image_id, result, model_version):
             )
 
 
+def _ims_row_to_entry(r):
+    """Map an image_model_scores row to the read-API entry shape."""
+    return {
+        "normalized": r.get("normalized"),
+        "raw_score": r.get("raw_score"),
+        "status": r.get("status"),
+        "is_shadow": bool(r.get("is_shadow")),
+    }
+
+
+def get_image_model_scores(image_id, *, include_shadow=False):
+    """Per-model scores for one image from ``image_model_scores``.
+
+    Returns ``{model_name: {"normalized", "raw_score", "status", "is_shadow"}}``.
+    Postgres-only table; returns ``{}`` on engines without it (Firebird) or when
+    no rows exist. Shadow rows are excluded unless ``include_shadow=True``.
+    """
+    if image_id is None:
+        return {}
+    conn = get_connector()
+    try:
+        rows = conn.query(
+            "SELECT model_name, raw_score, normalized, status, is_shadow "
+            "FROM image_model_scores WHERE image_id = ?",
+            (int(image_id),),
+        )
+    except Exception:
+        return {}
+    out = {}
+    for r in rows or []:
+        is_shadow = bool(r.get("is_shadow"))
+        if is_shadow and not include_shadow:
+            continue
+        name = str(r.get("model_name") or "").strip()
+        if name:
+            out[name] = _ims_row_to_entry(r)
+    return out
+
+
+def get_batch_image_model_scores(image_ids, *, include_shadow=False):
+    """Batch variant of :func:`get_image_model_scores`.
+
+    Returns ``{image_id: {model_name: {...}}}``. Empty dict for engines without
+    the table or empty input.
+    """
+    ids = [int(i) for i in (image_ids or []) if i is not None]
+    if not ids:
+        return {}
+    placeholders = ",".join(["?"] * len(ids))
+    conn = get_connector()
+    try:
+        rows = conn.query(
+            "SELECT image_id, model_name, raw_score, normalized, status, is_shadow "
+            f"FROM image_model_scores WHERE image_id IN ({placeholders})",
+            tuple(ids),
+        )
+    except Exception:
+        return {}
+    out = {}
+    for r in rows or []:
+        is_shadow = bool(r.get("is_shadow"))
+        if is_shadow and not include_shadow:
+            continue
+        name = str(r.get("model_name") or "").strip()
+        if not name:
+            continue
+        out.setdefault(int(r["image_id"]), {})[name] = _ims_row_to_entry(r)
+    return out
+
+
 def _technical_failure_detection_from_row(row) -> dict:
     from modules.technical_failures.schemas import TECHNICAL_FAILURE_METRIC_KEYS
 

@@ -58,15 +58,24 @@ def raw_query(
     if not sql:
         raise HTTPException(status_code=400, detail="Missing 'sql' in request body")
 
+    try:
+        from modules import config as _cfg
+    except Exception:
+        _cfg = None
+
+    if _cfg is not None and not _cfg.get_config_value("database.enable_api_db_query", True):
+        raise HTTPException(
+            status_code=403,
+            detail="POST /api/db/query is disabled (database.enable_api_db_query)",
+        )
+
     if is_write:
         # Verify write token
-        try:
-            from modules import config as _cfg
+        token = ""
+        if _cfg is not None:
             token = str(
                 (_cfg.get_config_section("database") or {}).get("query_token", "") or ""
             ).strip()
-        except Exception:
-            token = ""
         if not token:
             raise HTTPException(
                 status_code=403,
@@ -82,7 +91,7 @@ def raw_query(
                 return {"rows": [], "rowcount": len(params)}
 
             rows = db.execute_write_sql_for_api(sql, params if params else None)
-            return {"rows": rows, "rowcount": len(rows)}
+            return {"rows": rows, "data": rows, "rowcount": len(rows)}
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
@@ -90,9 +99,14 @@ def raw_query(
             raise HTTPException(status_code=500, detail=str(e))
 
     # Read query
+    max_rows = 5000
+    if _cfg is not None:
+        max_rows = int(_cfg.get_config_value("database.api_db_query_max_rows", 5000))
     try:
-        rows = db.execute_readonly_sql_for_api(sql, params if params else None)
-        return {"rows": rows, "rowcount": len(rows)}
+        rows = db.execute_readonly_sql_for_api(
+            sql, params if params else None, max_rows=max_rows
+        )
+        return {"rows": rows, "data": rows, "rowcount": len(rows)}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

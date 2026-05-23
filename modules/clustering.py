@@ -509,6 +509,9 @@ class ClusteringEngine(IClusteringEngine):
         
         if target_image_ids is not None:
             # --- Selector mode (target ID list) ---
+            if not target_image_ids:
+                yield update_status("No images matched target IDs.", 0, 0)
+                return
             rows = db.get_all_images(limit=-1)
             selected_ids = {int(i) for i in target_image_ids}
             images_rows = [row for row in rows if row.get('id') in selected_ids]

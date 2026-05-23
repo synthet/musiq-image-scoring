@@ -326,6 +326,9 @@ class _StubImageRow:
 def test_images_returns_paginated_list(monkeypatch):
     stub_images = [_StubImageRow({"id": 1, "file_path": "/photos/a.jpg", "score": 0.8})]
     monkeypatch.setattr(db, "get_images_paginated_with_count", lambda **kw: (stub_images, 1))
+    monkeypatch.setattr(db, "get_batch_image_phase_statuses", lambda ids: {})
+    monkeypatch.setattr(db, "get_batch_image_embedding_presence", lambda ids: {})
+    monkeypatch.setattr(db, "get_batch_image_model_scores", lambda ids, include_shadow=False: {})
     with _build_client() as client:
         response = client.get("/api/images")
     assert response.status_code == 200
@@ -339,6 +342,9 @@ def test_images_returns_paginated_list(monkeypatch):
 def test_public_api_images_returns_same_shape(monkeypatch):
     stub_images = [_StubImageRow({"id": 1, "file_path": "/photos/a.jpg", "score": 0.8})]
     monkeypatch.setattr(db, "get_images_paginated_with_count", lambda **kw: (stub_images, 1))
+    monkeypatch.setattr(db, "get_batch_image_phase_statuses", lambda ids: {})
+    monkeypatch.setattr(db, "get_batch_image_embedding_presence", lambda ids: {})
+    monkeypatch.setattr(db, "get_batch_image_model_scores", lambda ids, include_shadow=False: {})
     with _build_client() as client:
         response = client.get("/public/api/images")
     assert response.status_code == 200

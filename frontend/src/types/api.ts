@@ -153,6 +153,87 @@ export interface ValidationRepairPreview {
   dry_run: boolean
 }
 
+// ─── Runs auto-drive buckets ─────────────────────────────────────────────
+
+export interface RunFolderBucketPhase {
+  code: StageCode
+  name: string
+  status: string
+  done: number
+  skipped: number
+  failed: number
+  running: number
+  queued: number
+  paused: number
+  cancel_requested: number
+  restarting: number
+  total: number
+  percent: number
+}
+
+export interface RunFolderBucket {
+  path: string
+  image_count: number
+  bucket: string
+  current_phase: StageCode | null
+  next_phases: StageCode[]
+  blocked_by: Record<string, string[]>
+  overall_percent: number
+  phase_statuses: RunFolderBucketPhase[]
+  plan_key: string | null
+}
+
+export interface RunFolderBucketsResponse {
+  items: RunFolderBucket[]
+  total: number
+  limit: number
+  offset: number
+  bucket_counts: Record<string, number>
+  phase_counts: Record<string, number>
+  target_phases: StageCode[]
+}
+
+export interface RunsAutoDriveRequest {
+  root_path?: string
+  folder_paths?: string[]
+  target_phases?: string[]
+  limit?: number
+  dry_run?: boolean
+  run_mode?: 'process_all_overwrite' | 'process_unprocessed_or_empty' | 'validate_and_repair'
+  max_repeats?: number
+  generate_captions?: boolean
+}
+
+export interface RunsAutoDriveResult {
+  dry_run: boolean
+  run_mode: string
+  limit: number
+  scheduled: Array<{
+    folder_path: string
+    phases: StageCode[]
+    bucket?: string
+    plan_key?: string
+    dry_run?: boolean
+    job_id?: number
+    queue_position?: number
+  }>
+  skipped: Array<{
+    folder_path: string
+    phases: StageCode[]
+    reason: string
+    attempts?: number
+    last_run_id?: number | null
+    last_status?: string | null
+    error?: string
+    missing?: Record<string, string[]>
+  }>
+  candidates: number
+  total_outstanding: number
+  loop_detected: number
+  bucket_counts: Record<string, number>
+  phase_counts: Record<string, number>
+}
+
 // ─── Execution Report (per-image action log & before/after snapshots) ────
 
 export interface PhaseExecutionReport {
@@ -230,6 +311,14 @@ export interface QueueEntry {
 // The Python REST API returns the same column names from the IMAGES table.
 // DB naming convention: score_* prefix (score_general, score_liqe, …)
 
+/** One row from the backend `image_model_scores` table (see API_CONTRACT.md). */
+export interface ModelScoreEntry {
+  normalized?: number | null
+  raw_score?: number | null
+  status?: string | null
+  is_shadow?: boolean
+}
+
 export interface Image {
   // Identity
   id: number
@@ -265,6 +354,9 @@ export interface Image {
   topiq_score?: number | null       // TOPIQ
   qalign_score?: number | null      // Q-Align
   composite_score?: number | null   // computed composite
+  // Structured per-model scores from image_model_scores (incl. shadow engines
+  // like cursor/claude). Production models also appear as flat {name}_score above.
+  model_scores?: Record<string, ModelScoreEntry> | null
 
   // File metadata
   created_at?: string | null

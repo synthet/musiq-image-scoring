@@ -21,10 +21,22 @@
       "aesthetic": { "ava": 0.55, "spaq": 0.45 }
     },
     "models": {
-      "spaq":  { "enabled": true,  "shadow": false },
-      "ava":   { "enabled": true,  "shadow": false },
-      "liqe":  { "enabled": true,  "shadow": false },
-      "topiq": { "enabled": false, "shadow": true  }
+      "spaq":   { "enabled": true,  "shadow": false },
+      "ava":    { "enabled": true,  "shadow": false },
+      "liqe":   { "enabled": true,  "shadow": false },
+      "topiq":  { "enabled": true,  "shadow": false },
+      "cursor": { "enabled": false, "shadow": false },
+      "claude": { "enabled": false, "shadow": false }
+    },
+    "cursor": {
+      "model": "composer-2.5",
+      "max_dimension": 1024,
+      "timeout_seconds": 60
+    },
+    "claude": {
+      "model": "claude-opus-4-7",
+      "max_dimension": 1024,
+      "timeout_seconds": 90
     }
   },
   "processing": {
@@ -69,6 +81,9 @@
   },
   "database": {
     "engine": "postgres",
+    "enable_api_db_query": true,
+    "db_explorer_enabled": true,
+    "api_db_query_max_rows": 5000,
     "postgres": {
       "host": "127.0.0.1",
       "port": 5432,

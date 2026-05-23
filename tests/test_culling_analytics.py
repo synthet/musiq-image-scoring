@@ -5,7 +5,7 @@ import pytest
 from modules import config
 
 
-pytestmark = pytest.mark.postgres
+pytestmark = [pytest.mark.postgres, pytest.mark.db]
 
 
 @pytest.fixture

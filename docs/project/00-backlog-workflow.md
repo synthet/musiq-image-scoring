@@ -29,8 +29,13 @@ Labels are facets:
 |--------|--------|
 | `area:*` | `python`, `db`, `gradio`, `electron`, `docs` |
 | `priority:*` | `p0`, `p1`, `p2`, `p3` |
-| `type:*` | `bug`, `feature`, `refactor`, `test`, `chore` |
+| `type:*` | `bug`, `feature`, `refactor`, `test`, `chore`, `epic` |
 | (special) | `cross-repo` |
+| (status) | `obsolete` — superseded or icebox; keep open, Stage = Backlog |
+
+**Epics:** `type:epic` parents with GitHub sub-issues (same repo). Cross-repo epics are paired issues with URLs in the body.
+
+**Obsolete:** Close + `wontfix` when work is dead (e.g. Firebird-only); use `status:obsolete` when superseded but kept for history. See [`backlog-inventory-2026-05.md`](backlog-inventory-2026-05.md).
 
 **Rule:** Edit issues, not files. The repo `TODO.md` is a pointer only.
 

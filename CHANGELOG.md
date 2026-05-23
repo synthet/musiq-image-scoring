@@ -15,6 +15,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.20.0] - 2026-05-22
+
+### Added
+
+- **Runs auto-drive**: **`GET /api/runs/folder-buckets`** and **`POST /api/runs/auto-drive`** (`modules/runs_autodrive.py`) — folder bucket planner with loop guards, dry-run, and per-row queue; React **Runs buckets** panel with **Auto Drive** on **`/ui/runs`**.
+- **DB Explorer**: React **`/ui/db`** for read-only **`POST /api/db/query`** when **`database.enable_api_db_query`** is enabled (`modules/api_db.py`, trust banner, table sidebar).
+- **LLM-judge scorers**: Optional shadow **`cursor`** and **`claude`** engines (`modules/cursor_scorer.py`, `modules/claude_scorer.py`, `modules/engines/*_model.py`); optional deps in **`requirements/requirements_llm_judge.txt`** (disabled by default in **`config.example.json`**).
+- **`model_scores` on image APIs**: List/detail payloads merge **`image_model_scores`** via **`get_image_model_scores`** / **`get_batch_image_model_scores`** — flat **`{name}_score`** for production models plus structured **`model_scores`** (includes shadow rows).
+
+### Changed
+
+- **Configuration**: **`config.example.json`** — cursor/claude model toggles and tuning; **`database.enable_api_db_query`** documented in [09-configuration-and-limits.md](docs/features/implemented/09-configuration-and-limits.md).
+- **API contract**: Runs auto-drive and DB query surfaces documented in **`docs/technical/API_CONTRACT.md`**; LLM-judge section in [02-scoring-and-models.md](docs/features/implemented/02-scoring-and-models.md).
+- **Static `/ui` bundle**: Rebuilt hashed frontend assets for DB Explorer, Runs buckets, and inspector updates.
+
+### Fixed
+
+- **Selection integration**: Test and path-resolution alignment for batch selection scopes (**`tests/test_selection_integration.py`**, **`tests/test_resolved_paths.py`**).
+
 ## [7.19.0] - 2026-05-20
 
 ### Added

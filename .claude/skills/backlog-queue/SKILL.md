@@ -3,9 +3,7 @@ name: backlog-queue
 description: Cross-repo GitHub Project board is the canonical task queue. Use whenever picking work, claiming an issue, transitioning Stage, or filing/closing a backlog issue across image-scoring-backend or image-scoring-gallery.
 ---
 
-> **Claude Code mirror.** Canonical: [`.cursor/skills/backlog-queue/SKILL.md`](../../../.cursor/skills/backlog-queue/SKILL.md). Keep both in sync per [`AGENTS.md`](../../../AGENTS.md) skill governance.
-
-# Backlog queue (Claude Code mirror)
+# Backlog queue (Cursor canonical)
 
 > The canonical task queue is the GitHub Project board:
 > **https://github.com/users/synthet/projects/1**
@@ -109,8 +107,24 @@ When the user asks for new backlog work:
 |--------|--------|
 | `area:*` | `python`, `db`, `gradio`, `electron`, `docs` |
 | `priority:*` | `p0`, `p1`, `p2`, `p3` |
-| `type:*` | `bug`, `feature`, `refactor`, `test`, `chore` |
+| `type:*` | `bug`, `feature`, `refactor`, `test`, `chore`, `epic` |
 | (special) | `cross-repo` |
+| (status) | `obsolete` — superseded/deferred; **stay open** on Backlog (not Ready) |
+
+### Epics
+
+- Parent issues use `type:epic` and link children via **GitHub sub-issues** (same repo).
+- Cross-repo programs: one epic per repo + `cross-repo` label + counterpart URL in the body (sub-issues cannot span repos).
+- Child titles may use `[#EPIC]` prefix for scanability.
+
+### Obsolete (two tiers)
+
+| Tier | When | Action |
+|------|------|--------|
+| **1 — dead** | Firebird-only, wrong repo, duplicate | **Close** + `wontfix` + comment; Project **Done** |
+| **2 — superseded** | Icebox or replaced by React `/ui/` / REST | **Open** + `status:obsolete` + banner in body; Project **Backlog** |
+
+Do **not** use `wontfix` for tier-2 obsolete-open items.
 
 ## Cross-repo work
 
@@ -143,6 +157,11 @@ The backend repo holds the canonical cross-repo coordination doc:
 Bootstrap scripts (idempotent — rerun safe):
 - `scripts/bootstrap_labels.sh` — re-creates labels in both repos.
 - `scripts/bootstrap_issues.py` — original migration from legacy `TODO.md`.
+- `scripts/audit_backlog_issues.py` — read-only label/epic/obsolete gap report.
+- `scripts/apply_backlog_inventory.py` — epics, label hygiene, obsolete tiers (`--apply`).
+- `scripts/refine_issue_bodies.py` — align bodies with canonical docs.
+
+Inventory snapshot: [`docs/project/backlog-inventory-2026-05.md`](../../../docs/project/backlog-inventory-2026-05.md).
 
 ## Don'ts
 
@@ -151,3 +170,7 @@ Bootstrap scripts (idempotent — rerun safe):
 - **Don't** silently abandon a `Claimed` or `In Progress` card — move to `Blocked` with a comment.
 - **Don't** open a PR without `Closes #N` — the PR template will reject it.
 - **Don't** skip Stage transitions ("I'll update the board later") — agents that drift make the queue lie about who's doing what.
+
+## Mirrors
+
+This skill is duplicated for parity in `.claude/skills/backlog-queue/SKILL.md` (Claude Code) and the same skill name lives in `image-scoring-gallery`. **Cursor** (this file) is canonical — keep them aligned. Tracking row in [`.agent/SKILL_INVENTORY.md`](../../../.agent/SKILL_INVENTORY.md).
