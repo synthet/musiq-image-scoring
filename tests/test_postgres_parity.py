@@ -34,6 +34,7 @@ def postgres_mock():
     """Mocked Postgres connection for structural parity check."""
     return MockPostgresConn()
 
+@pytest.mark.db
 def test_basic_crud_parity(firebird_conn, postgres_mock):
     """
     Verify that row insertions lead to similar state in both DBs.

@@ -1,6 +1,25 @@
 """Tests for score normalization, especially missing model handling."""
 import pytest
-from modules.score_normalization import compute_composites, compute_all, rescale_scores
+from modules.score_normalization import (
+    DEFAULT_COMPOSITE_WEIGHTS,
+    DEFAULT_PERCENTILE_ANCHORS,
+    compute_all,
+    compute_composites,
+    reload_config,
+)
+
+
+@pytest.fixture(autouse=True)
+def default_fusion_config(monkeypatch):
+    """Isolate tests from live config.json fusion/anchor overrides."""
+    cfg = {
+        "percentile_anchors": DEFAULT_PERCENTILE_ANCHORS,
+        "scoring": {"fusion": DEFAULT_COMPOSITE_WEIGHTS},
+        "composite_weights": DEFAULT_COMPOSITE_WEIGHTS,
+    }
+    monkeypatch.setattr("modules.score_normalization._config_cache", cfg)
+    yield
+    reload_config()
 
 
 class TestComputeCompositesWithMissingModels:

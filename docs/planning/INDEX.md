@@ -47,8 +47,11 @@ Aligned with root [`TODO.md`](../../TODO.md) **Highest-Impact Next Steps**. Tier
 
 | Document | Description |
 |----------|-------------|
+| [MODEL_RECOMMENDATIONS_PIPELINES.md](../MODEL_RECOMMENDATIONS_PIPELINES.md) | **Canonical** pipeline model roadmap (ARNIQA, DINOv2, SigLIP2; CLIP/OpenCLIP alternate) |
 | [IQA_MODEL_STACK_UPDATE_PROPOSAL.md](models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md) | Proposal: Modernize model stack (QPT V2, TOPIQ-NR) |
 | [SUGGESTED_SCORING_ADJUSTMENTS.md](models/SUGGESTED_SCORING_ADJUSTMENTS.md) | Proposed scoring weight changes |
+
+Related research (reports): [CLIP_MODELS_CULLING_SCORING_2026-05-23.md](../reports/CLIP_MODELS_CULLING_SCORING_2026-05-23.md), [AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md](../reports/AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md).
 
 ## Setup (platform)
 

@@ -8,6 +8,8 @@ Historical reports, research, reviews, and debugging sessions.
 |----------|-------------|
 | [WORK_SUMMARY_2026-03-08.md](WORK_SUMMARY_2026-03-08.md) | Work summary |
 | [DEEP_RESEARCH_REPORT.md](DEEP_RESEARCH_REPORT.md) | Deep research report |
+| [CLIP_MODELS_CULLING_SCORING_2026-05-23.md](CLIP_MODELS_CULLING_SCORING_2026-05-23.md) | CLIP / OpenCLIP / MetaCLIP for culling and prompt-based scoring |
+| [AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md](AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md) | Image auto-culling algorithms and best practices |
 | [PARTNER_UPDATES.md](PARTNER_UPDATES.md) | Updates from partner agents |
 | [IAA_PAPER_ANALYSIS.md](IAA_PAPER_ANALYSIS.md) | Analysis of modern IAA models paper |
 | [IAA_MODELS_LOCAL_DEPLOYMENT.md](IAA_MODELS_LOCAL_DEPLOYMENT.md) | IAA models overview (converted from PDF) |

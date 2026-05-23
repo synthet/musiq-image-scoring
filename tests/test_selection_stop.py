@@ -47,6 +47,7 @@ def setup_db_and_images():
     if os.path.isdir(test_dir):
         shutil.rmtree(test_dir, ignore_errors=True)
 
+@pytest.mark.db
 def test_selection_runner_graceful_stop(setup_db_and_images):
     test_dir, image_ids, image_paths = setup_db_and_images
     

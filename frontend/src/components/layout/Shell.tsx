@@ -7,7 +7,6 @@ import {
   Workflow,
   Stethoscope,
   ScrollText,
-  Search,
   MapPin,
   ChartScatter,
   Image,
@@ -84,7 +83,6 @@ export function Shell() {
           {isDbExplorerEnabled && (
             <NavItem to="/db" icon={<Table2 size={14} />} label="DB Explorer" />
           )}
-          <NavItem to="/search" icon={<Search size={14} />} label="Search" />
           <NavItem to="/map" icon={<MapPin size={14} />} label="Map" />
           <NavItem to="/diagnostics" icon={<Stethoscope size={14} />} label="Health" />
           <NavItem to="/logs" icon={<ScrollText size={14} />} label="Logs" />
