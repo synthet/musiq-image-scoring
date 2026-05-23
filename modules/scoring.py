@@ -18,8 +18,10 @@ try:
     from scripts.python.run_all_musiq_models import MultiModelMUSIQ
     try:
         from modules.engines.base import IScoringEngine
+        from modules.engines.host import MultiModelHost
 
         IScoringEngine.register(MultiModelMUSIQ)
+        IScoringEngine.register(MultiModelHost)
     except Exception:
         pass
 except ImportError as exc:
@@ -34,7 +36,7 @@ class ScoringRunner:
     liqe_scorer: optional LIQE backend; None uses default LiqeScorer in the pipeline worker.
     """
     def __init__(self, scoring_engine=None, liqe_scorer=None):
-        # We hold the shared scorer here to persist it across runs (None = lazy MultiModelMUSIQ)
+        # We hold the shared scorer here to persist it across runs (None = lazy MultiModelHost)
         self.shared_scorer = scoring_engine
         self.liqe_scorer = liqe_scorer
         # We keep a ref to the current processor to stop it
@@ -60,6 +62,47 @@ class ScoringRunner:
         processor = self.current_processor
         depth = processor.get_pipeline_depth() if processor else 0
         return self.is_running, "\n".join(self.log_history), self.status_message, self.current_count, self.total_count, depth
+
+    def _init_shared_scorer(self, log) -> bool:
+        """Lazy-load ``MultiModelHost`` (registry-driven). Returns False on fatal load failure."""
+        if self.shared_scorer is not None:
+            log("Using injected scoring engine (no lazy model load).")
+            return True
+
+        if self._model_load_failures >= self._MODEL_LOAD_MAX_FAILURES:
+            msg = (
+                f"Model loading circuit breaker open: {self._model_load_failures} consecutive failures. "
+                f"Restart the WebUI to reset."
+            )
+            log(msg, "ERROR")
+            self.status_message = "Error loading models (circuit breaker open)"
+            return False
+
+        log("Initializing models first (this happens once)...")
+        try:
+            from modules.engines.factory import create_production_scoring_host, load_production_models
+
+            host = create_production_scoring_host(liqe_scorer=self.liqe_scorer)
+            ok, msg = load_production_models(host, log=log)
+            if not ok:
+                self._model_load_failures += 1
+                log(msg, "ERROR")
+                self.status_message = "Error loading models"
+                return False
+
+            self.shared_scorer = host
+            self._model_load_failures = 0
+            log("Models initialized successfully.")
+            return True
+        except Exception as exc:
+            self._model_load_failures += 1
+            msg = (
+                f"Error loading models (attempt {self._model_load_failures}/"
+                f"{self._MODEL_LOAD_MAX_FAILURES}): {exc}"
+            )
+            log(msg, "ERROR")
+            self.status_message = "Error loading models"
+            return False
 
     def start_batch(self, input_path, job_id, skip_existing=False, resolved_image_ids=None, target_phases=None, report_collector=None):
         """
@@ -145,56 +188,13 @@ class ScoringRunner:
             )
             return
         
-        # Checking/Loading Models (skip when a scorer was injected via constructor)
-        if self.shared_scorer is None:
-            # Circuit breaker: stop retrying after repeated failures
-            if self._model_load_failures >= self._MODEL_LOAD_MAX_FAILURES:
-                msg = (f"Model loading circuit breaker open: {self._model_load_failures} consecutive failures. "
-                       f"Restart the WebUI to reset.")
-                log(msg, "ERROR")
-                self.status_message = "Error loading models (circuit breaker open)"
-                db.update_job_status(job_id, "failed", msg)
-                event_manager.broadcast_threadsafe(
-                    "job_completed",
-                    {"job_id": job_id, "status": "failed", "error": msg},
-                )
-                return
-
-            log("Initializing models first (this happens once)...")
-            try:
-                new_scorer = MultiModelMUSIQ()
-                
-                # Load models
-                musiq_models = ['spaq', 'ava']
-                all_loaded = True
-                for model_name in musiq_models:
-                    log(f"Loading model: {model_name.upper()}...")
-                    success = new_scorer.load_model(model_name)
-                    if not success:
-                         log(f"Warning: Failed to load {model_name}", "WARNING")
-                         all_loaded = False
-
-                if not all_loaded:
-                    self._model_load_failures += 1
-                    msg = f"One or more models failed to load (attempt {self._model_load_failures}/{self._MODEL_LOAD_MAX_FAILURES})"
-                    log(msg, "ERROR")
-                    self.status_message = "Error loading models"
-                    db.update_job_status(job_id, "failed", msg)
-                    return
-
-                self.shared_scorer = new_scorer
-                self._model_load_failures = 0  # Reset on success
-                log("Models initialized successfully.")
-
-            except Exception as e:
-                self._model_load_failures += 1
-                msg = f"Error loading models (attempt {self._model_load_failures}/{self._MODEL_LOAD_MAX_FAILURES}): {str(e)}"
-                log(msg, "ERROR")
-                self.status_message = "Error loading models"
-                db.update_job_status(job_id, "failed", msg)
-                return
-        else:
-            log("Using injected scoring engine (no lazy model load).")
+        if not self._init_shared_scorer(log):
+            db.update_job_status(job_id, "failed", self.status_message)
+            event_manager.broadcast_threadsafe(
+                "job_completed",
+                {"job_id": job_id, "status": "failed", "error": self.status_message},
+            )
+            return
 
         def on_progress(cur, tot):
             self.current_count = cur
@@ -494,36 +494,16 @@ class ScoringRunner:
         log(f"Found {len(records)} incomplete records requiring fix.")
         self.status_message = "Fixing..."
 
-        # Checking/Loading Models (Same as run_batch)
-        if self.shared_scorer is None:
-            log("Initializing models...")
-            try:
-                new_scorer = MultiModelMUSIQ()
-                musiq_models = ['spaq', 'ava']
-                all_loaded = True
-                for model_name in musiq_models:
-                    success = new_scorer.load_model(model_name)
-                    if not success:
-                        log(f"Warning: Failed to load {model_name}")
-                        all_loaded = False
+        def _fix_log(msg, level="INFO"):
+            log(msg)
 
-                if not all_loaded:
-                    self._model_load_failures += 1
-                    msg = f"One or more models failed to load (attempt {self._model_load_failures}/{self._MODEL_LOAD_MAX_FAILURES})"
-                    log(msg)
-                    self.status_message = "Error loading models"
-                    db.update_job_status(job_id, "failed", msg)
-                    return
-
-                self.shared_scorer = new_scorer
-                self._model_load_failures = 0  # Reset on success
-            except Exception as e:
-                self._model_load_failures += 1
-                msg = f"Error loading models (attempt {self._model_load_failures}/{self._MODEL_LOAD_MAX_FAILURES}): {str(e)}"
-                log(msg)
-                self.status_message = "Error loading models"
-                db.update_job_status(job_id, "failed", msg)
-                return
+        if not self._init_shared_scorer(_fix_log):
+            db.update_job_status(job_id, "failed", self.status_message)
+            event_manager.broadcast_threadsafe(
+                "job_completed",
+                {"job_id": job_id, "status": "failed", "error": self.status_message},
+            )
+            return
 
         # Create Jobs
         jobs = []
@@ -757,28 +737,16 @@ class ScoringRunner:
 
         self.status_message = "Scoring (Manual)..."
 
-        # Initialize models if needed
-        if self.shared_scorer is None:
-            try:
-                # MultiModelMUSIQ is imported via canonical package path at module import time.
-                new_scorer = MultiModelMUSIQ()
-                all_loaded = True
-                for m in ['spaq', 'ava']:
-                    success = new_scorer.load_model(m)
-                    if not success:
-                        all_loaded = False
+        log_msgs = []
 
-                if not all_loaded:
-                    self._model_load_failures += 1
-                    return False, (f"One or more models failed to load (attempt {self._model_load_failures}/"
-                                  f"{self._MODEL_LOAD_MAX_FAILURES})")
+        def capture_log(msg):
+            log_msgs.append(msg)
 
-                self.shared_scorer = new_scorer
-                self._model_load_failures = 0  # Reset on success
-            except Exception as e:
-                self._model_load_failures += 1
-                return False, (f"Error initializing models (attempt {self._model_load_failures}/"
-                              f"{self._MODEL_LOAD_MAX_FAILURES}): {e}")
+        def _manual_log(msg, level="INFO"):
+            capture_log(msg)
+
+        if not self._init_shared_scorer(_manual_log):
+            return False, self.status_message
 
         # Create Job
         from modules import pipeline
@@ -788,11 +756,6 @@ class ScoringRunner:
             skip_existing=False
         )
 
-        # Capture logs
-        log_msgs = []
-        def capture_log(msg):
-            log_msgs.append(msg)
-            
         # Create temporary processor
         processor = BatchImageProcessor(
             scorer=self.shared_scorer,

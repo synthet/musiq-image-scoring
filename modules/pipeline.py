@@ -333,6 +333,21 @@ class ScoringWorker(PipelineWorker):
             self._liqe_scorer_lazy = LiqeScorer()
         return self._liqe_scorer_lazy
 
+    def _scorer_is_registry_host(self) -> bool:
+        try:
+            from modules.engines.host import MultiModelHost
+        except Exception:
+            return False
+        return isinstance(self.scorer, MultiModelHost)
+
+    def _host_runs_liqe(self) -> bool:
+        if not self._scorer_is_registry_host():
+            return False
+        try:
+            return any(m.name == "liqe" for m in self.scorer.registry.all_active())
+        except Exception:
+            return False
+
     def _run_registry_models(self, external: dict, image_path: str, log) -> None:
         """Run registry `IScoringModel`s the legacy backend doesn't produce.
 
@@ -341,10 +356,15 @@ class ScoringWorker(PipelineWorker):
         are stamped ``is_shadow=True``; ``ResultWorker`` excludes those from
         fusion. Inert unless a model is marked active in ``scoring.models``
         config, so it is a no-op by default.
+
+        Skipped when ``self.scorer`` is ``MultiModelHost`` (registry is already
+        the live inference path).
         """
+        if self._scorer_is_registry_host():
+            return
         try:
             from modules.engines.registry import get_registry
-        except Exception:  # engines package unavailable
+        except Exception:  # engines packages unavailable
             return
         registry = get_registry()
         try:
@@ -469,8 +489,8 @@ class ScoringWorker(PipelineWorker):
         except Exception as e:
             logger.warning("Preprocess failed, using original path: %s", e)
         
-        # Check/Run LIQE if missing
-        if "liqe" not in external:
+        # Check/Run LIQE if missing (host runs LIQE via LiqeModelWrapper when active)
+        if "liqe" not in external and not self._host_runs_liqe():
             try:
                 path = external.get("_liqe_preprocess_path") or job.process_path
                 liqe_result = self._get_liqe_scorer().predict(path)

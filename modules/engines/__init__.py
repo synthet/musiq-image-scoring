@@ -15,6 +15,11 @@ from modules.engines.mock import (
 )
 from modules.engines.claude_model import ClaudeModelWrapper
 from modules.engines.cursor_model import CursorModelWrapper
+from modules.engines.factory import (
+    create_production_scoring_host,
+    ensure_production_registry,
+    load_production_models,
+)
 from modules.engines.host import MultiModelHost
 from modules.engines.liqe_model import LiqeModelWrapper
 from modules.engines.musiq_model import MusiqModelWrapper, make_musiq_wrappers
@@ -47,6 +52,9 @@ __all__ = [
     "CursorModelWrapper",
     "ClaudeModelWrapper",
     "MultiModelHost",
+    "create_production_scoring_host",
+    "ensure_production_registry",
+    "load_production_models",
 ]
 
 # Register one shadow-capable instance at import time. The wrapper lazy-loads

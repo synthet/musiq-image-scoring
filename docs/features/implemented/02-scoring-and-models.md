@@ -28,11 +28,11 @@ metrics:
   `scoring.models` (fully inert). Set `shadow: true` to run them as shadow models
   (scored and stored, never fused), or `enabled: true, shadow: false` for
   production/fusion.
-- **How they run:** the pipeline injects active registry models that the legacy
-  MUSIQ backend doesn't produce — `ScoringWorker._run_registry_models()`
-  (`modules/pipeline.py`) mirrors the LIQE injection, so results flow through
-  `run_all_models` → `image_model_scores`. (The registry-driven `MultiModelHost`
-  carries the same shape via `_run_one` for when it becomes the live scorer.)
+- **How they run:** `ScoringRunner` uses registry-driven `MultiModelHost`
+  (`modules/engines/factory.py`) as the live scorer. Active registry models
+  (including shadow `topiq`, LLM judges, etc.) run in `MultiModelHost.run_all_models`
+  and persist to `image_model_scores`. Legacy `ScoringWorker._run_registry_models()`
+  injection remains only when a non-host scorer is injected (tests).
   The overall score lands in `image_model_scores`; the rubric rides in
   `scores_json` as `subscores`. Same path activates `topiq`.
 - **Read path / API:** `_image_detail_payload` / `_images_list_payload`

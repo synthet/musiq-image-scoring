@@ -10,8 +10,8 @@ Composes:
 Produces the same output shape as `MultiModelMUSIQ.run_all_models()` so it
 can be swapped in without changing `ScoringWorker`/`ResultWorker`.
 
-Wiring into the pipeline happens in a later step; for now the host exists
-alongside the legacy path.
+Production wiring: ``modules/engines/factory.create_production_scoring_host()``
+is used by ``ScoringRunner`` as the live scorer (see ``modules/scoring.py``).
 """
 
 from __future__ import annotations
@@ -47,6 +47,11 @@ class MultiModelHost(IScoringEngine):
     @property
     def backend(self) -> Any:
         return self._backend
+
+    @property
+    def model_sources(self) -> Dict[str, Any]:
+        """Delegate to the MUSIQ backend for pipeline legacy-skip checks."""
+        return getattr(self._backend, "model_sources", {}) or {}
 
     def is_raw_file(self, file_path: str) -> bool:
         return bool(self._backend.is_raw_file(file_path))
