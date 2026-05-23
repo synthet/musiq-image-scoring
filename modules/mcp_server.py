@@ -2113,9 +2113,37 @@ def get_performance_metrics(days: int = 7) -> dict:
     return result
 
 
+def _registry_model_status() -> dict:
+    """Per-model status from the scoring-model registry (mirrors GET /api/models).
+
+    Returns ``{name: {enabled, shadow, framework, version, score_range, load_status}}``
+    for every registered ``IScoringModel`` (``topiq``, ``qpt_v2``, MUSIQ wrappers,
+    LIQE, LLM-judge engines). Production vs. shadow membership comes from
+    ``scoring.models`` in config. Keyed-by-name so callers can index by model.
+    """
+    from modules.engines.registry import get_registry
+
+    registry = get_registry()
+    enabled_names = {m.name for m in registry.enabled()}
+    shadow_names = {m.name for m in registry.shadow()}
+
+    out: dict = {}
+    for m in registry.all_registered():
+        lo, hi = getattr(m, "score_range", (0.0, 1.0))
+        out[m.name] = {
+            "enabled": m.name in enabled_names,
+            "shadow": m.name in shadow_names,
+            "framework": getattr(m, "framework", ""),
+            "version": getattr(m, "version", ""),
+            "score_range": [float(lo), float(hi)],
+            "load_status": getattr(m, "load_status", "unknown"),
+        }
+    return out
+
+
 @mcp.tool(annotations=_RO)
 def get_model_status() -> dict:
-    """Get status of loaded models, GPU availability, and CUDA/PyTorch/TensorFlow configuration."""
+    """Get status of registered scoring models, GPU availability, and CUDA/PyTorch/TensorFlow configuration."""
     status = {
         "models": {},
         "gpu": {},
@@ -2123,24 +2151,21 @@ def get_model_status() -> dict:
     }
 
     try:
+        # Registry-driven model list (topiq, qpt_v2, MUSIQ family, LIQE, LLM-judge).
+        try:
+            status["models"] = _registry_model_status()
+        except Exception as e:
+            status["models"]["registry_error"] = str(e)
+
         if _scoring_runner and _scoring_runner.shared_scorer:
             status["scorer_available"] = True
             scorer = _scoring_runner.shared_scorer
-
             try:
                 status["models"]["version"] = getattr(scorer, 'VERSION', 'unknown')
             except Exception:
                 pass
-
-            model_names = ['spaq', 'ava', 'koniq', 'paq2piq']
-            for model_name in model_names:
-                try:
-                    model_attr = getattr(scorer, f'{model_name}_model', None)
-                    status["models"][model_name] = {"loaded": model_attr is not None}
-                except Exception:
-                    status["models"][model_name] = {"loaded": False}
         else:
-            status["models"]["note"] = "Scorer not initialized"
+            status["models"]["note"] = "Scorer not initialized (models load lazily on first scoring run)"
 
         try:
             import tensorflow as tf

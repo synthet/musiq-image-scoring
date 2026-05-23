@@ -2,48 +2,51 @@
 
 ## Overview
 
-The image quality assessment system uses a **Hybrid Pipeline** combining Google's MUSIQ (Technical) and LIQE (Aesthetic/Semantic). This strategy leverages the strengths of specific models to filter technically flawed images while rewarding aesthetically pleasing ones.
+The image quality assessment system fuses a registry of models into three composites —
+**technical**, **aesthetic**, and **general**. Weights and model membership are
+config-driven (`scoring.fusion` and `scoring.models` in `config.json`); the committed
+defaults live in `DEFAULT_COMPOSITE_WEIGHTS` / `DEFAULT_PERCENTILE_ANCHORS` in
+[`modules/score_normalization.py`](../../modules/score_normalization.py).
 
-## Score Weights (v2.5.2)
+## Composite Weights ("moderate" profile, May 2026)
 
-The final "Representative Score" is a weighted average of 5 models:
+Adopted after a model-score quality analysis over the 61,350-image corpus. `topiq` was
+promoted into all three composites so **technical is no longer a LIQE alias**; `qpt_v2`
+stays shadow (not fused) pending upstream inference code; KONIQ/PaQ2PiQ are excluded from
+fusion (~38% missing coverage).
 
-| Model | Weight | Role | Description |
-|-------|--------|------|-------------|
-| **KONIQ** | **30%** | Technical Reliability | Best general purpose technical scorer. High reliability. |
-| **SPAQ** | **25%** | Technical Discrimination | Excellent at distinguishing fine technical details (sharpness, noise). |
-| **PAQ2PIQ** | **20%** | Artifact Detection | Specialized in detecting compression artifacts and local defects. |
-| **LIQE** | **15%** | Aesthetic/Semantic | State-of-the-art PyTorch model using CLIP. Understands "content" and aesthetics. |
-| **AVA** | **10%** | Legacy Aesthetic | Older aesthetic model. Kept for continuity but de-emphasized. |
-| **VILA** | **0%** | Disabled | Disabled in v2.5.1 due to stability issues. |
+| Composite | Weights (applied to **percentile-rescaled** scores) |
+|-----------|------------------------------------------------------|
+| **Technical** | TOPIQ 0.35 · SPAQ 0.30 · LIQE 0.35 |
+| **Aesthetic** | AVA 0.40 · SPAQ 0.50 · LIQE 0.10 |
+| **General** | LIQE 0.38 · SPAQ 0.32 · TOPIQ 0.15 · AVA 0.15 |
 
 ## Scoring Logic
 
-1.  **Normalization**: All scores are normalized to a 0.0 - 1.0 range.
-    *   SPAQ/KONIQ/PAQ2PIQ (0-100) -> /100
-    *   AVA (1-10) -> (x-1)/9
-    *   LIQE (0-1) -> Direct (already normalized)
+1.  **Normalization**: Each model's raw output is mapped to 0.0 - 1.0 by its wrapper
+    (`IScoringModel.normalize`).
 
-2.  **Weighted Calculation**:
-    ```python
-    final_score = (
-        (koniq_score * 0.30) +
-        (spaq_score * 0.25) +
-        (paq2piq_score * 0.20) +
-        (liqe_score * 0.15) +
-        (ava_score * 0.10)
-    )
-    ```
+2.  **Percentile rescaling**: Normalized scores are stretched against empirical
+    `p02`/`p98` anchors so models with narrow native ranges (e.g. AVA) still discriminate
+    before weighting (`rescale_percentile` in `score_normalization.py`). Current anchors:
+    LIQE `0.311/0.998`, AVA `0.301/0.524`, SPAQ `0.257/0.760`, TOPIQ `0.390/0.709`.
 
-3.  **Outlier Detection**:
-    *   If a model deviates significantly (> 2 standard deviations) from the consensus, it is flagged as an outlier.
-    *   Robust metrics (Median, Trimmed Mean) are calculated alongside the weighted mean for reference.
+3.  **Weighted calculation**: Each composite is a weighted mean of the rescaled scores,
+    **re-normalized over the models actually present** so a missing model does not pull the
+    composite toward 0 (`compute_composites`).
+
+4.  **Rating + label**: The rescaled `general` score maps to a 1-5 star rating; technical
+    and aesthetic composites drive the Lightroom color label.
 
 ## Rationale (Why this distribution?)
 
-1.  **Technical First (75%)**: The primary goal is to filter technically flawed images (blurred, noisy, bad exposure). MUSIQ models (KONIQ, SPAQ, PAQ2PIQ) excel here.
-2.  **Aesthetic Second (25%)**: Once technical quality is assured, we use LIQE (15%) and AVA (10%) to judge composition and beauty. LIQE is significantly more advanced than AVA.
-3.  **VILA Removal**: VILA was removed from the active pipeline to improve system stability without sacrificing accuracy, as LIQE fills the semantic niche better.
+1.  **De-single-source technical**: blending TOPIQ + SPAQ with LIQE removes the
+    redundancy where technical ≈ LIQE (Pearson ~0.98), widening discrimination at the top.
+2.  **Aesthetic leans on SPAQ**: SPAQ separates the corpus better than AVA in raw form, so
+    aesthetic weights SPAQ above AVA while keeping AVA for aesthetic semantics.
+3.  **General stays balanced**: LIQE leads but SPAQ/TOPIQ/AVA each contribute, keeping
+    `general` a balanced blend rather than a LIQE proxy.
+4.  **VILA removed** in v2.5.1 for stability; LIQE fills the semantic niche.
 
 ## Related Documents
 

@@ -1,5 +1,13 @@
 # MUSIQ Multi-Model Image Quality Assessment
 
+> **Note:** This document describes the standalone `run_all_musiq_models.py` script (the
+> MUSIQ backbone). In the live pipeline, scoring is **registry-driven** via
+> `MultiModelHost` (`modules/engines/host.py`): the MUSIQ family is one backend among
+> several registered `IScoringModel` wrappers (LIQE, **TOPIQ**, **QPT V2**, and optional
+> LLM-judge engines). Which models run, and whether each is fused or shadow, is decided by
+> `scoring.models` in `config.json`; `GET /api/models` returns the live set. See
+> [Weighted scoring strategy](WEIGHTED_SCORING_STRATEGY.md) for current fusion weights.
+
 This script runs all available MUSIQ (Multi-scale Image Quality Transformer) models on an image and saves the results to a JSON file with the same name as the image.
 
 ## Features
@@ -12,12 +20,23 @@ This script runs all available MUSIQ (Multi-scale Image Quality Transformer) mod
 
 ## Available Models
 
+### MUSIQ family (this script's backbone)
+
 | Model | Dataset | Score Range | Description |
 |-------|---------|-------------|-------------|
 | SPAQ | SPAQ | 0.0 - 100.0 | Smartphone Photography Aesthetics Quality |
 | AVA | AVA | 1.0 - 10.0 | Aesthetic Visual Analysis |
-| KONIQ | KONIQ-10K | 0.0 - 100.0 | Konstanz Natural Image Quality |
-| PAQ2PIQ | PAQ2PIQ | 0.0 - 100.0 | Perceptual Assessment of Image Quality |
+| KONIQ | KONIQ-10K | 0.0 - 100.0 | Konstanz Natural Image Quality (legacy — not in default fusion) |
+| PAQ2PIQ | PAQ2PIQ | 0.0 - 100.0 | Perceptual Assessment of Image Quality (legacy — not in default fusion) |
+
+### Registry models (live pipeline)
+
+| Model | Framework | Score Range | Role |
+|-------|-----------|-------------|------|
+| LIQE | PyTorch | 0.0 - 1.0 | CLIP-based semantic quality (fused) |
+| TOPIQ | PyTorch (pyiqa) | 0.0 - 1.0 | No-reference top-down quality (fused) |
+| QPT V2 | PyTorch | 0.0 - 1.0 | Quality-aware Pre-Training V2 (**shadow** — upstream inference code pending) |
+| cursor / claude | LLM-judge | 0.0 - 1.0 | Optional LLM-as-judge engines (disabled by default) |
 
 ## Usage
 

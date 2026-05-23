@@ -3680,10 +3680,7 @@ paths:
       - Scoring
       summary: Start batch image scoring
       description: "Initiates a batch image quality assessment job for all images in the specified directory.\n        \n\
-        \        The scoring process uses multiple AI models to evaluate images:\n        - **SPAQ**: Spatial Perception of\
-        \ Aesthetic Quality\n        - **AVA**: Aesthetic Visual Analysis\n        - **KonIQ**: Konstanz Image Quality\n \
-        \       - **PaQ2PiQ**: Perceptual Quality to Perceptual Image Quality\n        - **LIQE**: Learning Image Quality\
-        \ Evaluator\n        \n        Results include:\n        - Technical score (sharpness, noise, exposure)\n        -\
+        \        The scoring process uses a configurable ensemble of AI models, selected via the scoring.models registry. Current production models include:\n        - **LIQE**: Learning Image Quality Evaluator (CLIP-based semantic quality)\n        - **SPAQ**: Smartphone Photography Aesthetics Quality (MUSIQ)\n        - **AVA**: Aesthetic Visual Analysis (MUSIQ)\n        - **TOPIQ**: Top-down Image Quality (no-reference)\n        \n        Additional models run in shadow (stored but not fused), e.g. **QPT V2**; the active set is config-driven. See GET /api/models for the live registry.\n        \n        Results include:\n        - Technical score (sharpness, noise, exposure)\n        -\
         \ Aesthetic score (composition, appeal)\n        - General quality score (weighted combination)\n        - Rating\
         \ (1-5 stars) and color label (Red/Yellow/Green/Blue/Purple)\n        \n        The job runs asynchronously. Use GET\
         \ /api/scoring/status to monitor progress.\n        \n        **Path Handling:**\n        - Windows paths: `D:/Photos/2024`\
@@ -6330,7 +6327,7 @@ components:
       type: object
       title: ScoringStartRequest
       description: "Request model for starting a batch image scoring job.\n\nThis endpoint initiates quality assessment of\
-        \ images using multiple AI models\n(SPAQ, AVA, KonIQ, PaQ2PiQ, LIQE) to generate technical, aesthetic, and general\
+        \ images using a configurable ensemble of AI models selected via the scoring.models registry (LIQE, MUSIQ variants SPAQ/AVA, TOPIQ; QPT V2 in shadow) to generate technical, aesthetic, and general\
         \ quality scores.\n\nAttributes:\n    input_path: Directory path containing images to score. Supports Windows (D:\\\
         ...)\n               and WSL (/mnt/...) paths. Required.\n    skip_existing: If True, skip images that already have\
         \ complete scores in database. \n                  Default: True. Set to False to force re-scoring.\n    force_rescore:\

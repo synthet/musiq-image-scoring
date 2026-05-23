@@ -16,9 +16,9 @@
     "default_sort_by": "score_general",
     "default_sort_order": "desc",
     "fusion": {
-      "general":   { "liqe": 0.45, "ava": 0.30, "spaq": 0.25 },
-      "technical": { "liqe": 1.00 },
-      "aesthetic": { "ava": 0.55, "spaq": 0.45 }
+      "general":   { "liqe": 0.38, "spaq": 0.32, "topiq": 0.15, "ava": 0.15 },
+      "technical": { "topiq": 0.35, "spaq": 0.30, "liqe": 0.35 },
+      "aesthetic": { "ava": 0.40, "spaq": 0.50, "liqe": 0.10 }
     },
     "models": {
       "spaq":   { "enabled": true,  "shadow": false },
@@ -43,6 +43,12 @@
       "max_dimension": 1024,
       "timeout_seconds": 90
     }
+  },
+  "percentile_anchors": {
+    "liqe":  { "p02": 0.311, "p98": 0.998 },
+    "ava":   { "p02": 0.301, "p98": 0.524 },
+    "spaq":  { "p02": 0.257, "p98": 0.760 },
+    "topiq": { "p02": 0.390, "p98": 0.709 }
   },
   "processing": {
     "prep_queue_size": 50,

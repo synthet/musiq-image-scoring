@@ -1,27 +1,38 @@
 # Current Model Weights and Scoring Logic
 
-Here are the models and weights currently used in your project to calculate the scores:
+Composite weights for the **"moderate" profile** (adopted May 2026). Weights apply to
+percentile-rescaled scores and are re-normalized over the models actually present.
 
 ### 1. General Score
-* **25%** PaQ-2-PiQ
-* **25%** LIQE
-* **20%** AVA (MUSIQ)
-* **20%** KonIQ (MUSIQ)
-* **10%** SPAQ (MUSIQ)
+* **38%** LIQE
+* **32%** SPAQ (MUSIQ)
+* **15%** TOPIQ
+* **15%** AVA (MUSIQ)
 
 ### 2. Aesthetic Score
+* **50%** SPAQ (MUSIQ)
 * **40%** AVA (MUSIQ)
-* **30%** KonIQ (MUSIQ)
-* **20%** SPAQ (MUSIQ)
-* **10%** PaQ-2-PiQ
+* **10%** LIQE
 
 ### 3. Technical Score
-* **35%** PaQ-2-PiQ
+* **35%** TOPIQ
 * **35%** LIQE
-* **15%** KonIQ (MUSIQ)
-* **15%** SPAQ (MUSIQ)
+* **30%** SPAQ (MUSIQ)
 
-*Note: These values are hardcoded defaults in `scripts/python/run_all_musiq_models.py` (and `modules/scoring.py`) since your `config.json` does not specify any overrides.*
+### Percentile anchors (`p02` / `p98`)
+
+| Model | p02 | p98 |
+|-------|-----|-----|
+| LIQE  | 0.311 | 0.998 |
+| AVA   | 0.301 | 0.524 |
+| SPAQ  | 0.257 | 0.760 |
+| TOPIQ | 0.390 | 0.709 |
+
+*Note: These are the committed defaults in
+[`modules/score_normalization.py`](../../../modules/score_normalization.py)
+(`DEFAULT_COMPOSITE_WEIGHTS` / `DEFAULT_PERCENTILE_ANCHORS`). Override per-deployment via
+`scoring.fusion` and `percentile_anchors` in `config.json`. KONIQ and PaQ-2-PiQ are legacy
+MUSIQ variants excluded from the default fusion (~38% missing coverage on the corpus).*
 
 ## QPT V2 (shadow — not yet in active ensemble)
 
