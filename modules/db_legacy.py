@@ -5519,9 +5519,52 @@ def reconcile_stale_running_image_phases(threshold_seconds: int | None = None, l
 
     chunk_size = 900
     updated_total = 0
+    salvaged_total = 0
     for i in range(0, len(ids), chunk_size):
         chunk = ids[i:i + chunk_size]
         placeholders = ",".join(["?"] * len(chunk))
+
+        # Issue #161: salvage scoring rows whose canonical outputs are already
+        # persisted — same logic as reconcile_stale_running_phases_for_jobs().
+        salvage_rc = get_connector().execute(
+            f"""
+            UPDATE image_phase_status
+            SET status = 'done',
+                last_error = 'reconcile_stale:no_heartbeat:outputs_present',
+                finished_at = ?,
+                updated_at = ?
+            WHERE id IN ({placeholders})
+              AND status = 'running'
+              AND phase_id = (SELECT id FROM pipeline_phases WHERE code = 'scoring')
+              AND image_id IN (
+                  SELECT id FROM images WHERE score IS NOT NULL AND scores_json IS NOT NULL
+              )
+            """,
+            (now, now, *chunk),
+        )
+        salvaged_total += int(salvage_rc) if isinstance(salvage_rc, int) else 0
+
+        # Salvage culling rows whose images were successfully clustered into a
+        # stack. Singletons (stack_id IS NULL) are still failed and re-run,
+        # which is a fast no-op that correctly resolves them as singletons.
+        cull_salvage_rc = get_connector().execute(
+            f"""
+            UPDATE image_phase_status
+            SET status = 'done',
+                last_error = 'reconcile_stale:no_heartbeat:outputs_present',
+                finished_at = ?,
+                updated_at = ?
+            WHERE id IN ({placeholders})
+              AND status = 'running'
+              AND phase_id = (SELECT id FROM pipeline_phases WHERE code = 'culling')
+              AND image_id IN (
+                  SELECT id FROM images WHERE stack_id IS NOT NULL
+              )
+            """,
+            (now, now, *chunk),
+        )
+        salvaged_total += int(cull_salvage_rc) if isinstance(cull_salvage_rc, int) else 0
+
         rc = get_connector().execute(
             f"""
             UPDATE image_phase_status
@@ -5539,12 +5582,14 @@ def reconcile_stale_running_image_phases(threshold_seconds: int | None = None, l
         else:
             updated_total += len(chunk)
 
-    if updated_total:
+    total = updated_total + salvaged_total
+    if total:
         logger.info(
             "reconcile_stale_running_image_phases: reaped %s row(s) "
-            "(threshold=%ss)", updated_total, threshold_seconds,
+            "(salvaged=%s, failed=%s, threshold=%ss)",
+            total, salvaged_total, updated_total, threshold_seconds,
         )
-    return updated_total
+    return total
 
 
 def get_recent_jobs(limit=50, offset=0):
@@ -6850,6 +6895,27 @@ def reconcile_stale_running_phases_for_jobs(job_ids, error_message=None, in_flig
         except (TypeError, ValueError):
             salvaged = 0
 
+        # Salvage culling rows whose images were successfully clustered into a
+        # stack. Singletons (stack_id IS NULL) still fail and re-run, which is
+        # a fast no-op that correctly resolves them as singletons.
+        cull_salvage_rc = get_connector().execute(
+            f"""
+            UPDATE image_phase_status
+            SET status = 'done', last_error = ?, finished_at = ?, updated_at = ?
+            WHERE job_id IN ({placeholders})
+              AND status = 'running'
+              AND phase_id = (SELECT id FROM pipeline_phases WHERE code = 'culling')
+              AND image_id IN (
+                  SELECT id FROM images WHERE stack_id IS NOT NULL
+              )
+            """,
+            salvage_params,
+        )
+        try:
+            salvaged += int(cull_salvage_rc) if cull_salvage_rc is not None else 0
+        except (TypeError, ValueError):
+            pass
+
         params = [msg, now, now] + job_ids
         rowcount = get_connector().execute(
             f"""
@@ -6865,7 +6931,7 @@ def reconcile_stale_running_phases_for_jobs(job_ids, error_message=None, in_flig
         rc = 0
     if salvaged:
         logger.info(
-            "reconcile_stale_running_phases_for_jobs: salvaged %s scoring row(s) "
+            "reconcile_stale_running_phases_for_jobs: salvaged %s row(s) "
             "with outputs already persisted (jobs=%s)", salvaged, job_ids,
         )
         rc += salvaged

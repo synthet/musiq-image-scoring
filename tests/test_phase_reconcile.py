@@ -159,20 +159,26 @@ def test_reconcile_failed_salvages_scoring_rows_with_outputs(monkeypatch):
     )
 
     update_calls = [(s, p) for s, p in executed if "UPDATE IMAGE_PHASE_STATUS" in s.upper()]
-    assert len(update_calls) == 2, update_calls
+    # Expect 3 UPDATEs: scoring salvage, culling salvage, fail.
+    assert len(update_calls) == 3, update_calls
 
-    salvage_sql, salvage_params = update_calls[0]
-    assert "SET status = 'done'" in salvage_sql
-    assert "pipeline_phases" in salvage_sql.lower()
-    assert "score IS NOT NULL" in salvage_sql
-    assert "scores_json IS NOT NULL" in salvage_sql
+    scoring_salvage_sql, salvage_params = update_calls[0]
+    assert "SET status = 'done'" in scoring_salvage_sql
+    assert "code = 'scoring'" in scoring_salvage_sql
+    assert "score IS NOT NULL" in scoring_salvage_sql
+    assert "scores_json IS NOT NULL" in scoring_salvage_sql
     assert salvage_params[0] == "stale_running_reconciled:job_cancelled:outputs_present"
 
-    fail_sql, _ = update_calls[1]
+    culling_salvage_sql, _ = update_calls[1]
+    assert "SET status = 'done'" in culling_salvage_sql
+    assert "code = 'culling'" in culling_salvage_sql
+    assert "stack_id IS NOT NULL" in culling_salvage_sql
+
+    fail_sql, _ = update_calls[2]
     assert "SET status = 'failed'" in fail_sql
 
-    # Total = salvaged (17) + failed (3).
-    assert rc == 20
+    # Total = scoring salvaged (17) + culling salvaged (17) + failed (3).
+    assert rc == 37
 
 
 def test_reconcile_not_started_mode_skips_salvage(monkeypatch):
