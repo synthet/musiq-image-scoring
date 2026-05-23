@@ -68,6 +68,7 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | [technical/MULTI_MODEL_SCORING.md](technical/MULTI_MODEL_SCORING.md) | Multi-model scoring notes. |
 | [technical/WEIGHTED_SCORING_STRATEGY.md](technical/WEIGHTED_SCORING_STRATEGY.md) | Weighted scoring strategy. |
 | [reference/models/MODEL_WEIGHTS.md](reference/models/MODEL_WEIGHTS.md) | Current model weights and scoring logic. |
+| [MODEL_RECOMMENDATIONS_PIPELINES.md](MODEL_RECOMMENDATIONS_PIPELINES.md) | Canonical pipeline model roadmap (ARNIQA, DINOv2, SigLIP2, RAM++; CLIP/OpenCLIP alternate) for scoring, culling, keywords. |
 | [planning/models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md](planning/models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md) | Planned model stack changes. |
 
 ## Embeddings

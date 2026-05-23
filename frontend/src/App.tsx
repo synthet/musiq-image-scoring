@@ -7,7 +7,6 @@ import { DiagnosticsPage } from '@/pages/DiagnosticsPage'
 import { LogsPage } from '@/pages/LogsPage'
 import { ImagesPage } from '@/pages/ImagesPage'
 import { ImageInspectorPage } from '@/pages/ImageInspectorPage'
-import { SearchPage } from '@/pages/SearchPage'
 import { GeoMapPage } from '@/pages/GeoMapPage'
 import { EmbeddingAtlasPage } from '@/features/embedding-atlas/pages/EmbeddingAtlasPage'
 import { DbPage } from '@/pages/DbPage'
@@ -50,7 +49,6 @@ export default function App() {
             <Route path="/images/:imageId" element={<ImageInspectorPage />} />
             <Route path="/embeddings" element={<ProtectedAtlasRoute />} />
             <Route path="/db" element={<ProtectedDbRoute />} />
-            <Route path="/search" element={<SearchPage />} />
             <Route path="/map" element={<GeoMapPage />} />
             <Route path="/diagnostics" element={<DiagnosticsPage />} />
             <Route path="/logs" element={<LogsPage />} />

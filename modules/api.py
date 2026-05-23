@@ -688,8 +688,10 @@ class SelectorRequest(BaseModel):
 class ScoringStartRequest(SelectorRequest):
     """Request model for starting a batch image scoring job.
     
-    This endpoint initiates quality assessment of images using multiple AI models
-    (SPAQ, AVA, KonIQ, PaQ2PiQ, LIQE) to generate technical, aesthetic, and general quality scores.
+    This endpoint initiates quality assessment of images using a configurable ensemble of
+    AI models selected via the scoring.models registry (LIQE, MUSIQ variants such as SPAQ/AVA,
+    and TOPIQ; QPT V2 runs in shadow) to generate technical, aesthetic, and general quality
+    scores. See GET /api/models for the live set and per-model shadow status.
     
     Attributes:
         input_path: Directory path containing images to score. Supports Windows (D:\\...)
@@ -2086,13 +2088,17 @@ def create_api_router() -> APIRouter:
         description="""
         Initiates a batch image quality assessment job for all images in the specified directory.
         
-        The scoring process uses multiple AI models to evaluate images:
-        - **SPAQ**: Spatial Perception of Aesthetic Quality
-        - **AVA**: Aesthetic Visual Analysis
-        - **KonIQ**: Konstanz Image Quality
-        - **PaQ2PiQ**: Perceptual Quality to Perceptual Image Quality
-        - **LIQE**: Learning Image Quality Evaluator
-        
+        The scoring process uses a configurable ensemble of AI models, selected via the
+        `scoring.models` registry. Current production models include:
+        - **LIQE**: Learning Image Quality Evaluator (CLIP-based semantic quality)
+        - **SPAQ**: Smartphone Photography Aesthetics Quality (MUSIQ)
+        - **AVA**: Aesthetic Visual Analysis (MUSIQ)
+        - **TOPIQ**: Top-down Image Quality (no-reference)
+
+        Additional models run in shadow (stored but not fused) — e.g. **QPT V2** — and the
+        active set is config-driven. See `GET /api/models` for the live registry and per-model
+        shadow status.
+
         Results include:
         - Technical score (sharpness, noise, exposure)
         - Aesthetic score (composition, appeal)

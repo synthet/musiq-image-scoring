@@ -12,24 +12,31 @@ Composite scores use empirical percentile rescaling for better discrimination.
 """
 
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
-# --- Percentile Anchors (empirical, from DB analysis of 43,396 images) ---
+# --- Percentile Anchors (empirical, from DB analysis of 61,350 images) ---
 # These define the effective range of each model on our corpus.
 # Scores below p02 map to 0.0, above p98 map to 1.0.
+# Refreshed from the model-score quality report (May 2026); `topiq` added when
+# it was promoted into the live fusion. `qpt_v2` has no anchors yet — it runs in
+# shadow only and upstream inference code is not yet released.
 DEFAULT_PERCENTILE_ANCHORS = {
-    "liqe": {"p02": 0.360, "p98": 0.998},
-    "ava":  {"p02": 0.303, "p98": 0.506},
-    "spaq": {"p02": 0.267, "p98": 0.745},
+    "liqe":  {"p02": 0.311, "p98": 0.998},
+    "ava":   {"p02": 0.301, "p98": 0.524},
+    "spaq":  {"p02": 0.257, "p98": 0.760},
+    "topiq": {"p02": 0.390, "p98": 0.709},
 }
 
-# --- Composite Weights ---
+# --- Composite (fusion) Weights ---
+# "Moderate" profile adopted May 2026 after the corpus quality analysis: `topiq`
+# joins all three composites so `technical` is no longer a LIQE alias. Membership
+# and weights are overridable via `scoring.fusion` in config.json.
 DEFAULT_COMPOSITE_WEIGHTS = {
-    "general":   {"liqe": 0.45, "ava": 0.30, "spaq": 0.25},
-    "technical":  {"liqe": 1.00},
-    "aesthetic":  {"ava": 0.55, "spaq": 0.45},
+    "general":   {"liqe": 0.38, "spaq": 0.32, "topiq": 0.15, "ava": 0.15},
+    "technical": {"topiq": 0.35, "spaq": 0.30, "liqe": 0.35},
+    "aesthetic": {"ava": 0.40, "spaq": 0.50, "liqe": 0.10},
 }
 
 # --- Rating Thresholds (applied to rescaled general score) ---

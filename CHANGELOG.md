@@ -15,6 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.20.1] - 2026-05-23
+
+### Removed
+
+- **WebUI `/ui/search`**: Semantic text search page removed from the React **`/ui`** app; use **Tools → Search** in Driftara Gallery. **`/api/similarity/*`** endpoints are unchanged.
+
+### Changed
+
+- **Static `/ui` bundle**: Rebuilt after Search nav and route removal.
+
+### Fixed
+
+- **`test_score_normalization`**: Isolate fusion and percentile-anchor config from live **`config.json`** during tests.
+
 ## [7.20.0] - 2026-05-22
 
 ### Added

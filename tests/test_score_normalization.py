@@ -1,6 +1,25 @@
 """Tests for score normalization, especially missing model handling."""
 import pytest
-from modules.score_normalization import compute_composites, compute_all, rescale_scores
+from modules.score_normalization import (
+    DEFAULT_COMPOSITE_WEIGHTS,
+    DEFAULT_PERCENTILE_ANCHORS,
+    compute_all,
+    compute_composites,
+    reload_config,
+)
+
+
+@pytest.fixture(autouse=True)
+def default_fusion_config(monkeypatch):
+    """Isolate tests from live config.json fusion/anchor overrides."""
+    cfg = {
+        "percentile_anchors": DEFAULT_PERCENTILE_ANCHORS,
+        "scoring": {"fusion": DEFAULT_COMPOSITE_WEIGHTS},
+        "composite_weights": DEFAULT_COMPOSITE_WEIGHTS,
+    }
+    monkeypatch.setattr("modules.score_normalization._config_cache", cfg)
+    yield
+    reload_config()
 
 
 class TestComputeCompositesWithMissingModels:
@@ -18,23 +37,18 @@ class TestComputeCompositesWithMissingModels:
         """With only one model, composites should still be reasonable."""
         scores = {"liqe": 0.85}
         result = compute_composites(scores)
-        # Technical uses only liqe — should reflect liqe score
+        # Technical weights topiq/spaq/liqe — with only liqe present it re-normalizes to liqe.
         assert result["technical"] > 0.0
-        # General has liqe weight 0.45 — with re-normalization should be based on liqe alone
+        # General weights several models — re-normalization should keep it based on liqe alone.
         assert result["general"] > 0.0
 
     def test_missing_model_not_zero(self):
-        """Missing models should NOT pull composite toward 0."""
-        # Only liqe present — high value
-        scores_partial = {"liqe": 0.85}
-        result_partial = compute_composites(scores_partial)
-
-        # All models present with same liqe score
-        scores_full = {"liqe": 0.85, "ava": 0.85, "spaq": 0.85}
-        result_full = compute_composites(scores_full)
-
-        # The technical score (100% liqe) should be the same
-        assert abs(result_partial["technical"] - result_full["technical"]) < 0.01
+        """Missing models should NOT pull composites toward 0 (re-normalization)."""
+        # Only liqe present — high value. Every composite weights liqe, so each should
+        # re-normalize to liqe's rescaled score, not collapse toward 0.
+        result_partial = compute_composites({"liqe": 0.85})
+        for key in ("general", "technical", "aesthetic"):
+            assert result_partial[key] > 0.5, f"{key} collapsed: {result_partial[key]}"
 
     def test_empty_scores(self):
         """Empty scores dict should return 0 for all composites."""
@@ -66,5 +80,5 @@ class TestComputeCompositesWithMissingModels:
         scores = {"liqe": 0.95}
         result = compute_composites(scores)
         # With re-normalization, general should be based purely on liqe's rescaled score
-        # It should not be ~0.45 * liqe (which would happen without re-normalization)
+        # It should not be ~(liqe weight) * liqe (which would happen without re-normalization)
         assert result["general"] > 0.3  # Should be substantial, not halved

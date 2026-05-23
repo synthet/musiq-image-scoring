@@ -76,7 +76,9 @@ Thumbs.db
 *.log
 logs/
 
-# Temporary files
+# Generated score quality reports (local analysis output)
+reports/model-score-quality/
+
 *.tmp
 *.temp
 *.swp

@@ -6,6 +6,22 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-05-23] updated | Indexed pipeline model roadmap in main docs index
+
+Added [MODEL_RECOMMENDATIONS_PIPELINES.md](MODEL_RECOMMENDATIONS_PIPELINES.md) to the **Models And Scoring** section of [INDEX.md](INDEX.md) (was previously linked only from [planning/INDEX.md](planning/INDEX.md) and [log.md](log.md)). Verified the doc's license claims (ARNIQA Apache-2.0, QualiCLIP CC-BY-NC) against [reports/DEEP_RESEARCH_REPORT.md](reports/DEEP_RESEARCH_REPORT.md) and confirmed all referenced research reports exist.
+
+## [2026-05-23] updated | Current production models in pipeline recommendations
+
+Added **Current production models** section to [MODEL_RECOMMENDATIONS_PIPELINES.md](MODEL_RECOMMENDATIONS_PIPELINES.md) (scoring, culling, keywords, bird species, embedding spaces).
+
+## [2026-05-23] updated | Model use-case tables in pipeline recommendations
+
+Added [MODEL_RECOMMENDATIONS_PIPELINES.md](MODEL_RECOMMENDATIONS_PIPELINES.md) section **Model use cases by task** (scoring, stacks, stack picker, keywords) and **Add or replace?** column on implementation phases.
+
+## [2026-05-23] added | Pipeline model roadmap (Phase 0 docs)
+
+Ingested [reports/CLIP_MODELS_CULLING_SCORING_2026-05-23.md](reports/CLIP_MODELS_CULLING_SCORING_2026-05-23.md) from deep-research-report (10). Expanded [MODEL_RECOMMENDATIONS_PIPELINES.md](MODEL_RECOMMENDATIONS_PIPELINES.md) with decision matrix, OpenCLIP L/14 alternate track, CLIP culling workflow rules, and implementation phases. Updated [planning/INDEX.md](planning/INDEX.md) and [reports/INDEX.md](reports/INDEX.md).
+
 ## [2026-05-22] added | Frontend UX/UI Visual Specification
 
 Added `docs/design/FRONTEND_VISUAL_SPEC.md` documenting the React frontend visual styling (typography, layout, Map UI overrides) building on top of the VS Code Dark+ `DESIGN_SYSTEM.md`. Updated `docs/design/INDEX.md`.
