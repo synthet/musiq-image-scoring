@@ -23,6 +23,7 @@ from modules.engines.registry import (
     get_registry,
     reset_registry,
 )
+from modules.engines.qpt_v2_model import QptV2ModelWrapper
 from modules.engines.topiq_model import TopiqModelWrapper
 
 __all__ = [
@@ -42,6 +43,7 @@ __all__ = [
     "make_musiq_wrappers",
     "LiqeModelWrapper",
     "TopiqModelWrapper",
+    "QptV2ModelWrapper",
     "CursorModelWrapper",
     "ClaudeModelWrapper",
     "MultiModelHost",
@@ -51,6 +53,7 @@ __all__ = [
 # its pyiqa backend on first `load()`, so this is cheap (no torch import here).
 # Production vs. shadow membership is decided by `scoring.models` in config.
 get_registry().register(TopiqModelWrapper())
+get_registry().register(QptV2ModelWrapper())
 
 # LLM-judge engines (Cursor SDK, Claude Agent SDK). Both lazy-load their
 # optional SDKs on first `load()` and are disabled by default in config, so

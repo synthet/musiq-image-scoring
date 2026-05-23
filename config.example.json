@@ -26,7 +26,12 @@
       "liqe":   { "enabled": true,  "shadow": false },
       "topiq":  { "enabled": true,  "shadow": false },
       "cursor": { "enabled": false, "shadow": false },
-      "claude": { "enabled": false, "shadow": false }
+      "claude": { "enabled": false, "shadow": false },
+      "qpt_v2": { "enabled": false, "shadow": true }
+    },
+    "qpt_v2": {
+      "checkpoint_path": "models/qpt_v2.pth",
+      "max_dimension": 1024
     },
     "cursor": {
       "model": "composer-2.5",

@@ -16,6 +16,7 @@ from modules.engines.host import MultiModelHost
 from modules.engines.liqe_model import LiqeModelWrapper
 from modules.engines.musiq_model import MusiqModelWrapper, make_musiq_wrappers
 from modules.engines.registry import ModelRegistry
+from modules.engines.qpt_v2_model import QptV2ModelWrapper
 from modules.engines.topiq_model import TopiqModelWrapper
 
 
@@ -90,6 +91,20 @@ class _StubTopiqScorer:
     VERSION = "topiq-stub-1"
 
     def __init__(self, score: float = 0.62, status: str = "success") -> None:
+        self._score = score
+        self._status = status
+
+    def predict(self, _path: str) -> Dict[str, Any]:
+        if self._status != "success":
+            return {"status": "failed", "error": "boom"}
+        return {"score": self._score, "status": "success", "score_range": "0.0-1.0"}
+
+
+class _StubQptV2Scorer:
+    available = True
+    VERSION = "qpt-v2-stub-1"
+
+    def __init__(self, score: float = 0.71, status: str = "success") -> None:
         self._score = score
         self._status = status
 
@@ -232,6 +247,42 @@ def test_topiq_normalize_matches_native_range():
     assert topiq.normalize(0.0) == pytest.approx(0.0)
     assert topiq.normalize(0.5) == pytest.approx(0.5)
     assert topiq.normalize(1.0) == pytest.approx(1.0)
+
+
+# ---------- QptV2ModelWrapper ----------
+
+def test_qpt_v2_wrapper_predict_success():
+    qpt = QptV2ModelWrapper(scorer=_StubQptV2Scorer(score=0.71))
+    assert qpt.name == "qpt_v2"
+    assert qpt.score_range == (0.0, 1.0)
+    assert qpt.framework == "torch"
+    assert qpt.load() is True
+    out = qpt.predict("/x.jpg")
+    assert out == {"score": 0.71, "status": "success", "error": None}
+
+
+def test_qpt_v2_wrapper_failed_status_propagates():
+    qpt = QptV2ModelWrapper(scorer=_StubQptV2Scorer(status="failed"))
+    qpt.load()
+    out = qpt.predict("/x.jpg")
+    assert out["status"] == "failed"
+    assert out["score"] is None
+
+
+def test_qpt_v2_wrapper_unloaded_returns_not_loaded():
+    class _Unavailable:
+        available = False
+
+    qpt = QptV2ModelWrapper(scorer=_Unavailable())
+    out = qpt.predict("/x.jpg")
+    assert out["status"] == "not_loaded"
+
+
+def test_qpt_v2_normalize_matches_native_range():
+    qpt = QptV2ModelWrapper(scorer=_StubQptV2Scorer())
+    assert qpt.normalize(0.0) == pytest.approx(0.0)
+    assert qpt.normalize(0.5) == pytest.approx(0.5)
+    assert qpt.normalize(1.0) == pytest.approx(1.0)
 
 
 # ---------- MultiModelHost ----------
