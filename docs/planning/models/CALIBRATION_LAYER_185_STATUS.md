@@ -45,6 +45,24 @@ Two residual problems remain before calibration is meaningful:
    in `image_model_scores`; computing them requires a full shadow-scoring pass over the
    corpus, which needs the DB (see Blocker B).
 
+#### Validation attempts (2026-05-24, 20–30 sample thumbnails)
+
+Offline checks (no labelled set / corpus available — thumbnails are a weak substrate):
+
+| Check | Result | Read |
+|-------|--------|------|
+| Graded blur monotonicity (σ 0→4), squash-resize | mean Spearman **−0.66** | correct sign, weak |
+| Same, **resize-short-256 + center-crop** (now the default) | mean Spearman **−0.81** | better — preprocessing matters; adopted |
+| QPT-V2 vs NIQE (same images) | Spearman **+0.36** (p≈0.05) | **wrong sign**, weak — NIQE unreliable on thumbnails, but not reassuring |
+
+**Read:** the reconstruction is structurally exact (172/172 tensors) and directionally
+sensitive to blur, but does **not** yet track quality reliably (target blur-Spearman ≤ −0.9;
+NIQE cross-check wrong sign). Center-crop preprocessing was adopted (`QptV2Scorer._preprocess`)
+as it both follows the standard eval recipe and measurably helps. Remaining gap is likely
+further recipe details (token pooling, exact crop/resolution) and/or the thumbnail substrate.
+**Do not trust scores yet; keep `qpt_v2` shadow.** Next: validate on full-resolution images
+against a labelled MOS set, or recover the upstream recipe.
+
 **Unblocks when:** (a) the reconstruction is validated against a labelled set (or upstream
 ships the real recipe), and (b) a shadow-scoring pass populates `image_model_scores`, after
 which anchors can be computed and the raw range mapped to 0–1.
