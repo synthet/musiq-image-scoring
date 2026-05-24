@@ -30,6 +30,13 @@ _MUSIQ_RANGES: Dict[str, Tuple[float, float]] = {
     "vila": (0.0, 1.0),
 }
 
+# MUSIQ-family variants retired from the live registry. The ranges above are
+# kept so historical `image_model_scores` rows still normalize, but these are
+# no longer wired into scoring: `make_musiq_wrappers` refuses to build them and
+# logs a deprecation warning if a config still requests them. `vila` was
+# deprecated earlier (see docs/technical/MODELS_SUMMARY.md).
+_DEPRECATED_MUSIQ: frozenset = frozenset({"koniq", "paq2piq", "vila"})
+
 
 class MusiqModelWrapper(IScoringModel):
     """One scoring model from the MUSIQ family (SPAQ, AVA, KONIQ, PAQ2PIQ, VILA).
@@ -83,14 +90,21 @@ class MusiqModelWrapper(IScoringModel):
 def make_musiq_wrappers(backend: Any, names: Optional[list[str]] = None) -> list[MusiqModelWrapper]:
     """Build wrappers for the requested MUSIQ models, sharing one backend.
 
-    Defaults to the production set (`spaq`, `ava`). Pass an explicit list to
-    register additional models like `koniq` or `paq2piq` from config.
+    Defaults to the production set (`spaq`, `ava`). Deprecated variants
+    (`koniq`, `paq2piq`, `vila`) are skipped with a warning even if requested.
     """
     wanted = names if names is not None else ["spaq", "ava"]
     out: list[MusiqModelWrapper] = []
     for name in wanted:
         if name not in _MUSIQ_RANGES:
             logger.warning("Skipping unknown MUSIQ model %r", name)
+            continue
+        if name in _DEPRECATED_MUSIQ:
+            logger.warning(
+                "MUSIQ model %r is deprecated and no longer wired; skipping. "
+                "Remove it from the scoring config.",
+                name,
+            )
             continue
         out.append(MusiqModelWrapper(name=name, backend=backend))
     return out

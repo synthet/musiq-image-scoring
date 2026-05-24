@@ -212,6 +212,9 @@ test_log.txt
 # Model Checkpoints
 models/checkpoints/*.npz
 models/checkpoints/vila-tensorflow2-image-v1/
+# QPT V2 weights (download iqa.pth from KeiChiTse/QPT-V2; ~75MB, never commit)
+models/qpt_v2.pth
+models/*.pth
 
 # Visual Studio & Test Results
 .vs/

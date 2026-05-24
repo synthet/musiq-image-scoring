@@ -11,12 +11,17 @@ production vs. shadow membership is decided by `scoring.models` in `config.json`
 
 The backbone of the scoring system. Processing multi-scale inputs to capture global and local details.
 
+**Live variants** (registered by `modules/engines/factory.py`, fused — production):
+
 | Variant | Dataset | Range | Role |
 |---------|---------|-------|------|
-| **KONIQ** | KonIQ-10k | 0-100 | **Reliability**. Large dataset of in-the-wild images. |
 | **SPAQ** | SPAQ | 0-100 | **Discrimination**. Smartphone photography dataset. |
-| **PAQ2PIQ**| PaQ-2-PiQ | 0-100 | **Detail**. Massive dataset, good for artifacts. |
 | **AVA** | AVA | 1-10 | **Legacy Aesthetic**. Professional curation dataset. |
+
+**Deprecated variants (not wired):** `KONIQ` (KonIQ-10k) and `PAQ2PIQ` (PaQ-2-PiQ)
+are no longer registered into the live scorer. `make_musiq_wrappers` skips them with
+a warning, and their score ranges are retained in `modules/engines/musiq_model.py`
+only so historical `image_model_scores` rows still normalize.
 
 ## 2. LIQE (Language-Image Quality Evaluator)
 *PyTorch Implementation*
@@ -40,13 +45,21 @@ analysis. It contributes to all three composites under the "moderate" profile
 ## 4. QPT V2 (Quality-aware Pre-Training V2)
 *PyTorch Implementation (shadow)*
 
-**Status: Shadow (not fused)**
+**Status: Shadow (not fused) — runs via local re-implementation, UNVALIDATED**
 Registered as a shadow model (`scoring.models.qpt_v2: {enabled: false, shadow: true}`):
-it runs and stores scores into `image_model_scores` but is excluded from fusion. Upstream
-inference code (`KeiChiTse/QPT-V2`) is not yet published, so the wrapper reports
-`available=false` and produces no rows until the package ships. Calibration anchors are
-blocked on that release (#185).
-- **Module**: `modules/engines/qpt_v2_model.py` (wraps `modules/qpt_v2.py`).
+it stores scores into `image_model_scores` while staying excluded from fusion. Upstream
+(`KeiChiTse/QPT-V2`) published **checkpoints only** (`iqa.pth`, `iaa.pth`, `vqa_*.pth`);
+the inference code is an open upstream TODO. We reconstruct the HiViT-T architecture
+locally in `modules/qpt_v2_arch.py` (derived from the `iqa.pth` state dict, strict-loads
+all 172 tensors). Drop `iqa.pth` at `scoring.qpt_v2.checkpoint_path` (default
+`models/qpt_v2.pth`) to activate.
+- **Caveat**: the upstream inference recipe (preprocessing, pooling, merge order) is
+  undocumented. Scores are directionally meaningful (blur lowers them) but **unvalidated
+  and uncalibrated**; raw output is roughly `[-0.25, 0]`, *not* 0–1. Keep it in shadow and
+  treat scores as provisional until calibration anchors are computed (#185). See
+  [QPT-V2 issue #2](https://github.com/KeiChiTse/QPT-V2/issues/2).
+- **Module**: `modules/engines/qpt_v2_model.py` (wraps `modules/qpt_v2.py`,
+  arch in `modules/qpt_v2_arch.py`).
 
 ## 5. LLM-judge engines (Cursor / Claude)
 *Optional, disabled by default*
