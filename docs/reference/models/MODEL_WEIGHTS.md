@@ -43,13 +43,19 @@ runs and stores scores but is excluded from composite fusion until promoted in #
 
 ### Checkpoint acquisition
 
-1. Install the inference package:
-   ```
-   pip install git+https://github.com/KeiChiTse/QPT-V2
-   ```
-2. Download the HiViT-T checkpoint from the [GitHub releases](https://github.com/KeiChiTse/QPT-V2).
-3. Place the file at `models/qpt_v2.pth` relative to the repo root,
+> ⚠️ **Runs locally, but unvalidated.** Upstream [KeiChiTse/QPT-V2](https://github.com/KeiChiTse/QPT-V2)
+> published **checkpoints only** (inference code is still an open TODO). The architecture is
+> reconstructed locally in `modules/qpt_v2_arch.py` from the `iqa.pth` state dict and
+> strict-loads all 172 tensors. The undocumented inference recipe means scores are
+> directionally meaningful but **uncalibrated** — keep `qpt_v2` in shadow (see #185).
+
+1. Download the task checkpoint from the repo's `checkpoints/` directory
+   (`iqa.pth` for image quality, `iaa.pth` for aesthetics) — these are git-lfs files
+   in-repo (~75 MB), not under GitHub releases. Direct URL:
+   `https://media.githubusercontent.com/media/KeiChiTse/QPT-V2/master/checkpoints/iqa.pth`.
+2. Place the file at `models/qpt_v2.pth` relative to the repo root (git-ignored),
    **or** set `scoring.qpt_v2.checkpoint_path` in `config.json` to an absolute path.
+3. That's it — `QptV2Scorer` reports `available=true` and produces shadow scores.
 
 ### Target weights (post-calibration, issue #185)
 

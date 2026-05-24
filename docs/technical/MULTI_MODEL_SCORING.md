@@ -12,7 +12,7 @@ This script runs all available MUSIQ (Multi-scale Image Quality Transformer) mod
 
 ## Features
 
-- **Multiple Models**: Runs SPAQ, AVA, KONIQ, and PAQ2PIQ models
+- **Multiple Models**: The live pipeline runs SPAQ + AVA (MUSIQ family); KONIQ and PAQ2PIQ are deprecated and no longer wired
 - **GPU Acceleration**: Full CUDA support with automatic CPU fallback
 - **JSON Output**: Structured results with scores, ranges, and normalized values
 - **Drag-and-Drop**: Easy-to-use batch and PowerShell scripts
@@ -26,8 +26,8 @@ This script runs all available MUSIQ (Multi-scale Image Quality Transformer) mod
 |-------|---------|-------------|-------------|
 | SPAQ | SPAQ | 0.0 - 100.0 | Smartphone Photography Aesthetics Quality |
 | AVA | AVA | 1.0 - 10.0 | Aesthetic Visual Analysis |
-| KONIQ | KONIQ-10K | 0.0 - 100.0 | Konstanz Natural Image Quality (legacy — not in default fusion) |
-| PAQ2PIQ | PAQ2PIQ | 0.0 - 100.0 | Perceptual Assessment of Image Quality (legacy — not in default fusion) |
+| KONIQ | KONIQ-10K | 0.0 - 100.0 | Konstanz Natural Image Quality (**deprecated** — not wired into the live registry) |
+| PAQ2PIQ | PAQ2PIQ | 0.0 - 100.0 | Perceptual Assessment of Image Quality (**deprecated** — not wired into the live registry) |
 
 ### Registry models (live pipeline)
 

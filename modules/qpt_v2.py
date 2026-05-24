@@ -1,20 +1,27 @@
-"""Persistent QPT V2 scorer (custom PyTorch, HiViT-T backbone).
+"""Persistent QPT V2 scorer (HiViT-T backbone, local re-implementation).
 
-QPT V2 (Quality-aware Pre-Training V2) is a no-reference IQA/IAA model
-based on masked image modeling (ACM MM 2024). Checkpoint source:
+QPT V2 (Quality-aware Pre-Training V2) is a no-reference IQA/IAA model based on
+masked image modeling (ACM MM 2024). Source:
     KeiChiTse/QPT-V2 — https://github.com/KeiChiTse/QPT-V2
 
-Unlike TOPIQ-NR and LIQE, QPT V2 is not available via pyiqa. The scorer
-requires:
-  1. The QPT V2 package installed:
-         pip install git+https://github.com/KeiChiTse/QPT-V2
-  2. The HiViT-T checkpoint placed at the path given by
-     ``scoring.qpt_v2.checkpoint_path`` in config.json
-     (default: ``models/qpt_v2.pth`` relative to BASE_DIR).
+Upstream released **checkpoints only** (``checkpoints/iqa.pth``, ``iaa.pth``,
+``vqa_*.pth``); inference/training code remain open TODOs, so there is no
+installable ``qpt_v2`` package. We instead reconstruct the architecture locally
+in ``modules.qpt_v2_arch`` (derived from the published ``iqa.pth`` state dict)
+and strict-load it. To enable scoring:
 
-If either prerequisite is missing the scorer sets ``available = False`` and
-logs a warning; all engine machinery (registration, shadow scoring, DB writes)
-continues normally.
+    Download ``iqa.pth`` from the repo's ``checkpoints/`` directory and point
+    ``scoring.qpt_v2.checkpoint_path`` at it (default: ``models/qpt_v2.pth``
+    relative to BASE_DIR).
+
+If torch/torchvision or the checkpoint are missing the scorer sets
+``available = False`` and logs a warning; all engine machinery (registration,
+shadow scoring, DB writes) continues normally.
+
+ACCURACY CAVEAT: the upstream inference recipe (preprocessing/crop, pooling,
+merge order) is undocumented. Locally-produced scores are directionally
+meaningful (e.g. blur lowers them) but UNVALIDATED and UNCALIBRATED — keep
+qpt_v2 in shadow until anchors are computed (#185). See QPT-V2 issue #2.
 
 The matching ``IScoringModel`` adapter is ``modules.engines.qpt_v2_model``.
 """
@@ -59,6 +66,7 @@ class QptV2Scorer:
     """
 
     DEFAULT_MAX_DIM = 1024
+    INPUT_SIZE = 224  # HiViT-T expects fixed 224x224 (absolute_pos_embed = 14x14 tokens)
     VERSION = "qpt-v2-1"
     SCORE_RANGE = "0.0-1.0"
 
@@ -135,31 +143,31 @@ class QptV2Scorer:
     # ------------------------------------------------------------------
 
     def _load_model(self, checkpoint_path: str) -> None:
-        """Load the HiViT-T model from *checkpoint_path*.
+        """Load the QPT V2 model from *checkpoint_path* via the local HiViT-T
+        re-implementation (``modules.qpt_v2_arch``).
 
-        Requires the qpt_v2 package:
-            pip install git+https://github.com/KeiChiTse/QPT-V2
-
-        Once the QPT V2 repository releases inference code the import path
-        below (``from qpt_v2.models import build_model``) should be verified
-        against the published API and updated if needed.
+        Upstream has not released inference code (open TODO in the
+        KeiChiTse/QPT-V2 README), so we reconstruct the architecture from the
+        published ``iqa.pth`` and strict-load ``ckpt['params']``. Scores are
+        directionally meaningful but UNVALIDATED/UNCALIBRATED — see the module
+        docstring of ``modules.qpt_v2_arch`` and QPT-V2 issue #2.
         """
         try:
-            from qpt_v2.models import build_model  # type: ignore[import]
-        except ImportError:
-            logger.warning(
-                "QPT V2: package not installed. "
-                "Install with: pip install git+https://github.com/KeiChiTse/QPT-V2"
-            )
+            from modules.qpt_v2_arch import load_qpt_v2
+        except Exception as exc:
+            logger.error("QPT V2: could not import local architecture: %s", exc)
             return
 
         try:
-            checkpoint = torch.load(checkpoint_path, map_location=self.device)
-            state_dict = checkpoint.get("model", checkpoint)
-            self._model = build_model()
-            self._model.load_state_dict(state_dict)
-            self._model.eval()
-            self._model.to(self.device)
+            model = load_qpt_v2(checkpoint_path, device=self.device)
+            if model is None:
+                logger.warning(
+                    "QPT V2: checkpoint at '%s' did not match the expected HiViT-T "
+                    "structure; scoring stays disabled.",
+                    checkpoint_path,
+                )
+                return
+            self._model = model
             self._normalize_transform = T.Normalize(_IMAGENET_MEAN, _IMAGENET_STD)
             self.available = True
             logger.info("QPT V2 model loaded on %s from %s", self.device, checkpoint_path)
@@ -171,11 +179,13 @@ class QptV2Scorer:
     # ------------------------------------------------------------------
 
     def _preprocess(self, img: Image.Image) -> "torch.Tensor":
-        """PIL image → float tensor on device, resized to ≤ max_dimension."""
-        if max(img.size) > self.max_dimension:
-            ratio = self.max_dimension / max(img.size)
-            new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
-            img = img.resize(new_size, Image.BICUBIC)
+        """PIL image → float tensor on device, resized to the fixed HiViT input.
+
+        HiViT-T uses a fixed-size absolute position embedding (14x14 tokens), so
+        the input must be exactly ``INPUT_SIZE`` x ``INPUT_SIZE``. Aspect ratio
+        is not preserved — this matches the simplest documented recipe; the exact
+        upstream crop strategy is unknown (see ``modules.qpt_v2_arch``)."""
+        img = img.resize((self.INPUT_SIZE, self.INPUT_SIZE), Image.BICUBIC)
         tensor = TF.to_tensor(img)
         tensor = self._normalize_transform(tensor)
         return tensor.unsqueeze(0).to(self.device)

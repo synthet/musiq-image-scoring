@@ -178,6 +178,13 @@ def test_make_musiq_wrappers_skips_unknown():
     assert [w.name for w in wrappers] == ["spaq", "ava"]
 
 
+def test_make_musiq_wrappers_skips_deprecated():
+    backend = _StubMusiqBackend()
+    wrappers = make_musiq_wrappers(backend, names=["spaq", "koniq", "paq2piq", "vila", "ava"])
+    # Deprecated variants are not wired, even when explicitly requested.
+    assert [w.name for w in wrappers] == ["spaq", "ava"]
+
+
 # ---------- LiqeModelWrapper ----------
 
 def test_liqe_wrapper_predict_success():
