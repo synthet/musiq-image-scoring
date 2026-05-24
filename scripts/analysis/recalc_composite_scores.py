@@ -39,7 +39,9 @@ log = logging.getLogger(__name__)
 NEW_VERSION = "5.1.0"
 
 LEGACY_MODELS = ("liqe", "ava", "spaq")
-IMS_MODELS = ("topiq",)
+# Models read from image_model_scores (production rows only). `arniqa` joined the
+# fusion in May 2026 after its full-corpus shadow backfill was promoted.
+IMS_MODELS = ("topiq", "arniqa")
 ALL_MODELS = LEGACY_MODELS + IMS_MODELS
 
 
@@ -110,28 +112,33 @@ def fetch_scored_images(conn, folder_path: Optional[str] = None) -> List[dict]:
         return rows
 
     ids = [r["id"] for r in rows]
-    topiq_by_id: Dict[int, float] = {}
+    # model -> {image_id: normalized} for every image_model_scores fusion model
+    ims_by_model: Dict[str, Dict[int, float]] = {m: {} for m in IMS_MODELS}
     batch_size = 5000
+    model_ph = ",".join(["?"] * len(IMS_MODELS))
     for start in range(0, len(ids), batch_size):
         batch = ids[start : start + batch_size]
         ph = ",".join(["?"] * len(batch))
         ims_query = f"""
-            SELECT ims.image_id, ims.normalized
+            SELECT ims.image_id, ims.model_name, ims.normalized
             FROM image_model_scores ims
             WHERE ims.image_id IN ({ph})
-              AND ims.model_name = 'topiq'
+              AND ims.model_name IN ({model_ph})
               AND ims.status = 'success'
               AND ims.is_shadow = FALSE
               AND ims.normalized IS NOT NULL
         """
-        c.execute(ims_query, batch)
+        c.execute(ims_query, list(batch) + list(IMS_MODELS))
         for ims_row in _rows_to_dicts(c):
-            topiq_by_id[ims_row["image_id"]] = float(ims_row["normalized"])
+            m = str(ims_row["model_name"]).lower()
+            if m in ims_by_model:
+                ims_by_model[m][ims_row["image_id"]] = float(ims_row["normalized"])
 
     for row in rows:
-        tid = row["id"]
-        if tid in topiq_by_id:
-            row["topiq"] = topiq_by_id[tid]
+        rid = row["id"]
+        for m in IMS_MODELS:
+            if rid in ims_by_model[m]:
+                row[m] = ims_by_model[m][rid]
 
     return rows
 
@@ -253,8 +260,9 @@ def main() -> None:
         conn.close()
         return
 
-    topiq_count = sum(1 for r in rows if r.get("topiq") is not None)
-    log.info("Images with TOPIQ score: %d / %d", topiq_count, len(rows))
+    for m in IMS_MODELS:
+        cnt = sum(1 for r in rows if r.get(m) is not None)
+        log.info("Images with %s score: %d / %d", m.upper(), cnt, len(rows))
 
     t0 = time.time()
     updates, stats = recalculate(rows)

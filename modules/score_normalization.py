@@ -20,21 +20,28 @@ logger = logging.getLogger(__name__)
 # These define the effective range of each model on our corpus.
 # Scores below p02 map to 0.0, above p98 map to 1.0.
 # Refreshed from the model-score quality report (May 2026); `topiq` added when
-# it was promoted into the live fusion. `qpt_v2` is not registered until #185.
+# it was promoted into the live fusion. `arniqa` anchors come from the full-corpus
+# shadow backfill (61,350 images, p02≈0.467 / p98≈0.746, effective range ~0.28):
+# they calibrate the shadow scores but do NOT enter fusion (see `scoring.fusion`).
+# `qpt_v2` is not registered until #185.
 DEFAULT_PERCENTILE_ANCHORS = {
-    "liqe":  {"p02": 0.311, "p98": 0.998},
-    "ava":   {"p02": 0.301, "p98": 0.524},
-    "spaq":  {"p02": 0.257, "p98": 0.760},
-    "topiq": {"p02": 0.390, "p98": 0.709},
+    "liqe":   {"p02": 0.311, "p98": 0.998},
+    "ava":    {"p02": 0.301, "p98": 0.524},
+    "spaq":   {"p02": 0.257, "p98": 0.760},
+    "topiq":  {"p02": 0.390, "p98": 0.709},
+    "arniqa": {"p02": 0.467, "p98": 0.746},
 }
 
 # --- Composite (fusion) Weights ---
 # "Moderate" profile adopted May 2026 after the corpus quality analysis: `topiq`
-# joins all three composites so `technical` is no longer a LIQE alias. Membership
-# and weights are overridable via `scoring.fusion` in config.json.
+# joins all three composites so `technical` is no longer a LIQE alias. `arniqa`
+# promoted from shadow into `general` + `technical` (May 2026) after full-corpus
+# calibration — it is a technical NR-IQA signal (~uncorrelated with aesthetic),
+# so it is intentionally absent from `aesthetic`. Membership and weights are
+# overridable via `scoring.fusion` in config.json.
 DEFAULT_COMPOSITE_WEIGHTS = {
-    "general":   {"liqe": 0.38, "spaq": 0.32, "topiq": 0.15, "ava": 0.15},
-    "technical": {"topiq": 0.35, "spaq": 0.30, "liqe": 0.35},
+    "general":   {"liqe": 0.35, "spaq": 0.30, "topiq": 0.13, "arniqa": 0.10, "ava": 0.12},
+    "technical": {"topiq": 0.30, "arniqa": 0.25, "spaq": 0.25, "liqe": 0.20},
     "aesthetic": {"ava": 0.40, "spaq": 0.50, "liqe": 0.10},
 }
 

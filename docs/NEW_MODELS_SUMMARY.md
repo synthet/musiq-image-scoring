@@ -28,7 +28,7 @@ flowchart LR
     MUSIQ[MUSIQ SPAQ + AVA]
     LIQE[LIQE]
     TOPIQ[TOPIQ-NR]
-    ARNIQA[ARNIQA shadow only]
+    ARNIQA[ARNIQA technical]
   end
   subgraph culling [Culling phase]
     MN[MobileNetV2 1280-d]
@@ -45,8 +45,7 @@ flowchart LR
 
 | Pipeline | Models | Notes |
 |----------|--------|-------|
-| **Scoring** | MUSIQ (SPAQ, AVA), LIQE, TOPIQ-NR | Fused into composites; KONIQ/PAQ2PIQ deprecated from registry |
-| **Scoring (shadow)** | ARNIQA | pyiqa no-reference IQA; runs + stores to `image_model_scores`, **not fused**, uncalibrated |
+| **Scoring** | MUSIQ (SPAQ, AVA), LIQE, TOPIQ-NR, **ARNIQA** | Fused into composites; KONIQ/PAQ2PIQ deprecated from registry. ARNIQA promoted from shadow (May 2026) into general+technical |
 | **Scoring (disabled)** | QPT-V2 | Reconstructed HiViT-T; **not registered** until validation (#185) |
 | **Culling** | MobileNetV2 ImageNet GAP | Default embedding space `mobilenet_v2_imagenet_gap` |
 | **Keywords** | CLIP B/32, BLIP, BioCLIP 2 | CLIP for tags; BLIP for captions; BioCLIP for bird species |
@@ -55,18 +54,17 @@ flowchart LR
 
 ## New / roadmap models (by pipeline)
 
-### Scoring — ARNIQA (implemented — shadow)
+### Scoring — ARNIQA (production — fused)
 
 - **What:** No-reference IQA (distortion-focused), Apache-2.0, PyTorch (via `pyiqa`)
 - **Role:** Technical quality signal — blur, noise, compression
-- **Posture:** **Shadow now** (`scoring.models.arniqa: {enabled: false, shadow: true}`) →
-  calibrate on local corpus → optional composite input
-- **Status:** Registered at import time in `modules/engines/__init__.py`; scores persist
-  to `image_model_scores` but are **excluded from fusion**. No percentile anchors yet.
+- **Posture:** **Promoted to fusion (May 2026)** after full-corpus backfill + calibration.
+  Config `scoring.models.arniqa: {enabled: true, shadow: false}`.
+- **Fusion:** contributes to **general** (0.10) and **technical** (0.25); intentionally
+  **not** in aesthetic (Spearman ≈0.01 vs AVA). Anchors `p02≈0.467 / p98≈0.746`.
 - **Head:** pyiqa default `arniqa` (KonIQ head); switchable via `scoring.arniqa.metric`
 - **Modules:** `modules/arniqa.py` + `modules/engines/arniqa_model.py`
-- **Not a replacement** for MUSIQ/LIQE/TOPIQ until validated
-- **Phase:** 2 in [#220](https://github.com/synthet/image-scoring-backend/issues/220) — **done**
+- **Phase:** 2 in [#220](https://github.com/synthet/image-scoring-backend/issues/220) — **done (promoted to production)**
 
 ### Scoring — QPT-V2 (exists in code, not promoted)
 

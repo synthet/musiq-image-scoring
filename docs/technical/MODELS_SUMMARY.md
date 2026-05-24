@@ -43,16 +43,18 @@ analysis. It contributes to all three composites under the "moderate" profile
 - **Module**: `modules/engines/topiq_model.py` (wraps `modules/topiq.py`).
 
 ## 4. ARNIQA (no-reference distortion-focused IQA)
-*PyTorch Implementation (via `pyiqa`) — shadow*
+*PyTorch Implementation (via `pyiqa`) — fused (production)*
 
-**Status: Shadow (not fused) — runs and stores, excluded from fusion**
-Registered as a shadow model (`scoring.models.arniqa: {enabled: false, shadow: true}`):
-it scores every image into `image_model_scores` while staying out of the composites
-until calibrated against the local corpus (#220 phase 2, #185). ARNIQA targets
-*technical* distortions — blur, noise, compression — complementing the existing
-LIQE/TOPIQ/MUSIQ signals.
-- **Range**: 0.0 - 1.0 (higher is better). No percentile anchors yet — they are
-  computed during the calibration phase before any promotion to fusion.
+**Status: Active (fused — production)**
+Promoted from shadow into the live fusion (May 2026) after a full-corpus backfill
+(61,350 images, 0 failures) and percentile calibration. Config
+`scoring.models.arniqa: {enabled: true, shadow: false}`. ARNIQA targets *technical*
+distortions — blur, noise, compression — and is ~uncorrelated with aesthetic
+signals (Spearman ≈0.01 vs AVA, ≈0.54 vs TOPIQ), so it contributes to **general**
+and **technical** composites only (intentionally absent from **aesthetic**).
+- **Range**: 0.0 - 1.0 (higher is better; percentile anchors `p02≈0.467 / p98≈0.746`
+  from the full-corpus distribution).
+- **Fusion weights**: general 0.10, technical 0.25 (see [WEIGHTED_SCORING_STRATEGY.md](WEIGHTED_SCORING_STRATEGY.md)).
 - **Head**: pyiqa default `arniqa` (KonIQ in-the-wild regression head, best fit for
   general photography); switchable via `scoring.arniqa.metric` (e.g. `arniqa-spaq`).
 - **License**: Apache-2.0.

@@ -9,17 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **ARNIQA shadow scorer** (#220 phase 2): no-reference, distortion-focused IQA via `pyiqa`
-  (`modules/arniqa.py` + `modules/engines/arniqa_model.py`). Registered at import time and
-  runs in **shadow** by default (`scoring.models.arniqa: {enabled: false, shadow: true}`) —
-  scores persist to `image_model_scores` but are excluded from fusion until calibrated.
-  Head selectable via `scoring.arniqa.metric` (default `arniqa`, KonIQ head).
-
 ### Roadmap (not yet released)
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
+
+## [7.22.0] - 2026-05-24
+
+### Added
+
+- **ARNIQA scorer** (#220 phase 2): no-reference, distortion-focused IQA via `pyiqa`
+  (`modules/arniqa.py` + `modules/engines/arniqa_model.py`). Registered at import time;
+  head selectable via `scoring.arniqa.metric` (default `arniqa`, KonIQ head).
+  - Landed in **shadow**, then **promoted to production fusion** after a full-corpus
+    backfill (61,350 images, 0 failures) and percentile calibration
+    (`arniqa: p02 0.467 / p98 0.746`).
+  - Joins **general** (0.10) and **technical** (0.25) composites; intentionally **not**
+    aesthetic (Spearman ≈0.01 vs AVA). Fusion rebalanced in `score_normalization.py` /
+    `scoring.fusion`.
+  - All 61,350 composite scores recalculated (`recalc_composite_scores.py`, now ARNIQA-aware);
+    existing `image_model_scores` ARNIQA rows flipped to `is_shadow=false`.
+
+### Changed
+
+- **Composite fusion weights** rebalanced to admit ARNIQA — technical
+  `topiq .30 / arniqa .25 / spaq .25 / liqe .20`, general
+  `liqe .35 / spaq .30 / topiq .13 / arniqa .10 / ava .12`; aesthetic unchanged.
 
 ## [7.21.0] - 2026-05-24
 
