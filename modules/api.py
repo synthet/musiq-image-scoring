@@ -98,7 +98,7 @@ from modules.pipeline_selector_composer import (
     validate_and_preview,
     serialize_queue_payload,
 )
-from modules.run_modes import infer_run_mode, resolve_run_mode_flags
+from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
 
 from modules.job_dispatcher import JobDispatcher
 from modules.maintenance_job_display import maintenance_job_input_path, build_default_maintenance_description
@@ -1377,10 +1377,6 @@ class HealPhaseRequest(BaseModel):
         ge=1,
         le=100,
         description="Schedules at most max(0, budget - active_running_or_queued_jobs) folder runs.",
-    )
-    run_mode: str = Field(
-        "validate_and_repair",
-        description="Run mode for spawned jobs (e.g. validate_and_repair, process_unprocessed_or_empty).",
     )
 
 
@@ -5980,17 +5976,11 @@ def create_api_router() -> APIRouter:
         scope_type: str = "folder_recursive"  # file|folder|folder_recursive|path_list
         scope_paths: List[str]
         stages: Optional[List[str]] = None
-        run_mode: Literal[
-            "process_all_overwrite",
-            "process_unprocessed_or_empty",
-            "validate_and_repair",
-        ] = "process_unprocessed_or_empty"
-        # Deprecated compatibility fields. These are ignored when run_mode is present.
-        skip_done: Optional[bool] = None
-        force_rerun: Optional[bool] = None
-        fix_incomplete_stages: Optional[bool] = None
-        validation_repair_mode: bool = False
-        validation_repair_dry_run: bool = False
+        run_mode: Literal["process_stale_or_missing"] = "process_stale_or_missing"
+        plan_dry_run: bool = Field(
+            False,
+            description="When true, run the stale/missing planner only and return the plan without enqueueing a job.",
+        )
         description: Optional[str] = Field(
             None,
             description="Human-readable reason/scope for this run (stored on jobs.description).",
@@ -6005,20 +5995,10 @@ def create_api_router() -> APIRouter:
         )
 
         @model_validator(mode="after")
-        def _normalize_run_mode_and_legacy_flags(self):
-            if self.validation_repair_mode:
-                # Align with fix_incomplete pipeline: JobDispatcher recomputes flags from
-                # run_mode + booleans and does not read payload.skip_existing alone; without
-                # this, default process_unprocessed_or_empty would keep skip_existing=True.
-                self.run_mode = "validate_and_repair"
-                return self
-            self.run_mode = infer_run_mode(
-                self.run_mode,
-                run_mode_explicit=("run_mode" in self.model_fields_set),
-                skip_done=self.skip_done,
-                force_rerun=self.force_rerun,
-                fix_incomplete_stages=self.fix_incomplete_stages,
-            )
+        def _normalize_run_mode(self):
+            from modules.run_modes import normalize_run_mode
+
+            self.run_mode = normalize_run_mode(self.run_mode)
             return self
 
     class ValidationRepairPreviewRequest(BaseModel):
@@ -6042,14 +6022,6 @@ def create_api_router() -> APIRouter:
         )
         limit: int = Field(50, ge=1, le=500, description="Maximum folder runs to queue in this drive tick.")
         dry_run: bool = Field(False, description="When true, return the proposed queue operations without writing jobs.")
-        run_mode: Literal[
-            "process_all_overwrite",
-            "process_unprocessed_or_empty",
-            "validate_and_repair",
-        ] = Field(
-            "validate_and_repair",
-            description="Run mode for queued jobs. validate_and_repair is safest for healing stale phase rows.",
-        )
         max_repeats: int = Field(
             2,
             ge=1,
@@ -6061,7 +6033,8 @@ def create_api_router() -> APIRouter:
             description="Generate captions during keywords runs.",
         )
 
-    @router.post("/runs/validation-repair/preview", summary="Preview validation-repair issues for scope")
+    @router.post("/runs/plan/preview", summary="Preview stale/missing work for scope")
+    @router.post("/runs/validation-repair/preview", summary="Preview stale/missing work for scope (alias)")
     async def preview_validation_repair(request: ValidationRepairPreviewRequest):
         scope_paths = [_normalize_scope_path_input(p) for p in request.scope_paths]
         scope_paths = [p for p in scope_paths if p]
@@ -6113,7 +6086,6 @@ def create_api_router() -> APIRouter:
                 folder_paths=request.folder_paths,
                 limit=request.limit,
                 dry_run=request.dry_run,
-                run_mode=request.run_mode,
                 target_phases=request.target_phases,
                 max_repeats=request.max_repeats,
                 generate_captions=request.generate_captions,
@@ -6218,13 +6190,13 @@ def create_api_router() -> APIRouter:
                 detail={"code": "missing_prerequisites", "missing": prereq_miss},
             )
 
-        mode_flags = resolve_run_mode_flags(request.run_mode)
+        mode_flags = resolve_run_mode_flags(CANONICAL_RUN_MODE)
 
         payload = {
             "scope_type": request.scope_type,
             "scope_paths": scope_paths,
             "input_path": primary_path,
-            "run_mode": request.run_mode,
+            "run_mode": CANONICAL_RUN_MODE,
             "skip_done": mode_flags["skip_done"],
             "skip_existing": mode_flags["skip_existing"],
             "force_rerun": mode_flags["force_rerun"],
@@ -6234,38 +6206,39 @@ def create_api_router() -> APIRouter:
             "phases": phase_values,
             "target_phases": phase_values,
             "generate_captions": bool(request.generate_captions),
+            "post_run_audit": True,
         }
         payload = augment_queue_payload_for_audit(payload, trigger="api", tool_id="run_submit")
         run_description = build_run_submit_description(
             scope_type=request.scope_type,
             scope_paths=scope_paths,
-            run_mode=request.run_mode,
-            validation_repair_mode=bool(request.validation_repair_mode),
+            run_mode=CANONICAL_RUN_MODE,
             phase_values=phase_values,
             client_description=request.description,
         )
-        # post_run_audit: client value wins over augment_queue_payload_for_audit; must stay after augment call.
         if request.post_run_audit is not None:
             payload["post_run_audit"] = bool(request.post_run_audit)
-        if request.validation_repair_mode or mode_flags.get("fix_incomplete_stages"):
-            try:
-                repair_plan = await asyncio.to_thread(
-                    db.build_validation_repair_plan,
-                    scope_paths,
-                    phase_values or [],
-                    bool(request.validation_repair_dry_run),
-                )
-                payload["validation_repair_summary"] = repair_plan
-                payload["resolved_image_ids_by_stage"] = repair_plan.get("stage_queues", {})
-                # Keep current runner contract for first phase as a fallback.
-                if phase_values:
-                    first = str(phase_values[0]).strip().lower()
-                    first_ids = (repair_plan.get("stage_queues", {}) or {}).get(first)
-                    if isinstance(first_ids, list):
-                        payload["resolved_image_ids"] = first_ids
-                payload["skip_existing"] = False
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"validation-repair planning failed: {e}") from e
+        try:
+            repair_plan = await asyncio.to_thread(
+                db.build_validation_repair_plan,
+                scope_paths,
+                phase_values or [],
+                bool(request.plan_dry_run),
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"run planning failed: {e}") from e
+
+        if request.plan_dry_run:
+            return {"success": True, "plan": repair_plan, "dry_run": True}
+
+        payload["repair_plan_summary"] = repair_plan
+        payload["resolved_image_ids_by_stage"] = repair_plan.get("stage_queues", {})
+        if phase_values:
+            first = str(phase_values[0]).strip().lower()
+            first_ids = (repair_plan.get("stage_queues", {}) or {}).get(first)
+            if isinstance(first_ids, list):
+                payload["resolved_image_ids"] = first_ids
+        payload["skip_existing"] = False
         try:
             job_id, position = await asyncio.wait_for(
                 asyncio.to_thread(
@@ -7123,7 +7096,6 @@ def create_api_router() -> APIRouter:
                 root_path=request.root_path,
                 dry_run=request.dry_run,
                 budget=request.budget,
-                run_mode=request.run_mode,
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e

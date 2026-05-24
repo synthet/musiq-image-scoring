@@ -45,22 +45,21 @@ def resolve_scope_stub(monkeypatch):
     monkeypatch.setattr("modules.utils.resolve_scope_input_path", _fake)
 
 
+def _submit_body(scope_path: str, stages: list[str]) -> dict:
+    return {
+        "scope_type": "folder_recursive",
+        "scope_paths": [scope_path],
+        "stages": stages,
+        "generate_captions": False,
+    }
+
+
 def test_scoring_only_returns_missing_metadata(api_client, tmp_path, _stub_compute_scope_phases):
     p = tmp_path / "scope"
     p.mkdir()
     r = api_client.post(
         "/api/runs/submit",
-        json={
-            "scope_type": "folder_recursive",
-            "scope_paths": [str(p.resolve())],
-            "stages": ["scoring"],
-            "skip_done": True,
-            "force_rerun": False,
-            "fix_incomplete_stages": False,
-            "validation_repair_mode": False,
-            "validation_repair_dry_run": False,
-            "generate_captions": False,
-        },
+        json=_submit_body(str(p.resolve()), ["scoring"]),
     )
     assert r.status_code == 400
     detail = r.json().get("detail")
@@ -74,39 +73,19 @@ def test_bird_species_only_returns_missing_keywords(api_client, tmp_path, _stub_
     p.mkdir()
     r = api_client.post(
         "/api/runs/submit",
-        json={
-            "scope_type": "folder_recursive",
-            "scope_paths": [str(p.resolve())],
-            "stages": ["bird_species"],
-            "skip_done": True,
-            "force_rerun": False,
-            "fix_incomplete_stages": False,
-            "validation_repair_mode": False,
-            "validation_repair_dry_run": False,
-            "generate_captions": False,
-        },
+        json=_submit_body(str(p.resolve()), ["bird_species"]),
     )
     assert r.status_code == 400
     detail = r.json().get("detail")
     assert detail["missing"]["bird_species"] == ["keywords"]
 
 
-def test_process_all_does_not_bypass_missing_prereq(api_client, tmp_path, _stub_compute_scope_phases):
+def test_canonical_mode_does_not_bypass_missing_prereq(api_client, tmp_path, _stub_compute_scope_phases):
     p = tmp_path / "scope"
     p.mkdir()
     r = api_client.post(
         "/api/runs/submit",
-        json={
-            "scope_type": "folder_recursive",
-            "scope_paths": [str(p.resolve())],
-            "stages": ["scoring"],
-            "skip_done": False,
-            "force_rerun": True,
-            "fix_incomplete_stages": False,
-            "validation_repair_mode": False,
-            "validation_repair_dry_run": False,
-            "generate_captions": False,
-        },
+        json=_submit_body(str(p.resolve()), ["scoring"]),
     )
     assert r.status_code == 400
 
@@ -122,23 +101,17 @@ def test_metadata_and_scoring_accepted_with_stub_enqueue(
         "modules.db.enqueue_job_with_phases",
         lambda *a, **k: (42, 0),
     )
+    monkeypatch.setattr(
+        "modules.db.build_validation_repair_plan",
+        lambda *a, **k: {"stage_queues": {}, "dry_run": False},
+    )
     _stub_compute_scope_phases.add("indexing")
 
     p = tmp_path / "scope"
     p.mkdir()
     r = api_client.post(
         "/api/runs/submit",
-        json={
-            "scope_type": "folder_recursive",
-            "scope_paths": [str(p.resolve())],
-            "stages": ["metadata", "scoring"],
-            "skip_done": True,
-            "force_rerun": False,
-            "fix_incomplete_stages": False,
-            "validation_repair_mode": False,
-            "validation_repair_dry_run": False,
-            "generate_captions": False,
-        },
+        json=_submit_body(str(p.resolve()), ["metadata", "scoring"]),
     )
     assert r.status_code == 200
     assert r.json().get("success") is True

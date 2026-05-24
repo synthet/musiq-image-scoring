@@ -19,7 +19,7 @@ REST API for the Vexlum Scoring Scoring WebUI. Base path: `/api`.
 
 **Runs queue & restart:** [RUNS_QUEUE_AND_RESTART.md](RUNS_QUEUE_AND_RESTART.md) describes how `GET /api/queue` and `JobDispatcher` relate to `jobs` rows and recovery on WebUI startup.
 
-**Runs submit modes:** [RUN_OPTIONS_MODE_MATRIX.md](RUN_OPTIONS_MODE_MATRIX.md) documents `POST /api/runs/submit` execution options (NEW / ALL / fix incomplete / validation-repair) and canonical `run_mode`.
+**Runs submit mode:** [RUN_OPTIONS_MODE_MATRIX.md](RUN_OPTIONS_MODE_MATRIX.md) documents the single canonical `run_mode` (`process_stale_or_missing`) for `POST /api/runs/submit`, JIT planner behavior, and removed legacy options.
 
 ---
 

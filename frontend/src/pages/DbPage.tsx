@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { AlertCircle } from 'lucide-react'
 import { ApiError, parseApiErrorDetail } from '@/api/client'
@@ -27,8 +28,10 @@ function isAbortError(err: unknown): boolean {
 }
 
 export function DbPage() {
+  const { tableName: tableNameParam } = useParams<{ tableName?: string }>()
+  const selectedTable = tableNameParam ? decodeURIComponent(tableNameParam) : null
+
   const [tableListOpen, setTableListOpen] = useState(true)
-  const [selectedTable, setSelectedTable] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [customSql, setCustomSql] = useState('')
   const [sqlInput, setSqlInput] = useState('')
@@ -52,10 +55,13 @@ export function DbPage() {
     staleTime: 60_000,
   })
 
+  const unknownTable =
+    !!selectedTable && !tablesLoading && tables.length > 0 && !tables.includes(selectedTable)
+
   const { data: tableCount = 0 } = useQuery({
     queryKey: ['db', 'count', selectedTable],
     queryFn: ({ signal }) => dbApi.fetchTableCount(selectedTable!, signal),
-    enabled: viewMode === 'table' && !!selectedTable,
+    enabled: viewMode === 'table' && !!selectedTable && !unknownTable,
     staleTime: 30_000,
   })
 
@@ -80,7 +86,7 @@ export function DbPage() {
     queryKey: ['db', 'table-page', selectedTable, page, pageSize],
     queryFn: ({ signal }) =>
       dbApi.fetchTablePage(selectedTable!, pageSize, tableOffset, signal),
-    enabled: viewMode === 'table' && !!selectedTable,
+    enabled: viewMode === 'table' && !!selectedTable && !unknownTable,
     placeholderData: keepPreviousData,
   })
 
@@ -96,11 +102,11 @@ export function DbPage() {
     staleTime: 0,
   })
 
-  const handleSelectTable = (table: string) => {
-    setSelectedTable(table)
+  useEffect(() => {
+    if (!selectedTable) return
     setViewMode('table')
-    setCustomSql(`SELECT * FROM "${table.replace(/"/g, '""')}" LIMIT ${pageSize}`)
-  }
+    setCustomSql(`SELECT * FROM "${selectedTable.replace(/"/g, '""')}" LIMIT ${pageSize}`)
+  }, [selectedTable, pageSize])
 
   const handleRunSql = () => {
     const trimmed = customSql.trim()
@@ -111,10 +117,13 @@ export function DbPage() {
   }
 
   const activeError = useMemo(() => {
+    if (unknownTable) {
+      return `Table not found: ${selectedTable}`
+    }
     const err = tablesError ?? (viewMode === 'table' ? tableRowsError : sqlError)
     if (!err || isAbortError(err)) return null
     return errorMessage(err)
-  }, [tablesError, tableRowsError, sqlError, viewMode])
+  }, [unknownTable, selectedTable, tablesError, tableRowsError, sqlError, viewMode])
 
   const sqlSliceStart = (sqlPage - 1) * pageSize
   const sqlSliceEnd = sqlSliceStart + pageSize
@@ -165,7 +174,7 @@ export function DbPage() {
       : sqlLoading || sqlFetching
 
   const showPagination =
-    viewMode === 'table' ? !!selectedTable : sqlRows.length > 0
+    viewMode === 'table' ? !!selectedTable && !unknownTable : sqlRows.length > 0
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-[#1e1e1e] text-[#cccccc]">
@@ -183,7 +192,6 @@ export function DbPage() {
           <DbTableSidebar
             tables={tables}
             selectedTable={selectedTable}
-            onSelectTable={handleSelectTable}
             isLoading={tablesLoading}
           />
         ) : null}

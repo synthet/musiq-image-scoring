@@ -3,8 +3,8 @@
 One-by-one full discovery: queue indexing → metadata → scoring → keywords per image
 via POST /api/runs/submit, then wait until the run finishes before submitting the next.
 
-Uses run_mode=process_unprocessed_or_empty so runners respect phase policy
-(explain_phase_run_decision) and skip work that is already done.
+Uses run_mode=process_stale_or_missing (canonical) so the JIT planner selects
+stale/missing image×phase work only.
 
 Examples (WebUI must be running; from WSL with project venv):
 
@@ -42,7 +42,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterable
 
 DEFAULT_STAGES = ["indexing", "metadata", "scoring", "keywords"]
-DEFAULT_RUN_MODE = "process_unprocessed_or_empty"
+DEFAULT_RUN_MODE = "process_stale_or_missing"
 
 JOB_TERMINAL = frozenset(
     {

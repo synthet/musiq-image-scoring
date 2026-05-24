@@ -88,7 +88,7 @@ function Invoke-BackendSmokeCheck {
         scope_type = "folder"
         scope_paths = @($smokeScope)
         stages = @("indexing")
-        run_mode = "process_unprocessed_or_empty"
+        run_mode = "process_stale_or_missing"
     }
     $submitBody = $submitPayload | ConvertTo-Json -Depth 6
     $submitResponse = Invoke-WithRetry -OperationName "POST $ApiBaseUrl/runs/submit" -MaxAttempts $MaxRetries -DelaySec $RetryBackoffSec -Operation {

@@ -472,6 +472,33 @@ def validate_readonly_sql_for_api(query: str) -> str | None:
     return None
 
 
+def _json_safe_api_value(value: Any) -> Any:
+    """Coerce driver-native values (pgvector, numpy, datetime, …) for JSON responses."""
+    if value is None:
+        return None
+    if isinstance(value, (datetime.datetime, datetime.date)):
+        return value.isoformat()
+    if isinstance(value, bytes):
+        return None
+    if isinstance(value, (int, float, str, bool)):
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_api_value(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _json_safe_api_value(v) for k, v in value.items()}
+    tolist = getattr(value, "tolist", None)
+    if callable(tolist):
+        try:
+            return tolist()
+        except (TypeError, ValueError):
+            pass
+    return str(value)
+
+
+def _json_safe_api_row(row: dict) -> dict:
+    return {str(k): _json_safe_api_value(v) for k, v in row.items()}
+
+
 def execute_readonly_sql_for_api(
     sql: str,
     params: list | None = None,
@@ -503,7 +530,7 @@ def execute_readonly_sql_for_api(
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(pg_sql, tuple(params) if params else None)
                 rows = cur.fetchmany(max_rows)
-                return [dict(r) for r in rows]
+                return [_json_safe_api_row(dict(r)) for r in rows]
 
     with connection() as conn:
         c = conn.cursor()
@@ -523,7 +550,7 @@ def execute_readonly_sql_for_api(
             c.execute(sql)
         rows = c.fetchmany(max_rows)
         columns = [d[0] for d in c.description] if c.description else []
-        return [dict(zip(columns, row)) for row in rows]
+        return [_json_safe_api_row(dict(zip(columns, row))) for row in rows]
 
 
 def validate_write_sql_for_api(query: str) -> str | None:
@@ -5173,6 +5200,14 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
     except Exception:
         pass
 
+    if broadcast_status in ("completed", "failed", "canceled", "cancelled", "interrupted"):
+        try:
+            from modules.phase_work_claims import release_claims_for_job
+
+            release_claims_for_job(int(job_id))
+        except Exception:
+            logger.debug("update_job_status: release work claims failed for job %s", job_id, exc_info=True)
+
     if broadcast_status in ("completed", "failed", "canceled", "cancelled"):
         try:
             n_ips = reconcile_stale_running_phases_for_jobs(
@@ -5884,8 +5919,18 @@ def should_run_post_completion_audit(payload: dict) -> bool:
         return True
     if payload.get("post_run_audit") is True:
         return True
-    if (payload.get("run_mode") or "").strip() == "validate_and_repair":
+    if (payload.get("run_mode") or "").strip() in (
+        "validate_and_repair",
+        "process_stale_or_missing",
+    ):
         return True
+    try:
+        from modules.run_modes import normalize_run_mode
+
+        if normalize_run_mode(payload.get("run_mode")) == "process_stale_or_missing":
+            return True
+    except ValueError:
+        pass
     return False
 
 
@@ -9191,141 +9236,11 @@ def build_validation_repair_plan(
     stage_codes: list[str] | None = None,
     dry_run: bool = True,
 ) -> dict:
-    """
-    Build and optionally apply a validation-repair plan for selected scope.
+    """Build a stale/missing work plan for scope (delegates to run_phase_planner)."""
+    from modules.run_phase_planner import plan_scope, to_legacy_repair_plan
 
-    Returns:
-      {
-        issue_counts: {issue_type: count},
-        stage_queues: {stage_code: [image_ids...]},
-        actions: {reconciled_rows, backfilled_index_meta, scoring_fix_targets},
-        repaired/skipped/failed totals
-      }
-    """
-    selected = {str(s).strip().lower() for s in (stage_codes or []) if str(s).strip()}
-    if not selected:
-        selected = {"indexing", "metadata", "scoring", "keywords", "culling"}
-
-    issue_counts: dict[str, int] = {}
-    stage_queues: dict[str, list[int]] = {}
-    actions = {
-        "reconciled_rows": 0,
-        "backfilled_index_meta": 0,
-        "scoring_fix_targets": 0,
-    }
-
-    # Seed validation from existing incomplete SQL criteria for scoring-related fields.
-    scoring_ids = _query_image_ids_by_condition_for_scope(scope_paths, _incomplete_images_where_sql("i"))
-    issue_counts["scoring_incomplete"] = len(scoring_ids)
-    if "scoring" in selected:
-        stage_queues["scoring"] = scoring_ids
-        actions["scoring_fix_targets"] = len(scoring_ids)
-
-    # Stage consistency: missing terminal done rows per phase -> queue minimal recompute.
-    if "indexing" in selected:
-        ids = _query_image_ids_by_condition_for_scope(
-            scope_paths,
-            """
-            NOT EXISTS (
-                SELECT 1 FROM image_phase_status ips
-                JOIN pipeline_phases pp ON pp.id = ips.phase_id
-                WHERE ips.image_id = i.id
-                  AND LOWER(TRIM(pp.code)) = 'indexing'
-                  AND LOWER(TRIM(ips.status)) = 'done'
-            )
-            """,
-        )
-        issue_counts["indexing_missing_or_not_done"] = len(ids)
-        stage_queues["indexing"] = ids
-
-    if "metadata" in selected:
-        ids = _query_image_ids_by_condition_for_scope(
-            scope_paths,
-            """
-            NOT EXISTS (
-                SELECT 1 FROM image_phase_status ips
-                JOIN pipeline_phases pp ON pp.id = ips.phase_id
-                WHERE ips.image_id = i.id
-                  AND LOWER(TRIM(pp.code)) = 'metadata'
-                  AND LOWER(TRIM(ips.status)) = 'done'
-            )
-            OR (i.rating IS NOT NULL AND (i.rating < 0 OR i.rating > 5))
-            """,
-        )
-        issue_counts["metadata_missing_or_out_of_range"] = len(ids)
-        stage_queues["metadata"] = ids
-
-    if "keywords" in selected:
-        ids = _query_image_ids_by_condition_for_scope(
-            scope_paths,
-            """
-            NOT EXISTS (
-                SELECT 1 FROM image_phase_status ips
-                JOIN pipeline_phases pp ON pp.id = ips.phase_id
-                WHERE ips.image_id = i.id
-                  AND LOWER(TRIM(pp.code)) = 'keywords'
-                  AND LOWER(TRIM(ips.status)) = 'done'
-            )
-            OR i.keywords IS NULL OR TRIM(CAST(i.keywords AS VARCHAR(8191))) = ''
-            """,
-        )
-        issue_counts["keywords_missing_or_not_done"] = len(ids)
-        stage_queues["keywords"] = ids
-
-    if "culling" in selected:
-        ids = _query_image_ids_by_condition_for_scope(
-            scope_paths,
-            """
-            EXISTS (
-                SELECT 1 FROM image_phase_status ips
-                JOIN pipeline_phases pp ON pp.id = ips.phase_id
-                WHERE ips.image_id = i.id
-                  AND LOWER(TRIM(pp.code)) = 'culling'
-                  AND LOWER(TRIM(ips.status)) IN ('running', 'queued', 'failed')
-            )
-            """,
-        )
-        issue_counts["culling_non_terminal"] = len(ids)
-        stage_queues["culling"] = ids
-        # Keep clustering alias in sync for dispatcher-level phase normalization.
-        stage_queues["clustering"] = list(ids)
-        issue_counts["clustering_non_terminal"] = len(ids)
-
-    repaired = 0
-    skipped = 0
-    failed = 0
-    unique_issue_ids: set[int] = set()
-    for ids in stage_queues.values():
-        unique_issue_ids.update(int(i) for i in ids)
-    if dry_run:
-        skipped = len(unique_issue_ids)
-    else:
-        try:
-            # Intentionally global: this maintenance action repairs stale rows tied to terminal jobs
-            # regardless of path and is reused as a safety pre-flight before scoped queue execution.
-            actions["reconciled_rows"] = int(reconcile_stale_running_phases_for_terminal_jobs(limit=5000))
-            repaired += actions["reconciled_rows"]
-        except Exception:
-            logger.exception("build_validation_repair_plan: reconcile terminal phases failed")
-            failed += 1
-        try:
-            for p in scope_paths or []:
-                actions["backfilled_index_meta"] += int(backfill_index_meta_for_folder(p))
-            repaired += actions["backfilled_index_meta"]
-        except Exception:
-            logger.exception("build_validation_repair_plan: backfill index/meta failed")
-            failed += 1
-
-    return {
-        "issue_counts": issue_counts,
-        "stage_queues": stage_queues,
-        "actions": actions,
-        "issue_hits": int(sum(issue_counts.values())),
-        "repaired": repaired,
-        "skipped": skipped,
-        "failed": failed,
-        "dry_run": bool(dry_run),
-    }
+    plan = plan_scope(scope_paths, stage_codes, dry_run=dry_run)
+    return to_legacy_repair_plan(plan)
 
 
 def export_db_to_json(output_path, folder_path=None, keyword_filter=None, rating_filter=None,

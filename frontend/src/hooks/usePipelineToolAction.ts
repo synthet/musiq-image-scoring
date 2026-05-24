@@ -15,8 +15,6 @@ export type PipelineToolAction =
       rootPath?: string
       budget: number
       dryRun: boolean
-      /** Defaults to validate_and_repair; heal must not use overwrite / skip-done modes */
-      runMode?: string
     }
   | {
       kind: 'backfill'
@@ -49,7 +47,6 @@ export function usePipelineToolAction(options?: UsePipelineToolActionOptions) {
             root_path: action.rootPath,
             budget: action.budget,
             dry_run: action.dryRun,
-            run_mode: action.runMode ?? 'validate_and_repair',
           })
         case 'backfill':
           return toolsApi.backfillStart(action.actionName)

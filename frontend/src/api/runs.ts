@@ -9,23 +9,10 @@ export interface RunSubmitRequest {
   scope_type: 'file' | 'folder' | 'folder_recursive' | 'path_list'
   scope_paths: string[]
   stages?: string[]
-  /** @deprecated use run_mode */
-  skip_done?: boolean
-  /** @deprecated use run_mode */
-  force_rerun?: boolean
-  /** When true, backend limits scoring to incomplete images under scope (see API docs). */
-  fix_incomplete_stages?: boolean
-  /** @deprecated use run_mode */
-  validation_repair_mode?: boolean
-  /** If true, run submits with dry-run repair actions (scan only). */
-  validation_repair_dry_run?: boolean
-  /** When true, force post-completion data-quality audit (see API / config). */
+  run_mode?: 'process_stale_or_missing'
+  plan_dry_run?: boolean
   post_run_audit?: boolean
-  /** Stored as jobs.description for troubleshooting. */
   description?: string
-  /** Run mode: process_all_overwrite | process_unprocessed_or_empty | validate_and_repair */
-  run_mode?: 'process_all_overwrite' | 'process_unprocessed_or_empty' | 'validate_and_repair'
-  /** Generate captions via BLIP during scoring run. */
   generate_captions?: boolean
 }
 
@@ -167,9 +154,7 @@ export const runsApi = {
     input_path?: string
     limit?: number
     dry_run?: boolean
-    /** Display name for the run (Tools tab); stored as the run's primary label. */
     job_name?: string
-    /** Human-readable troubleshooting text (jobs.description). */
     description?: string
     trigger?: string
     tool_id?: string

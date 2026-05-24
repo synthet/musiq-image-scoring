@@ -252,7 +252,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--base-url", default="http://127.0.0.1:7860", help="API base URL.")
     p.add_argument("--root-path", default=None, help="Optional path scope passed to heal API.")
-    p.add_argument("--run-mode", default="validate_and_repair", help="Heal run_mode.")
+    p.add_argument("--run-mode", default="process_stale_or_missing", help="Heal run_mode.")
     p.add_argument("--dry-run", action="store_true", help="Do not enqueue; only inspect heal candidates.")
     p.add_argument("--poll-seconds", type=float, default=2.0, help="Status polling interval while waiting.")
     p.add_argument(

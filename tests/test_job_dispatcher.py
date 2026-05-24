@@ -1,8 +1,29 @@
 import json
 import threading
 
+import pytest
+
 from modules.job_dispatcher import JobDispatcher
 from modules.selection_runner import SelectionRunner
+
+
+@pytest.fixture(autouse=True)
+def _stub_jit_replan_without_db(monkeypatch):
+    """Unit tests must not require Postgres for JIT replan at phase start."""
+
+    def _stub(self, job_id, payload, queue_key, input_path):
+        payload = dict(payload)
+        existing = payload.get("resolved_image_ids")
+        if isinstance(existing, list):
+            scoped = [int(x) for x in existing]
+        else:
+            scoped = [1]
+        payload["resolved_image_ids"] = scoped
+        skip_phase = len(scoped) == 0
+        return payload, scoped if scoped else None, skip_phase
+
+    monkeypatch.setattr(JobDispatcher, "_jit_replan_phase", _stub)
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_payload", lambda *a, **k: None)
 
 
 class DummyRunner:
@@ -136,9 +157,15 @@ def test_dispatcher_clustering_respects_queue_payload_force_rescan(monkeypatch):
     assert kwargs["time_gap"] == 120
 
 
-def test_dispatcher_scoring_selector_payload_preserves_none_input_path(monkeypatch):
+def test_dispatcher_scoring_empty_jit_queue_skips_phase(monkeypatch):
+    """When JIT replan finds no stale/missing work, scoring is not dispatched."""
     scoring_runner = DummyRunner()
     dispatcher = JobDispatcher(scoring_runner=scoring_runner)
+
+    def _empty_stub(self, job_id, payload, queue_key, input_path):
+        return dict(payload), [], True
+
+    monkeypatch.setattr(JobDispatcher, "_jit_replan_phase", _empty_stub)
 
     queued_job = {
         "id": 77,
@@ -153,15 +180,11 @@ def test_dispatcher_scoring_selector_payload_preserves_none_input_path(monkeypat
 
     monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
     monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.job_dispatcher.db.set_job_phase_state", lambda *a, **k: None)
 
     dispatcher._tick()
 
-    assert len(scoring_runner.calls) == 1
-    args, kwargs = scoring_runner.calls[0]
-    assert args[0] is None
-    assert args[1] == 77
-    assert args[2] is True
-    assert kwargs["resolved_image_ids"] == []
+    assert len(scoring_runner.calls) == 0
 
 
 def test_dispatcher_scoring_fix_incomplete_resolves_image_ids(monkeypatch):
@@ -344,7 +367,7 @@ def test_dispatcher_logs_resolved_count_at_entry(monkeypatch, caplog):
     assert dispatch_lines, f"missing structured dispatch log, got: {msgs}"
     line = dispatch_lines[0]
     assert "resolved_count=5" in line
-    assert "source=root" in line
+    assert "source=jit_planner" in line
     assert "job_id=4242" in line
 
 

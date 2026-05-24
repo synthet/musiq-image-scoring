@@ -97,8 +97,6 @@ export function RunsToolsTab() {
 
   const [healBudget, setHealBudget] = useState(10)
   const [healDryRun, setHealDryRun] = useState(false)
-  /** Spawned heal jobs always use validate_and_repair (fix incomplete / false-done); other run modes are inappropriate here. */
-  const healRunMode = 'validate_and_repair' as const
   const [cleanupDryRun, setCleanupDryRun] = useState(true)
 
   const {
@@ -173,7 +171,6 @@ export function RunsToolsTab() {
                   phaseCode: step.code,
                   budget: healBudget,
                   dryRun: healDryRun,
-                  runMode: healRunMode,
                   rootPath: selectedScopePath?.trim() || undefined,
                 })
               }

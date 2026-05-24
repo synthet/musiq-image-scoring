@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 import time
 
 from modules import db
-from modules.run_modes import infer_run_mode, resolve_run_mode_flags
+from modules.run_modes import CANONICAL_RUN_MODE, normalize_run_mode, resolve_run_mode_flags
 
 logger = logging.getLogger(__name__)
 
@@ -151,22 +151,75 @@ class JobDispatcher:
     @staticmethod
     def _run_mode_flags(payload: Dict[str, Any]) -> Dict[str, Any]:
         try:
-            run_mode = infer_run_mode(
-                payload.get("run_mode"),
-                run_mode_explicit=bool(payload.get("run_mode")),
-                skip_done=payload.get("skip_done"),
-                force_rerun=payload.get("force_rerun"),
-                fix_incomplete_stages=payload.get("fix_incomplete_stages"),
-            )
+            run_mode = normalize_run_mode(payload.get("run_mode"))
         except ValueError:
-            run_mode = infer_run_mode(
-                None,
-                run_mode_explicit=False,
-                skip_done=payload.get("skip_done"),
-                force_rerun=payload.get("force_rerun"),
-                fix_incomplete_stages=payload.get("fix_incomplete_stages"),
-            )
+            run_mode = CANONICAL_RUN_MODE
         return resolve_run_mode_flags(run_mode)
+
+    @staticmethod
+    def _fresh_payload(job_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            row = db.get_job_by_id(job_id)
+            if row:
+                return JobDispatcher._parse_queue_payload(row)
+        except Exception:
+            logger.debug("Failed to reload queue_payload for job %s", job_id, exc_info=True)
+        return payload
+
+    @staticmethod
+    def _persist_stage_queue(
+        job_id: int,
+        payload: Dict[str, Any],
+        queue_key: str,
+        image_ids: List[int],
+    ) -> Dict[str, Any]:
+        stage_queues = dict(payload.get("resolved_image_ids_by_stage") or {})
+        stage_queues[queue_key] = list(image_ids)
+        if queue_key == "culling":
+            stage_queues["clustering"] = list(image_ids)
+        payload = dict(payload)
+        payload["resolved_image_ids_by_stage"] = stage_queues
+        payload["resolved_image_ids"] = list(image_ids)
+        try:
+            db.update_job_payload(job_id, json.dumps(payload))
+        except Exception:
+            logger.debug("Failed to persist stage queue for job %s phase %s", job_id, queue_key, exc_info=True)
+        return payload
+
+    def _jit_replan_phase(
+        self,
+        job_id: int,
+        payload: Dict[str, Any],
+        queue_key: str,
+        input_path: str,
+    ) -> tuple[Dict[str, Any], Optional[List[int]], bool]:
+        """Recompute phase queue from DB truth. Returns (payload, ids, skip_phase)."""
+        from modules.phase_work_claims import claim_image_phases, mark_claims_running
+        from modules.run_phase_planner import plan_phase
+
+        payload = self._fresh_payload(job_id, payload)
+        scope_paths = payload.get("scope_paths")
+        if not isinstance(scope_paths, list) or not scope_paths:
+            scope_paths = [payload.get("input_path") or input_path]
+        scope_paths = [str(p) for p in scope_paths if p]
+
+        planned = plan_phase(scope_paths, queue_key, job_id=job_id, dry_run=False)
+        claim_result = claim_image_phases(job_id, queue_key, planned)
+        scoped = list(claim_result.get("claimed") or [])
+        if scoped:
+            mark_claims_running(job_id, queue_key, scoped)
+        payload = self._persist_stage_queue(job_id, payload, queue_key, scoped)
+        skip_phase = len(scoped) == 0
+        return payload, scoped, skip_phase
+
+    @staticmethod
+    def _skip_empty_phase(job_id: int, phase_code: str) -> str:
+        try:
+            db.set_job_phase_state(job_id, phase_code, "completed")
+            db.update_job_status(job_id, "completed", f"Phase {phase_code}: no stale/missing work")
+        except Exception:
+            logger.exception("Failed to skip empty phase job_id=%s phase=%s", job_id, phase_code)
+        return "PhaseSkipped"
 
     @staticmethod
     def _make_collector(job_id: int, phase_code: str, payload: Dict[str, Any]):
@@ -301,7 +354,7 @@ class JobDispatcher:
             logger.exception("Runner %s raised during start for job %s", runner_name, job_id)
             return False, f"Runner '{runner_name}' raised: {exc}"
 
-        if result == "Started":
+        if result in ("Started", "PhaseSkipped"):
             return True, None
         return False, f"Runner '{runner_name}' returned: {result}"
 
@@ -316,16 +369,36 @@ class JobDispatcher:
             "cluster": "clustering",
         }
         queue_key = phase_alias.get(phase_key, phase_key)
-        stage_queues = payload.get("resolved_image_ids_by_stage")
-        scoped_resolved = payload.get("resolved_image_ids")
-        source = "root"
-        if isinstance(stage_queues, dict):
-            per_stage = stage_queues.get(queue_key)
-            if isinstance(per_stage, list):
-                scoped_resolved = per_stage
-                source = "by_stage"
-            else:
-                source = "by_stage_missing"
+        payload = self._fresh_payload(job_id, payload)
+        try:
+            run_mode = normalize_run_mode(payload.get("run_mode"))
+        except ValueError:
+            run_mode = CANONICAL_RUN_MODE
+
+        if run_mode == CANONICAL_RUN_MODE:
+            payload, scoped_resolved, skip_phase = self._jit_replan_phase(
+                job_id, payload, queue_key, input_path or "",
+            )
+            if skip_phase:
+                logger.info(
+                    "[DISPATCHER] skip empty phase job_id=%s phase=%s (no stale/missing work)",
+                    job_id,
+                    queue_key,
+                )
+                return self._skip_empty_phase(job_id, queue_key)
+        else:
+            stage_queues = payload.get("resolved_image_ids_by_stage")
+            scoped_resolved = payload.get("resolved_image_ids")
+            source = "root"
+            if isinstance(stage_queues, dict):
+                per_stage = stage_queues.get(queue_key)
+                if isinstance(per_stage, list):
+                    scoped_resolved = per_stage
+                    source = "by_stage"
+                else:
+                    source = "by_stage_missing"
+
+        source = "jit_planner" if run_mode == CANONICAL_RUN_MODE else source
         # Structured log so multi-stage WorkflowRun handoffs are visible without
         # relying on runner-side log_history (see issue #156).
         logger.info(
@@ -337,11 +410,12 @@ class JobDispatcher:
             len(scoped_resolved or []) if isinstance(scoped_resolved, list) else -1,
             source,
             payload.get("input_path", input_path),
-            isinstance(stage_queues, dict),
+            isinstance(payload.get("resolved_image_ids_by_stage"), dict),
         )
 
+        mode_flags = self._run_mode_flags(payload)
+
         if phase_key == "indexing":
-            mode_flags = self._run_mode_flags(payload)
             report_collector = self._make_collector(job_id, "indexing", payload)
             return runner.start_batch(
                 payload.get("input_path", input_path),
@@ -352,7 +426,6 @@ class JobDispatcher:
             )
 
         if phase_key == "metadata":
-            mode_flags = self._run_mode_flags(payload)
             report_collector = self._make_collector(job_id, "metadata", payload)
             return runner.start_batch(
                 payload.get("input_path", input_path),
@@ -363,10 +436,9 @@ class JobDispatcher:
             )
 
         if phase_key in ("score", "scoring"):
-            mode_flags = self._run_mode_flags(payload)
             skip_existing_val = bool(mode_flags["skip_existing"])
             resolved = scoped_resolved
-            run_mode = (payload.get("run_mode") or "").strip()
+            run_mode_val = (payload.get("run_mode") or CANONICAL_RUN_MODE).strip()
             report_collector = None
             if resolved and bool(mode_flags.get("fix_incomplete_stages")):
                 skip_existing_val = False
@@ -378,7 +450,7 @@ class JobDispatcher:
                     extract_score_snapshot,
                     describe_incomplete_fields,
                 )
-                report_collector = ReportCollector(job_id, "scoring", run_mode)
+                report_collector = ReportCollector(job_id, "scoring", run_mode_val)
                 if resolved:
                     # Batch-query current scores for before-snapshot capture.
                     placeholders = ",".join("?" * len(resolved))
@@ -424,12 +496,8 @@ class JobDispatcher:
             )
 
         if phase_key in ("tag", "tagging", "keywords"):
-            mode_flags = self._run_mode_flags(payload)
-            # Issue #159 Stage A + #160 Stage B: create a full-lifecycle ReportCollector,
-            # seed job_phases scope so the Runs UI denominator shows immediately, and
-            # hand the collector to the runner so per-image record_after/skip/failure
-            # increments job_phases.images_processed/skipped/failed during the run.
             report_collector = self._make_collector(job_id, "keywords", payload)
+            # seed job_phases scope so the Runs UI denominator shows immediately, and
             if report_collector is not None:
                 try:
                     in_scope, targeted = self._compute_phase_scope(payload, scoped_resolved)
@@ -450,8 +518,6 @@ class JobDispatcher:
             )
 
         if phase_key in ("cluster", "clustering"):
-            mode_flags = self._run_mode_flags(payload)
-            # POST /api/clustering/start sets force_rescan on queue_payload; it is not part of run_mode.
             force_rescan = bool(mode_flags["force_rescan"]) or bool(payload.get("force_rescan"))
             # Issue #159 Stage A: seed denominator. Same caveat as tagging above.
             self._seed_phase_scope(job_id, "culling", payload, scoped_resolved)
@@ -465,29 +531,21 @@ class JobDispatcher:
             )
 
         if phase_key in ("selection", "culling"):
-            mode_flags = self._run_mode_flags(payload)
             force_rescan = bool(mode_flags["force_rescan"]) or bool(payload.get("force_rescan"))
             logger.debug(
-                "[culling] dispatch job_id=%s phase=%s input_path=%r force_rescan=%s",
+                "[culling] dispatch job_id=%s phase=%s input_path=%r force_rescan=%s resolved=%d",
                 job_id,
                 phase_key,
                 payload.get("input_path", input_path),
                 force_rescan,
+                len(scoped_resolved or []),
             )
-            if scoped_resolved:
-                logger.info(
-                    "Selection runner does not accept resolved_image_ids yet; "
-                    "culling queue constraints are advisory only (job_id=%s)",
-                    job_id,
-                )
-            # Issue #159 Stage A: seed denominator for selection too. Note the
-            # selection runner doesn't filter by `scoped_resolved`, so `targeted`
-            # falls back to `in_scope` (all images under scope_paths).
             self._seed_phase_scope(job_id, "culling", payload, scoped_resolved)
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
                 force_rescan=force_rescan,
+                resolved_image_ids=scoped_resolved,
             )
 
         if phase_key in ("bird_species", "bird-species"):
@@ -497,7 +555,7 @@ class JobDispatcher:
                 candidate_species=payload.get("candidate_species"),
                 threshold=float(payload.get("threshold", 0.1)),
                 top_k=int(payload.get("top_k", 3)),
-                overwrite=bool(payload.get("overwrite", False)),
+                overwrite=bool(mode_flags["overwrite"]),
                 resolved_image_ids=scoped_resolved,
             )
 

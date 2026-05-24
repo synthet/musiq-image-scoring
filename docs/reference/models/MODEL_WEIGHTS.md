@@ -34,12 +34,12 @@ percentile-rescaled scores and are re-normalized over the models actually presen
 `scoring.fusion` and `percentile_anchors` in `config.json`. KONIQ and PaQ-2-PiQ are legacy
 MUSIQ variants excluded from the default fusion (~38% missing coverage on the corpus).*
 
-## QPT V2 (shadow — not yet in active ensemble)
+## QPT V2 (disabled — not in live registry)
 
 QPT V2 (Quality-aware Pre-Training V2, ACM MM 2024) uses a HiViT-T backbone
-(~19M parameters) pre-trained with masked image modeling. It is registered as a
-**shadow** model (`scoring.models.qpt_v2: {enabled: false, shadow: true}`) — it
-runs and stores scores but is excluded from composite fusion until promoted in #185.
+(~19M parameters) pre-trained with masked image modeling. It is **not registered**
+in the live scoring registry until validation/calibration (#185); code remains under
+`modules/qpt_v2*.py` for future promotion.
 
 ### Checkpoint acquisition
 
@@ -47,7 +47,7 @@ runs and stores scores but is excluded from composite fusion until promoted in #
 > published **checkpoints only** (inference code is still an open TODO). The architecture is
 > reconstructed locally in `modules/qpt_v2_arch.py` from the `iqa.pth` state dict and
 > strict-loads all 172 tensors. The undocumented inference recipe means scores are
-> directionally meaningful but **uncalibrated** — keep `qpt_v2` in shadow (see #185).
+> directionally meaningful but **uncalibrated** — do not register until #185 gates pass.
 
 1. Download the task checkpoint from the repo's `checkpoints/` directory
    (`iqa.pth` for image quality, `iaa.pth` for aesthetics) — these are git-lfs files
@@ -55,7 +55,7 @@ runs and stores scores but is excluded from composite fusion until promoted in #
    `https://media.githubusercontent.com/media/KeiChiTse/QPT-V2/master/checkpoints/iqa.pth`.
 2. Place the file at `models/qpt_v2.pth` relative to the repo root (git-ignored),
    **or** set `scoring.qpt_v2.checkpoint_path` in `config.json` to an absolute path.
-3. That's it — `QptV2Scorer` reports `available=true` and produces shadow scores.
+3. `QptV2Scorer` can report `available=true` for manual/tests; live pipeline skips until registered.
 
 ### Target weights (post-calibration, issue #185)
 

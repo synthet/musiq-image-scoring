@@ -43,11 +43,11 @@ analysis. It contributes to all three composites under the "moderate" profile
 - **Module**: `modules/engines/topiq_model.py` (wraps `modules/topiq.py`).
 
 ## 4. QPT V2 (Quality-aware Pre-Training V2)
-*PyTorch Implementation (shadow)*
+*PyTorch implementation (disabled — not registered)*
 
-**Status: Shadow (not fused) — runs via local re-implementation, UNVALIDATED**
-Registered as a shadow model (`scoring.models.qpt_v2: {enabled: false, shadow: true}`):
-it stores scores into `image_model_scores` while staying excluded from fusion. Upstream
+**Status: Disabled (WIP) — not in the live registry until #185**
+`QptV2ModelWrapper` is not registered at import time; scoring does not load or run QPT V2.
+Upstream
 (`KeiChiTse/QPT-V2`) published **checkpoints only** (`iqa.pth`, `iaa.pth`, `vqa_*.pth`);
 the inference code is an open upstream TODO. We reconstruct the HiViT-T architecture
 locally in `modules/qpt_v2_arch.py` (derived from the `iqa.pth` state dict, strict-loads
@@ -55,8 +55,8 @@ all 172 tensors). Drop `iqa.pth` at `scoring.qpt_v2.checkpoint_path` (default
 `models/qpt_v2.pth`) to activate.
 - **Caveat**: the upstream inference recipe (preprocessing, pooling, merge order) is
   undocumented. Scores are directionally meaningful (blur lowers them) but **unvalidated
-  and uncalibrated**; raw output is roughly `[-0.25, 0]`, *not* 0–1. Keep it in shadow and
-  treat scores as provisional until calibration anchors are computed (#185). See
+  and uncalibrated**; raw output is roughly `[-0.25, 0]`, *not* 0–1. Re-register in
+  `modules/engines/__init__.py` after validation (#185). See
   [QPT-V2 issue #2](https://github.com/KeiChiTse/QPT-V2/issues/2).
 - **Module**: `modules/engines/qpt_v2_model.py` (wraps `modules/qpt_v2.py`,
   arch in `modules/qpt_v2_arch.py`).

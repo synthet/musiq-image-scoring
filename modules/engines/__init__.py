@@ -28,6 +28,7 @@ from modules.engines.registry import (
     get_registry,
     reset_registry,
 )
+from modules.engines.arniqa_model import ArniqaModelWrapper
 from modules.engines.qpt_v2_model import QptV2ModelWrapper
 from modules.engines.topiq_model import TopiqModelWrapper
 
@@ -48,6 +49,7 @@ __all__ = [
     "make_musiq_wrappers",
     "LiqeModelWrapper",
     "TopiqModelWrapper",
+    "ArniqaModelWrapper",
     "QptV2ModelWrapper",
     "CursorModelWrapper",
     "ClaudeModelWrapper",
@@ -57,11 +59,13 @@ __all__ = [
     "load_production_models",
 ]
 
-# Register one shadow-capable instance at import time. The wrapper lazy-loads
-# its pyiqa backend on first `load()`, so this is cheap (no torch import here).
-# Production vs. shadow membership is decided by `scoring.models` in config.
+# Register TOPIQ at import time. The wrapper lazy-loads its pyiqa backend on
+# first `load()`, so this is cheap (no torch import here). Production vs.
+# shadow membership is decided by `scoring.models` in config.
 get_registry().register(TopiqModelWrapper())
-get_registry().register(QptV2ModelWrapper())
+
+# QPT V2 is not registered until validation/calibration (#185) is complete.
+# Re-enable: get_registry().register(QptV2ModelWrapper())
 
 # LLM-judge engines (Cursor SDK, Claude Agent SDK). Both lazy-load their
 # optional SDKs on first `load()` and are disabled by default in config, so

@@ -8,7 +8,7 @@ Production vs. shadow membership is read from `scoring.models` in `config.json`:
     "scoring": {
       "models": {
         "spaq":   { "enabled": true,  "shadow": false },
-        "qpt_v2": { "enabled": false, "shadow": true  }
+        "topiq":  { "enabled": true,  "shadow": false }
       }
     }
 

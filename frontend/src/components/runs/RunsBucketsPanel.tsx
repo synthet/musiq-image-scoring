@@ -188,7 +188,6 @@ export function RunsBucketsPanel() {
   const [useSelectedScope, setUseSelectedScope] = useState(false)
   const [includeComplete, setIncludeComplete] = useState(false)
   const [driveLimit, setDriveLimit] = useState(50)
-  const [runMode, setRunMode] = useState<'process_unprocessed_or_empty' | 'validate_and_repair'>('validate_and_repair')
   const [autoDrive, setAutoDrive] = useState(false)
   const [lastResult, setLastResult] = useState<RunsAutoDriveResult | null>(null)
   const [queueingPath, setQueueingPath] = useState<string | null>(null)
@@ -246,13 +245,12 @@ export function RunsBucketsPanel() {
         root_path: rootPath,
         limit: driveLimit,
         dry_run: dryRun,
-        run_mode: runMode,
         target_phases: FULL_PIPELINE_STAGE_CODES,
         max_repeats: 2,
         generate_captions: true,
       })
     },
-    [driveLimit, driveMutate, rootPath, runMode],
+    [driveLimit, driveMutate, rootPath],
   )
 
   useEffect(() => {
@@ -283,7 +281,6 @@ export function RunsBucketsPanel() {
       folder_paths: [path],
       limit: 1,
       dry_run: false,
-      run_mode: runMode,
       target_phases: FULL_PIPELINE_STAGE_CODES,
       max_repeats: 2,
       generate_captions: true,
@@ -316,18 +313,6 @@ export function RunsBucketsPanel() {
                 onChange={(e) => setDriveLimit(Number(e.target.value))}
                 className="h-8 w-20 rounded border border-[var(--color-border-muted)] bg-[var(--color-bg-primary)] px-2 text-xs text-[var(--color-text-primary)]"
               />
-            </label>
-
-            <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase text-[var(--color-text-muted)]">Mode</span>
-              <select
-                value={runMode}
-                onChange={(e) => setRunMode(e.target.value as typeof runMode)}
-                className="h-8 rounded border border-[var(--color-border-muted)] bg-[var(--color-bg-primary)] px-2 text-xs text-[var(--color-text-primary)]"
-              >
-                <option value="validate_and_repair">Repair</option>
-                <option value="process_unprocessed_or_empty">Incremental</option>
-              </select>
             </label>
 
             <Button size="sm" variant="secondary" onClick={() => runDrive(true)} loading={driveMutation.isPending && lastResult?.dry_run}>

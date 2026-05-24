@@ -20,8 +20,7 @@ logger = logging.getLogger(__name__)
 # These define the effective range of each model on our corpus.
 # Scores below p02 map to 0.0, above p98 map to 1.0.
 # Refreshed from the model-score quality report (May 2026); `topiq` added when
-# it was promoted into the live fusion. `qpt_v2` has no anchors yet — it runs in
-# shadow only and upstream inference code is not yet released.
+# it was promoted into the live fusion. `qpt_v2` is not registered until #185.
 DEFAULT_PERCENTILE_ANCHORS = {
     "liqe":  {"p02": 0.311, "p98": 0.998},
     "ava":   {"p02": 0.301, "p98": 0.524},

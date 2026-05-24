@@ -139,6 +139,7 @@ POSTGRES_APP_TABLES = (
     "job_phases",
     "job_steps",
     "job_image_actions",
+    "image_phase_work_claims",
     "image_incidents",
     "image_exif",
     "image_xmp",
@@ -620,6 +621,32 @@ def _init_db_transaction():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_job_phase ON job_image_actions(job_id, phase_code);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_image_id ON job_image_actions(image_id);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_jia_created_at ON job_image_actions(created_at);")
+
+            # ------------------------------------------------------------------
+            # IMAGE_PHASE_WORK_CLAIMS — dedupe open image×phase work across runs
+            # ------------------------------------------------------------------
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS image_phase_work_claims (
+                id              SERIAL PRIMARY KEY,
+                job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+                image_id        INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                phase_code      VARCHAR(50) NOT NULL,
+                status          VARCHAR(20) NOT NULL DEFAULT 'queued',
+                claimed_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                released_at     TIMESTAMP
+            );
+            """)
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_ipwc_job_phase ON image_phase_work_claims(job_id, phase_code);"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_ipwc_image_phase ON image_phase_work_claims(image_id, phase_code);"
+            )
+            cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_ipwc_open_image_phase
+              ON image_phase_work_claims (image_id, phase_code)
+              WHERE status IN ('queued', 'running');
+            """)
 
 
             # ------------------------------------------------------------------

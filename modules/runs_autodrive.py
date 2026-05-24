@@ -14,7 +14,7 @@ from modules.phases import (
     assert_prereqs_for_scope,
     sort_phase_value_strings,
 )
-from modules.run_modes import resolve_run_mode_flags
+from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
 
 logger = logging.getLogger(__name__)
 
@@ -401,7 +401,6 @@ def build_folder_buckets(
 def _enqueue_auto_bucket(
     bucket: dict[str, Any],
     *,
-    run_mode: str,
     generate_captions: bool,
 ) -> tuple[Optional[int], Optional[int], Optional[dict[str, Any]]]:
     raw_path = str(bucket.get("path") or "")
@@ -417,12 +416,12 @@ def _enqueue_auto_bucket(
     if missing:
         return None, None, {"reason": "missing_prerequisites", "folder_path": resolved, "missing": missing}
 
-    mode_flags = resolve_run_mode_flags(run_mode)
+    mode_flags = resolve_run_mode_flags(CANONICAL_RUN_MODE)
     payload: dict[str, Any] = {
         "scope_type": "folder_recursive",
         "scope_paths": [resolved],
         "input_path": resolved,
-        "run_mode": run_mode,
+        "run_mode": CANONICAL_RUN_MODE,
         "skip_done": mode_flags["skip_done"],
         "skip_existing": mode_flags["skip_existing"],
         "force_rerun": mode_flags["force_rerun"],
@@ -438,21 +437,20 @@ def _enqueue_auto_bucket(
     payload["auto_drive_bucket"] = bucket.get("bucket")
     payload["auto_drive_overall_percent"] = bucket.get("overall_percent")
 
-    if mode_flags.get("fix_incomplete_stages"):
-        repair_plan = db.build_validation_repair_plan([resolved], phase_values, False)
-        payload["validation_repair_summary"] = repair_plan
-        payload["resolved_image_ids_by_stage"] = repair_plan.get("stage_queues", {})
-        first_ids = (repair_plan.get("stage_queues", {}) or {}).get(phase_values[0])
-        if isinstance(first_ids, list):
-            payload["resolved_image_ids"] = first_ids
-        payload["skip_existing"] = False
+    repair_plan = db.build_validation_repair_plan([resolved], phase_values, False)
+    payload["repair_plan_summary"] = repair_plan
+    payload["resolved_image_ids_by_stage"] = repair_plan.get("stage_queues", {})
+    first_ids = (repair_plan.get("stage_queues", {}) or {}).get(phase_values[0])
+    if isinstance(first_ids, list):
+        payload["resolved_image_ids"] = first_ids
+    payload["skip_existing"] = False
+    payload["post_run_audit"] = True
 
     first_phase, job_type = _first_job_type(phase_values)
     description = build_run_submit_description(
         scope_type="folder_recursive",
         scope_paths=[resolved],
-        run_mode=run_mode,
-        validation_repair_mode=(run_mode == "validate_and_repair"),
+        run_mode=CANONICAL_RUN_MODE,
         phase_values=phase_values,
         client_description="Auto-drive queued this folder from the Runs buckets planner.",
     )
@@ -474,14 +472,13 @@ def auto_drive_runs(
     folder_paths: Optional[Sequence[str]] = None,
     limit: int = 50,
     dry_run: bool = False,
-    run_mode: str = "validate_and_repair",
     target_phases: Optional[Sequence[Any]] = None,
     max_repeats: int = 2,
     generate_captions: bool = True,
 ) -> dict[str, Any]:
     limit = max(1, min(_as_int(limit, 50), 500))
     max_repeats = max(1, min(_as_int(max_repeats, 2), 20))
-    resolve_run_mode_flags(run_mode)
+    resolve_run_mode_flags(CANONICAL_RUN_MODE)
 
     planned = build_folder_buckets(
         root_path=root_path,
@@ -527,7 +524,6 @@ def auto_drive_runs(
         try:
             job_id, position, skip = _enqueue_auto_bucket(
                 item,
-                run_mode=run_mode,
                 generate_captions=generate_captions,
             )
             if skip:
@@ -559,7 +555,7 @@ def auto_drive_runs(
 
     return {
         "dry_run": bool(dry_run),
-        "run_mode": run_mode,
+        "run_mode": CANONICAL_RUN_MODE,
         "limit": limit,
         "scheduled": scheduled,
         "skipped": skipped,

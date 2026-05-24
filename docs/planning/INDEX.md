@@ -47,8 +47,11 @@ Aligned with root [`TODO.md`](../../TODO.md) **Highest-Impact Next Steps**. Tier
 
 | Document | Description |
 |----------|-------------|
+| [NEW_MODELS_SUMMARY.md](../NEW_MODELS_SUMMARY.md) | **Overview** — consolidated summary of new/roadmap models and #220 phases |
 | [MODEL_RECOMMENDATIONS_PIPELINES.md](../MODEL_RECOMMENDATIONS_PIPELINES.md) | **Canonical** pipeline model roadmap (ARNIQA, DINOv2, SigLIP2; CLIP/OpenCLIP alternate) |
 | [IQA_MODEL_STACK_UPDATE_PROPOSAL.md](models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md) | Proposal: Modernize model stack (QPT V2, TOPIQ-NR) |
+| [QPT_V2_VALIDATION_GATES.md](models/QPT_V2_VALIDATION_GATES.md) | **QPT V2 shadow validation plan** — Gates 1–3, 5; upstream status; promotion criteria (#185) |
+| [CALIBRATION_LAYER_185_STATUS.md](models/CALIBRATION_LAYER_185_STATUS.md) | #185 blockers: anchors, z-score, QPT inference fidelity |
 | [SUGGESTED_SCORING_ADJUSTMENTS.md](models/SUGGESTED_SCORING_ADJUSTMENTS.md) | Proposed scoring weight changes |
 
 Related research (reports): [CLIP_MODELS_CULLING_SCORING_2026-05-23.md](../reports/CLIP_MODELS_CULLING_SCORING_2026-05-23.md), [AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md](../reports/AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md).

@@ -26,9 +26,10 @@ export function RunQueuePayloadPanel({
         )}
       </div>
       <p className="px-4 pb-2 text-[10px] text-[#6d6d6d] border-t border-[#3c3c3c] pt-2">
-        Flags such as <span className="text-[#cccccc]">run_mode</span>,{' '}
-        <span className="text-[#cccccc]">force_rescan</span>,{' '}
-        <span className="text-[#cccccc]">skip_done</span>, and clustering{' '}
+        Flags such as <span className="text-[#cccccc]">run_mode</span> (always{' '}
+        <span className="text-[#cccccc]">process_stale_or_missing</span>),{' '}
+        <span className="text-[#cccccc]">resolved_image_ids</span>,{' '}
+        <span className="text-[#cccccc]">force_rescan</span>, and clustering{' '}
         <span className="text-[#cccccc]">threshold</span> (visual cosine distance) /{' '}
         <span className="text-[#cccccc]">time_gap</span> (capture-time gap in seconds between consecutive shots) come
         from this payload when the run was queued.

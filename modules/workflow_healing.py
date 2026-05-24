@@ -27,7 +27,7 @@ from modules.phases import PhaseCode, sort_phase_value_strings
 from modules.phases_policy import get_phase_executor_version
 from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
 from modules.pipeline_tool_folder_touch import upsert_pipeline_tool_folder_touch
-from modules.run_modes import resolve_run_mode_flags
+from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
 
 logger = logging.getLogger(__name__)
 
@@ -257,7 +257,6 @@ def heal_phase_data(
     root_path: Optional[str] = None,
     dry_run: bool = False,
     budget: int = 10,
-    run_mode: str = "validate_and_repair",
 ) -> Dict[str, Any]:
     """
     Perform a healing pass for a specific pipeline phase.
@@ -267,7 +266,6 @@ def heal_phase_data(
         root_path: Optional root path to restrict the scope.
         dry_run: If True, only report issues without making changes.
         budget: Maximum number of folders to schedule runs for.
-        run_mode: The run mode for spawned jobs (default: validate_and_repair).
         
     Returns:
         Summary of identified issues, resets, and scheduled runs.
@@ -472,7 +470,7 @@ def heal_phase_data(
     if not dry_run:
         for folder in to_schedule:
             try:
-                result = _enqueue_heal_run(folder["folder_path"], phase_code, run_mode=run_mode)
+                result = _enqueue_heal_run(folder["folder_path"], phase_code)
                 if result is None:
                     continue
                 job_id, pos = result
@@ -523,7 +521,7 @@ def _get_active_jobs_snapshot() -> List[Dict[str, Any]]:
         rows = c.fetchall()
     return [{"id": r[0], "input_path": r[1], "status": r[2]} for r in rows]
 
-def _enqueue_heal_run(folder_path: str, phase_code: str, run_mode: str = "validate_and_repair"):
+def _enqueue_heal_run(folder_path: str, phase_code: str):
     """Enqueue a targeted pipeline run for a folder and phase.
 
     Returns ``(job_id, queue_position)`` on success, ``(None, None)`` when the
@@ -576,13 +574,13 @@ def _enqueue_heal_run(folder_path: str, phase_code: str, run_mode: str = "valida
     # Canonical pipeline order (e.g. metadata before culling)
     phase_values = sort_phase_value_strings(phase_values)
 
-    mode_flags = resolve_run_mode_flags(run_mode)
-    
+    mode_flags = resolve_run_mode_flags(CANONICAL_RUN_MODE)
+
     payload = {
         "scope_type": "folder_recursive",
         "scope_paths": [folder_path],
         "input_path": folder_path,
-        "run_mode": run_mode,
+        "run_mode": CANONICAL_RUN_MODE,
         "skip_done": mode_flags["skip_done"],
         "skip_existing": mode_flags["skip_existing"],
         "force_rerun": mode_flags["force_rerun"],
@@ -590,15 +588,23 @@ def _enqueue_heal_run(folder_path: str, phase_code: str, run_mode: str = "valida
         "overwrite": mode_flags["overwrite"],
         "phases": phase_values,
         "target_phases": phase_values,
+        "post_run_audit": True,
     }
-    
+
+    repair_plan = db.build_validation_repair_plan([folder_path], phase_values, False)
+    payload["repair_plan_summary"] = repair_plan
+    payload["resolved_image_ids_by_stage"] = repair_plan.get("stage_queues", {})
+    first_ids = (repair_plan.get("stage_queues", {}) or {}).get(phase_values[0])
+    if isinstance(first_ids, list):
+        payload["resolved_image_ids"] = first_ids
+    payload["skip_existing"] = False
+
     payload = augment_queue_payload_for_audit(payload, trigger="api", tool_id=f"heal_workflow_{phase_code}")
-    
+
     description = build_run_submit_description(
         scope_type="folder_recursive",
         scope_paths=[folder_path],
-        run_mode=run_mode,
-        validation_repair_mode=(run_mode == "validate_and_repair"),
+        run_mode=CANONICAL_RUN_MODE,
         phase_values=phase_values,
         client_description=f"Automated workflow healing for phase: {phase_code}",
     )

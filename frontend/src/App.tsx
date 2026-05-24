@@ -49,6 +49,7 @@ export default function App() {
             <Route path="/images/:imageId" element={<ImageInspectorPage />} />
             <Route path="/embeddings" element={<ProtectedAtlasRoute />} />
             <Route path="/db" element={<ProtectedDbRoute />} />
+            <Route path="/db/:tableName" element={<ProtectedDbRoute />} />
             <Route path="/map" element={<GeoMapPage />} />
             <Route path="/diagnostics" element={<DiagnosticsPage />} />
             <Route path="/logs" element={<LogsPage />} />

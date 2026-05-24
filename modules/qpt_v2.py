@@ -15,13 +15,15 @@ and strict-load it. To enable scoring:
     relative to BASE_DIR).
 
 If torch/torchvision or the checkpoint are missing the scorer sets
-``available = False`` and logs a warning; all engine machinery (registration,
-shadow scoring, DB writes) continues normally.
+``available = False`` and logs a warning.
 
 ACCURACY CAVEAT: the upstream inference recipe (preprocessing/crop, pooling,
 merge order) is undocumented. Locally-produced scores are directionally
-meaningful (e.g. blur lowers them) but UNVALIDATED and UNCALIBRATED — keep
-qpt_v2 in shadow until anchors are computed (#185). See QPT-V2 issue #2.
+meaningful (e.g. blur lowers them) but UNVALIDATED and UNCALIBRATED.
+
+**Not registered** in the live pipeline until validation/calibration (#185).
+See QPT-V2 issue #2. To re-enable, register ``QptV2ModelWrapper`` in
+``modules.engines`` (see comment there).
 
 The matching ``IScoringModel`` adapter is ``modules.engines.qpt_v2_model``.
 """

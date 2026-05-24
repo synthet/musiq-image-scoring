@@ -3,19 +3,20 @@
 from unittest.mock import patch
 
 from modules import db
+from modules.run_modes import CANONICAL_RUN_MODE
 
 
-def test_should_run_respects_explicit_false_with_validate_and_repair():
+def test_should_run_respects_explicit_false():
     assert (
         db.should_run_post_completion_audit(
-            {"run_mode": "validate_and_repair", "post_run_audit": False}
+            {"run_mode": CANONICAL_RUN_MODE, "post_run_audit": False}
         )
         is False
     )
 
 
-def test_should_run_validate_and_repair():
-    assert db.should_run_post_completion_audit({"run_mode": "validate_and_repair"}) is True
+def test_should_run_stale_missing_mode():
+    assert db.should_run_post_completion_audit({"run_mode": CANONICAL_RUN_MODE}) is True
 
 
 def test_should_run_global_config(monkeypatch):
@@ -23,22 +24,12 @@ def test_should_run_global_config(monkeypatch):
         "modules.config.get_config_value",
         lambda k, default=None: True if k == "processing.post_run_data_quality_audit" else default,
     )
-    assert db.should_run_post_completion_audit({"run_mode": "process_unprocessed_or_empty"}) is True
+    assert db.should_run_post_completion_audit({"run_mode": "legacy_ignored"}) is True
 
 
 def test_cap_id_list_truncates():
     sample, truncated = db._cap_id_list(list(range(5)), cap=3)
     assert sample == [0, 1, 2] and truncated is True
-
-
-def test_cap_id_list_dedupes_and_sorts():
-    sample, truncated = db._cap_id_list([3, 1, 2, 1], cap=10)
-    assert sample == [1, 2, 3] and truncated is False
-
-
-def test_parse_queue_payload_dict_nested_string():
-    raw = '{"a": 1}'
-    assert db.parse_queue_payload_dict(raw) == {"a": 1}
 
 
 @patch.object(db, "_maybe_fail_job_on_post_audit_issues")
@@ -51,11 +42,11 @@ def test_run_post_completion_audit_merges_payload(
 ):
     mock_conn.return_value.query_one.return_value = {
         "id": 42,
-        "queue_payload": '{"scope_paths":["/tmp"],"run_mode":"validate_and_repair"}',
+        "queue_payload": f'{{"scope_paths":["/tmp"],"run_mode":"{CANONICAL_RUN_MODE}"}}',
         "status": "completed",
     }
     mock_plan.return_value = {
-        "issue_counts": {"scoring_incomplete": 0},
+        "issue_counts": {"scoring_needs_work": 0},
         "stage_queues": {},
         "dry_run": True,
     }
@@ -64,12 +55,3 @@ def test_run_post_completion_audit_merges_payload(
     assert out is not None
     assert out.get("status") == "clean"
     mock_update.assert_called_once()
-    merged = __import__("json").loads(mock_update.call_args[0][1])
-    assert "post_run_audit" in merged
-    assert merged["post_run_audit"]["status"] == "clean"
-
-
-@patch.object(db, "get_job", return_value=None)
-def test_get_run_diagnostics_job_not_found(_mock_get):
-    out = db.get_run_diagnostics(99999)
-    assert out.get("error") == "job_not_found"

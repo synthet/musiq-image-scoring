@@ -29,8 +29,12 @@ def test_enqueue_heal_culling_phases_metadata_before_culling(monkeypatch, tmp_pa
         return 999, 1
 
     monkeypatch.setattr("modules.db.enqueue_job_with_phases", fake_enqueue_job_with_phases)
+    monkeypatch.setattr(
+        "modules.db.build_validation_repair_plan",
+        lambda *a, **k: {"stage_queues": {}, "dry_run": False},
+    )
 
-    job_id, pos = workflow_healing._enqueue_heal_run(str(folder), "culling", run_mode="validate_and_repair")
+    job_id, pos = workflow_healing._enqueue_heal_run(str(folder), "culling")
 
     assert job_id == 999
     assert pos == 1

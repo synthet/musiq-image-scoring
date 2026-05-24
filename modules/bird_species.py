@@ -390,15 +390,30 @@ class BirdSpeciesRunner:
                 event_manager.broadcast_threadsafe("job_completed", {"job_id": job_id, "status": "completed"})
             return
 
-        # --- Optionally skip images already classified ---
+        # --- Skip images that are current per phase policy (unless overwrite) ---
         if not overwrite:
-            all_image_ids = [row["id"] for row in all_images]
-            already_classified = _get_image_ids_with_species_keyword(all_image_ids)
-            if already_classified:
-                before = len(all_images)
-                all_images = [row for row in all_images if row["id"] not in already_classified]
-                log(f"Skipping {before - len(all_images)} already-classified images "
-                    f"(use overwrite=true to re-classify).")
+            from modules.phases import PhaseCode
+            from modules.phases_policy import explain_phase_run_decision
+
+            filtered = []
+            skipped_policy = 0
+            for row in all_images:
+                decision = explain_phase_run_decision(
+                    int(row["id"]),
+                    PhaseCode.BIRD_SPECIES,
+                    current_executor_version=BIRD_SPECIES_RUNNER_VERSION,
+                    force_run=False,
+                )
+                if decision.get("should_run"):
+                    filtered.append(row)
+                else:
+                    skipped_policy += 1
+            if skipped_policy:
+                log(
+                    f"Skipping {skipped_policy} bird images already current "
+                    f"(use overwrite=true to re-classify)."
+                )
+            all_images = filtered
 
         self.total_count = len(all_images)
         self.current_count = 0

@@ -15,51 +15,6 @@ import { RUNS_QUERY_ROOT } from '@/queryKeys/runs'
 
 const ALL_STAGES: StageCode[] = [...FULL_PIPELINE_STAGE_CODES]
 
-type RunOptionsMode = 'skip_completed' | 'force_all' | 'fix_incomplete' | 'validation_repair'
-
-type RunOptionCopy = {
-  title: string
-  whatThisDoes: string
-  whatThisDoesNotDo: string
-}
-
-const RUN_OPTION_COPY_BY_MODE = {
-  skip_completed: {
-    title: 'Process NEW / NOT processed',
-    whatThisDoes:
-      'Runs selected stages only where results are missing, while reusing already completed work.',
-    whatThisDoesNotDo:
-      'Does not recompute stages that are already marked done for an image.',
-  },
-  force_all: {
-    title: 'Process ALL (overwrite existing results)',
-    whatThisDoes: 'Re-runs selected stages for every image in scope, even when prior results exist.',
-    whatThisDoesNotDo:
-      'Does not preserve previous stage outputs for selected stages; existing results are replaced.',
-  },
-  fix_incomplete: {
-    title: 'Fix missing/incomplete data',
-    whatThisDoes:
-      'Targets images missing required data for the selected pipeline stages so incomplete records can be fixed.',
-    whatThisDoesNotDo:
-      'Does not force a full re-run of complete images, avoiding unnecessary processing.',
-  },
-  validation_repair: {
-    title: 'Validation-repair pipeline',
-    whatThisDoes:
-      'Scans selected scope for invalid, missing, or out-of-range fields, applies minimal safe repairs where configured, and builds stage-specific repair queues.',
-    whatThisDoesNotDo:
-      'Does not replace reviewing the dry-run preview before applying; use Refresh in Preview to inspect counts and queues first.',
-  },
-} satisfies Record<RunOptionsMode, RunOptionCopy>
-
-const RUN_OPTION_ORDER: RunOptionsMode[] = [
-  'skip_completed',
-  'force_all',
-  'fix_incomplete',
-  'validation_repair',
-]
-
 /** Trim and strip trailing `/` or `\\`; keep Windows drive roots (e.g. `D:\\`). */
 function normalizeScopePathInput(p: string): string {
   let s = p.trim()
@@ -79,7 +34,6 @@ export function ScopeSelector() {
   const [scopeType, setScopeType] = useState<'folder_recursive' | 'folder' | 'file'>('folder_recursive')
   const [paths, setPaths] = useState<string[]>([''])
   const [stages, setStages] = useState<Set<StageCode>>(new Set(ALL_STAGES))
-  const [runOptionsMode, setRunOptionsMode] = useState<RunOptionsMode>('skip_completed')
   const [preview, setPreview] = useState<ScopePreviewResult | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -107,9 +61,6 @@ export function ScopeSelector() {
     setStages((prev) => pruneStageSelection(prev, sat))
   }, [preview])
 
-  // Modal stays mounted while closed (`return null`); reset local state whenever it opens
-  // so preview is not left from a previous folder and paths re-apply even if `newRunInitialPath`
-  // is unchanged (e.g. user cleared the field then double-clicked the same folder again).
   useEffect(() => {
     if (!newRunModalOpen) return
     if (newRunInitialPath) {
@@ -120,7 +71,6 @@ export function ScopeSelector() {
     setPreview(null)
     setPreviewError(null)
     setRepairPreview(null)
-    setRunOptionsMode('skip_completed')
   }, [newRunModalOpen, newRunInitialPath])
 
   useEffect(() => {
@@ -145,12 +95,10 @@ export function ScopeSelector() {
       const res = await scopeApi.preview(validPaths, scopeType === 'folder_recursive')
       setPreview(res)
       qc.invalidateQueries({ queryKey: ['folders-tree'] })
-      if (runOptionsMode === 'validation_repair') {
-        setRepairPreviewLoading(true)
-        const stagesOrdered = ALL_STAGES.filter((code) => stages.has(code))
-        const rep = await scopeApi.validationRepairPreview(validPaths, stagesOrdered)
-        setRepairPreview(rep)
-      }
+      setRepairPreviewLoading(true)
+      const stagesOrdered = ALL_STAGES.filter((code) => stages.has(code))
+      const rep = await scopeApi.validationRepairPreview(validPaths, stagesOrdered)
+      setRepairPreview(rep)
     } catch (e) {
       setPreview(null)
       setRepairPreview(null)
@@ -176,21 +124,12 @@ export function ScopeSelector() {
   })
 
   function submit() {
-    // Pipeline order (not Set iteration order — checkbox order would scramble stages).
     const stagesOrdered = ALL_STAGES.filter((code) => stages.has(code))
-    const skip_done = runOptionsMode !== 'force_all'
-    const force_rerun = runOptionsMode === 'force_all'
-    const fix_incomplete_stages = runOptionsMode === 'fix_incomplete'
-    const validation_repair_mode = runOptionsMode === 'validation_repair'
     submitMut.mutate({
       scope_type: scopeType,
       scope_paths: validPaths,
       stages: stagesOrdered,
-      skip_done,
-      force_rerun,
-      fix_incomplete_stages,
-      validation_repair_mode,
-      validation_repair_dry_run: false,
+      run_mode: 'process_stale_or_missing',
     })
   }
 
@@ -208,7 +147,6 @@ export function ScopeSelector() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg shadow-2xl w-[600px] max-h-[90vh] overflow-y-auto">
-        {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-[var(--color-border-muted)]">
           <h2 className="text-base font-semibold text-[var(--color-text-primary)]">New Run</h2>
           <button
@@ -220,7 +158,6 @@ export function ScopeSelector() {
         </div>
 
         <div className="p-5 space-y-5">
-          {/* Scope type */}
           <div>
             <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-2 uppercase tracking-wider">
               Scope Type
@@ -249,7 +186,6 @@ export function ScopeSelector() {
             </div>
           </div>
 
-          {/* Paths */}
           <div>
             <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-2 uppercase tracking-wider">
               Path{scopeType === 'folder_recursive' ? 's' : ''}
@@ -282,18 +218,13 @@ export function ScopeSelector() {
                   )}
                 </div>
               ))}
-              <Button
-                size="xs"
-                variant="ghost"
-                onClick={() => setPaths([...paths, ''])}
-              >
+              <Button size="xs" variant="ghost" onClick={() => setPaths([...paths, ''])}>
                 <Plus size={14} />
                 Add path
               </Button>
             </div>
           </div>
 
-          {/* Preview */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">
@@ -313,15 +244,12 @@ export function ScopeSelector() {
             ) : (
               !previewError && (
                 <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border-muted)] rounded p-3 text-xs text-[var(--color-text-muted)]">
-                  {validPaths.length > 0
-                    ? 'Click Refresh to preview scope'
-                    : 'Enter a path above to preview'}
+                  {validPaths.length > 0 ? 'Click Refresh to preview scope' : 'Enter a path above to preview'}
                 </div>
               )
             )}
           </div>
 
-          {/* Workflow (stages) */}
           <div>
             <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-2 uppercase tracking-wider">
               Workflow Stages
@@ -368,94 +296,44 @@ export function ScopeSelector() {
             </div>
           </div>
 
-          {/* Options */}
           <div>
             <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-2 uppercase tracking-wider">
-              Options
+              Run behavior
             </label>
-            <div className="space-y-2">
-              {RUN_OPTION_ORDER.map((mode) => {
-                const option = RUN_OPTION_COPY_BY_MODE[mode]
-                const isFixIncomplete = mode === 'fix_incomplete'
-                const isValidationRepair = mode === 'validation_repair'
-                return (
-                  <label
-                    key={mode}
-                    className="flex items-start gap-2 text-sm text-[var(--color-text-secondary)] cursor-pointer"
-                  >
-                    <input
-                      type="radio"
-                      name="run-options"
-                      className="mt-1"
-                      checked={runOptionsMode === mode}
-                      onChange={() => setRunOptionsMode(mode)}
-                      {...(isFixIncomplete ? { 'aria-describedby': 'fix-incomplete-help' } : {})}
-                    />
-                    <span>
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={
-                            isValidationRepair
-                              ? 'text-[var(--color-warning)] font-semibold'
-                              : 'text-[var(--color-text-primary)]'
-                          }
-                        >
-                          {option.title}
-                        </span>
-                      </span>
-                      <span
-                        className={
-                          isValidationRepair
-                            ? 'block text-xs text-[var(--color-warning)] mt-0.5'
-                            : 'block text-xs text-[var(--color-text-muted)] mt-0.5'
-                        }
-                      >
-                        What this does: {option.whatThisDoes}
-                      </span>
-                      <span
-                        className={
-                          isValidationRepair
-                            ? 'block text-xs text-[var(--color-warning)] mt-0.5'
-                            : 'block text-xs text-[var(--color-text-muted)] mt-0.5'
-                        }
-                      >
-                        What this does not do: {option.whatThisDoesNotDo}
-                      </span>
-                    </span>
-                  </label>
-                )
-              })}
-              {runOptionsMode === 'validation_repair' && (
-                <div className="ml-6 rounded border border-[var(--color-warning)]/40 bg-[var(--color-warning-bg)] p-3 text-xs text-[var(--color-warning)] space-y-1">
-                  <div className="font-semibold">Dry-run repair preview</div>
-                  <div>
-                    Click <span className="text-[var(--color-text-primary)]">Refresh</span> in Preview to scan issue
-                    counts and stage repair queues.
-                  </div>
-                  {repairPreviewLoading && <div className="text-[var(--color-text-secondary)]">Scanning…</div>}
-                  {repairPreview && (
-                    <div className="space-y-1">
-                      <div>
-                        Actions: reconcile={repairPreview.actions.reconciled_rows}, backfill=
-                        {repairPreview.actions.backfilled_index_meta}, scoring_targets=
-                        {repairPreview.actions.scoring_fix_targets}
-                      </div>
-                      <div>
-                        Summary: repaired={repairPreview.repaired}, skipped(images)={repairPreview.skipped},
-                        failed={repairPreview.failed}
-                        {typeof repairPreview.issue_hits === 'number'
-                          ? `, issue_hits=${repairPreview.issue_hits}`
-                          : ''}
-                      </div>
-                    </div>
-                  )}
+            <div className="rounded border border-[var(--color-border-muted)] bg-[var(--color-bg-primary)] p-3 text-sm text-[var(--color-text-secondary)] space-y-2">
+              <div className="font-medium text-[var(--color-text-primary)]">Process STALE / MISSING only</div>
+              <p className="text-xs text-[var(--color-text-muted)]">
+                Runs only work that is missing, invalid, stale by executor version, or falsely marked done.
+                Already-current image stages are skipped.
+              </p>
+              <div className="rounded border border-[var(--color-warning)]/40 bg-[var(--color-warning-bg)] p-3 text-xs text-[var(--color-warning)] space-y-1">
+                <div className="font-semibold">Plan preview</div>
+                <div>
+                  Click <span className="text-[var(--color-text-primary)]">Refresh</span> in Preview to scan stale/missing
+                  counts and stage queues before queueing.
                 </div>
-              )}
+                {repairPreviewLoading && <div className="text-[var(--color-text-secondary)]">Scanning…</div>}
+                {repairPreview && (
+                  <div className="space-y-1">
+                    <div>
+                      Actions: reconcile={repairPreview.actions.reconciled_rows}, backfill=
+                      {repairPreview.actions.backfilled_index_meta}, scoring_targets=
+                      {repairPreview.actions.scoring_fix_targets}
+                    </div>
+                    <div>
+                      Summary: repaired={repairPreview.repaired}, skipped(images)={repairPreview.skipped},
+                      failed={repairPreview.failed}
+                      {typeof repairPreview.issue_hits === 'number'
+                        ? `, issue_hits=${repairPreview.issue_hits}`
+                        : ''}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-between px-5 py-4 border-t border-[var(--color-border-muted)]">
           <Button variant="ghost" onClick={() => setNewRunModalOpen(false)}>
             Cancel

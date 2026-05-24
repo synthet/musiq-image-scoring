@@ -48,7 +48,13 @@ class SelectionRunner:
                 self._total_count,
             )
 
-    def start_batch(self, input_path: str, job_id: int = None, force_rescan: bool = False) -> str:
+    def start_batch(
+        self,
+        input_path: str,
+        job_id: int = None,
+        force_rescan: bool = False,
+        resolved_image_ids: list[int] | None = None,
+    ) -> str:
         """Starts Selection in a background thread. Non-blocking."""
         with self._lock:
             if self.is_running:
@@ -68,14 +74,20 @@ class SelectionRunner:
             def target_wrapper():
                 from modules.pipeline_diagnostics import phase_timer
                 with phase_timer("SelectionRunner.batch", job_id):
-                    self._run_internal(input_path, force_rescan, job_id)
+                    self._run_internal(input_path, force_rescan, job_id, resolved_image_ids)
             safe_runner_thread(self, job_id, target_wrapper)
 
         self._thread = threading.Thread(target=target, daemon=True)
         self._thread.start()
         return "Started"
 
-    def _run_internal(self, input_path: str, force_rescan: bool, job_id: int = None):
+    def _run_internal(
+        self,
+        input_path: str,
+        force_rescan: bool,
+        job_id: int = None,
+        resolved_image_ids: list[int] | None = None,
+    ):
         
         def log(msg: str, level: str = "INFO") -> None:
             with self._lock:
@@ -142,6 +154,16 @@ class SelectionRunner:
                         images.append(row)
             if not images:
                 images = db.get_images_by_folder(input_path) or []
+            if resolved_image_ids is not None:
+                target_ids = {int(i) for i in resolved_image_ids}
+                images = [img for img in images if int(img.get("id") or 0) in target_ids]
+                if not target_ids:
+                    log("No images in planner queue for culling.")
+                    if job_id:
+                        db.update_job_status(job_id, "completed", "Culling: empty planner queue")
+                    with self._lock:
+                        self._status_message = "Done (no images)"
+                    return
             if images:
                 # Pre-requisite validation: Selection/Culling absolutely requires general scores
                 # to perform ranking and filtering.

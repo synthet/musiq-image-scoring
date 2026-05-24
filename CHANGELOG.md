@@ -15,6 +15,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.21.0] - 2026-05-24
+
+### Added
+
+- **Phase work claims**: Postgres **`image_phase_work_claims`** and **`modules/phase_work_claims.py`** — per-image×phase claims so concurrent runs do not duplicate work (Alembic **`0022`**, dispatcher integration).
+- **Run phase planner**: **`modules/run_phase_planner.py`** — just-in-time stale/missing work planning at submit and each phase start; repair plans delegate from **`db`** helpers.
+- **Score analysis**: **`scripts/analysis/model_score_quality_report.py`** and **`recalc_composite_scores.py`** with unit tests.
+
+### Changed
+
+- **Job dispatcher / run modes**: Work-claim acquire/release and planner hooks; **`runs_autodrive`**, **`workflow_healing`**, and selection runner alignment.
+- **Runs / DB UI**: Scope selector, folder buckets, and DB Explorer sidebar/grid updates; static **`/ui`** bundle rebuilt.
+- **API / Postgres**: Safer JSON serialization on DB query API; DDL and legacy paths for work claims.
+- **Docs**: Run-options mode matrix documents planner and claims; pipeline model roadmap pages.
+
+### Fixed
+
+- **Integration tests**: Run-submit modes, job dispatcher, prereq gating, and post-run audit expectations updated for planner/claim behavior.
+
 ## [7.20.1] - 2026-05-23
 
 ### Removed

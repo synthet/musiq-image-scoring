@@ -63,6 +63,7 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | Page | Purpose |
 |---|---|
 | [features/implemented/02-scoring-and-models.md](features/implemented/02-scoring-and-models.md) | Shipped scoring behavior. |
+| [NEW_MODELS_SUMMARY.md](NEW_MODELS_SUMMARY.md) | Consolidated overview of new and roadmap models (ARNIQA, DINOv2, SigLIP2, QPT-V2 status). |
 | [technical/MODELS_SUMMARY.md](technical/MODELS_SUMMARY.md) | Model overview. |
 | [technical/MODEL_INPUT_SPECIFICATIONS.md](technical/MODEL_INPUT_SPECIFICATIONS.md) | Model input requirements. |
 | [technical/MULTI_MODEL_SCORING.md](technical/MULTI_MODEL_SCORING.md) | Multi-model scoring notes. |

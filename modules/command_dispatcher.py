@@ -3,6 +3,7 @@ from typing import Any, Awaitable, Callable, Dict, Optional
 
 from modules.events import event_manager
 from modules.phases import sort_phase_value_strings
+from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
 
 logger = logging.getLogger(__name__)
 
@@ -141,13 +142,18 @@ class CommandDispatcher:
         phase_code, enqueue_job_type, phases = job_type_map[job_type_in]
         phases = sort_phase_value_strings(list(phases))
 
+        mode_flags = resolve_run_mode_flags(CANONICAL_RUN_MODE)
         payload = {
             "scope_type": data.get("scopeType") or default_scope_type,
             "scope_paths": target_paths,
             "input_path": primary_path,
-            "skip_done": bool(options.get("skip_existing", True)),
-            "skip_existing": bool(options.get("skip_existing", True)),
-            "force_rerun": bool(options.get("force_rerun", False)),
+            "run_mode": CANONICAL_RUN_MODE,
+            "skip_done": mode_flags["skip_done"],
+            "skip_existing": mode_flags["skip_existing"],
+            "force_rerun": mode_flags["force_rerun"],
+            "fix_incomplete_stages": mode_flags["fix_incomplete_stages"],
+            "overwrite": mode_flags["overwrite"],
+            "force_rescan": mode_flags["force_rescan"],
             "phases": phases,
             "target_phases": phases,
             "command_source": "websocket",
@@ -158,8 +164,7 @@ class CommandDispatcher:
         wf_desc = build_run_submit_description(
             scope_type=str(payload.get("scope_type") or "folder_recursive"),
             scope_paths=list(target_paths or []),
-            run_mode="process_unprocessed_or_empty",
-            validation_repair_mode=False,
+            run_mode=CANONICAL_RUN_MODE,
             phase_values=list(phases or []),
             client_description=None,
         )

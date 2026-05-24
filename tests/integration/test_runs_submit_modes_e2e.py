@@ -145,24 +145,19 @@ def _submit_like_spa(
     client,
     scope_paths: list[str],
     *,
-    skip_done: bool,
-    force_rerun: bool,
-    fix_incomplete_stages: bool,
-    validation_repair_mode: bool,
     description: str = "",
+    plan_dry_run: bool = False,
 ) -> dict[str, Any]:
     body = {
         "scope_type": "folder_recursive",
         "scope_paths": scope_paths,
         "stages": list(FULL_PIPELINE_STAGE_CODES),
-        "skip_done": skip_done,
-        "force_rerun": force_rerun,
-        "fix_incomplete_stages": fix_incomplete_stages,
-        "validation_repair_mode": validation_repair_mode,
-        "validation_repair_dry_run": False,
+        "run_mode": "process_stale_or_missing",
         "generate_captions": False,
         "description": description,
     }
+    if plan_dry_run:
+        body["plan_dry_run"] = True
     r = client.post("/api/runs/submit", json=body)
     assert r.status_code == 200, r.text
     data = r.json()
@@ -191,87 +186,8 @@ def _assert_six_phases_completed(job_id: int):
         assert (p.get("state") or "").lower() == "completed", p
 
 
-@pytest.mark.parametrize(
-    "mode,skip_done,force_rerun,fix_incomplete,validation_repair,"
-    "expect_run_mode,expect_skip_existing,expect_force_rerun,"
-    "expect_overwrite,expect_force_rescan,expect_fix_flag,"
-    "expect_repair_summary",
-    [
-        (
-            "process_new",
-            True,
-            False,
-            False,
-            False,
-            "process_unprocessed_or_empty",
-            True,
-            False,
-            False,
-            False,
-            False,
-            False,
-        ),
-        (
-            "process_all",
-            False,
-            True,
-            False,
-            False,
-            "process_all_overwrite",
-            False,
-            True,
-            True,
-            True,
-            False,
-            False,
-        ),
-        (
-            "fix_incomplete",
-            True,
-            False,
-            True,
-            False,
-            "validate_and_repair",
-            False,
-            False,
-            False,
-            True,
-            True,
-            True,
-        ),
-        (
-            "validation_repair",
-            True,
-            False,
-            False,
-            True,
-            "validate_and_repair",
-            False,
-            False,
-            False,
-            True,
-            True,
-            True,
-        ),
-    ],
-)
-def test_runs_submit_modes_payload_and_pipeline(
-    api_client,
-    tmp_path,
-    mode,
-    skip_done,
-    force_rerun,
-    fix_incomplete,
-    validation_repair,
-    expect_run_mode,
-    expect_skip_existing,
-    expect_force_rerun,
-    expect_overwrite,
-    expect_force_rescan,
-    expect_fix_flag,
-    expect_repair_summary,
-):
-    """SPA-shaped POST /api/runs/submit: queue_payload flags + full fake pipeline completes."""
+def test_runs_submit_stale_missing_payload_and_pipeline(api_client, tmp_path):
+    """POST /api/runs/submit (canonical mode): queue_payload flags + full fake pipeline completes."""
     from modules import db
     from tests.support.pipeline_matrix import run_dispatcher_until_quiet
 
@@ -282,11 +198,7 @@ def test_runs_submit_modes_payload_and_pipeline(
     data = _submit_like_spa(
         api_client,
         scope_paths,
-        skip_done=skip_done,
-        force_rerun=force_rerun,
-        fix_incomplete_stages=fix_incomplete,
-        validation_repair_mode=validation_repair,
-        description=f"e2e-{mode}",
+        description="e2e-stale-missing",
     )
     job_id = int(data["run_id"])
     job = db.get_job(job_id)
@@ -294,24 +206,13 @@ def test_runs_submit_modes_payload_and_pipeline(
     pl = _payload_flags(job)
 
     assert pl.get("scope_paths") == scope_paths
-    assert pl.get("run_mode") == expect_run_mode
-    if expect_skip_existing is not None:
-        assert pl.get("skip_existing") is expect_skip_existing
-    if expect_force_rerun is not None:
-        assert pl.get("force_rerun") is expect_force_rerun
-    if expect_overwrite is not None:
-        assert pl.get("overwrite") is expect_overwrite
-    if expect_force_rescan is not None:
-        assert pl.get("force_rescan") is expect_force_rescan
-    assert pl.get("fix_incomplete_stages") is expect_fix_flag
-
-    if expect_repair_summary:
-        assert "validation_repair_summary" in pl
-        summary = pl["validation_repair_summary"]
-        assert isinstance(summary, dict)
-        assert "stage_queues" in summary
-    else:
-        assert "validation_repair_summary" not in pl
+    assert pl.get("run_mode") == "process_stale_or_missing"
+    assert pl.get("skip_existing") is False
+    assert pl.get("fix_incomplete_stages") is True
+    assert "repair_plan_summary" in pl
+    summary = pl["repair_plan_summary"]
+    assert isinstance(summary, dict)
+    assert "stage_queues" in summary
 
     run_dispatcher_until_quiet(dispatcher, deadline_s=45.0)
 
@@ -320,24 +221,14 @@ def test_runs_submit_modes_payload_and_pipeline(
     assert (row.get("status") or "").lower() == "completed", row
     _assert_six_phases_completed(job_id)
 
-    # Deep check: scoring skip_existing for NEW vs ALL (payload-driven modes).
-    if mode == "process_new":
-        assert any(sk is True for _, sk in scoring_calls), scoring_calls
-    elif mode == "process_all":
-        assert any(sk is False for _, sk in scoring_calls), scoring_calls
-    elif mode == "fix_incomplete":
-        assert scoring_calls, "expected at least one scoring dispatch"
-        assert all(sk is False for _, sk in scoring_calls), scoring_calls
-    elif mode == "validation_repair":
-        assert scoring_calls, "expected at least one scoring dispatch"
-        assert pl.get("skip_existing") is False
+    if scoring_calls:
         assert all(sk is False for _, sk in scoring_calls), scoring_calls
 
 
-def test_validation_repair_preview_smoke(api_client, tmp_path):
+def test_plan_preview_smoke(api_client, tmp_path):
     scope_paths = _mkdir_scope(tmp_path, n_folders=2)
     r = api_client.post(
-        "/api/runs/validation-repair/preview",
+        "/api/runs/plan/preview",
         json={"scope_paths": scope_paths, "stages": list(FULL_PIPELINE_STAGE_CODES)},
     )
     assert r.status_code == 200, r.text
@@ -366,10 +257,6 @@ def test_burst_concurrent_submits_complete_all(api_client, tmp_path):
             _submit_like_spa(
                 api_client,
                 paths,
-                skip_done=True,
-                force_rerun=False,
-                fix_incomplete_stages=False,
-                validation_repair_mode=False,
                 description=f"burst-{i}",
             )["run_id"]
         )
@@ -395,14 +282,7 @@ def test_parallel_dispatcher_ticks_single_job(api_client, tmp_path):
 
     scope_paths = _mkdir_scope(tmp_path, n_folders=1)
     dispatcher = _make_dispatcher(delay_s=0.06, scoring_recordings=None)
-    data = _submit_like_spa(
-        api_client,
-        scope_paths,
-        skip_done=True,
-        force_rerun=False,
-        fix_incomplete_stages=False,
-        validation_repair_mode=False,
-    )
+    data = _submit_like_spa(api_client, scope_paths)
     job_id = int(data["run_id"])
 
     stop = threading.Event()
@@ -449,10 +329,6 @@ def test_submit_while_dispatcher_pumping(api_client, tmp_path):
         _submit_like_spa(
             api_client,
             paths1,
-            skip_done=True,
-            force_rerun=False,
-            fix_incomplete_stages=False,
-            validation_repair_mode=False,
             description="overlap-1",
         )["run_id"]
     )
@@ -472,10 +348,6 @@ def test_submit_while_dispatcher_pumping(api_client, tmp_path):
             _submit_like_spa(
                 api_client,
                 paths2,
-                skip_done=True,
-                force_rerun=False,
-                fix_incomplete_stages=False,
-                validation_repair_mode=False,
                 description="overlap-2",
             )["run_id"]
         )

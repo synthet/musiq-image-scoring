@@ -8,6 +8,17 @@ function formatCell(val: unknown): { text: string; title?: string } {
   if (val === null || val === undefined) {
     return { text: 'null' }
   }
+  if (Array.isArray(val)) {
+    const preview = JSON.stringify(val)
+    if (val.length > 8) {
+      const summary = `[${val.length} values]`
+      return { text: summary, title: preview.length > 200 ? `${preview.slice(0, 200)}…` : preview }
+    }
+    if (preview.length > CELL_DISPLAY_MAX) {
+      return { text: `${preview.slice(0, CELL_DISPLAY_MAX)}…`, title: preview }
+    }
+    return { text: preview, title: preview.length > 40 ? preview : undefined }
+  }
   if (typeof val === 'object') {
     const s = JSON.stringify(val)
     if (s.length > CELL_DISPLAY_MAX) {

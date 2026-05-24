@@ -38,12 +38,7 @@ def test_inference_via_live_api():
             # The test fixtures path mapped in the container
             "scope_paths": ["/app/tests/fixtures/testing_samples"],
             "stages": ["indexing", "metadata", "scoring"],
-            "run_mode": "process_unprocessed_or_empty",
-            "skip_done": True,
-            "force_rerun": False,
-            "fix_incomplete_stages": False,
-            "validation_repair_mode": False,
-            "validation_repair_dry_run": False,
+            "run_mode": "process_stale_or_missing",
             "generate_captions": False,
         }
         

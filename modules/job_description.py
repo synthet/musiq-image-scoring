@@ -26,7 +26,6 @@ def build_run_submit_description(
     scope_type: str,
     scope_paths: List[str],
     run_mode: str,
-    validation_repair_mode: bool,
     phase_values: Optional[List[str]] = None,
     client_description: Optional[str] = None,
 ) -> str:
@@ -37,11 +36,10 @@ def build_run_submit_description(
     parts = [
         f"Pipeline run (run_mode={run_mode}, scope_type={scope_type}).",
         f"Primary path: {primary}.",
+        "Processes stale or missing pipeline work only.",
     ]
     if len(scope_paths) > 1:
         parts.append(f"Multiple roots: {len(scope_paths)} path(s).")
-    if validation_repair_mode:
-        parts.append("Validation-repair: scan for stage-specific issues and apply minimal repairs.")
     if phase_values:
         parts.append(f"Stages: {', '.join(phase_values)}.")
     return " ".join(parts)

@@ -6,6 +6,14 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-05-24] created | New models summary page
+
+Added [NEW_MODELS_SUMMARY.md](NEW_MODELS_SUMMARY.md) — consolidated overview of new/roadmap models (ARNIQA, DINOv2, SigLIP2, QPT-V2, OpenCLIP alternate), calibration #185 status, and #220 implementation phases. Linked from [INDEX.md](INDEX.md), [planning/INDEX.md](planning/INDEX.md), and [MODEL_RECOMMENDATIONS_PIPELINES.md](MODEL_RECOMMENDATIONS_PIPELINES.md).
+
+## [2026-05-24] created | QPT V2 validation gates plan
+
+Added [planning/models/QPT_V2_VALIDATION_GATES.md](planning/models/QPT_V2_VALIDATION_GATES.md) — shadow validation gates (1–3, 5), upstream status, score_range bug, script plan, promotion criteria (#185). Linked from [planning/INDEX.md](planning/INDEX.md) and [CALIBRATION_LAYER_185_STATUS.md](planning/models/CALIBRATION_LAYER_185_STATUS.md).
+
 ## [2026-05-23] updated | Indexed pipeline model roadmap in main docs index
 
 Added [MODEL_RECOMMENDATIONS_PIPELINES.md](MODEL_RECOMMENDATIONS_PIPELINES.md) to the **Models And Scoring** section of [INDEX.md](INDEX.md) (was previously linked only from [planning/INDEX.md](planning/INDEX.md) and [log.md](log.md)). Verified the doc's license claims (ARNIQA Apache-2.0, QualiCLIP CC-BY-NC) against [reports/DEEP_RESEARCH_REPORT.md](reports/DEEP_RESEARCH_REPORT.md) and confirmed all referenced research reports exist.

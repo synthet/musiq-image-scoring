@@ -4,6 +4,8 @@
 **Status:** Partially done; remaining work is **data-blocked**. Captured here so the issue can be moved to `Blocked` with a concrete unblock path.
 **Last assessed:** 2026-05-23.
 
+**Validation plan (gates, scripts, promotion criteria):** [QPT_V2_VALIDATION_GATES.md](QPT_V2_VALIDATION_GATES.md)
+
 ## What #185 asks for
 
 1. Add empirical percentile anchors (`p02`/`p98`) for `qpt_v2` and `topiq` to
@@ -41,8 +43,8 @@ Two residual problems remain before calibration is meaningful:
    same "not satisfactory" symptom reported in
    [QPT-V2 issue #2](https://github.com/KeiChiTse/QPT-V2/issues/2). Scores must be validated
    against a labelled IQA set (e.g. Spearman vs MOS) before trusting them.
-2. **No corpus scores yet.** Empirical `p02`/`p98` need a population of real shadow scores
-   in `image_model_scores`; computing them requires a full shadow-scoring pass over the
+2. **No corpus scores yet.** Empirical `p02`/`p98` need a population of scores in
+   `image_model_scores`; computing them requires a scoring pass over the
    corpus, which needs the DB (see Blocker B).
 
 #### Validation attempts (2026-05-24, 20–30 sample thumbnails)
@@ -60,7 +62,7 @@ sensitive to blur, but does **not** yet track quality reliably (target blur-Spea
 NIQE cross-check wrong sign). Center-crop preprocessing was adopted (`QptV2Scorer._preprocess`)
 as it both follows the standard eval recipe and measurably helps. Remaining gap is likely
 further recipe details (token pooling, exact crop/resolution) and/or the thumbnail substrate.
-**Do not trust scores yet; keep `qpt_v2` shadow.** Next: validate on full-resolution images
+**Do not trust scores yet; QPT V2 is fully disabled (unregistered).** Next: validate on full-resolution images
 against a labelled MOS set, or recover the upstream recipe.
 
 **Unblocks when:** (a) the reconstruction is validated against a labelled set (or upstream
@@ -130,8 +132,8 @@ up when the team decides to proceed despite the empirical-params blocker.
 ## Related files
 
 - [`modules/score_normalization.py`](../../../modules/score_normalization.py) — anchors, percentile rescaling, composites.
-- [`modules/qpt_v2.py`](../../../modules/qpt_v2.py) — QPT V2 scorer (reports `available=false` until upstream ships).
-- [`modules/engines/qpt_v2_model.py`](../../../modules/engines/qpt_v2_model.py) — registry adapter (shadow).
+- [`modules/qpt_v2.py`](../../../modules/qpt_v2.py) — QPT V2 scorer (not registered in live pipeline).
+- [`modules/engines/qpt_v2_model.py`](../../../modules/engines/qpt_v2_model.py) — registry adapter (register when #185 unblocks).
 - `scripts/analysis/model_score_quality_report.py` — corpus distribution/correlation report (anchor source).
 - `scripts/analysis/recalc_composite_scores.py` — recompute composites from stored scores using current anchors.
 - [`docs/technical/MODELS_SUMMARY.md`](../../technical/MODELS_SUMMARY.md), [`docs/technical/MULTI_MODEL_SCORING.md`](../../technical/MULTI_MODEL_SCORING.md) — live model status.

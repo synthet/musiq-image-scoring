@@ -199,7 +199,6 @@ export interface RunsAutoDriveRequest {
   target_phases?: string[]
   limit?: number
   dry_run?: boolean
-  run_mode?: 'process_all_overwrite' | 'process_unprocessed_or_empty' | 'validate_and_repair'
   max_repeats?: number
   generate_captions?: boolean
 }
