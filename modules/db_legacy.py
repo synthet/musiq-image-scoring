@@ -757,7 +757,6 @@ def generate_image_uuid(metadata: dict | None) -> str:
 _VIRTUAL_SORT_KEYS = {"phases", "embeddings"}
 ALLOWED_SORT_COLUMNS = {
     "score", "score_general", "score_aesthetic", "score_technical",
-    "score_spaq", "score_ava", "score_koniq", "score_paq2piq", "score_liqe",
     "rating", "file_name", "file_path", "created_at", "updated_at",
     "id", "label", "folder_id",
     "date_time_original", "make", "model", "lens_model", "iso",
@@ -4773,7 +4772,7 @@ def get_images_by_folder(folder_path):
                 i.metadata, i.scores_json, i.created_at, i.updated_at,
                 i.thumbnail_path, i.thumbnail_path_win, i.score_general, i.burst_uuid,
                 i.image_hash, i.hash_version,
-                i.score_technical, i.score_aesthetic, i.score_spaq, i.score_ava, i.score_koniq, i.score_paq2piq, i.score_liqe,
+                i.score_technical, i.score_aesthetic,
                 COALESCE(
                     (SELECT LIST(COALESCE(kd.keyword_display, kd.keyword_norm), ', ')
                      FROM image_keywords ik
@@ -7725,11 +7724,10 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
             return val
         return None
 
-    score_spaq = get_ind_score("spaq")
-    score_ava = get_ind_score("ava")
-    score_koniq = get_ind_score("koniq")
-    score_paq2piq = get_ind_score("paq2piq")
-    score_liqe = get_ind_score("liqe")
+    # Per-model raw values live in ``image_model_scores`` (migration 0016).
+    # ``get_ind_score`` is still called below indirectly to keep the registry
+    # contract (status / normalized_score), but the values no longer have a
+    # dedicated column on ``images``.
         
     # Weighted Scores
     # Try to get from result (if passed from engine) or parse from summary
@@ -7860,7 +7858,7 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                             image_uuid_val[:16], existing_id, existing_path, image_path)
                 dup_params = (
                     job_id, image_path, file_name, file_type,
-                    score, score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
+                    score,
                     score_technical, score_aesthetic, score_general, model_version,
                     rating, label, keywords, title, description, metadata, json.dumps(result),
                     thumbnail_path, thumbnail_path_win, image_hash, hash_version, folder_id,
@@ -7870,7 +7868,7 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                     get_connector().execute(
                         '''UPDATE images SET
                            job_id=?, file_path=?, file_name=?, file_type=?,
-                           score=?, score_spaq=?, score_ava=?, score_koniq=?, score_paq2piq=?, score_liqe=?,
+                           score=?,
                            score_technical=?, score_aesthetic=?, score_general=?, model_version=?,
                            rating=?, label=?, keywords=?, title=?, description=?, metadata=?, scores_json=?,
                            thumbnail_path=?, thumbnail_path_win=?, image_hash=?, hash_version=?, folder_id=?
@@ -7881,12 +7879,12 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                     get_connector().execute(
                         '''UPDATE images SET
                            job_id=?, file_path=?, file_name=?, file_type=?,
-                           score=?, score_spaq=?, score_ava=?, score_koniq=?, score_paq2piq=?, score_liqe=?,
+                           score=?,
                            score_technical=?, score_aesthetic=?, score_general=?, model_version=?,
                            rating=?, label=?, title=?, description=?, metadata=?, scores_json=?,
                            thumbnail_path=?, thumbnail_path_win=?, image_hash=?, hash_version=?, folder_id=?
                            WHERE id=?''',
-                        dup_params[:16] + dup_params[17:],
+                        dup_params[:11] + dup_params[12:],
                     )
                 _sync_image_keywords(existing_id, keywords)
                 _write_image_model_scores(existing_id, result, model_version)
@@ -7915,7 +7913,6 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
     _upsert_params = (
         job_id, image_path, file_name, file_type,
         score,
-        score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
         score_technical, score_aesthetic, score_general, model_version,
         rating, label,
         keywords, title, description, metadata, json.dumps(result),
@@ -7925,7 +7922,6 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
     _upsert_params_no_legacy_kw = (
         job_id, image_path, file_name, file_type,
         score,
-        score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
         score_technical, score_aesthetic, score_general, model_version,
         rating, label,
         title, description, metadata, json.dumps(result),
@@ -7939,13 +7935,12 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                 '''UPDATE OR INSERT INTO images
                       (job_id, file_path, file_name, file_type,
                        score,
-                       score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
                        score_technical, score_aesthetic, score_general, model_version,
                        rating, label,
                        keywords, title, description, metadata, scores_json,
                        thumbnail_path, thumbnail_path_win,
                        image_hash, hash_version, folder_id, created_at)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                       MATCHING (file_path) RETURNING id''',
                 _upsert_params,
             )
@@ -7954,13 +7949,12 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                 '''UPDATE OR INSERT INTO images
                       (job_id, file_path, file_name, file_type,
                        score,
-                       score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
                        score_technical, score_aesthetic, score_general, model_version,
                        rating, label,
                        title, description, metadata, scores_json,
                        thumbnail_path, thumbnail_path_win,
                        image_hash, hash_version, folder_id, created_at)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                       MATCHING (file_path) RETURNING id''',
                 _upsert_params_no_legacy_kw,
             )
@@ -8633,22 +8627,34 @@ def _incomplete_images_where_sql(table_alias: str = "") -> str:
     so including them here would mark every freshly-scored-but-unrated image
     incomplete forever and trap heal in a re-target loop.
 
-    Semantics mirror ``is_image_scoring_complete`` (not stricter): the sole
-    criterion is **at least one** positive model column among
-    ``spaq/ava/liqe/paq2piq/koniq``. The aggregated ``score_general`` is a
-    derived weighted value that can legitimately be ``0`` (e.g. when the
-    technical sub-aggregate is ``0`` for a particular image), so requiring
-    ``score_general > 0`` would re-introduce the same kind of infinite heal
-    loop the per-model rule was meant to avoid (see issue #162). Legacy
-    ``score`` is not consulted here so policy, healing, and
-    ``explain_phase_run_decision`` stay consistent.
+    Semantics: an image is scored when ``image_model_scores`` has at least one
+    production (non-shadow) row with ``status='success'`` and a positive value
+    for one of the five canonical models (``spaq/ava/liqe/paq2piq/koniq``).
+    The aggregated ``score_general`` is a derived weighted value that can
+    legitimately be ``0`` for a successfully-scored image and is intentionally
+    not consulted (issue #162). The legacy typed ``images.score_*`` columns are
+    likewise ignored: the per-model table is the source of truth (migration
+    0016) and the typed columns are scheduled for removal.
     """
-    prefix = f"{table_alias}." if table_alias else ""
-    models_any_positive = " OR ".join(
-        f"({prefix}score_{m} IS NOT NULL AND {prefix}score_{m} > 0)"
-        for m in ("spaq", "ava", "liqe", "paq2piq", "koniq")
+    ialias = (table_alias or "").strip()
+    image_ref = f"{ialias}.id" if ialias else "id"
+    if _get_db_engine() != "postgres":
+        prefix = f"{ialias}." if ialias else ""
+        models_any_positive = " OR ".join(
+            f"({prefix}score_{m} IS NOT NULL AND {prefix}score_{m} > 0)"
+            for m in ("spaq", "ava", "liqe", "paq2piq", "koniq")
+        )
+        return f"(NOT ({models_any_positive}))"
+    return (
+        "(NOT EXISTS ("
+        "SELECT 1 FROM image_model_scores ims WHERE "
+        f"ims.image_id = {image_ref} "
+        "AND ims.model_name IN ('spaq', 'ava', 'liqe', 'paq2piq', 'koniq') "
+        "AND ims.status = 'success' "
+        "AND ims.is_shadow = FALSE "
+        "AND COALESCE(ims.normalized, ims.raw_score) > 0"
+        "))"
     )
-    return f"(NOT ({models_any_positive}))"
 
 
 def culling_cohesion_folders_aggregate_sql() -> str:
@@ -8931,25 +8937,37 @@ def is_image_scoring_complete(image_id: int) -> bool:
     Used by phases_policy to verify 'DONE' status.
 
     Aligned with :func:`_incomplete_images_where_sql`: completeness is decided
-    solely by the presence of at least one positive per-model score. The
-    aggregated ``score_general`` is intentionally not consulted because a
-    derived weighted score of exactly ``0`` is a legitimate scorer output and
-    must not flip a successfully-scored image back to incomplete (issue #162).
+    solely by the presence of at least one positive per-model score in
+    ``image_model_scores`` for the canonical legacy models. The aggregated
+    ``score_general`` is intentionally not consulted because a derived weighted
+    score of exactly ``0`` is a legitimate scorer output and must not flip a
+    successfully-scored image back to incomplete (issue #162).
     """
-    row = get_connector().query_one(
-        "SELECT score_spaq, score_ava, score_paq2piq, score_liqe "
-        "FROM images WHERE id = ?",
-        (image_id,)
-    )
-    if not row:
+    if _get_db_engine() != "postgres":
+        row = get_connector().query_one(
+            "SELECT score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe "
+            "FROM images WHERE id = ?",
+            (image_id,),
+        )
+        if not row:
+            return False
+        for m in ("score_spaq", "score_ava", "score_koniq", "score_paq2piq", "score_liqe"):
+            val = row.get(m)
+            if val is not None and val > 0:
+                return True
         return False
 
-    model_scores = ["score_spaq", "score_ava", "score_paq2piq", "score_liqe"]
-    for m in model_scores:
-        val = row.get(m)
-        if val is not None and val > 0:
-            return True
-    return False
+    row = get_connector().query_one(
+        "SELECT 1 AS hit FROM image_model_scores "
+        "WHERE image_id = ? "
+        "AND model_name IN ('spaq', 'ava', 'liqe', 'paq2piq', 'koniq') "
+        "AND status = 'success' "
+        "AND is_shadow = FALSE "
+        "AND COALESCE(normalized, raw_score) > 0 "
+        "LIMIT 1",
+        (image_id,),
+    )
+    return bool(row)
 
 
 def is_image_metadata_complete(image_id: int) -> bool:
@@ -9813,8 +9831,7 @@ def get_stacks_for_display(folder_path=None, sort_by="score_general", order="des
 
     # Map sort_by to column
     # If sort_by is invalid, default to score_general
-    valid_cols = ["created_at", "id", "score_general", "score_technical", "score_aesthetic",
-                  "score_spaq", "score_ava", "score_koniq", "score_paq2piq", "score_liqe"]
+    valid_cols = ["created_at", "id", "score_general", "score_technical", "score_aesthetic"]
     if sort_by not in valid_cols:
         sort_by = "score_general"
 
@@ -11116,6 +11133,31 @@ def get_embeddings_with_metadata(folder_path=None, limit=None):
         score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe
     Optionally filter by folder_path and cap results with limit.
     """
+    # Per-model scores live in ``image_model_scores`` (migration 0016). One
+    # LEFT JOIN with conditional aggregation surfaces them in the same shape
+    # callers expect (one column per legacy model name).
+    ims_join = (
+        " LEFT JOIN ("
+        "   SELECT image_id,"
+        "     MAX(CASE WHEN model_name = 'spaq'    THEN COALESCE(normalized, raw_score) END) AS score_spaq,"
+        "     MAX(CASE WHEN model_name = 'ava'     THEN COALESCE(normalized, raw_score) END) AS score_ava,"
+        "     MAX(CASE WHEN model_name = 'liqe'    THEN COALESCE(normalized, raw_score) END) AS score_liqe,"
+        "     MAX(CASE WHEN model_name = 'koniq'   THEN COALESCE(normalized, raw_score) END) AS score_koniq,"
+        "     MAX(CASE WHEN model_name = 'paq2piq' THEN COALESCE(normalized, raw_score) END) AS score_paq2piq"
+        "   FROM image_model_scores"
+        "   WHERE model_name IN ('spaq', 'ava', 'liqe', 'koniq', 'paq2piq')"
+        "     AND is_shadow = FALSE AND status = 'success'"
+        "   GROUP BY image_id"
+        " ) ims_legacy ON ims_legacy.image_id = i.id"
+    )
+    ims_select = (
+        " ims_legacy.score_spaq AS score_spaq, "
+        " ims_legacy.score_ava AS score_ava, "
+        " ims_legacy.score_liqe AS score_liqe, "
+        " ims_legacy.score_koniq AS score_koniq, "
+        " ims_legacy.score_paq2piq AS score_paq2piq "
+    )
+
     if _get_db_engine() == "postgres":
         sub = _pg_default_embedding_space_subquery_sql()
         has_e = _postgres_has_default_embedding_sql("i")
@@ -11125,9 +11167,9 @@ def get_embeddings_with_metadata(folder_path=None, limit=None):
             sql = (
                 f"SELECT i.id, i.file_path, {emb_expr} AS image_embedding, i.thumbnail_path, "
                 f"       i.label, i.rating, i.score_general, i.score_technical, i.score_aesthetic, "
-                f"       i.score_spaq, i.score_ava, i.score_koniq, i.score_paq2piq, i.score_liqe "
+                f"{ims_select}"
                 f"FROM images i "
-                f"LEFT JOIN image_embeddings ie ON ie.image_id = i.id AND ie.embedding_space_id = {sub} "
+                f"LEFT JOIN image_embeddings ie ON ie.image_id = i.id AND ie.embedding_space_id = {sub}{ims_join} "
                 f"JOIN folders f ON f.id = i.folder_id "
                 f"WHERE {has_e} AND f.path = ?"
             )
@@ -11136,9 +11178,9 @@ def get_embeddings_with_metadata(folder_path=None, limit=None):
             sql = (
                 f"SELECT i.id, i.file_path, {emb_expr} AS image_embedding, i.thumbnail_path, "
                 f"       i.label, i.rating, i.score_general, i.score_technical, i.score_aesthetic, "
-                f"       i.score_spaq, i.score_ava, i.score_koniq, i.score_paq2piq, i.score_liqe "
+                f"{ims_select}"
                 f"FROM images i "
-                f"LEFT JOIN image_embeddings ie ON ie.image_id = i.id AND ie.embedding_space_id = {sub} "
+                f"LEFT JOIN image_embeddings ie ON ie.image_id = i.id AND ie.embedding_space_id = {sub}{ims_join} "
                 f"WHERE {has_e}"
             )
             params = []

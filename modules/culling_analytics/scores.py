@@ -12,16 +12,25 @@ from modules.culling_analytics._common import (
     summarize_numeric,
 )
 
-SCORE_FIELDS = (
+AGGREGATE_SCORE_FIELDS = (
     "score_general",
     "score_technical",
     "score_aesthetic",
-    "score_spaq",
-    "score_ava",
-    "score_koniq",
-    "score_paq2piq",
-    "score_liqe",
 )
+
+# Per-model scores live in ``image_model_scores`` (migration 0016 → drop
+# migration). They are reported under the legacy ``score_<name>`` field names
+# for stable consumer compatibility but sourced from the model row.
+PER_MODEL_LEGACY_FIELDS: tuple[tuple[str, str], ...] = (
+    ("score_spaq", "spaq"),
+    ("score_ava", "ava"),
+    ("score_koniq", "koniq"),
+    ("score_paq2piq", "paq2piq"),
+    ("score_liqe", "liqe"),
+)
+
+# Preserved for backwards-compatible callers that iterate field names.
+SCORE_FIELDS = AGGREGATE_SCORE_FIELDS + tuple(name for name, _ in PER_MODEL_LEGACY_FIELDS)
 
 
 def compute_library_scores(
@@ -33,8 +42,9 @@ def compute_library_scores(
     folder_clause, params = images_folder_filter(folder_id)
     conn = db.get_connector()
     by_field: dict[str, Any] = {}
+    total_images = max(1, _image_count(conn, folder_clause, params))
 
-    for field in SCORE_FIELDS:
+    for field in AGGREGATE_SCORE_FIELDS:
         rows = conn.query(
             f"""
             SELECT {field} AS v
@@ -47,10 +57,27 @@ def compute_library_scores(
         vals = [v for v in vals if v is not None]
         summary = summarize_numeric(vals)
         summary["histogram"] = histogram(vals)
-        summary["coverage_pct"] = round(
-            100.0 * summary["count"] / max(1, _image_count(conn, folder_clause, params)),
-            2,
+        summary["coverage_pct"] = round(100.0 * summary["count"] / total_images, 2)
+        by_field[field] = summary
+
+    for field, model_name in PER_MODEL_LEGACY_FIELDS:
+        rows = conn.query(
+            f"""
+            SELECT COALESCE(ims.normalized, ims.raw_score) AS v
+            FROM image_model_scores ims
+            JOIN images i ON i.id = ims.image_id
+            WHERE ims.model_name = ?
+              AND ims.status = 'success'
+              AND ims.is_shadow = FALSE
+              AND COALESCE(ims.normalized, ims.raw_score) IS NOT NULL{folder_clause}
+            """,
+            (model_name, *params),
         )
+        vals = [safe_float(r["v"]) for r in rows]
+        vals = [v for v in vals if v is not None]
+        summary = summarize_numeric(vals)
+        summary["histogram"] = histogram(vals)
+        summary["coverage_pct"] = round(100.0 * summary["count"] / total_images, 2)
         by_field[field] = summary
 
     stack_summaries = _per_stack_score_summaries(
@@ -146,10 +173,29 @@ def _per_stack_score_summaries(
 def compute_stack_scores(stack_id: int) -> dict[str, Any]:
     conn = db.get_connector()
     by_field: dict[str, Any] = {}
-    for field in SCORE_FIELDS:
+    for field in AGGREGATE_SCORE_FIELDS:
         rows = conn.query(
             f"SELECT {field} AS v FROM images WHERE stack_id = ? AND {field} IS NOT NULL",
             (stack_id,),
+        )
+        vals = [safe_float(r["v"]) for r in rows if safe_float(r["v"]) is not None]
+        summary = summarize_numeric(vals)
+        summary["histogram"] = histogram(vals)
+        by_field[field] = summary
+
+    for field, model_name in PER_MODEL_LEGACY_FIELDS:
+        rows = conn.query(
+            """
+            SELECT COALESCE(ims.normalized, ims.raw_score) AS v
+            FROM image_model_scores ims
+            JOIN images i ON i.id = ims.image_id
+            WHERE i.stack_id = ?
+              AND ims.model_name = ?
+              AND ims.status = 'success'
+              AND ims.is_shadow = FALSE
+              AND COALESCE(ims.normalized, ims.raw_score) IS NOT NULL
+            """,
+            (stack_id, model_name),
         )
         vals = [safe_float(r["v"]) for r in rows if safe_float(r["v"]) is not None]
         summary = summarize_numeric(vals)

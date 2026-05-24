@@ -453,18 +453,32 @@ class JobDispatcher:
                 report_collector = ReportCollector(job_id, "scoring", run_mode_val)
                 if resolved:
                     # Batch-query current scores for before-snapshot capture.
+                    # Per-model values live in ``image_model_scores`` (migration
+                    # 0016) and are overlaid into the row dict below.
                     placeholders = ",".join("?" * len(resolved))
                     rows = db.get_connector().query(
                         f"""
                         SELECT id, score, score_general, score_technical, score_aesthetic,
-                               score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe,
                                rating, label
                         FROM images WHERE id IN ({placeholders})
                         """,
                         tuple(resolved),
                     )
+                    try:
+                        ims_map = db.get_batch_image_model_scores(resolved, include_shadow=False)
+                    except Exception:
+                        ims_map = {}
                     for r in rows or []:
                         img_id = int(r["id"])
+                        entries = ims_map.get(img_id) or {}
+                        for name in ("spaq", "ava", "koniq", "paq2piq", "liqe"):
+                            entry = entries.get(name)
+                            if entry and entry.get("status") == "success":
+                                val = entry.get("normalized")
+                                if val is None:
+                                    val = entry.get("raw_score")
+                                if val is not None:
+                                    r[f"score_{name}"] = val
                         snapshot = extract_score_snapshot(r)
                         reason = describe_incomplete_fields(r)
                         report_collector.record_before(img_id, snapshot, reason)

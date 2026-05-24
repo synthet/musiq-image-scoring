@@ -17,7 +17,11 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Score columns captured in before/after snapshots (scoring phase).
+# Score columns captured in before/after snapshots (scoring phase). Per-model
+# values (spaq/ava/liqe/koniq/paq2piq) live in ``image_model_scores`` and are
+# overlaid into the row dict by ``modules.job_dispatcher`` before snapshot
+# extraction, so they appear here even though ``images`` no longer carries
+# typed ``score_<name>`` columns (backend migration 0016 → drop migration).
 SCORE_SNAPSHOT_COLUMNS = (
     "score",
     "score_general",

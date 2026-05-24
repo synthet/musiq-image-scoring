@@ -261,21 +261,33 @@ def get_database_stats() -> dict:
                 SELECT
                     AVG(score_general) as avg_general,
                     AVG(score_technical) as avg_technical,
-                    AVG(score_aesthetic) as avg_aesthetic,
-                    AVG(score_spaq) as avg_spaq,
-                    AVG(score_koniq) as avg_koniq,
-                    AVG(score_liqe) as avg_liqe
+                    AVG(score_aesthetic) as avg_aesthetic
                 FROM images
                 WHERE score_general IS NOT NULL
             """)
             row = c.fetchone()
+            avg_per_model: dict[str, float] = {}
+            try:
+                c.execute(
+                    "SELECT model_name, AVG(COALESCE(normalized, raw_score)) AS avg_v "
+                    "FROM image_model_scores "
+                    "WHERE model_name IN ('spaq', 'koniq', 'liqe') "
+                    "AND is_shadow = FALSE AND status = 'success' "
+                    "GROUP BY model_name"
+                )
+                for m_row in c.fetchall():
+                    name = m_row[0]
+                    val = m_row[1]
+                    avg_per_model[name] = round(float(val), 4) if val is not None else 0.0
+            except Exception:
+                avg_per_model = {}
             stats["average_scores"] = {
                 "general": round(row[0] or 0, 4),
                 "technical": round(row[1] or 0, 4),
                 "aesthetic": round(row[2] or 0, 4),
-                "spaq": round(row[3] or 0, 4),
-                "koniq": round(row[4] or 0, 4),
-                "liqe": round(row[5] or 0, 4)
+                "spaq": avg_per_model.get("spaq", 0.0),
+                "koniq": avg_per_model.get("koniq", 0.0),
+                "liqe": avg_per_model.get("liqe", 0.0),
             }
 
             c.execute("SELECT COUNT(*) FROM folders")
@@ -321,13 +333,14 @@ def query_images(
     with db.connection() as conn:
         c = conn.cursor()
 
-        query = """
+        query = f"""
             SELECT
-                id, file_path, file_name, file_type,
-                score_general, score_technical, score_aesthetic,
-                score_spaq, score_koniq, score_liqe,
-                rating, label, keywords, image_hash, created_at
-            FROM images
+                i.id, i.file_path, i.file_name, i.file_type,
+                i.score_general, i.score_technical, i.score_aesthetic,
+                ims.score_spaq, ims.score_koniq, ims.score_liqe,
+                i.rating, i.label, i.keywords, i.image_hash, i.created_at
+            FROM images i
+            LEFT JOIN ({_IMS_OVERLAY_SUBQUERY}) ims ON ims.image_id = i.id
         """
 
         conditions = []
@@ -723,14 +736,23 @@ def get_incomplete_images(limit: int = 100) -> list:
         return [{"error": str(e)}]
 
 
-_SCORE_FAIL_COLUMNS = (
-    ("score_general", "general"),
-    ("score_technical", "technical"),
-    ("score_spaq", "spaq"),
-    ("score_koniq", "koniq"),
-    ("score_ava", "ava"),
-    ("score_paq2piq", "paq2piq"),
-    ("score_liqe", "liqe"),
+# Per-model labels reported as "missing" by ``get_failed_images``. The
+# corresponding values live in ``image_model_scores`` (backend migration 0016).
+_PER_MODEL_FAIL_LABELS = ("spaq", "ava", "liqe", "koniq", "paq2piq")
+_AGGREGATE_FAIL_COLUMNS = (("score_general", "general"), ("score_technical", "technical"))
+
+
+_IMS_OVERLAY_SUBQUERY = (
+    "SELECT image_id,"
+    " MAX(CASE WHEN model_name = 'spaq'    THEN COALESCE(normalized, raw_score) END) AS score_spaq,"
+    " MAX(CASE WHEN model_name = 'ava'     THEN COALESCE(normalized, raw_score) END) AS score_ava,"
+    " MAX(CASE WHEN model_name = 'liqe'    THEN COALESCE(normalized, raw_score) END) AS score_liqe,"
+    " MAX(CASE WHEN model_name = 'koniq'   THEN COALESCE(normalized, raw_score) END) AS score_koniq,"
+    " MAX(CASE WHEN model_name = 'paq2piq' THEN COALESCE(normalized, raw_score) END) AS score_paq2piq"
+    " FROM image_model_scores"
+    " WHERE model_name IN ('spaq','ava','liqe','koniq','paq2piq')"
+    " AND is_shadow = FALSE AND status = 'success'"
+    " GROUP BY image_id"
 )
 
 
@@ -743,17 +765,26 @@ def get_failed_images(limit: int = 50, offset: int = 0) -> dict:
     """
     lim = max(1, min(int(limit), 500))
     off = max(0, int(offset))
-    or_parts = [f"(i.{col} IS NULL OR i.{col} <= 0)" for col, _ in _SCORE_FAIL_COLUMNS]
+    or_parts = [f"(i.{col} IS NULL OR i.{col} <= 0)" for col, _ in _AGGREGATE_FAIL_COLUMNS]
+    or_parts.extend(
+        f"(ims.score_{name} IS NULL OR ims.score_{name} <= 0)" for name in _PER_MODEL_FAIL_LABELS
+    )
     where_sql = "(" + " OR ".join(or_parts) + ")"
     conn = db.get_connector()
     try:
-        count_row = conn.query_one(f"SELECT COUNT(*) AS c FROM images i WHERE {where_sql}", ())
+        count_row = conn.query_one(
+            f"SELECT COUNT(*) AS c FROM images i LEFT JOIN ({_IMS_OVERLAY_SUBQUERY}) ims ON ims.image_id = i.id WHERE {where_sql}",
+            (),
+        )
         total = int((count_row or {}).get("c") or 0)
         rows = conn.query(
             f"""
-            SELECT i.id, i.file_path, i.score_general, i.score_technical, i.score_spaq, i.score_koniq,
-                   i.score_ava, i.score_paq2piq, i.score_liqe, i.created_at
+            SELECT i.id, i.file_path, i.score_general, i.score_technical,
+                   ims.score_spaq, ims.score_ava, ims.score_liqe,
+                   ims.score_koniq, ims.score_paq2piq,
+                   i.created_at
             FROM images i
+            LEFT JOIN ({_IMS_OVERLAY_SUBQUERY}) ims ON ims.image_id = i.id
             WHERE {where_sql}
             ORDER BY i.created_at DESC NULLS LAST, i.id DESC
             OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
@@ -767,10 +798,14 @@ def get_failed_images(limit: int = 50, offset: int = 0) -> dict:
     for r in rows or []:
         d = dict(r)
         missing = []
-        for col, label in _SCORE_FAIL_COLUMNS:
+        for col, label in _AGGREGATE_FAIL_COLUMNS:
             v = d.get(col)
             if v is None or (isinstance(v, (int, float)) and v <= 0):
                 missing.append(label)
+        for name in _PER_MODEL_FAIL_LABELS:
+            v = d.get(f"score_{name}")
+            if v is None or (isinstance(v, (int, float)) and v <= 0):
+                missing.append(name)
         d["missing_scores"] = missing
         items.append(_sanitize_for_mcp(d))
 

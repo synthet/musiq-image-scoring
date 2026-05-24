@@ -114,3 +114,31 @@ def test_merge_helper_noop_on_empty():
     data = {"id": 1}
     api._merge_model_scores_into(data, {})
     assert "model_scores" not in data
+
+
+def test_merge_helper_overlays_null_legacy_columns_from_ims():
+    """Once dual-writes stop, score_spaq is NULL on the row. Overlay IMS production value."""
+    api = pytest.importorskip("modules.api")
+    data = {"id": 5, "score_spaq": None, "score_ava": None, "score_liqe": None}
+    ims = {
+        "spaq": {"normalized": 0.7, "raw_score": 70.0, "status": "success", "is_shadow": False},
+        "ava":  {"normalized": 0.55, "raw_score": 5.5, "status": "success", "is_shadow": False},
+        "liqe": {"normalized": 0.81, "raw_score": 4.05, "status": "success", "is_shadow": False},
+    }
+    api._merge_model_scores_into(data, ims)
+
+    assert data["score_spaq"] == 0.7
+    assert data["score_ava"] == 0.55
+    assert data["score_liqe"] == 0.81
+    # No flat *_score duplicates for legacy-column models.
+    for key in ("spaq_score", "ava_score", "liqe_score"):
+        assert key not in data
+
+
+def test_merge_helper_preserves_existing_legacy_column_value():
+    """If the row still has a non-null typed value, do not clobber it."""
+    api = pytest.importorskip("modules.api")
+    data = {"id": 6, "score_spaq": 0.42}
+    ims = {"spaq": {"normalized": 0.99, "raw_score": 99.0, "status": "success", "is_shadow": False}}
+    api._merge_model_scores_into(data, ims)
+    assert data["score_spaq"] == 0.42

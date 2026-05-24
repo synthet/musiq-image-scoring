@@ -484,6 +484,9 @@ def _init_db_transaction():
             # ------------------------------------------------------------------
             # IMAGES  (full column set)
             # ------------------------------------------------------------------
+            # Per-model scores (spaq/ava/koniq/paq2piq/liqe) live in
+            # ``image_model_scores`` (migration 0016); they no longer have a
+            # dedicated column on ``images``.
             cur.execute("""
             CREATE TABLE IF NOT EXISTS images (
                 id                  SERIAL PRIMARY KEY,
@@ -495,11 +498,6 @@ def _init_db_transaction():
                 score_general       DOUBLE PRECISION,
                 score_technical     DOUBLE PRECISION,
                 score_aesthetic     DOUBLE PRECISION,
-                score_spaq          DOUBLE PRECISION,
-                score_ava           DOUBLE PRECISION,
-                score_koniq         DOUBLE PRECISION,
-                score_paq2piq       DOUBLE PRECISION,
-                score_liqe          DOUBLE PRECISION,
                 keywords            TEXT,
                 title               VARCHAR(500),
                 description         TEXT,
@@ -733,9 +731,10 @@ def _init_db_transaction():
 
             # ------------------------------------------------------------------
             # IMAGE_MODEL_SCORES — generic per-(image, model) score storage.
-            # Mirrors migration 0016. Coexists with score_spaq / score_ava /
-            # score_koniq / score_paq2piq / score_liqe columns on images for
-            # Electron back-compat; new models live only here.
+            # Mirrors migration 0016. This is now the sole persistence for
+            # per-model scores (spaq/ava/koniq/paq2piq/liqe and any newer
+            # model); the typed ``images.score_<name>`` columns have been
+            # dropped.
             # ------------------------------------------------------------------
             cur.execute("""
             CREATE TABLE IF NOT EXISTS image_model_scores (

@@ -293,13 +293,23 @@ def _job_phases_for_run_display(
     return _synthetic_bird_species_job_phases(job)
 
 
+# Per-model values that historically lived in dedicated ``images.score_*`` columns.
+# After migration 0016 these live in ``image_model_scores``; the typed columns
+# are scheduled for removal. While they still exist on the row we overlay the
+# IMS value when the column is NULL so callers see one consistent shape.
+_LEGACY_SCORE_COLUMN_MODELS: tuple[str, ...] = ("spaq", "ava", "koniq", "paq2piq", "liqe")
+
+
 def _merge_model_scores_into(data: dict, ims: dict) -> None:
     """Attach per-model scores from `image_model_scores` to an image payload.
 
     Adds a structured ``model_scores`` block (all rows, including shadow, with
     `is_shadow`) plus flat ``{name}_score`` fields for production (non-shadow)
-    models that lack a legacy ``score_{name}`` column. Shadow engines (cursor,
-    claude) surface only in the structured block, never as flat scores.
+    models that lack a legacy ``score_{name}`` column. Production scores for the
+    five legacy-column models also overlay the ``score_{name}`` field when it is
+    NULL so the response contract stays stable once dual-writes are disabled.
+    Shadow engines (cursor, claude) surface only in the structured block, never
+    as flat scores.
     """
     if not ims:
         return
@@ -312,8 +322,13 @@ def _merge_model_scores_into(data: dict, ims: dict) -> None:
             val = info.get("raw_score")
         if val is None:
             continue
+        legacy_key = f"score_{name}"
+        if name in _LEGACY_SCORE_COLUMN_MODELS:
+            if data.get(legacy_key) is None:
+                data[legacy_key] = val
+            continue
         key = f"{name}_score"
-        if key not in data and f"score_{name}" not in data:
+        if key not in data and legacy_key not in data:
             data[key] = val
 
 

@@ -52,11 +52,6 @@ def create_tab(app_config):
                             ("⭐ General Score", "score_general"),
                             ("🔧 Technical Score", "score_technical"),
                             ("🎨 Aesthetic Score", "score_aesthetic"),
-                            ("⬤ SPAQ", "score_spaq"),
-                            ("⬤ AVA", "score_ava"),
-                            ("⬤ KonIQ", "score_koniq"),
-                            ("⬤ PaQ2PiQ", "score_paq2piq"),
-                            ("⬤ LIQE", "score_liqe")
                         ],
                         value=scoring_config.get('default_sort_by', 'score_general'),
                         label="Default Sort Field"

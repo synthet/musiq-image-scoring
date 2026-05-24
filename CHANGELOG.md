@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.23.0] - 2026-05-24
+
+### Added
+
+- **Alembic 0023**: Drop legacy per-model columns on **`images`** (`score_spaq`, `score_ava`,
+  `score_koniq`, `score_paq2piq`, `score_liqe`); scores live only in **`image_model_scores`**.
+  Upgrade aborts if unbackfilled rows remain — run **`scripts/maintenance/backfill_legacy_model_scores.py --apply`** first.
+- **Backfill scripts**: **`backfill_legacy_model_scores.py`** and **`backfill_arniqa.py`** with unit tests.
+
+### Changed
+
+- **Scoring / DB / API / MCP**: Reads and analytics for SPAQ, AVA, LIQE, KonIQ, and PAQ2PIQ route
+  through **`image_model_scores`**; API payloads overlay legacy **`score_<name>`** fields when
+  typed columns are NULL or dropped.
+- **Postgres DDL**: Fresh **`images`** table omits retired per-model score columns.
+- **Culling analytics**, **projections**, **report collector**, **job dispatcher**, and **Gradio gallery/settings**
+  tabs aligned with IMS-only per-model scores.
+
+### Fixed
+
+- **Incomplete-scoring SQL** and **`image_model_scores`** read paths updated for dropped legacy columns.
+
 ## [7.22.0] - 2026-05-24
 
 ### Added

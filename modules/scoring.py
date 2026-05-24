@@ -385,15 +385,20 @@ class ScoringRunner:
         if not processed_ids:
             return None
 
+        legacy_models = ("spaq", "ava", "koniq", "paq2piq", "liqe")
         try:
             placeholders = ",".join("?" * len(processed_ids))
             rows = db.get_connector().query(
-                f"SELECT score, score_spaq, score_ava, score_koniq, score_paq2piq, score_liqe "
-                f"FROM images WHERE id IN ({placeholders})",
+                f"SELECT id, score FROM images WHERE id IN ({placeholders})",
                 tuple(processed_ids),
             )
         except Exception:
             return None
+
+        try:
+            ims_map = db.get_batch_image_model_scores(processed_ids, include_shadow=False)
+        except Exception:
+            ims_map = {}
 
         scores = []
         incomplete = 0
@@ -401,9 +406,18 @@ class ScoringRunner:
             s = r.get("score")
             if s is not None:
                 scores.append(float(s))
-            for col in ("score_spaq", "score_ava", "score_koniq", "score_paq2piq", "score_liqe"):
-                v = r.get(col)
-                if v is None or (isinstance(v, (int, float)) and v <= 0):
+            img_id = r.get("id")
+            entries = ims_map.get(int(img_id)) if img_id is not None else None
+            entries = entries or {}
+            for name in legacy_models:
+                entry = entries.get(name)
+                if not entry or entry.get("status") != "success":
+                    incomplete += 1
+                    break
+                val = entry.get("normalized")
+                if val is None:
+                    val = entry.get("raw_score")
+                if val is None or (isinstance(val, (int, float)) and val <= 0):
                     incomplete += 1
                     break
 
@@ -508,6 +522,11 @@ class ScoringRunner:
         # Create Jobs
         jobs = []
         deleted_count = 0
+        record_ids = [row['id'] for row in records if row.get('id') is not None]
+        try:
+            ims_map = db.get_batch_image_model_scores(record_ids, include_shadow=False)
+        except Exception:
+            ims_map = {}
         for row in records:
              file_path = row['file_path']
              if not os.path.exists(file_path):
@@ -522,20 +541,23 @@ class ScoringRunner:
                  skip_existing=False 
              )
              
-             # Pre-fill external scores
-             models = ['spaq', 'ava', 'liqe']
-             for m in models:
-                 key = f'score_{m}'
-                 try:
-                     val = row[key]
-                     if val is not None and val > 0:
-                         job.external_scores[m] = {
-                             "score": val,
-                             "normalized_score": val, 
-                             "status": "success"
-                         }
-                 except (KeyError, IndexError):
-                     pass
+             # Pre-fill external scores from image_model_scores (backend
+             # migration 0016 — per-model table, replaces typed columns).
+             ims_entries = ims_map.get(int(row['id'])) if row.get('id') is not None else None
+             ims_entries = ims_entries or {}
+             for m in ('spaq', 'ava', 'liqe'):
+                 entry = ims_entries.get(m)
+                 if not entry or entry.get("status") != "success":
+                     continue
+                 val = entry.get("normalized")
+                 if val is None:
+                     val = entry.get("raw_score")
+                 if val is not None and val > 0:
+                     job.external_scores[m] = {
+                         "score": val,
+                         "normalized_score": val,
+                         "status": "success",
+                     }
              
              try:
                  if row.get('image_hash'):

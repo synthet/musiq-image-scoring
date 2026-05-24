@@ -411,12 +411,28 @@ def display_details(raw_paths, evt: gr.SelectData = None, forced_index=None):
         performance = perform_data.get('performance', {}) if isinstance(perform_data, dict) else {}
         model_times = performance.get('model_times', {}) if isinstance(performance, dict) else {}
         
+        ims_scores: dict[str, float | None] = {}
+        try:
+            image_id = details.get('id')
+            if image_id is not None:
+                ims_map = db.get_batch_image_model_scores([int(image_id)]) or {}
+                for name, entry in (ims_map.get(int(image_id)) or {}).items():
+                    if entry.get('is_shadow'):
+                        continue
+                    val = entry.get('normalized')
+                    if val is None:
+                        val = entry.get('raw_score')
+                    if val is not None:
+                        ims_scores[name] = float(val)
+        except Exception:
+            ims_scores = {}
+
         model_scores_map = {
-            'spaq': ('SPAQ', details.get('score_spaq', 0)),
-            'ava': ('AVA', details.get('score_ava', 0)),
-            'koniq': ('KonIQ', details.get('score_koniq', 0)),
-            'paq2piq': ('PaQ2PiQ', details.get('score_paq2piq', 0)),
-            'liqe': ('LIQE', details.get('score_liqe', 0))
+            'spaq': ('SPAQ', ims_scores.get('spaq', 0) or 0),
+            'ava': ('AVA', ims_scores.get('ava', 0) or 0),
+            'koniq': ('KonIQ', ims_scores.get('koniq', 0) or 0),
+            'paq2piq': ('PaQ2PiQ', ims_scores.get('paq2piq', 0) or 0),
+            'liqe': ('LIQE', ims_scores.get('liqe', 0) or 0),
         }
         
         for model_key, (model_name, score) in model_scores_map.items():
@@ -617,17 +633,12 @@ def create_tab(shared_state, current_folder_state, current_stack_state, runner, 
                         choices=[
                             ("📅 Date Added", "created_at"),
                             ("📷 Capture Date (EXIF)", "date_time_original"),
-                            ("🆔 ID", "id"), 
-                            ("⭐ General Score", "score_general"), 
-                            ("🔧 Technical Score", "score_technical"), 
+                            ("🆔 ID", "id"),
+                            ("⭐ General Score", "score_general"),
+                            ("🔧 Technical Score", "score_technical"),
                             ("🎨 Aesthetic Score", "score_aesthetic"),
-                            ("⬤ SPAQ", "score_spaq"),
-                            ("⬤ AVA", "score_ava"),
-                            ("⬤ KonIQ", "score_koniq"),
-                            ("⬤ PaQ2PiQ", "score_paq2piq"),
-                            ("⬤ LIQE", "score_liqe")
-                        ], 
-                        value=app_config.get('scoring', {}).get('default_sort_by', 'score_general'), 
+                        ],
+                        value=app_config.get('scoring', {}).get('default_sort_by', 'score_general'),
                         label="Sort By", container=False)
                     order_dropdown = gr.Dropdown(
                         choices=[("↓ Highest First", "desc"), ("↑ Lowest First", "asc")], 
@@ -672,7 +683,11 @@ def create_tab(shared_state, current_folder_state, current_stack_state, runner, 
             with gr.Accordion("⚙️ Advanced Options", open=False):
                  available_columns = db.get_available_columns()
                  basic_cols = ['id', 'file_path', 'file_name', 'file_type', 'created_at']
-                 score_cols = ['score_general', 'score_technical', 'score_aesthetic', 'score_spaq', 'score_ava', 'score_koniq', 'score_paq2piq', 'score_liqe']
+                 # Per-model scores (spaq/ava/koniq/paq2piq/liqe) live in
+                 # ``image_model_scores`` and are not selectable via this
+                 # ``images``-table export. Use the REST API or run an
+                 # IMS-aware SQL export to pull per-model values.
+                 score_cols = ['score_general', 'score_technical', 'score_aesthetic']
                  metadata_cols = ['rating', 'label', 'keywords', 'title', 'description']
                  other_cols = [c for c in available_columns if c not in basic_cols + score_cols + metadata_cols]
                  
