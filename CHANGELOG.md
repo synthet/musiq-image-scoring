@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **ARNIQA shadow scorer** (#220 phase 2): no-reference, distortion-focused IQA via `pyiqa`
+  (`modules/arniqa.py` + `modules/engines/arniqa_model.py`). Registered at import time and
+  runs in **shadow** by default (`scoring.models.arniqa: {enabled: false, shadow: true}`) —
+  scores persist to `image_model_scores` but are excluded from fusion until calibrated.
+  Head selectable via `scoring.arniqa.metric` (default `arniqa`, KonIQ head).
+
 ### Roadmap (not yet released)
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):

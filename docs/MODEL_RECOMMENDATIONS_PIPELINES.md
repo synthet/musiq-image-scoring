@@ -219,7 +219,7 @@ Models below are **new or newly emphasized** in this roadmap. Existing productio
 |-------|--------|-----------------|-------|
 | 0 | This doc + ingested CLIP report + wiki links | N/A | Docs only (done) |
 | 1 | `clustering.embedding_space` → existing `clip_vit_b32_image`; threshold tuning harness | **Switch** culling input to existing CLIP vectors (no new model). MobileNet path and data **kept** as fallback. | Yes |
-| 2 | ARNIQA shadow engine → `image_model_scores` | **Add** shadow scorer. MUSIQ/LIQE/TOPIQ **unchanged** until promotion. | Yes |
+| 2 | ARNIQA shadow engine → `image_model_scores` | **Add** shadow scorer. MUSIQ/LIQE/TOPIQ **unchanged** until promotion. | **Done** ✅ (calibration pending) |
 | 3 | DINOv2-reg base space, backfill, culling default after validation | **Add** embedding space; **replace default** culling space after validation. MobileNet + CLIP data **kept**. | Yes |
 | 4 | SigLIP2 keyword scorer (shadow → production), vocabulary expansion | **Add** scorer; shadow then **replace default** tag writer. CLIP + BLIP **kept** behind config. | Yes |
 | 5 | Optional OpenCLIP L/14 unified track if A/B requires | **Add** space/model; **replace** DINO/SigLIP defaults only if A/B wins. | Yes |
@@ -227,6 +227,13 @@ Models below are **new or newly emphasized** in this roadmap. Existing productio
 ## Recommended Models
 
 ### Scoring Pipeline: ARNIQA
+
+**Status: implemented as a shadow engine** (#220 phase 2). ARNIQA is registered at
+import time in `modules/engines/__init__.py` and runs via `pyiqa` (`modules/arniqa.py`
++ `modules/engines/arniqa_model.py`). Default config `scoring.models.arniqa:
+{enabled: false, shadow: true}` — scores persist to `image_model_scores` but are
+**not fused**. Remaining work is the calibration phase below (percentile anchors on
+the local corpus) before any promotion into composites.
 
 Add ARNIQA as a technical/no-reference image quality signal.
 

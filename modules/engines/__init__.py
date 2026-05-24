@@ -64,6 +64,12 @@ __all__ = [
 # shadow membership is decided by `scoring.models` in config.
 get_registry().register(TopiqModelWrapper())
 
+# ARNIQA registers as a shadow scorer (#220 phase 2). Like TOPIQ it lazy-loads
+# its pyiqa backend on first `load()`, so import stays cheap. It runs and stores
+# to `image_model_scores` but is excluded from fusion (config default
+# `scoring.models.arniqa: {enabled: false, shadow: true}`) until calibrated.
+get_registry().register(ArniqaModelWrapper())
+
 # QPT V2 is not registered until validation/calibration (#185) is complete.
 # Re-enable: get_registry().register(QptV2ModelWrapper())
 
