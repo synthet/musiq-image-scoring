@@ -25,8 +25,13 @@
       "ava":    { "enabled": true,  "shadow": false },
       "liqe":   { "enabled": true,  "shadow": false },
       "topiq":  { "enabled": true,  "shadow": false },
+      "arniqa": { "enabled": false, "shadow": true  },
       "cursor": { "enabled": false, "shadow": false },
       "claude": { "enabled": false, "shadow": false }
+    },
+    "arniqa": {
+      "metric": "arniqa",
+      "max_dimension": 1024
     },
     "qpt_v2": {
       "checkpoint_path": "models/qpt_v2.pth",

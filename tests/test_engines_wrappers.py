@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 
 import pytest
 
+from modules.engines.arniqa_model import ArniqaModelWrapper
 from modules.engines.host import MultiModelHost
 from modules.engines.liqe_model import LiqeModelWrapper
 from modules.engines.musiq_model import MusiqModelWrapper, make_musiq_wrappers
@@ -105,6 +106,20 @@ class _StubQptV2Scorer:
     VERSION = "qpt-v2-stub-1"
 
     def __init__(self, score: float = 0.71, status: str = "success") -> None:
+        self._score = score
+        self._status = status
+
+    def predict(self, _path: str) -> Dict[str, Any]:
+        if self._status != "success":
+            return {"status": "failed", "error": "boom"}
+        return {"score": self._score, "status": "success", "score_range": "0.0-1.0"}
+
+
+class _StubArniqaScorer:
+    available = True
+    VERSION = "arniqa-stub-1"
+
+    def __init__(self, score: float = 0.58, status: str = "success") -> None:
         self._score = score
         self._status = status
 
@@ -290,6 +305,42 @@ def test_qpt_v2_normalize_matches_native_range():
     assert qpt.normalize(0.0) == pytest.approx(0.0)
     assert qpt.normalize(0.5) == pytest.approx(0.5)
     assert qpt.normalize(1.0) == pytest.approx(1.0)
+
+
+# ---------- ArniqaModelWrapper ----------
+
+def test_arniqa_wrapper_predict_success():
+    arniqa = ArniqaModelWrapper(scorer=_StubArniqaScorer(score=0.58))
+    assert arniqa.name == "arniqa"
+    assert arniqa.score_range == (0.0, 1.0)
+    assert arniqa.framework == "torch"
+    assert arniqa.load() is True
+    out = arniqa.predict("/x.jpg")
+    assert out == {"score": 0.58, "status": "success", "error": None}
+
+
+def test_arniqa_wrapper_failed_status_propagates():
+    arniqa = ArniqaModelWrapper(scorer=_StubArniqaScorer(status="failed"))
+    arniqa.load()
+    out = arniqa.predict("/x.jpg")
+    assert out["status"] == "failed"
+    assert out["score"] is None
+
+
+def test_arniqa_wrapper_unloaded_returns_not_loaded():
+    class _Unavailable:
+        available = False
+
+    arniqa = ArniqaModelWrapper(scorer=_Unavailable())
+    out = arniqa.predict("/x.jpg")
+    assert out["status"] == "not_loaded"
+
+
+def test_arniqa_normalize_matches_native_range():
+    arniqa = ArniqaModelWrapper(scorer=_StubArniqaScorer())
+    assert arniqa.normalize(0.0) == pytest.approx(0.0)
+    assert arniqa.normalize(0.5) == pytest.approx(0.5)
+    assert arniqa.normalize(1.0) == pytest.approx(1.0)
 
 
 # ---------- MultiModelHost ----------

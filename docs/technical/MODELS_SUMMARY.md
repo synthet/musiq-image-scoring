@@ -42,7 +42,23 @@ analysis. It contributes to all three composites under the "moderate" profile
 - **Range**: 0.0 - 1.0 (percentile anchors `p02≈0.39 / p98≈0.71`)
 - **Module**: `modules/engines/topiq_model.py` (wraps `modules/topiq.py`).
 
-## 4. QPT V2 (Quality-aware Pre-Training V2)
+## 4. ARNIQA (no-reference distortion-focused IQA)
+*PyTorch Implementation (via `pyiqa`) — shadow*
+
+**Status: Shadow (not fused) — runs and stores, excluded from fusion**
+Registered as a shadow model (`scoring.models.arniqa: {enabled: false, shadow: true}`):
+it scores every image into `image_model_scores` while staying out of the composites
+until calibrated against the local corpus (#220 phase 2, #185). ARNIQA targets
+*technical* distortions — blur, noise, compression — complementing the existing
+LIQE/TOPIQ/MUSIQ signals.
+- **Range**: 0.0 - 1.0 (higher is better). No percentile anchors yet — they are
+  computed during the calibration phase before any promotion to fusion.
+- **Head**: pyiqa default `arniqa` (KonIQ in-the-wild regression head, best fit for
+  general photography); switchable via `scoring.arniqa.metric` (e.g. `arniqa-spaq`).
+- **License**: Apache-2.0.
+- **Module**: `modules/engines/arniqa_model.py` (wraps `modules/arniqa.py`).
+
+## 5. QPT V2 (Quality-aware Pre-Training V2)
 *PyTorch implementation (disabled — not registered)*
 
 **Status: Disabled (WIP) — not in the live registry until #185**
@@ -61,14 +77,14 @@ all 172 tensors). Drop `iqa.pth` at `scoring.qpt_v2.checkpoint_path` (default
 - **Module**: `modules/engines/qpt_v2_model.py` (wraps `modules/qpt_v2.py`,
   arch in `modules/qpt_v2_arch.py`).
 
-## 5. LLM-judge engines (Cursor / Claude)
+## 6. LLM-judge engines (Cursor / Claude)
 *Optional, disabled by default*
 
 `cursor` and `claude` are LLM-as-judge scoring engines that lazy-load their optional SDKs
 and are disabled by default (`enabled: false`). When enabled they return an overall score
 plus an optional multi-dimensional rubric carried in `scores_json`.
 
-## 6. Model Correlation
+## 7. Model Correlation
 *Based on internal testing (v2.5.0)*
 
 - **High Correlation**: KONIQ <-> SPAQ (They generally agree).

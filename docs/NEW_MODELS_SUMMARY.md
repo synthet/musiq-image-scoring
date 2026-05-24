@@ -28,7 +28,7 @@ flowchart LR
     MUSIQ[MUSIQ SPAQ + AVA]
     LIQE[LIQE]
     TOPIQ[TOPIQ-NR]
-    QPT[QPT-V2 shadow only]
+    ARNIQA[ARNIQA shadow only]
   end
   subgraph culling [Culling phase]
     MN[MobileNetV2 1280-d]
@@ -46,7 +46,8 @@ flowchart LR
 | Pipeline | Models | Notes |
 |----------|--------|-------|
 | **Scoring** | MUSIQ (SPAQ, AVA), LIQE, TOPIQ-NR | Fused into composites; KONIQ/PAQ2PIQ deprecated from registry |
-| **Scoring (shadow)** | QPT-V2 | Runs locally via reconstructed HiViT-T; **not fused**, unvalidated |
+| **Scoring (shadow)** | ARNIQA | pyiqa no-reference IQA; runs + stores to `image_model_scores`, **not fused**, uncalibrated |
+| **Scoring (disabled)** | QPT-V2 | Reconstructed HiViT-T; **not registered** until validation (#185) |
 | **Culling** | MobileNetV2 ImageNet GAP | Default embedding space `mobilenet_v2_imagenet_gap` |
 | **Keywords** | CLIP B/32, BLIP, BioCLIP 2 | CLIP for tags; BLIP for captions; BioCLIP for bird species |
 
@@ -54,13 +55,18 @@ flowchart LR
 
 ## New / roadmap models (by pipeline)
 
-### Scoring — ARNIQA (recommended add)
+### Scoring — ARNIQA (implemented — shadow)
 
-- **What:** No-reference IQA (distortion-focused), Apache-2.0, PyTorch
+- **What:** No-reference IQA (distortion-focused), Apache-2.0, PyTorch (via `pyiqa`)
 - **Role:** Technical quality signal — blur, noise, compression
-- **Posture:** Shadow first → calibrate on local corpus → optional composite input
+- **Posture:** **Shadow now** (`scoring.models.arniqa: {enabled: false, shadow: true}`) →
+  calibrate on local corpus → optional composite input
+- **Status:** Registered at import time in `modules/engines/__init__.py`; scores persist
+  to `image_model_scores` but are **excluded from fusion**. No percentile anchors yet.
+- **Head:** pyiqa default `arniqa` (KonIQ head); switchable via `scoring.arniqa.metric`
+- **Modules:** `modules/arniqa.py` + `modules/engines/arniqa_model.py`
 - **Not a replacement** for MUSIQ/LIQE/TOPIQ until validated
-- **Phase:** 2 in [#220](https://github.com/synthet/image-scoring-backend/issues/220)
+- **Phase:** 2 in [#220](https://github.com/synthet/image-scoring-backend/issues/220) — **done**
 
 ### Scoring — QPT-V2 (exists in code, not promoted)
 
@@ -168,7 +174,7 @@ flowchart LR
 |-------|--------|------------|
 | **0** | Docs + CLIP report ingest | No |
 | **1** | Culling reads `clip_vit_b32_image`; threshold harness | No new loader |
-| **2** | ARNIQA shadow → `image_model_scores` | Yes |
+| **2** | ARNIQA shadow → `image_model_scores` ✅ done | Yes |
 | **3** | DINOv2 space, backfill, culling default | Yes |
 | **4** | SigLIP2 keyword scorer shadow → production | Yes |
 | **5** | Optional OpenCLIP L/14 unified track if A/B wins | Yes |
