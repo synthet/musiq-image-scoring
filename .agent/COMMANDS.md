@@ -15,6 +15,7 @@ Verified patterns from [AGENTS.md](../AGENTS.md), [.agent/INFRA_QUICKSTART.md](I
 - `python scripts/doctor.py --no-gpu` — skip GPU checks
 - `python scripts/doctor.py --json` — machine-readable output
 - Redacted support bundle: `python scripts/export_debug_bundle.py` (review zip before sharing)
+- Auto-drive monitor: `python scripts/diagnostics/monitor_drive.py --once` (poll `GET /api/runs/drive/status`; add `--local-diagnostics` in WSL app env)
 
 ## Development server
 

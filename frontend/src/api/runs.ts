@@ -3,6 +3,7 @@ import { ApiError, parseApiErrorDetail } from './client'
 import type {
   Run, Stage, Step, WorkItem, QueueEntry, JobExecutionReport, ImageActionsResponse, RunReportResponse,
   RunFolderBucketsResponse, RunsAutoDriveRequest, RunsAutoDriveResult,
+  RunsDriveStartRequest, RunsDriveState, RunsDriveStatus,
 } from '@/types/api'
 
 export interface RunSubmitRequest {
@@ -102,6 +103,14 @@ export const runsApi = {
 
   autoDrive: (body: RunsAutoDriveRequest) =>
     api.post<RunsAutoDriveResult>('/runs/auto-drive', body),
+
+  /** Durable "Drive to Complete" loop (server-side; survives browser close). */
+  drive: {
+    start: (body: RunsDriveStartRequest) =>
+      api.post<{ state: RunsDriveState; result: RunsDriveStatus['state']['last_result'] }>('/runs/drive/start', body),
+    stop: () => api.post<{ state: RunsDriveState }>('/runs/drive/stop'),
+    status: () => api.get<RunsDriveStatus>('/runs/drive/status'),
+  },
 
   getReport: async (id: number): Promise<RunReportResponse> => {
     try {

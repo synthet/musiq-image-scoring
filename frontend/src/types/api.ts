@@ -217,6 +217,57 @@ export interface RunsAutoDriveResult {
   phase_counts: Record<string, number>
 }
 
+// ─── Durable "Drive to Complete" loop ────────────────────────────────────
+
+export interface RunsDriveHealth {
+  in_flight_folders: number
+  blocked_folders: number
+  schedulable_folders: number
+}
+
+export interface RunsDriveLastResult {
+  scheduled: number
+  skipped: number
+  candidates: number
+  total_outstanding: number
+  loop_detected: number
+  bucket_counts: Record<string, number>
+  health?: RunsDriveHealth
+  last_tick_reason?: string
+}
+
+export interface RunsDriveState {
+  enabled: boolean
+  root_path: string | null
+  limit: number
+  max_repeats: number
+  generate_captions: boolean
+  target_phases: string[] | null
+  started_at: number | null
+  last_tick_at: number
+  last_result: RunsDriveLastResult | null
+  stop_reason: string | null
+  idle_no_progress_ticks: number
+}
+
+export interface RunsDriveStatus {
+  state: RunsDriveState
+  outstanding: {
+    total_outstanding: number | null
+    bucket_counts: Record<string, number>
+    phase_counts: Record<string, number>
+    health?: RunsDriveHealth
+  }
+}
+
+export interface RunsDriveStartRequest {
+  root_path?: string
+  limit?: number
+  target_phases?: string[]
+  generate_captions?: boolean
+  max_repeats?: number
+}
+
 // ─── Execution Report (per-image action log & before/after snapshots) ────
 
 export interface PhaseExecutionReport {

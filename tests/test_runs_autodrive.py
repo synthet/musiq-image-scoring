@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+
+import pytest
+
 from modules import runs_autodrive
 
 
@@ -136,3 +140,291 @@ def test_auto_drive_loop_guard_skips_repeated_plan(monkeypatch):
     assert result["loop_detected"] == 1
     assert result["skipped"][0]["reason"] == "loop_detected"
     assert result["skipped"][0]["last_run_id"] == 77
+
+
+def test_recent_auto_attempt_counts_includes_in_flight_jobs(monkeypatch):
+    rows = [
+        {
+            "id": 101,
+            "status": "running",
+            "queue_payload": json.dumps({
+                "tool_id": "runs_auto_drive",
+                "auto_drive_plan_key": "plan_a",
+            }),
+        },
+        {
+            "id": 102,
+            "status": "running",
+            "queue_payload": json.dumps({
+                "tool_id": "runs_auto_drive",
+                "auto_drive_plan_key": "plan_a",
+            }),
+        },
+    ]
+    monkeypatch.setattr(runs_autodrive.db, "get_jobs", lambda **kwargs: rows)
+
+    counts = runs_autodrive._recent_auto_attempt_counts(["plan_a"])
+
+    assert counts["plan_a"]["attempts"] == 2
+    assert counts["plan_a"]["last_run_id"] == 101
+    assert counts["plan_a"]["last_status"] == "running"
+
+
+def test_auto_drive_loop_guard_blocks_third_enqueue_when_two_in_flight(monkeypatch):
+    monkeypatch.setattr(
+        runs_autodrive,
+        "build_folder_buckets",
+        lambda **_kwargs: {
+            "items": [
+                {
+                    "path": "/mnt/d/Photos/in-flight",
+                    "bucket": "awaiting_scoring",
+                    "next_phases": ["scoring"],
+                    "plan_key": "plan_a",
+                }
+            ],
+            "total": 1,
+            "bucket_counts": {"awaiting_scoring": 1},
+            "phase_counts": {"scoring": 1},
+        },
+    )
+    monkeypatch.setattr(
+        runs_autodrive,
+        "_recent_auto_attempt_counts",
+        lambda *_a, **_k: {"plan_a": {"attempts": 2, "last_run_id": 102, "last_status": "running"}},
+    )
+
+    result = runs_autodrive.auto_drive_runs(dry_run=False, max_repeats=2)
+
+    assert result["scheduled"] == []
+    assert result["loop_detected"] == 1
+
+
+def test_auto_drive_passes_limit_to_build_folder_buckets(monkeypatch):
+    captured = {}
+
+    def fake_build(**kwargs):
+        captured.update(kwargs)
+        return {
+            "items": [],
+            "total": 0,
+            "bucket_counts": {},
+            "phase_counts": {},
+        }
+
+    monkeypatch.setattr(runs_autodrive, "build_folder_buckets", fake_build)
+    monkeypatch.setattr(runs_autodrive, "_recent_auto_attempt_counts", lambda *_a, **_k: {})
+
+    runs_autodrive.auto_drive_runs(limit=300)
+
+    assert captured.get("limit") == 300
+
+
+def test_get_drive_status_with_outstanding_uses_target_phases(monkeypatch):
+    captured = {}
+
+    def fake_build(**kwargs):
+        captured.update(kwargs)
+        return {"total": 0, "bucket_counts": {}, "phase_counts": {}}
+
+    monkeypatch.setattr(runs_autodrive, "build_folder_buckets", fake_build)
+    with runs_autodrive._DRIVE_LOCK:
+        runs_autodrive._DRIVE_STATE["target_phases"] = ["scoring"]
+
+    runs_autodrive.get_drive_status_with_outstanding()
+
+    assert captured.get("target_phases") == ["scoring"]
+
+
+# ---------------------------------------------------------------------------
+# Durable drive loop
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _reset_drive(monkeypatch):
+    """Silence broadcasts and reset the module-global drive state per test."""
+    monkeypatch.setattr(runs_autodrive, "_broadcast_drive", lambda *a, **k: None)
+    monkeypatch.setattr(runs_autodrive, "_config_server_loop_enabled", lambda: True)
+    with runs_autodrive._DRIVE_LOCK:
+        runs_autodrive._DRIVE_STATE.update(
+            {
+                "enabled": False,
+                "root_path": None,
+                "limit": 50,
+                "max_repeats": 2,
+                "generate_captions": True,
+                "target_phases": None,
+                "started_at": None,
+                "last_tick_at": 0.0,
+                "last_result": None,
+                "stop_reason": None,
+                "idle_no_progress_ticks": 0,
+            }
+        )
+    yield
+    runs_autodrive.stop_drive("test_teardown")
+
+
+def _drive_result(scheduled: int = 0, outstanding: int = 0, **extra):
+    bucket_counts = extra.pop("bucket_counts", None)
+    if bucket_counts is None:
+        if outstanding > 0 and scheduled == 0:
+            if extra.get("candidates", 0) == 0 and "in_flight" not in extra:
+                bucket_counts = {"in_flight": outstanding}
+            else:
+                bucket_counts = {"awaiting_scoring": outstanding}
+        else:
+            bucket_counts = {}
+    candidates = extra.pop("candidates", scheduled if scheduled else (outstanding if bucket_counts.get("awaiting_scoring") else 0))
+    health = runs_autodrive._bucket_health_from_counts(bucket_counts)
+    return {
+        "scheduled": [{"folder_path": f"/f{i}"} for i in range(scheduled)],
+        "skipped": [],
+        "candidates": candidates,
+        "total_outstanding": outstanding,
+        "loop_detected": 0,
+        "bucket_counts": bucket_counts,
+        "phase_counts": {},
+        "health": health,
+        **extra,
+    }
+
+
+def _force_next_tick():
+    with runs_autodrive._DRIVE_LOCK:
+        runs_autodrive._DRIVE_STATE["last_tick_at"] = 0.0
+
+
+def test_start_drive_runs_first_batch_and_enables(monkeypatch):
+    calls = []
+
+    def fake_auto(**kwargs):
+        calls.append(kwargs)
+        return _drive_result(scheduled=2, outstanding=5)
+
+    monkeypatch.setattr(runs_autodrive, "auto_drive_runs", fake_auto)
+
+    out = runs_autodrive.start_drive(root_path="/mnt/d/Photos", limit=10)
+
+    assert out["state"]["enabled"] is True
+    assert out["state"]["root_path"] == "/mnt/d/Photos"
+    assert out["result"]["scheduled"] == 2
+    assert len(calls) == 1
+    assert calls[0]["dry_run"] is False
+    assert calls[0]["root_path"] == "/mnt/d/Photos"
+
+
+def test_drive_tick_noop_when_disabled(monkeypatch):
+    called = []
+    monkeypatch.setattr(runs_autodrive, "auto_drive_runs", lambda **k: called.append(k) or _drive_result())
+
+    assert runs_autodrive.drive_tick() is None
+    assert called == []
+
+
+def test_drive_tick_noop_when_kill_switch_off(monkeypatch):
+    monkeypatch.setattr(runs_autodrive, "auto_drive_runs", lambda **k: _drive_result(scheduled=1, outstanding=5))
+    runs_autodrive.start_drive(limit=5)
+    monkeypatch.setattr(runs_autodrive, "_config_server_loop_enabled", lambda: False)
+    _force_next_tick()
+
+    assert runs_autodrive.drive_tick() is None
+    assert runs_autodrive.get_drive_state()["enabled"] is True  # still armed, just paused
+
+
+def test_drive_stops_when_outstanding_zero(monkeypatch):
+    monkeypatch.setattr(runs_autodrive, "auto_drive_runs", lambda **k: _drive_result(scheduled=1, outstanding=0))
+
+    runs_autodrive.start_drive(limit=5)
+
+    state = runs_autodrive.get_drive_state()
+    assert state["enabled"] is False
+    assert state["stop_reason"] == "complete"
+
+
+def test_drive_stops_when_stalled(monkeypatch):
+    monkeypatch.setattr(
+        runs_autodrive,
+        "auto_drive_runs",
+        lambda **k: _drive_result(
+            scheduled=0,
+            outstanding=3,
+            candidates=3,
+            bucket_counts={"awaiting_scoring": 3},
+        ),
+    )
+
+    runs_autodrive.start_drive(limit=5)  # forced batch #1 -> 1 no-progress tick
+    assert runs_autodrive.get_drive_state()["enabled"] is True
+
+    for _ in range(runs_autodrive.DRIVE_MAX_NOPROGRESS_TICKS):
+        _force_next_tick()
+        runs_autodrive.drive_tick()
+
+    state = runs_autodrive.get_drive_state()
+    assert state["enabled"] is False
+    assert state["stop_reason"] == "stalled"
+
+
+def test_drive_continues_when_all_outstanding_in_flight(monkeypatch):
+    monkeypatch.setattr(
+        runs_autodrive,
+        "auto_drive_runs",
+        lambda **k: _drive_result(
+            scheduled=0,
+            outstanding=3,
+            candidates=0,
+            bucket_counts={"in_flight": 3},
+        ),
+    )
+
+    runs_autodrive.start_drive(limit=5)
+    assert runs_autodrive.get_drive_state()["enabled"] is True
+
+    for _ in range(runs_autodrive.DRIVE_MAX_NOPROGRESS_TICKS + 2):
+        _force_next_tick()
+        runs_autodrive.drive_tick()
+
+    state = runs_autodrive.get_drive_state()
+    assert state["enabled"] is True
+    assert state["idle_no_progress_ticks"] == 0
+    assert state["last_result"]["last_tick_reason"] == "waiting_in_flight"
+
+
+def test_drive_stops_when_only_blocked_folders_remain(monkeypatch):
+    monkeypatch.setattr(
+        runs_autodrive,
+        "auto_drive_runs",
+        lambda **k: _drive_result(
+            scheduled=0,
+            outstanding=2,
+            candidates=0,
+            bucket_counts={"blocked": 2},
+        ),
+    )
+
+    runs_autodrive.start_drive(limit=5)
+
+    state = runs_autodrive.get_drive_state()
+    assert state["enabled"] is False
+    assert state["stop_reason"] == "blocked"
+
+
+def test_drive_tick_respects_cooldown(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        runs_autodrive,
+        "auto_drive_runs",
+        lambda **k: calls.append(1) or _drive_result(scheduled=1, outstanding=5),
+    )
+
+    runs_autodrive.start_drive(limit=5)  # forced batch
+    assert len(calls) == 1
+
+    runs_autodrive.drive_tick()  # within cooldown -> skipped
+    assert len(calls) == 1
+
+    _force_next_tick()
+    runs_autodrive.drive_tick()  # cooldown bypassed -> runs
+    assert len(calls) == 2

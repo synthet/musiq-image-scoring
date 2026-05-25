@@ -16,3 +16,6 @@ export function runStagesQueryKey(id: number) {
 export const RUNS_QUERY_ROOT = ['runs'] as const
 
 export const RUNS_ACTIVE_QUERY_KEY = ['runs-active'] as const
+
+/** Durable "Drive to Complete" loop status. Stable key shared across components. */
+export const RUNS_DRIVE_STATUS_KEY = ['runs-drive-status'] as const

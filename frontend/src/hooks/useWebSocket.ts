@@ -26,9 +26,10 @@ export function useWebSocket() {
         if (cancelled) return
         try {
           const raw = JSON.parse(ev.data as string) as Record<string, unknown>
-          const { events, bumpRuns } = adaptBackendMessage(raw)
+          const { events, bumpRuns, bumpDrive } = adaptBackendMessage(raw)
           const store = useWsStore.getState()
           if (bumpRuns) store.bumpRunsVersion()
+          if (bumpDrive) store.bumpDriveVersion()
           for (const event of events) dispatch(event)
         } catch {
           // ignore non-JSON messages

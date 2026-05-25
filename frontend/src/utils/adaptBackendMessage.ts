@@ -3,6 +3,7 @@ import type { WsEvent, WsLogLine } from '@/types/api'
 export interface AdaptResult {
   events: WsEvent[]
   bumpRuns: boolean
+  bumpDrive?: boolean
 }
 
 const BUMP_STATUSES = new Set([
@@ -79,6 +80,10 @@ export function adaptBackendMessage(raw: Record<string, unknown>): AdaptResult {
   }
   if (type === 'work_item_done' && typeof raw.run_id === 'number') {
     return { events: [raw as unknown as WsEvent], bumpRuns: false }
+  }
+
+  if (type === 'drive_started' || type === 'drive_progress' || type === 'drive_stopped') {
+    return { events: [], bumpRuns: true, bumpDrive: true }
   }
 
   const bumpRuns = BUMP_STATUSES.has(type)

@@ -1209,6 +1209,19 @@ def get_run_diagnostics(run_id: int) -> dict:
 
 @mcp.tool(annotations=_RO)
 @_require_db
+def get_drive_diagnostics() -> dict:
+    """Auto-drive loop status, folder health, recent auto-drive jobs, and anomaly hints.
+
+    Use when Driving mode stalls, re-queues folders, or stops unexpectedly.
+    Complements ``get_recent_jobs`` and ``get_run_diagnostics`` for triage.
+    """
+    from modules import runs_autodrive
+
+    return _sanitize_for_mcp(runs_autodrive.get_drive_diagnostics())
+
+
+@mcp.tool(annotations=_RO)
+@_require_db
 def get_job_execution_report(run_id: int, phase_code: Optional[str] = None, action: Optional[str] = None, offset: int = 0, limit: int = 20) -> dict:
     """Structured execution report for a job: what the run did to each image.
 

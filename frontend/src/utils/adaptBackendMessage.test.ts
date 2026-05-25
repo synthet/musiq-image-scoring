@@ -230,6 +230,15 @@ describe('bumpRuns for job status change events', () => {
   }
 })
 
+describe('auto-drive WebSocket events', () => {
+  it.each(['drive_started', 'drive_progress', 'drive_stopped'])('%s bumps runs and drive', (type) => {
+    const { events, bumpRuns, bumpDrive } = adaptBackendMessage(msg(type, { drive: { enabled: true } }))
+    expect(events).toHaveLength(0)
+    expect(bumpRuns).toBe(true)
+    expect(bumpDrive).toBe(true)
+  })
+})
+
 describe('unknown types', () => {
   it('returns empty events and no bumpRuns for unrecognised type', () => {
     const { events, bumpRuns } = adaptBackendMessage({ type: 'some_unknown_event', data: {} })

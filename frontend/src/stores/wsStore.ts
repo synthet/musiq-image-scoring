@@ -33,6 +33,10 @@ interface WsStore {
   // Invalidation counter (any run changed)
   runsVersion: number
   bumpRunsVersion: () => void
+
+  // Auto-drive loop changed (start/progress/stop)
+  driveVersion: number
+  bumpDriveVersion: () => void
 }
 
 export const useWsStore = create<WsStore>((set) => ({
@@ -71,4 +75,7 @@ export const useWsStore = create<WsStore>((set) => ({
 
   runsVersion: 0,
   bumpRunsVersion: () => set((s) => ({ runsVersion: s.runsVersion + 1 })),
+
+  driveVersion: 0,
+  bumpDriveVersion: () => set((s) => ({ driveVersion: s.driveVersion + 1 })),
 }))
