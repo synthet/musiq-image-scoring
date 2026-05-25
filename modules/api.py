@@ -7248,11 +7248,14 @@ def create_api_router() -> APIRouter:
             (connector.query_one(kw_sql, tuple(image_scope_params)) or {}).get("cnt", 0)
         )
 
-        has_culling_data_expr = (
-            "i.stack_id IS NOT NULL OR EXISTS (SELECT 1 FROM image_embeddings ie WHERE ie.image_id = i.id)"
-            if getattr(connector, "type", "") == "postgres"
-            else "i.stack_id IS NOT NULL OR i.image_embedding IS NOT NULL"
-        )
+        if getattr(connector, "type", "") == "postgres":
+            has_culling_data_expr = (
+                f"i.stack_id IS NOT NULL OR ({db._postgres_has_default_embedding_sql('i')})"
+            )
+        else:
+            has_culling_data_expr = (
+                "i.stack_id IS NOT NULL OR i.image_embedding IS NOT NULL"
+            )
 
         culling_sql = (
             """

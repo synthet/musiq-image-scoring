@@ -518,8 +518,7 @@ def _init_db_transaction():
                 cull_policy_version VARCHAR(50),
                 image_uuid          VARCHAR(36),
                 created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at          TIMESTAMP,
-                image_embedding     vector(1280)
+                updated_at          TIMESTAMP
             );
             """)
             cur.execute(
@@ -546,11 +545,6 @@ def _init_db_transaction():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_images_burst_uuid ON images(burst_uuid);")
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_images_image_uuid ON images(image_uuid) WHERE image_uuid IS NOT NULL;")
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_images_file_path ON images(file_path);")
-            # HNSW cosine index for fast similarity search
-            cur.execute("""
-            CREATE INDEX IF NOT EXISTS idx_images_embedding_hnsw
-              ON images USING hnsw (image_embedding vector_cosine_ops);
-            """)
 
             # ------------------------------------------------------------------
             # JOB_PHASES — persisted multi-step pipeline plans

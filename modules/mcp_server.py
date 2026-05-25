@@ -1523,6 +1523,13 @@ def get_embedding_stats(
     total = int((total_row or {}).get("c") or 0)
     with_emb = int((with_row or {}).get("c") or 0)
     missing = max(0, total - with_emb)
+    legacy_column_rows = None
+    if is_postgres and db._postgres_images_has_image_embedding_column():
+        leg_row = conn.query_one(
+            "SELECT COUNT(*) AS c FROM images WHERE image_embedding IS NOT NULL",
+            (),
+        )
+        legacy_column_rows = int((leg_row or {}).get("c") or 0)
     return {
         "folder_path": os.path.normpath(folder_path) if folder_path and str(folder_path).strip() else None,
         "total_images": total,
@@ -1530,6 +1537,7 @@ def get_embedding_stats(
         "missing_embedding": missing,
         "expected_embedding_dim": expected_dim,
         "per_space": _per_space_counts(is_postgres),
+        "legacy_column_rows": legacy_column_rows,
     }
 
 
