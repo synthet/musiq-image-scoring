@@ -13,6 +13,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.24.0] - 2026-05-25
+
+### Added
+
+- **Text search filters**: `GET /api/similarity/text-search` and MCP `search_images_by_text` accept
+  `folder_ids`, `min_rating`, `color_label`, `keyword`, `captured_date`, and secondary `sort_by` /
+  `order` after CLIP relevance ranking.
+- **Similar search SQL**: Postgres filter builder for scoped semantic search (folder IDs, metadata AND
+  filters, allowlisted secondary sorts).
+
+### Changed
+
+- **DB export defaults**: CSV/Excel export column lists omit dropped per-model `images.score_*` columns;
+  **`image_model_scores`** is the sole store (docs aligned with migration 0023).
+- **Composite recalc** and **phase-status analysis** scripts read per-model scores from
+  **`image_model_scores`** on Postgres.
+
+### Fixed
+
+- **Text search tests**: Coverage for folder scope, metadata filters, and secondary sort paths.
+
 ## [7.23.0] - 2026-05-24
 
 ### Added

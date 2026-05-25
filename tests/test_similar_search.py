@@ -410,6 +410,89 @@ class TestFindOutliers:
 
 
 
+class TestSearchByTextFilters:
+    """Unit tests for text-search SQL helpers and filtered search."""
+
+    def test_build_filter_sql_folder_ids(self):
+        join_sql, where_sql, params = similar_search._build_text_search_filter_sql(
+            folder_ids=[1, 2, 3],
+            min_rating=None,
+            color_label=None,
+            keyword=None,
+            captured_date=None,
+        )
+        assert "folder_id IN" in where_sql
+        assert params == [1, 2, 3]
+        assert join_sql == ""
+
+    def test_build_filter_sql_rating_label_keyword_date(self):
+        join_sql, where_sql, params = similar_search._build_text_search_filter_sql(
+            folder_ids=None,
+            min_rating=4,
+            color_label="Green",
+            keyword="bird",
+            captured_date="2025-08-01",
+        )
+        assert "rating >=" in where_sql
+        assert "label = " in where_sql
+        assert "image_keywords" in where_sql
+        assert "DATE(" in where_sql
+        assert "image_exif ex" in join_sql
+        assert params[0] == 4
+        assert params[1] == "Green"
+        assert "%bird%" in params[2]
+        assert params[-1] == "2025-08-01"
+
+    def test_text_search_order_relevance_only(self):
+        assert similar_search._text_search_order_sql(None, None) == "e.embedding <=> %s::vector"
+        assert similar_search._text_search_order_sql("similarity", "DESC") == "e.embedding <=> %s::vector"
+
+    def test_text_search_order_secondary_capture_date(self):
+        sql = similar_search._text_search_order_sql("capture_date", "DESC")
+        assert "e.embedding <=> %s::vector" in sql
+        assert "DESC" in sql
+        assert "COALESCE" in sql
+
+    def test_search_by_text_passes_folder_ids_to_sql(self):
+        query_vec = np.random.randn(512).astype(np.float32)
+        mock_row = {"image_id": 10, "file_path": "/a.nef", "similarity": 0.9}
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = None
+        mock_cursor.fetchall.return_value = [mock_row]
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        mock_cm = MagicMock()
+        mock_cm.__enter__.return_value = mock_conn
+        mock_cm.__exit__.return_value = False
+
+        with patch("modules.similar_search.db") as mock_db:
+            mock_db._get_db_engine.return_value = "postgres"
+            mock_db._pg_embedding_table_for_dim.return_value = "image_embeddings_512"
+            mock_db.connection.return_value = mock_cm
+            with patch("modules.embedding_spaces.get_embedding_space_id", return_value=1):
+                with patch(
+                    "modules.similar_search._get_clip_text_embedding",
+                    return_value=query_vec,
+                ):
+                    result = similar_search.search_by_text(
+                        query="bird",
+                        limit=5,
+                        folder_ids=[7, 8],
+                        min_rating=3,
+                        color_label="Green",
+                    )
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        executed_sql = mock_cursor.execute.call_args[0][0]
+        assert "folder_id IN" in executed_sql
+        assert "rating >=" in executed_sql
+        assert "label = " in executed_sql
+
+
 @pytest.mark.ml
 class TestSearchSimilarImagesIntegration:
     """Integration test: requires test DB and optional TF. Skip if no embeddings."""

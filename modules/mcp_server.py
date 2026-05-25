@@ -2586,7 +2586,14 @@ def search_images_by_text(
     query: str,
     limit: int = 20,
     folder_path: Optional[str] = None,
+    folder_ids: Optional[list[int]] = None,
     min_similarity: Optional[float] = None,
+    min_rating: Optional[int] = None,
+    color_label: Optional[str] = None,
+    keyword: Optional[str] = None,
+    captured_date: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    order: Optional[str] = None,
 ) -> dict:
     """Search images by free-text query using CLIP text-to-image similarity.
 
@@ -2602,7 +2609,14 @@ def search_images_by_text(
         query=query,
         limit=limit,
         folder_path=folder_path,
+        folder_ids=folder_ids,
         min_similarity=min_similarity,
+        min_rating=min_rating,
+        color_label=color_label,
+        keyword=keyword,
+        captured_date=captured_date,
+        sort_by=sort_by,
+        order=order,
     )
     if isinstance(result, dict) and "error" in result:
         return result

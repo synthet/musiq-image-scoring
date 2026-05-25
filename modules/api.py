@@ -3873,8 +3873,15 @@ def create_api_router() -> APIRouter:
     async def search_images_by_text(
         query: str = Query(..., min_length=1, max_length=500, description="Free-text search query"),
         limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),
-        folder_path: Optional[str] = Query(None, description="Scope search to folder"),
+        folder_path: Optional[str] = Query(None, description="Scope search to folder (ignored if folder_ids set)"),
+        folder_ids: Optional[List[int]] = Query(None, description="Scope search to folder IDs (includes subfolders when expanded client-side)"),
         min_similarity: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum similarity threshold"),
+        min_rating: Optional[int] = Query(None, ge=0, le=5, description="Minimum star rating"),
+        color_label: Optional[str] = Query(None, description="Filter by color label (Red, Yellow, Green, Blue, Purple)"),
+        keyword: Optional[str] = Query(None, description="Also require normalized keyword match (AND filter)"),
+        captured_date: Optional[str] = Query(None, description="Filter by capture date (YYYY-MM-DD)"),
+        sort_by: Optional[str] = Query(None, description="Secondary sort after relevance (capture_date, created_at, rating, score_general, ...)"),
+        order: Optional[str] = Query("DESC", description="Secondary sort direction (ASC or DESC)"),
     ):
         """Search images by free-text query using CLIP text-to-image similarity."""
         from modules import similar_search
@@ -3885,6 +3892,13 @@ def create_api_router() -> APIRouter:
                 limit=limit,
                 folder_path=folder_path,
                 min_similarity=min_similarity,
+                folder_ids=folder_ids,
+                min_rating=min_rating,
+                color_label=color_label,
+                keyword=keyword,
+                captured_date=captured_date,
+                sort_by=sort_by,
+                order=order,
             )
 
         try:

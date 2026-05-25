@@ -10,7 +10,9 @@ def test_get_batch_image_embedding_presence_postgres(monkeypatch):
 
     # Mock _get_db_engine to return "postgres"
     monkeypatch.setattr(dbl, "_get_db_engine", lambda: "postgres")
-    
+    monkeypatch.setattr(dbl, "_postgres_images_has_image_embedding_column", lambda: True)
+    monkeypatch.setattr(dbl, "_write_legacy_image_embedding_column", lambda: True)
+
     # Mock _pg_embedding_table_for_dim
     monkeypatch.setattr(dbl, "_pg_embedding_table_for_dim", lambda dim: f"image_embeddings_mock_{dim}")
 

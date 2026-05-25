@@ -223,6 +223,11 @@ def test_dispatcher_routes_bird_species(monkeypatch):
 
     monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
     monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        JobDispatcher,
+        "_jit_replan_phase",
+        lambda self, job_id, payload, queue_key, input_path: (payload, [1], False),
+    )
 
     dispatcher._tick()
 

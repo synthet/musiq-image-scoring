@@ -145,7 +145,7 @@ def load_images(conn, folder_path: Optional[str] = None, limit: Optional[int] = 
     Data signals per phase:
       indexing  — file_path and folder_id are non-null
       metadata  — thumbnail_path or metadata column is non-null, or row in image_exif
-      scoring   — score_general > 0 AND score_technical AND score_spaq are non-null
+      scoring   — score_general > 0 AND score_technical AND at least one legacy model row in image_model_scores (Postgres) or score_spaq non-null (Firebird)
       culling   — image_embedding IS NOT NULL OR stack_id IS NOT NULL
                   (embedding = processed by clustering runner; stack_id = assigned to
                   a cluster; singletons have embedding but no stack_id, stacked images
@@ -161,9 +161,24 @@ def load_images(conn, folder_path: Optional[str] = None, limit: Optional[int] = 
             f"CASE WHEN i.stack_id IS NOT NULL OR ({db._postgres_has_default_embedding_sql('i')}) "
             f"THEN 1 ELSE 0 END"
         )
+        scoring_data_sql = (
+            "CASE WHEN i.score_general IS NOT NULL AND i.score_general > 0 "
+            "AND i.score_technical IS NOT NULL "
+            "AND EXISTS ("
+            "  SELECT 1 FROM image_model_scores ims "
+            "  WHERE ims.image_id = i.id AND ims.model_name = 'spaq' "
+            "    AND ims.status = 'success' AND ims.is_shadow = FALSE "
+            "    AND COALESCE(ims.normalized, ims.raw_score) IS NOT NULL"
+            ") THEN 1 ELSE 0 END"
+        )
     else:
         culling_data_sql = (
             "CASE WHEN i.image_embedding IS NOT NULL OR i.stack_id IS NOT NULL "
+            "THEN 1 ELSE 0 END"
+        )
+        scoring_data_sql = (
+            "CASE WHEN i.score_general IS NOT NULL AND i.score_general > 0 "
+            "AND i.score_technical IS NOT NULL AND i.score_spaq IS NOT NULL "
             "THEN 1 ELSE 0 END"
         )
 
@@ -178,10 +193,7 @@ def load_images(conn, folder_path: Optional[str] = None, limit: Optional[int] = 
                  THEN 1 ELSE 0 END AS data_indexing,
             CASE WHEN i.thumbnail_path IS NOT NULL OR i.metadata IS NOT NULL
                  THEN 1 ELSE 0 END AS data_metadata_basic,
-            CASE WHEN i.score_general IS NOT NULL AND i.score_general > 0
-                      AND i.score_technical IS NOT NULL
-                      AND i.score_spaq IS NOT NULL
-                 THEN 1 ELSE 0 END AS data_scoring,
+            {scoring_data_sql} AS data_scoring,
             {culling_data_sql} AS data_culling,
             CASE WHEN i.keywords IS NOT NULL AND CHAR_LENGTH(i.keywords) > 0
                  THEN 1 ELSE 0 END AS data_keywords_legacy

@@ -563,13 +563,14 @@ class JobDispatcher:
             )
 
         if phase_key in ("bird_species", "bird-species"):
+            overwrite = bool(mode_flags["overwrite"]) or bool(payload.get("overwrite"))
             return runner.start_batch(
                 payload.get("input_path", input_path),
                 job_id=job_id,
                 candidate_species=payload.get("candidate_species"),
                 threshold=float(payload.get("threshold", 0.1)),
                 top_k=int(payload.get("top_k", 3)),
-                overwrite=bool(mode_flags["overwrite"]),
+                overwrite=overwrite,
                 resolved_image_ids=scoped_resolved,
             )
 

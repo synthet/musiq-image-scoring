@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -49,8 +49,11 @@ def test_ensure_production_registry_registers_musiq_and_liqe():
     assert {"spaq", "ava", "liqe"}.issubset(names)
 
 
-@patch("scripts.python.run_all_musiq_models.MultiModelMUSIQ", _StubMusiqBackend)
-def test_create_production_scoring_host_returns_host():
+def test_create_production_scoring_host_returns_host(monkeypatch):
+    import importlib
+
+    ram = importlib.import_module("scripts.python.run_all_musiq_models")
+    monkeypatch.setattr(ram, "MultiModelMUSIQ", _StubMusiqBackend)
     host = create_production_scoring_host(registry=ModelRegistry())
     assert isinstance(host, MultiModelHost)
     assert host.backend.VERSION == "stub-musiq"

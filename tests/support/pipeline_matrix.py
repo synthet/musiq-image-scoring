@@ -352,14 +352,13 @@ def _submit_run_legacy_flags(run_api_mode: str) -> Dict[str, bool]:
 
 
 def submit_run_via_api(client, scope_paths, stages, run_api_mode: str = "process_new", scope_type: str = "folder_recursive"):
-    """POST ``/api/runs/submit`` with legacy flag shapes matching the React modal."""
-    flags = _submit_run_legacy_flags(run_api_mode)
+    """POST ``/api/runs/submit`` (``RunSubmitRequest`` — canonical ``run_mode`` only)."""
+    _ = run_api_mode  # matrix axis retained for scenario ids / seed expectations
     body = {
         "scope_type": scope_type,
         "scope_paths": list(scope_paths),
         "stages": list(stages),
-        **flags,
-        "validation_repair_dry_run": False,
+        "run_mode": "process_stale_or_missing",
         "generate_captions": False,
     }
     return client.post("/api/runs/submit", json=body)
@@ -395,10 +394,7 @@ def seed_partial_phase_state(scope_folder_abs: str, completed_phase_codes: Tuple
         import numpy as np
 
         emb = np.zeros(1280, dtype=np.float32)
-        db.get_connector().execute(
-            "UPDATE images SET image_embedding = ? WHERE id = ?",
-            (emb, image_id),
-        )
+        db.update_image_embedding(image_id, emb.tobytes())
     if "metadata" in completed_phase_codes:
         db.get_connector().execute(
             "UPDATE images SET rating = ?, label = ? WHERE id = ?",

@@ -73,9 +73,14 @@ def _noop_running_sync(path, job_id, **kwargs):
     db.update_job_status(int(job_id), "running")
 
 
-def test_dispatcher_starts_second_phase_after_first_completes():
+def test_dispatcher_starts_second_phase_after_first_completes(monkeypatch):
     fake_ix = FakePhaseRunner(delay_s=0.04, on_start=_noop_running_sync)
     fake_meta = FakePhaseRunner(delay_s=0.04, on_start=_noop_running_sync)
+    monkeypatch.setattr(
+        JobDispatcher,
+        "_jit_replan_phase",
+        lambda self, job_id, payload, queue_key, input_path: (payload, [1], False),
+    )
     d = JobDispatcher(
         indexing_runner=fake_ix,
         metadata_runner=fake_meta,

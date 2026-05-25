@@ -337,19 +337,125 @@ def _get_clip_text_embedding(query: str) -> np.ndarray:
     return vec
 
 
+# Postgres capture timestamp (aligned with gallery electron/db.ts CAPTURE_TS)
+_PG_CAPTURE_TS = (
+    "COALESCE(ex.date_time_original, ex.create_date, xm.create_date, i.created_at)"
+)
+
+_TEXT_SEARCH_SORT_ALLOWLIST: dict[str, str] = {
+    "capture_date": _PG_CAPTURE_TS,
+    "created_at": "i.created_at",
+    "rating": "i.rating",
+    "score_general": "i.score_general",
+    "score_technical": "i.score_technical",
+    "score_aesthetic": "i.score_aesthetic",
+    "id": "i.id",
+}
+
+
+def _build_text_search_filter_sql(
+    *,
+    folder_ids: list[int] | None,
+    min_rating: int | None,
+    color_label: str | None,
+    keyword: str | None,
+    captured_date: str | None,
+) -> tuple[str, str, list]:
+    """Return (extra_joins, extra_where, bind_params) appended after space_id param."""
+    joins: list[str] = []
+    where_parts: list[str] = []
+    params: list = []
+
+    if captured_date:
+        joins.append("LEFT JOIN image_exif ex ON i.id = ex.image_id")
+        joins.append("LEFT JOIN image_xmp xm ON i.id = xm.image_id")
+
+    if folder_ids:
+        placeholders = ", ".join(["%s"] * len(folder_ids))
+        where_parts.append(f"AND i.folder_id IN ({placeholders})")
+        params.extend(int(x) for x in folder_ids)
+
+    if min_rating is not None and int(min_rating) > 0:
+        where_parts.append("AND i.rating >= %s")
+        params.append(int(min_rating))
+
+    if color_label and str(color_label).strip():
+        where_parts.append("AND i.label = %s")
+        params.append(str(color_label).strip())
+
+    if keyword and str(keyword).strip():
+        where_parts.append(
+            """AND EXISTS (
+            SELECT 1 FROM image_keywords ik
+            JOIN keywords_dim kd ON ik.keyword_id = kd.keyword_id
+            WHERE ik.image_id = i.id
+            AND (LOWER(kd.keyword_display) LIKE LOWER(%s) OR LOWER(kd.keyword_norm) LIKE LOWER(%s))
+        )"""
+        )
+        kw = f"%{str(keyword).strip()}%"
+        params.extend([kw, kw])
+
+    if captured_date and str(captured_date).strip():
+        where_parts.append(f"AND DATE({_PG_CAPTURE_TS}) = %s::date")
+        params.append(str(captured_date).strip())
+
+    join_sql = "\n              ".join(joins)
+    where_sql = "\n              ".join(where_parts)
+    return join_sql, where_sql, params
+
+
+def _text_search_order_sql(sort_by: str | None, order: str | None) -> str:
+    """Primary key: vector distance ASC (higher similarity first). Optional secondary sort."""
+    if not sort_by or sort_by.strip().lower() in ("similarity", "relevance", ""):
+        return "e.embedding <=> %s::vector"
+    key = sort_by.strip().lower()
+    col = _TEXT_SEARCH_SORT_ALLOWLIST.get(key)
+    if not col:
+        return "e.embedding <=> %s::vector"
+    direction = "ASC" if (order or "DESC").strip().upper() == "ASC" else "DESC"
+    return f"e.embedding <=> %s::vector, {col} {direction}"
+
+
 def search_by_text(
     query: str,
     limit: int = 20,
     folder_path: str | None = None,
     min_similarity: float | None = None,
+    folder_ids: list[int] | None = None,
+    min_rating: int | None = None,
+    color_label: str | None = None,
+    keyword: str | None = None,
+    captured_date: str | None = None,
+    sort_by: str | None = None,
+    order: str | None = None,
 ) -> dict | list:
-    return _search_by_text_impl(query, limit, folder_path, min_similarity)
+    return _search_by_text_impl(
+        query,
+        limit,
+        folder_path,
+        min_similarity,
+        folder_ids=folder_ids,
+        min_rating=min_rating,
+        color_label=color_label,
+        keyword=keyword,
+        captured_date=captured_date,
+        sort_by=sort_by,
+        order=order,
+    )
+
 
 def _search_by_text_impl(
     query: str,
     limit: int = 20,
     folder_path: str | None = None,
     min_similarity: float | None = None,
+    folder_ids: list[int] | None = None,
+    min_rating: int | None = None,
+    color_label: str | None = None,
+    keyword: str | None = None,
+    captured_date: str | None = None,
+    sort_by: str | None = None,
+    order: str | None = None,
 ) -> dict | list:
     """Find images semantically matching a free-text *query*.
 
@@ -382,12 +488,28 @@ def _search_by_text_impl(
         logger.error("Failed to encode text query: %s", e)
         return {"error": f"Failed to encode text query: {e}"}
 
+    join_extra, where_extra, filter_params = _build_text_search_filter_sql(
+        folder_ids=folder_ids,
+        min_rating=min_rating,
+        color_label=color_label,
+        keyword=keyword,
+        captured_date=captured_date,
+    )
+    order_sql = _text_search_order_sql(sort_by, order)
+    if sort_by and sort_by.strip().lower() == "capture_date" and "image_exif ex" not in join_extra:
+        exif_joins = (
+            "LEFT JOIN image_exif ex ON i.id = ex.image_id\n"
+            "              LEFT JOIN image_xmp xm ON i.id = xm.image_id"
+        )
+        join_extra = f"{exif_joins}\n              {join_extra}".strip() if join_extra else exif_joins
+    join_block = f"\n              {join_extra}" if join_extra else ""
+
     with db.connection() as conn:
         c = conn.cursor()
 
         params: list = [query_vec, space_id]
         folder_clause = ""
-        if folder_path:
+        if not folder_ids and folder_path:
             import os
 
             norm = os.path.normpath(folder_path)
@@ -398,15 +520,18 @@ def _search_by_text_impl(
             folder_clause = "AND i.folder_id = %s"
             params.append(frow[0])
 
+        params.extend(filter_params)
+
         sql = f"""
             SELECT i.id   AS image_id,
                    i.file_path,
                    1 - (e.embedding <=> %s::vector) AS similarity
             FROM {table} e
-            JOIN images i ON i.id = e.image_id
+            JOIN images i ON i.id = e.image_id{join_block}
             WHERE e.embedding_space_id = %s
               {folder_clause}
-            ORDER BY e.embedding <=> %s::vector
+              {where_extra}
+            ORDER BY {order_sql}
             LIMIT %s
         """
         params.append(query_vec)

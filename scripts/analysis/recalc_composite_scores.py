@@ -3,7 +3,8 @@
 Recalculate composite scores (general, technical, aesthetic), ratings, and labels
 from stored model scores using config.json percentile anchors and fusion weights.
 
-Reads legacy columns (score_liqe, score_ava, score_spaq) plus TOPIQ from
+Reads per-model scores from ``image_model_scores`` (legacy ``images.score_*``
+columns removed on Postgres) plus TOPIQ from
 image_model_scores. Does NOT re-run inference or change raw model scores.
 
 Run in WSL with the app venv::
@@ -91,18 +92,27 @@ def row_to_scores(row: dict) -> Dict[str, float]:
 
 
 def fetch_scored_images(conn, folder_path: Optional[str] = None) -> List[dict]:
-    """Fetch images with any legacy model score; attach TOPIQ from image_model_scores."""
+    """Fetch images with any per-model score in image_model_scores (or legacy columns on Firebird)."""
     fsql, fparams = _folder_filter(folder_path)
+    model_names_for_exists = "', '".join(ALL_MODELS)
+    if db._get_db_engine() == "postgres":
+        where_scores = (
+            "EXISTS (SELECT 1 FROM image_model_scores ims "
+            f"WHERE ims.image_id = i.id AND ims.model_name IN ('{model_names_for_exists}') "
+            "AND ims.status = 'success' AND ims.is_shadow = FALSE "
+            "AND COALESCE(ims.normalized, ims.raw_score) IS NOT NULL)"
+        )
+    else:
+        where_scores = (
+            "(i.score_liqe IS NOT NULL OR i.score_ava IS NOT NULL OR i.score_spaq IS NOT NULL)"
+        )
     query = f"""
         SELECT i.id, i.file_path,
-               i.score_liqe, i.score_ava, i.score_spaq,
                i.score_general, i.score_technical, i.score_aesthetic,
                i.rating, i.label
         FROM images i
         LEFT JOIN folders f ON f.id = i.folder_id
-        WHERE (i.score_liqe IS NOT NULL
-           OR i.score_ava IS NOT NULL
-           OR i.score_spaq IS NOT NULL)
+        WHERE {where_scores}
         {fsql}
     """
     c = conn.cursor()
@@ -112,10 +122,11 @@ def fetch_scored_images(conn, folder_path: Optional[str] = None) -> List[dict]:
         return rows
 
     ids = [r["id"] for r in rows]
-    # model -> {image_id: normalized} for every image_model_scores fusion model
-    ims_by_model: Dict[str, Dict[int, float]] = {m: {} for m in IMS_MODELS}
+    # model -> {image_id: normalized} from image_model_scores (all fusion models on Postgres)
+    models_to_load = ALL_MODELS if db._get_db_engine() == "postgres" else IMS_MODELS
+    ims_by_model: Dict[str, Dict[int, float]] = {m: {} for m in models_to_load}
     batch_size = 5000
-    model_ph = ",".join(["?"] * len(IMS_MODELS))
+    model_ph = ",".join(["?"] * len(models_to_load))
     for start in range(0, len(ids), batch_size):
         batch = ids[start : start + batch_size]
         ph = ",".join(["?"] * len(batch))
@@ -128,7 +139,7 @@ def fetch_scored_images(conn, folder_path: Optional[str] = None) -> List[dict]:
               AND ims.is_shadow = FALSE
               AND ims.normalized IS NOT NULL
         """
-        c.execute(ims_query, list(batch) + list(IMS_MODELS))
+        c.execute(ims_query, list(batch) + list(models_to_load))
         for ims_row in _rows_to_dicts(c):
             m = str(ims_row["model_name"]).lower()
             if m in ims_by_model:
@@ -136,9 +147,10 @@ def fetch_scored_images(conn, folder_path: Optional[str] = None) -> List[dict]:
 
     for row in rows:
         rid = row["id"]
-        for m in IMS_MODELS:
+        for m in models_to_load:
             if rid in ims_by_model[m]:
                 row[m] = ims_by_model[m][rid]
+                row[f"score_{m}"] = ims_by_model[m][rid]
 
     return rows
 

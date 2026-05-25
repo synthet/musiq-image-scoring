@@ -7577,12 +7577,11 @@ def _extract_image_model_score_rows(image_id, result, model_version):
 
 
 def _write_image_model_scores(image_id, result, model_version):
-    """Dual-write per-model scores to ``image_model_scores`` (Postgres only).
+    """Persist per-model scores to ``image_model_scores`` (Postgres only).
 
-    Coexists with ``images.score_spaq`` / ``score_ava`` / etc. for Electron
-    back-compat: the legacy typed columns are still written by ``upsert_image``;
-    new models live only in this table. No-op on Firebird (table doesn't exist
-    there) and on results without a ``models`` block.
+    ``upsert_image`` no longer writes typed ``images.score_*`` columns on Postgres
+    (dropped in migration 0023); this table is the sole store for spaq/ava/liqe/etc.
+    No-op on Firebird (table does not exist there) and on results without a ``models`` block.
     """
     rows = _extract_image_model_score_rows(image_id, result, model_version)
     if not rows:
@@ -9539,13 +9538,12 @@ def export_db_to_csv(output_path, columns=None, rating_filter=None, label_filter
     """
     import csv
     
-    # Default columns for export (most useful ones)
+    # Default columns for export (most useful ones; per-model scores live in image_model_scores)
     default_columns = [
         'id', 'file_path', 'file_name', 'file_type',
         'score_general', 'score_technical', 'score_aesthetic',
-        'score_spaq', 'score_ava', 'score_koniq', 'score_paq2piq', 'score_liqe',
         'rating', 'label', 'keywords', 'title', 'description',
-        'stack_id', 'created_at'
+        'stack_id', 'created_at',
     ]
     
     columns_to_export = columns if columns else default_columns
@@ -9609,13 +9607,12 @@ def export_db_to_excel(output_path, columns=None, rating_filter=None, label_filt
     except ImportError:
         return False, "openpyxl is required for Excel export. Install with: pip install openpyxl"
     
-    # Default columns for export
+    # Default columns for export (per-model scores: image_model_scores / API)
     default_columns = [
         'id', 'file_path', 'file_name', 'file_type',
         'score_general', 'score_technical', 'score_aesthetic',
-        'score_spaq', 'score_ava', 'score_koniq', 'score_paq2piq', 'score_liqe',
         'rating', 'label', 'keywords', 'title', 'description',
-        'stack_id', 'created_at'
+        'stack_id', 'created_at',
     ]
     
     columns_to_export = columns if columns else default_columns

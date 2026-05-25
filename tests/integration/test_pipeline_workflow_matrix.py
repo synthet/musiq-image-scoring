@@ -52,6 +52,20 @@ def _postgres_clean(postgres_test_session, clean_postgres):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _jit_replan_has_work(monkeypatch):
+    """Empty JIT plans skip phases (PhaseSkipped); matrix tests need runners to execute."""
+    monkeypatch.setattr(
+        JobDispatcher,
+        "_jit_replan_phase",
+        lambda self, job_id, payload, queue_key, input_path: (
+            dict(payload or {}),
+            [1],
+            False,
+        ),
+    )
+
+
 def _noop_running_sync(path, job_id, **kwargs):
     """Mirror real runner behavior: mark job as running on start."""
     db.update_job_status(int(job_id), "running")
