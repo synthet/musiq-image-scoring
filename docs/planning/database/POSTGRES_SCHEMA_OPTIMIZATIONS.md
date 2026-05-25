@@ -73,7 +73,7 @@ flowchart TB
 ## Optimization Roadmap (Task Backlog)
 
 ### A — Embeddings and Vector Indexes
-- **[A1] ADR — single source of truth for embeddings.** Consolidate `images.image_embedding` column into the `image_embeddings` table.
+- **[A1] ADR — single source of truth for embeddings.** Consolidate `images.image_embedding` column into the `image_embeddings` table. **In progress (2026-05-24):** migration `0024`, `verify_embedding_column_parity.py`, config gate — [IMAGE_EMBEDDING_COLUMN_DEPRECATION.md](IMAGE_EMBEDDING_COLUMN_DEPRECATION.md).
 - **[A2] Migration — dedupe vectors and indexes.** Drop redundant HNSW indexes; update `db.py` batch writers.
 - **[A3] Tune vector indexes for scale.** Benchmark HNSW (`m`, `ef_construction`) vs IVFFlat.
 

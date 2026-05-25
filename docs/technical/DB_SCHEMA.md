@@ -26,7 +26,7 @@ The current PostgreSQL initializer creates or maintains these application tables
 | Scoring | score columns on `images`, `image_model_scores` |
 | Culling and stacks | `stacks`, `stack_cache`, `cluster_progress`, `culling_sessions`, `culling_picks` |
 | Keywords | `keywords_dim`, `image_keywords`, legacy keyword text fields where retained for compatibility |
-| Embeddings | `embedding_spaces`, `image_embeddings`, `image_embeddings_512`, `image_embeddings_768`, legacy `images.image_embedding` fallback |
+| Embeddings | `embedding_spaces`, `image_embeddings`, `image_embeddings_512`, `image_embeddings_768` (legacy `images.image_embedding` dropped in migration 0024) |
 
 ## PostgreSQL / pgvector Notes
 

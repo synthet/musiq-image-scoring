@@ -156,6 +156,17 @@ def load_images(conn, folder_path: Optional[str] = None, limit: Optional[int] = 
     fsql, fparams = _folder_filter(folder_path)
     first = f'FIRST {limit}' if limit else ''
 
+    if db._get_db_engine() == "postgres":
+        culling_data_sql = (
+            f"CASE WHEN i.stack_id IS NOT NULL OR ({db._postgres_has_default_embedding_sql('i')}) "
+            f"THEN 1 ELSE 0 END"
+        )
+    else:
+        culling_data_sql = (
+            "CASE WHEN i.image_embedding IS NOT NULL OR i.stack_id IS NOT NULL "
+            "THEN 1 ELSE 0 END"
+        )
+
     c.execute(f"""
         SELECT {first}
             i.id,
@@ -171,8 +182,7 @@ def load_images(conn, folder_path: Optional[str] = None, limit: Optional[int] = 
                       AND i.score_technical IS NOT NULL
                       AND i.score_spaq IS NOT NULL
                  THEN 1 ELSE 0 END AS data_scoring,
-            CASE WHEN i.image_embedding IS NOT NULL OR i.stack_id IS NOT NULL
-                 THEN 1 ELSE 0 END AS data_culling,
+            {culling_data_sql} AS data_culling,
             CASE WHEN i.keywords IS NOT NULL AND CHAR_LENGTH(i.keywords) > 0
                  THEN 1 ELSE 0 END AS data_keywords_legacy
         FROM images i

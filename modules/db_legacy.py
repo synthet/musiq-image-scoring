@@ -822,6 +822,108 @@ def _write_legacy_keywords_column() -> bool:
     return bool(config.get_config_value("database.write_legacy_keywords_column", True))
 
 
+_pg_images_embedding_column_exists: bool | None = None
+
+
+def _postgres_images_has_image_embedding_column() -> bool:
+    """True when ``images.image_embedding`` still exists (pre-migration 0024)."""
+    global _pg_images_embedding_column_exists
+    if _pg_images_embedding_column_exists is not None:
+        return _pg_images_embedding_column_exists
+    if _get_db_engine() != "postgres":
+        _pg_images_embedding_column_exists = False
+        return False
+    try:
+        row = db_postgres.execute_select_one(
+            """
+            SELECT 1 AS x FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'images'
+              AND column_name = 'image_embedding'
+            LIMIT 1
+            """
+        )
+        _pg_images_embedding_column_exists = row is not None
+    except Exception:
+        _pg_images_embedding_column_exists = False
+    return _pg_images_embedding_column_exists
+
+
+def _write_legacy_image_embedding_column() -> bool:
+    """Whether to persist default-space vectors into ``images.image_embedding``.
+
+    For PostgreSQL, set ``database.write_legacy_image_embedding_column`` to ``false``
+    in ``config.json`` once ``image_embeddings`` is authoritative (see
+    ``docs/planning/database/IMAGE_EMBEDDING_COLUMN_DEPRECATION.md``).
+
+    Returns ``False`` automatically after migration 0024 drops the column.
+
+    Non-Postgres engines always return ``True`` (column remains canonical there).
+    """
+    try:
+        eng = config.get_database_engine()
+    except Exception:
+        eng = "postgres"
+    if eng != "postgres":
+        return True
+    if not _postgres_images_has_image_embedding_column():
+        return False
+    return bool(config.get_config_value("database.write_legacy_image_embedding_column", True))
+
+
+def _postgres_default_embedding_select_expr(image_alias="i", ie_alias="ie"):
+    """SQL expression for the default-space embedding vector on Postgres."""
+    if (
+        _postgres_images_has_image_embedding_column()
+        and _write_legacy_image_embedding_column()
+    ):
+        return f"COALESCE({ie_alias}.embedding, {image_alias}.image_embedding)"
+    return f"{ie_alias}.embedding"
+
+
+_legacy_embedding_drift_warned = False
+
+
+def _maybe_warn_legacy_embedding_column_drift() -> None:
+    """One-time WARNING when legacy column and fact table both hold default-space vectors."""
+    global _legacy_embedding_drift_warned
+    if _legacy_embedding_drift_warned:
+        return
+    if _get_db_engine() != "postgres":
+        return
+    if not (
+        _postgres_images_has_image_embedding_column()
+        and _write_legacy_image_embedding_column()
+    ):
+        return
+    try:
+        from modules.embedding_spaces import DEFAULT_EMBEDDING_SPACE_CODE
+
+        row = db_postgres.execute_select_one(
+            """
+            SELECT COUNT(*) AS c FROM images i
+            WHERE i.image_embedding IS NOT NULL
+              AND EXISTS (
+                  SELECT 1 FROM image_embeddings ie
+                  JOIN embedding_spaces es ON es.id = ie.embedding_space_id
+                  WHERE ie.image_id = i.id AND es.code = %s
+              )
+            """,
+            (DEFAULT_EMBEDDING_SPACE_CODE,),
+        )
+        dup = int((row or {}).get("c") or 0)
+        if dup > 0:
+            logger.warning(
+                "%d image(s) have both images.image_embedding and image_embeddings rows; "
+                "set database.write_legacy_image_embedding_column=false and run "
+                "verify_embedding_column_parity.py before migration 0024. "
+                "See docs/planning/database/IMAGE_EMBEDDING_COLUMN_DEPRECATION.md",
+                dup,
+            )
+        _legacy_embedding_drift_warned = True
+    except Exception:
+        _legacy_embedding_drift_warned = True
+
+
 DB_CONFIG = config.get_config_section('database')
 DB_FILE = DB_CONFIG.get('filename', "scoring_history.fdb")
 DB_USER = str(DB_CONFIG.get('user', "sysdba") or "sysdba")
@@ -8991,10 +9093,16 @@ def is_image_metadata_complete(image_id: int) -> bool:
 
 
 def is_image_indexing_complete(image_id: int) -> bool:
-    """True if image has an embedding in the database."""
+    """True if image has a default-space embedding in the database."""
+    if _get_db_engine() == "postgres":
+        row = db_postgres.execute_select_one(
+            f"SELECT 1 AS x FROM images i WHERE i.id = %s AND ({_postgres_has_default_embedding_sql('i')})",
+            (image_id,),
+        )
+        return row is not None
     row = get_connector().query_one(
         "SELECT image_embedding FROM images WHERE id = ?",
-        (image_id,)
+        (image_id,),
     )
     return row is not None and row.get("image_embedding") is not None
 
@@ -9051,13 +9159,19 @@ def is_image_culling_similarity_artefacts_missing(image_id: int) -> bool:
     """
     try:
         conn = get_connector()
-        row = conn.query_one(
-            """
-            SELECT stack_id, image_hash, image_embedding, cull_decision
-            FROM images WHERE id = ?
-            """,
-            (image_id,),
-        )
+        if conn.type == "postgres":
+            row = conn.query_one(
+                "SELECT stack_id, image_hash, cull_decision FROM images WHERE id = ?",
+                (image_id,),
+            )
+        else:
+            row = conn.query_one(
+                """
+                SELECT stack_id, image_hash, image_embedding, cull_decision
+                FROM images WHERE id = ?
+                """,
+                (image_id,),
+            )
         if not row:
             return False
         if str(row.get("cull_decision") or "").strip() == "":
@@ -9067,7 +9181,7 @@ def is_image_culling_similarity_artefacts_missing(image_id: int) -> bool:
         if str(row.get("image_hash") or "").strip() == "":
             return False
 
-        if row.get("image_embedding") is not None:
+        if conn.type != "postgres" and row.get("image_embedding") is not None:
             return False
 
         if conn.type == 'postgres':
@@ -10766,12 +10880,18 @@ def _pg_default_embedding_space_subquery_sql():
 
 
 def _postgres_has_default_embedding_sql(image_alias="i"):
-    """SQL fragment: image has legacy blob or a row in image_embeddings for default space."""
+    """SQL fragment: image has a default-space embedding (registry fact table; optional legacy column)."""
     sub = _pg_default_embedding_space_subquery_sql()
-    return (
-        f"(EXISTS (SELECT 1 FROM image_embeddings ie WHERE ie.image_id = {image_alias}.id "
-        f"AND ie.embedding_space_id = {sub}) OR {image_alias}.image_embedding IS NOT NULL)"
+    exists = (
+        f"EXISTS (SELECT 1 FROM image_embeddings ie WHERE ie.image_id = {image_alias}.id "
+        f"AND ie.embedding_space_id = {sub})"
     )
+    if (
+        _postgres_images_has_image_embedding_column()
+        and _write_legacy_image_embedding_column()
+    ):
+        return f"({exists} OR {image_alias}.image_embedding IS NOT NULL)"
+    return f"({exists})"
 
 
 def update_image_embedding(image_id, embedding_bytes, model_version=None):
@@ -10780,10 +10900,11 @@ def update_image_embedding(image_id, embedding_bytes, model_version=None):
         conn = get_connector()
         if conn.type == 'postgres':
             vec = _embedding_bytes_to_pg(embedding_bytes) if embedding_bytes is not None else None
-            db_postgres.execute_write(
-                "UPDATE images SET image_embedding = %s WHERE id = %s",
-                (vec, image_id),
-            )
+            if _write_legacy_image_embedding_column():
+                db_postgres.execute_write(
+                    "UPDATE images SET image_embedding = %s WHERE id = %s",
+                    (vec, image_id),
+                )
             from modules.embedding_spaces import get_default_embedding_space_id
 
             sid = get_default_embedding_space_id()
@@ -10822,10 +10943,11 @@ def update_image_embeddings_batch(pairs, model_version=None):
                 with pg_conn.cursor() as cur:
                     for image_id, embedding_bytes in pairs:
                         vec = _embedding_bytes_to_pg(embedding_bytes) if embedding_bytes is not None else None
-                        cur.execute(
-                            "UPDATE images SET image_embedding = %s WHERE id = %s",
-                            (vec, image_id),
-                        )
+                        if _write_legacy_image_embedding_column():
+                            cur.execute(
+                                "UPDATE images SET image_embedding = %s WHERE id = %s",
+                                (vec, image_id),
+                            )
                         if sid is not None and vec is not None:
                             cur.execute(
                                 """
@@ -11021,10 +11143,12 @@ def get_image_embedding(image_id):
     try:
         conn = get_connector()
         if conn.type == 'postgres':
+            _maybe_warn_legacy_embedding_column_drift()
             sub = _pg_default_embedding_space_subquery_sql()
+            emb_expr = _postgres_default_embedding_select_expr()
             row = db_postgres.execute_select_one(
                 f"""
-                SELECT COALESCE(ie.embedding, i.image_embedding) AS emb
+                SELECT {emb_expr} AS emb
                 FROM images i
                 LEFT JOIN image_embeddings ie ON ie.image_id = i.id
                   AND ie.embedding_space_id = {sub}
@@ -11051,10 +11175,11 @@ def get_image_embeddings_batch(image_ids: list[int]) -> dict[int, bytes]:
         if conn.type == 'postgres':
             sub = _pg_default_embedding_space_subquery_sql()
             placeholders = ','.join(['%s'] * len(image_ids))
+            emb_expr = _postgres_default_embedding_select_expr()
             rows = db_postgres.execute_select(
                 f"""
                 SELECT i.id,
-                       COALESCE(ie.embedding, i.image_embedding) AS emb
+                       {emb_expr} AS emb
                 FROM images i
                 LEFT JOIN image_embeddings ie ON ie.image_id = i.id
                   AND ie.embedding_space_id = {sub}
@@ -11087,7 +11212,7 @@ def get_embeddings_for_search(folder_path=None, limit=None):
     if _get_db_engine() == "postgres":
         sub = _pg_default_embedding_space_subquery_sql()
         has_e = _postgres_has_default_embedding_sql("i")
-        emb_expr = "COALESCE(ie.embedding, i.image_embedding)"
+        emb_expr = _postgres_default_embedding_select_expr()
         if folder_path:
             norm = os.path.normpath(folder_path)
             sql = (
@@ -11161,7 +11286,7 @@ def get_embeddings_with_metadata(folder_path=None, limit=None):
     if _get_db_engine() == "postgres":
         sub = _pg_default_embedding_space_subquery_sql()
         has_e = _postgres_has_default_embedding_sql("i")
-        emb_expr = "COALESCE(ie.embedding, i.image_embedding)"
+        emb_expr = _postgres_default_embedding_select_expr()
         if folder_path:
             norm = os.path.normpath(folder_path)
             sql = (
@@ -11372,7 +11497,7 @@ def get_images_for_tag_propagation(folder_path=None):
             # Postgres: use COALESCE + default space subquery
             sub = _pg_default_embedding_space_subquery_sql()
             has_e = _postgres_has_default_embedding_sql("i")
-            emb_expr = "COALESCE(ie.embedding, i.image_embedding)"
+            emb_expr = _postgres_default_embedding_select_expr()
             q_untagged = (
                 f"SELECT i.id, i.file_path, {emb_expr} AS image_embedding FROM images i "
                 f"LEFT JOIN image_embeddings ie ON ie.image_id = i.id AND ie.embedding_space_id = {sub} "
@@ -11442,8 +11567,9 @@ def get_image_tag_propagation_focus(image_id: int):
     if _get_db_engine() == "postgres":
         # Postgres: use COALESCE + join to image_embeddings
         sub = _pg_default_embedding_space_subquery_sql()
+        emb_expr = _postgres_default_embedding_select_expr()
         sql = f"""
-            SELECT COALESCE(ie.embedding, i.image_embedding) AS image_embedding,
+            SELECT {emb_expr} AS image_embedding,
                    i.file_path, f.path,
                    COALESCE((SELECT STRING_AGG(COALESCE(kd.keyword_display, kd.keyword_norm), ', ')
                             FROM image_keywords ik JOIN keywords_dim kd ON kd.keyword_id = ik.keyword_id
@@ -12027,16 +12153,19 @@ def get_batch_image_embedding_presence(image_ids: list[int]) -> dict[int, dict[s
                         if code and iid in results:
                             results[iid][code] = True
 
-            # Also check legacy images.image_embedding column on Postgres as a fallback
-            placeholders = ','.join(['%s'] * len(image_ids))
-            query = f"SELECT id FROM images WHERE id IN ({placeholders}) AND image_embedding IS NOT NULL"
-            rows = db_postgres.execute_select(query, tuple(image_ids))
-            for r in rows:
-                iid_val = r.get("id") or r.get("ID")
-                if iid_val is not None:
-                    iid = int(iid_val)
-                    if iid in results:
-                        results[iid]["mobilenet_v2_imagenet_gap"] = True
+            if _write_legacy_image_embedding_column():
+                placeholders = ','.join(['%s'] * len(image_ids))
+                query = (
+                    f"SELECT id FROM images WHERE id IN ({placeholders}) "
+                    f"AND image_embedding IS NOT NULL"
+                )
+                rows = db_postgres.execute_select(query, tuple(image_ids))
+                for r in rows:
+                    iid_val = r.get("id") or r.get("ID")
+                    if iid_val is not None:
+                        iid = int(iid_val)
+                        if iid in results:
+                            results[iid]["mobilenet_v2_imagenet_gap"] = True
 
         else:
             # Firebird legacy fallback - only checks images.image_embedding blob presence
@@ -12440,19 +12569,37 @@ def _heal_stale_phase_flags(folder_path):
             len(meta_rows), folder_path)
 
     # --- Indexing: done flag but no embedding ---
-    indexing_rows = get_connector().query(
-        """
-        SELECT i.id
-        FROM images i
-        JOIN folders f ON f.id = i.folder_id
-        JOIN image_phase_status ips ON ips.image_id = i.id
-        JOIN pipeline_phases pp ON pp.id = ips.phase_id
-        WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
-          AND LOWER(TRIM(pp.code)) = 'indexing'
-          AND LOWER(TRIM(ips.status)) = 'done'
-          AND i.image_embedding IS NULL
-        """,
-        (target_path, path_like_unix, path_like_win))
+    if _get_db_engine() == "postgres":
+        missing_emb = f"NOT ({_postgres_has_default_embedding_sql('i')})"
+        indexing_rows = get_connector().query(
+            f"""
+            SELECT i.id
+            FROM images i
+            JOIN folders f ON f.id = i.folder_id
+            JOIN image_phase_status ips ON ips.image_id = i.id
+            JOIN pipeline_phases pp ON pp.id = ips.phase_id
+            WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+              AND LOWER(TRIM(pp.code)) = 'indexing'
+              AND LOWER(TRIM(ips.status)) = 'done'
+              AND {missing_emb}
+            """,
+            (target_path, path_like_unix, path_like_win),
+        )
+    else:
+        indexing_rows = get_connector().query(
+            """
+            SELECT i.id
+            FROM images i
+            JOIN folders f ON f.id = i.folder_id
+            JOIN image_phase_status ips ON ips.image_id = i.id
+            JOIN pipeline_phases pp ON pp.id = ips.phase_id
+            WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+              AND LOWER(TRIM(pp.code)) = 'indexing'
+              AND LOWER(TRIM(ips.status)) = 'done'
+              AND i.image_embedding IS NULL
+            """,
+            (target_path, path_like_unix, path_like_win),
+        )
 
     for row in indexing_rows or []:
         set_image_phase_status(row["id"], "indexing", "not_started")

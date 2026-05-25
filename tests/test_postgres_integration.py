@@ -178,7 +178,7 @@ def test_pg_embedding_table_for_dim_resolution():
 
 
 def test_insert_folder_and_image_with_embedding():
-    from modules import db_postgres
+    from modules import db, db_postgres
 
     suffix = uuid.uuid4().hex[:10]
     folder_path = f"integration/test_folder_{suffix}"
@@ -193,12 +193,17 @@ def test_insert_folder_and_image_with_embedding():
     file_path = f"integration/a_{suffix}.jpg"
     file_name = f"a_{suffix}.jpg"
     img = db_postgres.execute_write_returning(
-        "INSERT INTO images (file_path, file_name, folder_id, score, image_embedding) "
-        "VALUES (%s, %s, %s, %s, %s) RETURNING id, file_name",
-        (file_path, file_name, folder_id, 0.42, emb),
+        "INSERT INTO images (file_path, file_name, folder_id, score) "
+        "VALUES (%s, %s, %s, %s) RETURNING id, file_name",
+        (file_path, file_name, folder_id, 0.42),
     )
     assert img is not None
     assert img["file_name"] == file_name
+
+    db.update_image_embedding(img["id"], emb.tobytes())
+    got = db.get_image_embedding(img["id"])
+    assert got is not None
+    assert len(got) == emb.nbytes
 
     row = db_postgres.execute_select_one(
         "SELECT file_name, score, folder_id FROM images WHERE id = %s",
@@ -207,6 +212,23 @@ def test_insert_folder_and_image_with_embedding():
     assert row["file_name"] == file_name
     assert abs(row["score"] - 0.42) < 1e-9
     assert row["folder_id"] == folder_id
+
+
+def test_images_table_legacy_image_embedding_column_absent():
+    """Migration 0024 removes images.image_embedding; canonical store is image_embeddings."""
+    from modules import db, db_postgres
+
+    row = db_postgres.execute_select_one(
+        """
+        SELECT 1 AS x FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'images'
+          AND column_name = 'image_embedding'
+        LIMIT 1
+        """
+    )
+    if row is not None:
+        pytest.skip("images.image_embedding still present; run alembic upgrade head (0024)")
+    assert db._postgres_images_has_image_embedding_column() is False
 
 
 def test_upsert_image_re_resolves_stale_folder_id():

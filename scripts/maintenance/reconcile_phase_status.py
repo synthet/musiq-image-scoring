@@ -20,6 +20,7 @@ from typing import Dict, Any
 # Ensure project root is in PYTHONPATH
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
+from modules import db
 from modules.db_legacy import get_connector, set_image_phase_status
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -29,8 +30,13 @@ def reconcile(dry_run: bool = False):
     db = get_connector()
     
     # Process phases
+    if db._get_db_engine() == "postgres":
+        indexing_present = f"({db._postgres_has_default_embedding_sql('i')})"
+    else:
+        indexing_present = "i.image_embedding IS NOT NULL"
+
     phases_to_check = {
-        'indexing': "i.image_embedding IS NOT NULL",
+        'indexing': indexing_present,
         'metadata': "(i.rating IS NOT NULL AND i.label IS NOT NULL)",
         'scoring': "(i.score_general IS NOT NULL AND i.score_general > 0)",
         'keywords': "(i.keywords IS NOT NULL AND i.keywords != '')"

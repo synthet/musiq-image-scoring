@@ -240,6 +240,12 @@ db._sync_image_keywords(image_id, "nature,wildlife")  # → writes to IMAGE_KEYW
 - `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md` — Full deprecation roadmap
 - `docs/archive/plans/database/PHASE4_CODE_AUDIT.md` — Archived code audit (pre–Phase 4b snapshot)
 
+### Embedding storage (Postgres)
+
+- **Primary:** `embedding_spaces` + `image_embeddings` (1280-d default `mobilenet_v2_imagenet_gap`); 512-d / 768-d use `image_embeddings_512` / `image_embeddings_768`.
+- **Deprecated:** `images.image_embedding` — dual-write optional via `database.write_legacy_image_embedding_column` until Alembic **0024** drops the column. See `docs/planning/database/IMAGE_EMBEDDING_COLUMN_DEPRECATION.md` and `docs/technical/EMBEDDINGS.md`.
+- **Writes:** Use `db.update_image_embedding()` / `update_image_embeddings_batch()` (fact table always); do not `UPDATE images SET image_embedding` from new code.
+
 ## Configuration
 
 `config.json` at repo root. Access via:
