@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-05-24] updated | Design token docs and CI notice
+
+Pointed [design/DESIGN_SYSTEM.md](design/DESIGN_SYSTEM.md) at **image-scoring-ui** canonical doc and `@synthet/image-scoring-design` 1.0.0; updated [CANONICAL_SOURCES.md](CANONICAL_SOURCES.md), [design/INDEX.md](design/INDEX.md) (UI surfaces table), [technical/AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md) (Design tokens section), and [`.github/workflows/cross-repo-sync-notice.yml`](../.github/workflows/cross-repo-sync-notice.yml) for design-package bumps.
+
 ## [2026-05-24] created | New models summary page
 
 Added [NEW_MODELS_SUMMARY.md](NEW_MODELS_SUMMARY.md) — consolidated overview of new/roadmap models (ARNIQA, DINOv2, SigLIP2, QPT-V2, OpenCLIP alternate), calibration #185 status, and #220 implementation phases. Linked from [INDEX.md](INDEX.md), [planning/INDEX.md](planning/INDEX.md), and [MODEL_RECOMMENDATIONS_PIPELINES.md](MODEL_RECOMMENDATIONS_PIPELINES.md).

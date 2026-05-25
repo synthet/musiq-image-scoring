@@ -20,7 +20,7 @@ Use these files as authority before adding or changing APIs, database fields, ph
 | Cross-repo coordination | [technical/AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md), [technical/ELECTRON_SYNC_IMPORT_AND_PHASES.md](technical/ELECTRON_SYNC_IMPORT_AND_PHASES.md) |
 | Gallery docs and implementation follow-up | [image-scoring-gallery docs/README.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/README.md), [image-scoring-gallery docs/CANONICAL_SOURCES.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/CANONICAL_SOURCES.md) |
 | Backlog and planned work | [../TODO.md](../TODO.md), [project/00-backlog-workflow.md](project/00-backlog-workflow.md), [planning/INDEX.md](planning/INDEX.md), [features/planned/INDEX.md](features/planned/INDEX.md) |
-| Design system | [design/DESIGN_SYSTEM.md](design/DESIGN_SYSTEM.md), backend `frontend/src/index.css`, gallery `tokens.css` where present |
+| Design system (palette, icons, token package) | [image-scoring-ui docs/DESIGN_SYSTEM.md](https://github.com/synthet/image-scoring-ui/blob/main/docs/DESIGN_SYSTEM.md), npm package `@synthet/image-scoring-design` **1.0.0** ([image-scoring-ui](https://github.com/synthet/image-scoring-ui)); local pointer [design/DESIGN_SYSTEM.md](design/DESIGN_SYSTEM.md); consumers: backend `frontend/` (Tailwind), gallery `src/styles/tokens.css` (CSS Modules), Gradio `gradio-snippet.css` |
 | Wiki structure and maintenance | [WIKI_SCHEMA.md](WIKI_SCHEMA.md), [log.md](log.md), [INDEX.md](INDEX.md) |
 
 ## Cross-Repo Change Order

@@ -2,9 +2,19 @@
 
 | Document | Description |
 |----------|-------------|
-| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Canonical palette, status mapping, and Lucide icon contract (shared with gallery) |
+| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Pointer to **image-scoring-ui** canonical palette/icons (`@synthet/image-scoring-design` 1.0.0) |
 | [FRONTEND_VISUAL_SPEC.md](FRONTEND_VISUAL_SPEC.md) | UX/UI Visual Specification for the React frontend |
 | [ui-pipeline-redesign.md](../features/planned/ui-pipeline-redesign.md) | Pipeline-centric UI redesign proposal |
+
+## UI surfaces (where tokens apply)
+
+| Surface | Repo | Route / entry | Styling |
+|---------|------|---------------|---------|
+| Primary product UI | **image-scoring-backend** | `/ui/` (React + Vite SPA) | Tailwind v4 + design package `tailwind-theme.css` |
+| Operator status | **image-scoring-backend** | `/app` (minimal Gradio) | Base Gradio + design package `gradio-snippet.css` |
+| Desktop gallery | **image-scoring-gallery** | Electron + Vite renderer | CSS Modules + design package `tokens.css` |
+
+Stage labels and run-status icons must stay aligned with [PIPELINE_TERMINOLOGY.md](../technical/PIPELINE_TERMINOLOGY.md) (`phase_code` authority remains backend).
 
 ## Mockups
 

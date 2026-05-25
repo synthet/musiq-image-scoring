@@ -71,8 +71,35 @@ To keep the discipline above from being silently skipped, this repo runs the [`C
 * `migrations/versions/**` (Alembic schema)
 * `modules/api.py` (FastAPI surface)
 * `modules/db_postgres.py` (PostgreSQL schema authority)
+* `frontend/package.json` / `frontend/package-lock.json` (`@synthet/image-scoring-design` dependency)
 
 The workflow posts (and idempotently updates) a comment listing the gallery files that typically need follow-up — `api-contract/openapi.json`, `electron/apiTypes.ts`, `electron/apiService.ts`, `electron/db.ts` — and links back to the discipline-tracking issue [`image-scoring-gallery#71`](https://github.com/synthet/image-scoring-gallery/issues/71). The comment is a nudge, not a hard gate; reviewers are still responsible for confirming the gallery side is updated or a counterpart issue is filed.
+
+The same workflow also runs when `frontend/package.json` changes the `@synthet/image-scoring-design` dependency and posts a **design token sync** checklist (gallery `package.json`, UI package rebuild, consumer CSS).
+
+### 6. Design tokens
+
+**Ownership split** (do not conflate UI colors with pipeline schema):
+
+| Concern | Owner | Canonical source |
+|---------|-------|------------------|
+| Palette, status colors, Lucide icon contract, npm token package | **image-scoring-ui** | [`docs/DESIGN_SYSTEM.md`](https://github.com/synthet/image-scoring-ui/blob/main/docs/DESIGN_SYSTEM.md), package `@synthet/image-scoring-design` (currently **1.0.0**) |
+| User-facing stage labels (`STAGE_DISPLAY`, Discovery → Tagging) | **image-scoring-ui** + mirrored in consumers | UI package / backend [`frontend/src/types/api.ts`](../../frontend/src/types/api.ts); gallery [`pipelineLabels.ts`](https://github.com/synthet/image-scoring-gallery/blob/main/src/constants/pipelineLabels.ts) |
+| `phase_code`, REST `job_type`, DB phase rows | **image-scoring-backend** | [PIPELINE_TERMINOLOGY.md](PIPELINE_TERMINOLOGY.md), [`modules/phases.py`](../../modules/phases.py) |
+
+**Consumers** (install the design package; do not fork hex tables locally):
+
+- **image-scoring-backend** — React SPA at `/ui/` (Tailwind v4 + `tailwind-theme.css` from the package); minimal Gradio operator UI at `/app` (append `gradio-snippet.css`).
+- **image-scoring-gallery** — Electron renderer (CSS Modules + `tokens.css` from the package).
+
+**Agent protocol when the design package changes** (version bump, `src/tokens.json`, or breaking renames):
+
+1. Change **image-scoring-ui** first; run `npm run build` there and bump `@synthet/image-scoring-design` version if publishing.
+2. Update `frontend/package.json` (backend) and gallery `package.json` to the new version or refresh `file:` sibling installs.
+3. Rebuild/sync generated CSS in both apps; run visual smoke on `/ui/` and gallery shell.
+4. Append both repos' `docs/log.md` and mention the version in the PR.
+
+Local pointers (not authoritative): [design/DESIGN_SYSTEM.md](../design/DESIGN_SYSTEM.md) in backend and gallery.
 
 ## 🔍 Troubleshooting with MCP
 

@@ -21,6 +21,11 @@ The JavaScript includes:
 - Image comparison mode
 - Lazy full-resolution image loading
 """
+from pathlib import Path
+
+_UI_DIR = Path(__file__).resolve().parent
+_GRADIO_DESIGN_TOKENS = _UI_DIR / "gradio_design_tokens.css"
+
 # Custom CSS for modern dark UI
 custom_css = """
 /* ========== ROOT THEME VARIABLES ========== */
@@ -1811,7 +1816,10 @@ button.media-button.svelte-ao1xvt {
 """
 
 def get_css():
-    return custom_css
+    css = custom_css
+    if _GRADIO_DESIGN_TOKENS.is_file():
+        css += "\n" + _GRADIO_DESIGN_TOKENS.read_text(encoding="utf-8")
+    return css
 
 tree_js = r"""
 <script>

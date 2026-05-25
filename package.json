@@ -5,6 +5,8 @@
   "scripts": {
     "api:types:generate": "node scripts/generate-api-types.mjs",
     "api:types:check": "node scripts/validate-api-types.mjs",
-    "docs:lint:deps": "python scripts/lint_docs_dependency_versions.py"
+    "docs:lint:deps": "python scripts/lint_docs_dependency_versions.py",
+    "design:sync": "node scripts/sync_design_tokens.mjs",
+    "design:check": "node scripts/check_design_tokens.mjs"
   }
 }

@@ -52,25 +52,9 @@ export type StageState =
   | 'restarting'
   | 'canceled'
 
-// UI-facing stage codes
-export type StageCode =
-  | 'indexing'      // Discovery
-  | 'metadata'      // Inspection
-  | 'scoring'       // Quality Analysis
-  | 'culling'       // Similarity Clustering
-  | 'keywords'      // Tagging
-  | 'bird_species'  // Bird Species ID
-  | 'maintenance'   // System Maintenance
-
-export const STAGE_DISPLAY: Record<StageCode, { name: string; description: string }> = {
-  indexing:     { name: 'Discovery', description: 'Scan and register image files' },
-  metadata:     { name: 'Inspection', description: 'Extract EXIF metadata and generate thumbnails' },
-  scoring:      { name: 'Quality Analysis', description: 'AI-powered quality scoring (MUSIQ, LIQE, TOPIQ, Q-Align)' },
-  culling:      { name: 'Similarity Clustering', description: 'Group similar images into stacks' },
-  keywords:     { name: 'Tagging', description: 'Generate keywords and captions via BLIP/CLIP' },
-  bird_species: { name: 'Bird Species ID', description: 'Identify bird species with BioCLIP 2 (run after Tagging)' },
-  maintenance:  { name: 'Maintenance', description: 'Database optimization, tag propagation, or embedding backfills' },
-}
+export type { StageCode } from '@synthet/image-scoring-design'
+export { STAGE_DISPLAY } from '@synthet/image-scoring-design'
+import type { StageCode } from '@synthet/image-scoring-design'
 
 export interface Stage {
   phase_order: number

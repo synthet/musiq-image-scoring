@@ -1,0 +1,16 @@
+/* Auto-generated Gradio token overrides — appended after main UI CSS */
+:root {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #252526;
+  --bg-tertiary: #2d2d30;
+  --bg-elevated: #3c3c3c;
+  --text-primary: #cccccc;
+  --text-secondary: #9d9d9d;
+  --text-muted: #6d6d6d;
+  --accent-primary: #007acc;
+  --accent-hover: #1e8ad6;
+  --accent-success: #89d185;
+  --accent-warning: #cca700;
+  --accent-danger: #f44747;
+  --accent-queued: #9d9d9d;
+}

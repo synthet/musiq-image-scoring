@@ -7,6 +7,8 @@ on:
       - 'migrations/versions/**'
       - 'modules/api.py'
       - 'modules/db_postgres.py'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
 
 permissions:
   pull-requests: write
@@ -29,16 +31,24 @@ jobs:
           <!-- cross-repo-sync-notice -->
           ### Cross-repo sync notice
 
-          This PR changes backend API or schema (`openapi.json`, `migrations/versions/**`, `modules/api.py`, or `modules/db_postgres.py`).
+          This PR may change backend API/schema (`openapi.json`, `migrations/versions/**`, `modules/api.py`, `modules/db_postgres.py`) and/or the shared design package (`frontend/package.json` → `@synthet/image-scoring-design`).
 
-          The **image-scoring-gallery** repo likely needs follow-up updates:
+          #### API / schema → **image-scoring-gallery**
 
           - [ ] `api-contract/openapi.json` — re-sync from this PR's `openapi.json`
           - [ ] `electron/apiTypes.ts` — regenerate via `npm run api:types:generate`
           - [ ] `electron/apiService.ts` — update if endpoint paths or shapes changed
           - [ ] `electron/db.ts` — update if column names, types, or queries changed
 
-          See [`docs/technical/AGENT_COORDINATION.md`](https://github.com/synthet/image-scoring-backend/blob/master/docs/technical/AGENT_COORDINATION.md) for the full coordination protocol.
+          #### Design tokens → **image-scoring-ui** + gallery
+
+          When `frontend/package.json` changes `@synthet/image-scoring-design` (version or `file:` path):
+
+          - [ ] **image-scoring-ui** — edit canonical [`docs/DESIGN_SYSTEM.md`](https://github.com/synthet/image-scoring-ui/blob/main/docs/DESIGN_SYSTEM.md) / `src/tokens.json`; `npm run build`; bump package version if needed
+          - [ ] **image-scoring-gallery** — match `package.json` dependency; refresh `src/styles/tokens.css` from package `dist/`
+          - [ ] Smoke `/ui/` (backend) and gallery shell for palette/status regressions
+
+          See [`docs/technical/AGENT_COORDINATION.md`](https://github.com/synthet/image-scoring-backend/blob/main/docs/technical/AGENT_COORDINATION.md) (sections **Cross-repo Sync Automation** and **Design tokens**).
 
           **Discipline tracking:** [image-scoring-gallery#71](https://github.com/synthet/image-scoring-gallery/issues/71)
 

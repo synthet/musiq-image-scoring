@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "../image-scoring-gallery"
+		},
+		{
+			"path": "../image-scoring-ui"
 		}
 	],
 	"settings": {
