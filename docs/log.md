@@ -6,6 +6,14 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-05-26] created | External CLI review agent infra (subagent-orchestrator)
+
+Onboarded sibling `subagent-orchestrator` MCP (`imgscore-subagent-orchestrator`), rule `external-cli-subagents`, skill `subagent-review`, slash commands `/check-subagents` and `/run-*-review`, and subagents `external-*`. See [technical/EXTERNAL_CLI_REVIEWS.md](technical/EXTERNAL_CLI_REVIEWS.md).
+
+## [2026-05-27] moved | Auto-drive fix summary into docs/reports
+
+Moved operator summary from repo-root `AUTO_DRIVE_FIX_SUMMARY.md` to [reports/AUTO_DRIVE_FIX_SUMMARY.md](reports/AUTO_DRIVE_FIX_SUMMARY.md); linked from [reports/INDEX.md](reports/INDEX.md) and [AUTODRIVE_REPROCESSING_INVESTIGATION_2026-05-26.md](reports/AUTODRIVE_REPROCESSING_INVESTIGATION_2026-05-26.md).
+
 ## [2026-05-24] updated | Design token docs and CI notice
 
 Pointed [design/DESIGN_SYSTEM.md](design/DESIGN_SYSTEM.md) at **image-scoring-ui** canonical doc and `@synthet/image-scoring-design` 1.0.0; updated [CANONICAL_SOURCES.md](CANONICAL_SOURCES.md), [design/INDEX.md](design/INDEX.md) (UI surfaces table), [technical/AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md) (Design tokens section), and [`.github/workflows/cross-repo-sync-notice.yml`](../.github/workflows/cross-repo-sync-notice.yml) for design-package bumps.

@@ -16,7 +16,7 @@ from typing import Optional, Dict, Any, List
 from modules import db, thumbnails, xmp
 from modules import score_normalization as snorm
 from modules import config as app_config
-from modules.phases import PhaseCode, PhaseStatus
+from modules.phases import PhaseCode, PhaseStatus, SCORING_EXECUTOR_VERSION
 from modules.version import APP_VERSION
 from modules.run_log import attach_image_log_suffix, emit_run_log
 from modules.pipeline_diagnostics import get_stall_detector, phase_timer
@@ -218,7 +218,7 @@ class PrepWorker(PipelineWorker):
                     decision = explain_phase_run_decision(
                         job.image_id,
                         PhaseCode.SCORING,
-                        current_executor_version=self.scorer.VERSION if self.scorer else None,
+                        current_executor_version=SCORING_EXECUTOR_VERSION,
                         force_run=not job.skip_existing,
                     )
                     if not decision['should_run']:
@@ -230,7 +230,7 @@ class PrepWorker(PipelineWorker):
                             PhaseCode.SCORING,
                             PhaseStatus.SKIPPED,
                             app_version=APP_VERSION,
-                            executor_version=self.scorer.VERSION if self.scorer else None,
+                            executor_version=SCORING_EXECUTOR_VERSION,
                             job_id=job.job_id,
                             skip_reason=skip_reason,
                             skipped_by="scoring_pipeline",
@@ -302,7 +302,7 @@ class PrepWorker(PipelineWorker):
                         PhaseCode.SCORING,
                         PhaseStatus.RUNNING,
                         app_version=APP_VERSION,
-                        executor_version=self.scorer.VERSION if self.scorer else None,
+                        executor_version=SCORING_EXECUTOR_VERSION,
                         job_id=job.job_id,
                     )
 
@@ -611,7 +611,7 @@ class ResultWorker(PipelineWorker):
                     PhaseCode.SCORING,
                     PhaseStatus.FAILED,
                     app_version=APP_VERSION,
-                    executor_version=self.scorer.VERSION if self.scorer else None,
+                    executor_version=SCORING_EXECUTOR_VERSION,
                     job_id=job.job_id,
                     error=job.error,
                 )
@@ -701,7 +701,7 @@ class ResultWorker(PipelineWorker):
                 if job.image_id:
                     db.set_image_phase_status(job.image_id, PhaseCode.SCORING, PhaseStatus.DONE,
                                               app_version=APP_VERSION,
-                                              executor_version=self.scorer.VERSION if self.scorer else None,
+                                              executor_version=SCORING_EXECUTOR_VERSION,
                                               job_id=job.job_id)
 
                 score = job.result.get("summary", {}).get("weighted_scores", {}).get("general", 0)

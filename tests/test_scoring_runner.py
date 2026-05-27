@@ -120,8 +120,9 @@ def test_run_single_image_returns_false_for_missing_file():
 # fix_image_metadata: file not found
 # ---------------------------------------------------------------------------
 
-def test_fix_image_metadata_returns_false_for_missing_file():
+def test_fix_image_metadata_returns_false_for_missing_file(monkeypatch):
     runner = ScoringRunner()
+    monkeypatch.setattr(db, "resolve_canonical_file_path_for_lookup", lambda _p: None)
     success, message = runner.fix_image_metadata("/nonexistent/image.jpg")
     assert success is False
     assert "File not found" in message

@@ -148,7 +148,16 @@ function BucketRow({
   queueing: boolean
 }) {
   const path = splitPath(item.path)
-  const canQueue = item.next_phases.length > 0 && item.bucket !== 'blocked' && item.bucket !== 'in_flight'
+  const plannerPhases =
+    item.planner_next_phases && item.planner_next_phases.length > 0
+      ? item.planner_next_phases
+      : null
+  const queuePhases = plannerPhases ?? item.next_phases
+  const canQueue = queuePhases.length > 0 && item.bucket !== 'blocked' && item.bucket !== 'in_flight'
+  const showPlannerSplit =
+    plannerPhases != null &&
+    (plannerPhases.length !== item.next_phases.length ||
+      plannerPhases.some((code, i) => code !== item.next_phases[i]))
 
   return (
     <div className="group grid grid-cols-1 gap-4 border-t border-[var(--color-border-muted)] px-4 py-3.5 transition-colors hover:bg-[var(--color-bg-tertiary)]/60 lg:grid-cols-[minmax(0,1.25fr)_minmax(120px,0.55fr)_minmax(0,1.5fr)_7.5rem] lg:items-center lg:gap-3">
@@ -168,21 +177,50 @@ function BucketRow({
         </div>
       </div>
 
-      <div className="flex flex-col gap-1 lg:py-0">
+      <div className="flex flex-col gap-1.5 lg:py-0">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] lg:hidden">
-          Next chain
+          Queue stages
         </span>
-        <div className="flex flex-wrap gap-1.5">
-          {item.next_phases.length > 0 ? (
-            item.next_phases.map((code) => (
-              <Badge key={code} size="sm" variant="default">
-                {stageName(code)}
-              </Badge>
-            ))
-          ) : (
-            <Badge size="sm" variant="muted">{item.bucket === 'complete' ? 'Done' : 'Waiting'}</Badge>
-          )}
-        </div>
+        {showPlannerSplit ? (
+          <>
+            <div>
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                Would queue
+              </span>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {plannerPhases!.map((code) => (
+                  <Badge key={`plan-${code}`} size="sm" variant="success">
+                    {stageName(code)}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                Aggregate hint
+              </span>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {item.next_phases.map((code) => (
+                  <Badge key={`agg-${code}`} size="sm" variant="muted">
+                    {stageName(code)}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {queuePhases.length > 0 ? (
+              queuePhases.map((code) => (
+                <Badge key={code} size="sm" variant="default">
+                  {stageName(code)}
+                </Badge>
+              ))
+            ) : (
+              <Badge size="sm" variant="muted">{item.bucket === 'complete' ? 'Done' : 'Waiting'}</Badge>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="min-w-0">

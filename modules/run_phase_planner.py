@@ -88,6 +88,7 @@ def plan_scope(
     dry_run: bool = True,
     job_id: Optional[int] = None,
     exclude_claimed: bool = True,
+    include_stale_executor: bool = True,
 ) -> Dict[str, Any]:
     """Build a scope plan with per-stage queues and reason counts."""
     selected = {_normalize_stage_code(str(s)) for s in (stage_codes or []) if str(s).strip()}
@@ -101,6 +102,8 @@ def plan_scope(
     image_ids = _images_in_scope(scope_paths)
     issue_counts: Dict[str, int] = defaultdict(int)
     issue_counts_by_reason: Dict[str, int] = defaultdict(int)
+    ignored_counts: Dict[str, int] = defaultdict(int)
+    ignored_counts_by_reason: Dict[str, int] = defaultdict(int)
     stage_queues: Dict[str, List[int]] = {}
 
     for stage in sorted(selected):
@@ -110,6 +113,10 @@ def plan_scope(
             if not needs:
                 continue
             bucket = _reason_bucket(reason)
+            if bucket == "stale_executor" and not include_stale_executor:
+                ignored_counts_by_reason[bucket] += 1
+                ignored_counts[f"{stage}_{bucket}"] = ignored_counts.get(f"{stage}_{bucket}", 0) + 1
+                continue
             issue_counts_by_reason[bucket] += 1
             issue_counts[f"{stage}_{bucket}"] = issue_counts.get(f"{stage}_{bucket}", 0) + 1
             if (
@@ -133,6 +140,8 @@ def plan_scope(
     return {
         "issue_counts": dict(issue_counts),
         "issue_counts_by_reason": dict(issue_counts_by_reason),
+        "ignored_counts": dict(ignored_counts),
+        "ignored_counts_by_reason": dict(ignored_counts_by_reason),
         "stage_queues": stage_queues,
         "actions": actions,
         "issue_hits": int(sum(issue_counts_by_reason.values())),
@@ -150,6 +159,7 @@ def plan_phase(
     job_id: Optional[int] = None,
     dry_run: bool = False,
     exclude_claimed: bool = True,
+    include_stale_executor: bool = True,
 ) -> List[int]:
     stage = _normalize_stage_code(phase_code)
     plan = plan_scope(
@@ -158,6 +168,7 @@ def plan_phase(
         dry_run=dry_run,
         job_id=job_id,
         exclude_claimed=exclude_claimed,
+        include_stale_executor=include_stale_executor,
     )
     return list(plan.get("stage_queues", {}).get(stage) or [])
 

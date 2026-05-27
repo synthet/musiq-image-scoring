@@ -1,0 +1,186 @@
+# CLIP accessibility prompt bank — one descriptive phrase per line.
+# Lines starting with # are ignored. Used to rank Alt Text / Extended Description
+# against stored clip_vit_b32_image embeddings (see modules/clip_accessibility.py).
+
+a close-up photograph of a squirrel on a tree branch
+a white or pale animal in natural woodland habitat
+wildlife photographed on a mossy tree branch with soft background
+a small mammal climbing or walking along a branch
+a bird perched on a branch against a blurred green background
+a bird in flight with wings spread against the sky
+a flock of birds over water or wetlands
+a deer standing in a forest clearing
+a fox or coyote in grassland at dawn or dusk
+a bear in a forest or mountain landscape
+an insect on a flower or leaf macro photograph
+a butterfly or moth resting on vegetation
+a dragonfly or bee on a plant close-up
+a landscape with mountains and dramatic sky
+a rolling hillside with trees and clouds
+a forest path with dappled sunlight
+a lake or river reflecting trees and sky
+a waterfall in a rocky gorge
+a beach scene with waves and sand
+a rocky coastline with crashing surf
+a desert landscape with sand dunes
+a snowy winter scene with bare trees
+a autumn forest with colorful foliage
+a spring meadow with wildflowers
+a field of sunflowers or tall grass
+a vineyard or agricultural field rows
+a city skyline at sunset or blue hour
+urban street scene with buildings and pedestrians
+architecture photograph of a historic building facade
+a bridge over a river in an urban or rural setting
+a night cityscape with illuminated buildings
+a macro photograph of a flower in bloom
+a bouquet or arrangement of cut flowers
+a garden with cultivated plants and paths
+a cactus or succulent plant close-up
+a tree with distinctive bark or silhouette
+a palm tree against a tropical sky
+a portrait of a person outdoors with natural light
+a portrait of a person indoors with soft lighting
+a candid street portrait of a person walking
+a group of people at a social gathering
+a child playing outdoors in a park
+a wedding couple embracing outdoors
+a sports action photograph of an athlete in motion
+a cyclist or runner on a road or trail
+a soccer or basketball game action moment
+a car on a scenic road or at a show
+a motorcycle or bicycle detail photograph
+a train or railway scene in landscape
+an airplane in the sky or at an airport
+a boat or ship on open water
+a harbor with moored boats and masts
+a hot air balloon in a colorful sky
+a fireworks display over a city or lake
+a concert or stage performance with lights
+a musician playing an instrument on stage
+a food photograph of a plated meal from above
+a coffee cup and pastry on a table still life
+a market stall with fresh produce
+a interior photograph of a cozy living room
+a modern kitchen or dining room interior
+a bookshelf or library interior scene
+a workspace desk with computer and lamp
+a pet dog looking at the camera outdoors
+a pet cat resting on furniture indoors
+a horse in a pasture or equestrian portrait
+a livestock animal in a farm setting
+a underwater scene with fish or coral reef
+a snorkeling or diving photograph in clear water
+a mountain climber on a ridge or summit
+a skier descending a snowy slope
+a snowboarder in mid-air or on powder
+a surfer riding a wave
+a rock climbing photograph on a cliff face
+a camping scene with tent and campfire
+a hiking trail marker and backpacker view
+a rainbow over a landscape after rain
+a lightning storm over a plain or city
+a foggy morning in a valley or forest
+a sunrise with warm light on clouds
+a sunset with silhouetted trees or hills
+a starry night sky over a dark landscape
+a milky way astrophotography over terrain
+a aerial or drone view of coastline or farmland
+a top-down flat lay of objects on a table
+a black and white photograph with strong contrast
+a minimalist composition with negative space
+a abstract pattern of texture or color
+a rust or peeling paint texture detail
+a stone wall or brick texture close-up
+a stained glass window with colorful light
+a church or cathedral interior architecture
+a mosque or temple architectural detail
+a sculpture in a park or museum setting
+a graffiti mural on an urban wall
+a neon sign glowing at night
+a reflection in a puddle or glass window
+a silhouette of a person against bright sky
+a double exposure or creative composite style image
+a panoramic wide view of a mountain range
+a timelapse-style motion blur of clouds or traffic
+a long exposure photograph of water smoothing to silk
+a high-speed freeze of splashing water droplets
+a photograph taken through rain on a window
+a seasonal holiday decoration scene
+a farmers market with people browsing stalls
+a zoo animal in an enclosure habitat view
+a aquarium tank with marine animals visible
+a microscope or scientific specimen close-up
+a vintage or film-style photograph with grain
+a drone photograph of suburban neighborhood rooftops
+a construction site with cranes and scaffolding
+a industrial factory or warehouse exterior
+a power lines and pylons in rural landscape
+a wind turbine farm on a hill
+a solar panels array in a field installation
+a railway tracks leading into the distance
+a road tunnel with light at the end
+a mountain lake with pine trees and reflections
+a canyon with layered red rock walls
+a glacier or ice formation in cold climate
+a volcanic landscape with steam or lava glow
+a savanna with acacia trees and open grass
+a jungle or rainforest with dense green vegetation
+a bamboo forest with tall vertical stalks
+a rice terrace hillside in Asia landscape style
+a mediterranean village with white buildings and sea
+a nordic fjord with steep cliffs and water
+a lighthouse on a rocky coast in stormy weather
+a cottage or cabin in woods with smoke from chimney
+a barn and silo in rural countryside
+a horse-drawn carriage or vintage vehicle scene
+a antique object on dark background product style
+a jewelry or watch product photograph on neutral backdrop
+a fashion model in studio with controlled lighting
+a textile or fabric pattern close-up detail
+a map or globe still life on a desk
+a classroom or lecture hall interior view
+a hospital or medical equipment in clinical setting
+a laboratory bench with glassware and instruments
+a chess board or game pieces still life
+a musical instrument close-up with shallow depth of field
+a vinyl record and turntable nostalgic setup
+a camera gear flat lay on wooden surface
+a hiking boots and map adventure preparation still life
+a picnic blanket with food in a park
+a barbecue grill with food cooking outdoors
+a ice cream cone held against summer background
+a bakery display with bread and pastries
+a wine bottle and glasses on a table setting
+a tea ceremony or traditional drink preparation scene
+a religious ceremony or cultural festival crowd scene
+a protest or parade with banners and crowd
+a emergency vehicle with lights in urban street
+a military vehicle or aircraft display photograph
+a space rocket launch with smoke and flame
+a satellite dish or radio telescope installation
+a observatory dome under night sky
+a greenhouse interior with rows of plants
+a apiary beehives in a flowering field
+a shepherd with sheep on a hillside pasture
+a fisherman with net or boat at shore
+a potter or craftsperson hands working clay
+a blacksmith or forge with glowing metal
+a glassblowing workshop with molten glass glow
+a painter palette and brushes in art studio
+a dancer mid-leap in studio or stage lighting
+a yoga pose on a mat in calm environment
+a martial arts practice in dojo setting
+a swimming pool lanes with athlete swimming
+a tennis player serving on court action
+a golf swing on green course photograph
+a baseball player batting at stadium
+a ice hockey player on rink action shot
+a chess tournament players concentrating indoors
+a crowd cheering at stadium sports event
+a medal or trophy award ceremony moment
+a graduation caps thrown in the air celebration
+a birthday cake with candles lit close-up
+a halloween carved pumpkin and decorations
+a christmas tree with lights and ornaments
+a new year fireworks celebration over city

@@ -76,7 +76,7 @@ def test_multi_dim_embedding_spaces_and_hnsw_indexes():
 
     expected_spaces = {
         "clip_vit_b32_image": 512,
-        "bioclip_2_image": 512,
+        "bioclip_2_image": 768,
         "blip_vit_b16_image": 768,
     }
     for code, dim in expected_spaces.items():

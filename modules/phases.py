@@ -59,6 +59,8 @@ PHASE_PREREQUISITES: Dict[str, Tuple[str, ...]] = {
     PhaseCode.BIRD_SPECIES.value: (PhaseCode.KEYWORDS.value,),
 }
 
+SCORING_EXECUTOR_VERSION = "5.0.0"
+
 
 def missing_prerequisites(
     requested: Iterable[str],

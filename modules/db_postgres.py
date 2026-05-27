@@ -176,8 +176,8 @@ _SEED_EXTRA_EMBEDDING_SPACES_SQL = [
     (
         """
         INSERT INTO embedding_spaces (code, dim, description, active)
-        SELECT 'bioclip_2_image', 512,
-               'BioCLIP 2 image tower (open_clip) — bird/species similarity', 1
+        SELECT 'bioclip_2_image', 768,
+               'BioCLIP 2 image tower ViT-L/14 (open_clip) — bird/species similarity', 1
         WHERE NOT EXISTS (SELECT 1 FROM embedding_spaces WHERE code = 'bioclip_2_image')
         """
     ),
@@ -941,6 +941,8 @@ def _init_db_transaction():
                 keywords        TEXT,
                 title           VARCHAR(500),
                 description     TEXT,
+                alt_text        TEXT,
+                extended_description TEXT,
                 create_date     TIMESTAMP,
                 modify_date     TIMESTAMP,
                 extracted_at    TIMESTAMP
@@ -948,6 +950,10 @@ def _init_db_transaction():
             """)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_image_xmp_burst ON image_xmp(burst_uuid);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_image_xmp_pick ON image_xmp(pick_status);")
+            cur.execute("ALTER TABLE image_xmp ADD COLUMN IF NOT EXISTS alt_text TEXT;")
+            cur.execute(
+                "ALTER TABLE image_xmp ADD COLUMN IF NOT EXISTS extended_description TEXT;"
+            )
 
             # ------------------------------------------------------------------
             # PIPELINE_PHASES — phase registry

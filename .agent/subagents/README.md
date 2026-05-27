@@ -14,6 +14,7 @@ Physical definitions live in [`.cursor/agents/`](../.cursor/agents/) (mirrored t
 | docs-wiki-agent | [.agent/skills/docs-wiki/SKILL.md](skills/docs-wiki/SKILL.md) | Wiki structure, log.md | [docs/WIKI_SCHEMA.md](../docs/WIKI_SCHEMA.md), [documentation.mdc](../.cursor/rules/documentation.mdc) |
 | mcp-safety-agent | N/A (policy) | Safe MCP profiles, deny writes | [workflows/safe_mcp_diagnostics.md](workflows/safe_mcp_diagnostics.md), [SAFETY.md](SAFETY.md) |
 | test-stabilization-agent | [`pr-ready-hygiene`](../.cursor/agents/pr-ready-hygiene.md), [`wsl-tf-python-runner`](../.cursor/agents/wsl-tf-python-runner.md) | Pytest markers, venv, CI hygiene | [docs/TESTING.md](../docs/TESTING.md), [AGENTS.md](../AGENTS.md) |
+| external-review-agent | [`external-cli-reviewer`](../.cursor/agents/external-cli-reviewer.md), [`subagent-review`](../.cursor/skills/subagent-review/SKILL.md) | Review-only Codex/Gemini via MCP; tie-breaker / panel | [docs/technical/EXTERNAL_CLI_REVIEWS.md](../docs/technical/EXTERNAL_CLI_REVIEWS.md) |
 
 ## Allowed vs forbidden edits (defaults)
 
@@ -23,6 +24,7 @@ Physical definitions live in [`.cursor/agents/`](../.cursor/agents/) (mirrored t
 | Implementer | Targeted code in `modules/`, `migrations/`, `tests/` | Gallery/Electron code; breaking API without coordinated change |
 | PR-ready hygiene | Lint/tests on changed paths | Disabling tests; clearing entire repo lint debt |
 | Critical audit | Minimal fix + test when bug proven | Speculative refactors |
+| External review | MCP `run_subagent` with `allowWrites: false`; read `.agent-runs/` | Auto-apply patches; `allowWrites: true`; raw `codex`/`gemini` shell unless user bypasses |
 
 ## Validation commands (after implementation roles touch code)
 

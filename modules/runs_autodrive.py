@@ -69,9 +69,42 @@ def _path_intersects_active(path_key: str, active_keys: Iterable[str]) -> bool:
     for active in active_keys:
         if not active:
             continue
-        if path_key == active or path_key.startswith(active + "/") or active.startswith(path_key + "/"):
+        if path_key == active or path_key.startswith(active + "/"):
             return True
     return False
+
+
+def _is_leaf_folder_for_autodrive(path_key: str, all_path_keys: Iterable[str]) -> bool:
+    if not path_key:
+        return False
+    for other in all_path_keys:
+        if other and other != path_key and other.startswith(path_key + "/"):
+            return False
+    return True
+
+
+def _subtree_total_from_summary(summary: Sequence[dict[str, Any]]) -> int:
+    totals = [_as_int(row.get("total_count")) for row in (summary or [])]
+    return max(totals) if totals else 0
+
+
+def _reconcile_stale_ips_for_drive() -> None:
+    try:
+        db.reconcile_stale_running_phases_for_terminal_jobs(limit=500)
+    except Exception:
+        logger.debug("runs_autodrive: reconcile terminal job IPS failed", exc_info=True)
+    try:
+        db.reconcile_stale_running_image_phases(limit=500)
+    except Exception:
+        logger.debug("runs_autodrive: reconcile stale running IPS failed", exc_info=True)
+
+
+AUTODRIVE_DIRTY_REFRESH_LIMIT = 100
+# Default for GET /runs/folder-buckets so dirty aggregates refresh instead of synthetic not_started.
+FOLDER_BUCKETS_DIRTY_REFRESH_DEFAULT = AUTODRIVE_DIRTY_REFRESH_LIMIT
+
+# ``clustering`` is a legacy alias queue key; culling is canonical in target_phases.
+_REPAIR_PLAN_QUEUE_SKIP = frozenset({"clustering"})
 
 
 def normalize_target_phases(raw: Optional[Sequence[Any]] = None) -> list[str]:
@@ -83,6 +116,114 @@ def normalize_target_phases(raw: Optional[Sequence[Any]] = None) -> list[str]:
         if code in allowed and code not in values:
             values.append(code)
     return sort_phase_value_strings(values)
+
+
+def phases_with_work_from_repair_plan(
+    scope_paths: Sequence[str],
+    stage_codes: Sequence[str],
+    *,
+    dry_run: bool = True,
+    include_stale_executor: bool = False,
+) -> list[str]:
+    """Return target phases with real unfinished work, not executor-version-only drift."""
+    paths = [str(p) for p in scope_paths if str(p or "").strip()]
+    stages = sort_phase_value_strings([str(s) for s in stage_codes if str(s or "").strip()])
+    if not paths or not stages:
+        return []
+    repair = db.build_validation_repair_plan(
+        paths,
+        stages,
+        dry_run,
+        include_stale_executor=include_stale_executor,
+    )
+    queues = repair.get("stage_queues") or {}
+    out: list[str] = []
+    for code in stages:
+        if code in _REPAIR_PLAN_QUEUE_SKIP:
+            continue
+        ids = queues.get(code)
+        if isinstance(ids, list) and len(ids) > 0:
+            out.append(code)
+    return out
+
+
+def _attach_planner_preview_to_bucket_items(
+    items: list[dict[str, Any]],
+    *,
+    target_phases: Sequence[str],
+    planner_preview_limit: int,
+) -> None:
+    """Populate ``planner_next_phases`` on bucket rows (JIT dry-run, auto-drive rules)."""
+    preview_cap = max(0, _as_int(planner_preview_limit, 0))
+    for idx, item in enumerate(items):
+        item["planner_next_phases"] = []
+        if idx >= preview_cap:
+            continue
+        if item.get("bucket") in ("blocked", "complete"):
+            continue
+        candidates = sort_phase_value_strings(
+            [str(p) for p in item.get("next_phases") or list(target_phases)]
+        )
+        if not candidates:
+            continue
+        resolved, _ = utils.resolve_scope_input_path(str(item.get("path") or ""))
+        if not resolved:
+            continue
+        try:
+            item["planner_next_phases"] = phases_with_work_from_repair_plan(
+                [resolved],
+                candidates,
+                dry_run=True,
+                include_stale_executor=False,
+            )
+        except Exception:
+            logger.debug(
+                "runs_autodrive: planner preview failed for %s",
+                item.get("path"),
+                exc_info=True,
+            )
+
+
+def _resolve_folder_phase_summary(
+    path: str,
+    *,
+    norm_path: str,
+    norm_raw: str,
+    raw_path: str,
+    summaries: dict[str, Any],
+    dirty_paths: set[str],
+    refresh_dirty_limit: int,
+    dirty_refreshed: list[int],
+) -> list[dict[str, Any]]:
+    """Load folder phase summary from bulk cache, refreshing when missing or dirty."""
+    summary = (
+        summaries.get(norm_path)
+        or summaries.get(norm_raw)
+        or summaries.get(path)
+        or summaries.get(raw_path)
+        or []
+    )
+    is_dirty = norm_path in dirty_paths or norm_raw in dirty_paths
+    missing = not summary
+    if not missing and not is_dirty:
+        return summary
+
+    limit = max(0, _as_int(refresh_dirty_limit, 0))
+    may_refresh = missing or (is_dirty and limit > 0 and dirty_refreshed[0] < limit)
+    if not may_refresh:
+        return summary
+
+    try:
+        refreshed = db.get_folder_phase_summary(path, force_refresh=True) or []
+        dirty_refreshed[0] += 1
+        return refreshed
+    except Exception:
+        logger.debug(
+            "runs_autodrive: force_refresh failed for %s",
+            path,
+            exc_info=True,
+        )
+    return summary
 
 
 def _default_phase_summary(code: str, total: int) -> dict[str, Any]:
@@ -233,14 +374,53 @@ def _first_job_type(phase_values: Sequence[str]) -> tuple[str, str]:
     return first, job_type_map.get(first, first)
 
 
-def _phase_prereq_blockers(phase_values: Sequence[str], complete: set[str]) -> dict[str, list[str]]:
+def _phase_prereq_blockers(
+    phase_values: Sequence[str],
+    complete: set[str],
+    *,
+    prereq_complete: Optional[set[str]] = None,
+) -> dict[str, list[str]]:
     requested = set(phase_values)
+    satisfied = prereq_complete if prereq_complete is not None else complete
     out: dict[str, list[str]] = {}
     for code in phase_values:
-        missing = [pre for pre in PHASE_PREREQUISITES.get(code, ()) if pre not in complete and pre not in requested]
+        missing = [
+            pre for pre in PHASE_PREREQUISITES.get(code, ())
+            if pre not in satisfied and pre not in requested
+        ]
         if missing:
             out[code] = missing
     return out
+
+
+def _resolve_phase_row(
+    code: str,
+    by_code: dict[str, dict[str, Any]],
+    *,
+    image_count: int,
+    subtree_total: int,
+    folder_path: str,
+) -> dict[str, Any]:
+    if code in by_code:
+        return dict(by_code[code])
+    fallback_total = subtree_total if subtree_total > 0 else image_count
+    if code == "bird_species" and not db.folder_has_bird_species_work(folder_path):
+        return {
+            "code": code,
+            "name": code.replace("_", " ").title(),
+            "status": "skipped",
+            "total_count": 0,
+            "done_count": 0,
+            "skipped_count": 0,
+            "failed_count": 0,
+            "running_count": 0,
+            "queued_count": 0,
+            "paused_count": 0,
+            "cancel_requested_count": 0,
+            "restarting_count": 0,
+            "optional": True,
+        }
+    return _default_phase_summary(code, fallback_total)
 
 
 def _build_bucket_from_summary(
@@ -256,12 +436,36 @@ def _build_bucket_from_summary(
         for row in (summary or [])
         if str(row.get("code") or "").strip()
     }
+    subtree_total = _subtree_total_from_summary(summary)
+    fallback_total = subtree_total if subtree_total > 0 else image_count
     phase_rows: list[dict[str, Any]] = []
     for code in target_phases:
-        row = by_code.get(code) or _default_phase_summary(code, image_count)
-        phase_rows.append(_phase_view(row, image_count))
+        row = _resolve_phase_row(
+            code,
+            by_code,
+            image_count=image_count,
+            subtree_total=subtree_total,
+            folder_path=path,
+        )
+        phase_rows.append(_phase_view(row, fallback_total))
 
     path_key = _path_key(path)
+    complete_all = {
+        code
+        for code, row in by_code.items()
+        if _is_complete(_phase_view(row, fallback_total))
+    }
+    for code in target_phases:
+        if code not in by_code:
+            synthetic = _resolve_phase_row(
+                code,
+                by_code,
+                image_count=image_count,
+                subtree_total=subtree_total,
+                folder_path=path,
+            )
+            if _is_complete(_phase_view(synthetic, fallback_total)):
+                complete_all.add(code)
     complete = {p["code"] for p in phase_rows if _is_complete(p)}
     active = _path_intersects_active(path_key, active_path_keys) or any(_is_active_phase(p) for p in phase_rows)
 
@@ -277,7 +481,7 @@ def _build_bucket_from_summary(
         current_phase = next((p["code"] for p in phase_rows if _is_active_phase(p)), None)
 
     next_phases = list(target_phases[first_needed_idx:]) if first_needed_idx is not None else []
-    blockers = _phase_prereq_blockers(next_phases, complete) if next_phases else {}
+    blockers = _phase_prereq_blockers(next_phases, complete, prereq_complete=complete_all) if next_phases else {}
     if active:
         bucket = "in_flight"
     elif blockers:
@@ -316,6 +520,8 @@ def build_folder_buckets(
     include_complete: bool = False,
     target_phases: Optional[Sequence[Any]] = None,
     folder_paths: Optional[Sequence[str]] = None,
+    refresh_dirty_limit: int = 0,
+    planner_preview_limit: int = 25,
 ) -> dict[str, Any]:
     limit = max(1, min(_as_int(limit, 25), 500))
     offset = max(0, _as_int(offset, 0))
@@ -325,9 +531,12 @@ def build_folder_buckets(
     bucket_filter = str(bucket or "").strip().lower()
     explicit_path_keys = {_path_key(p) for p in (folder_paths or []) if _path_key(p)}
 
+    refresh_dirty_limit = max(0, _as_int(refresh_dirty_limit, 0))
     direct_counts = db.get_folder_direct_image_counts_by_local_path_norm()
-    summaries = db.get_all_folder_phase_summaries_bulk()
+    summaries = db.get_all_folder_phase_summaries_bulk(include_dirty_cache=False)
+    dirty_paths = db.get_folder_phase_agg_dirty_local_paths()
     active_keys = _active_job_path_keys()
+    dirty_refreshed = [0]
 
     rows: list[dict[str, Any]] = []
     for raw_path, meta in direct_counts.items():
@@ -344,12 +553,17 @@ def build_folder_buckets(
         image_count = _as_int((meta or {}).get("direct_count"))
         if image_count <= 0:
             continue
-        summary = (
-            summaries.get(os.path.normpath(path))
-            or summaries.get(os.path.normpath(raw_path))
-            or summaries.get(path)
-            or summaries.get(raw_path)
-            or []
+        norm_path = os.path.normpath(path)
+        norm_raw = os.path.normpath(raw_path) if raw_path else norm_path
+        summary = _resolve_folder_phase_summary(
+            path,
+            norm_path=norm_path,
+            norm_raw=norm_raw,
+            raw_path=raw_path,
+            summaries=summaries,
+            dirty_paths=dirty_paths,
+            refresh_dirty_limit=refresh_dirty_limit,
+            dirty_refreshed=dirty_refreshed,
         )
         item = _build_bucket_from_summary(
             path,
@@ -387,6 +601,11 @@ def build_folder_buckets(
             phase_counts[phase] = phase_counts.get(phase, 0) + 1
 
     page = rows[offset: offset + limit]
+    _attach_planner_preview_to_bucket_items(
+        page,
+        target_phases=target,
+        planner_preview_limit=planner_preview_limit,
+    )
     for item in page:
         item.pop("path_key", None)
 
@@ -411,7 +630,10 @@ def _enqueue_auto_bucket(
     if not resolved or not os.path.isdir(resolved):
         return None, None, {"reason": "missing_on_disk", "folder_path": raw_path}
 
-    phase_values = sort_phase_value_strings([str(p) for p in bucket.get("next_phases") or []])
+    phase_candidates = sort_phase_value_strings(
+        [str(p) for p in bucket.get("next_phases") or list(DEFAULT_TARGET_PHASES)]
+    )
+    phase_values = phases_with_work_from_repair_plan([resolved], phase_candidates, dry_run=True)
     if not phase_values:
         return None, None, {"reason": "nothing_to_queue", "folder_path": raw_path}
 
@@ -440,7 +662,12 @@ def _enqueue_auto_bucket(
     payload["auto_drive_bucket"] = bucket.get("bucket")
     payload["auto_drive_overall_percent"] = bucket.get("overall_percent")
 
-    repair_plan = db.build_validation_repair_plan([resolved], phase_values, False)
+    repair_plan = db.build_validation_repair_plan(
+        [resolved],
+        phase_values,
+        False,
+        include_stale_executor=False,
+    )
     payload["repair_plan_summary"] = repair_plan
     payload["resolved_image_ids_by_stage"] = repair_plan.get("stage_queues", {})
     first_ids = (repair_plan.get("stage_queues", {}) or {}).get(phase_values[0])
@@ -482,6 +709,12 @@ def auto_drive_runs(
     limit = max(1, min(_as_int(limit, 50), 500))
     max_repeats = max(1, min(_as_int(max_repeats, 2), 20))
     resolve_run_mode_flags(CANONICAL_RUN_MODE)
+    _reconcile_stale_ips_for_drive()
+
+    direct_counts = db.get_folder_direct_image_counts_by_local_path_norm()
+    all_path_keys = {
+        pk for p in direct_counts.keys() if (pk := _path_key(_local_path(p)))
+    }
 
     planned = build_folder_buckets(
         root_path=root_path,
@@ -490,10 +723,12 @@ def auto_drive_runs(
         include_complete=False,
         target_phases=target_phases,
         folder_paths=folder_paths,
+        refresh_dirty_limit=AUTODRIVE_DIRTY_REFRESH_LIMIT,
     )
     candidates = [
         item for item in planned["items"]
         if item.get("next_phases") and item.get("bucket") not in {"blocked", "in_flight", "complete"}
+        and _is_leaf_folder_for_autodrive(_path_key(str(item.get("path") or "")), all_path_keys)
     ][:limit]
     attempts = _recent_auto_attempt_counts([str(c.get("plan_key") or "") for c in candidates])
 

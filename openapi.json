@@ -76,7 +76,7 @@
           "Vexlum Scoring API"
         ],
         "summary": "Start batch image scoring",
-        "description": "Initiates a batch image quality assessment job for all images in the specified directory.\n        \n        The scoring process uses multiple AI models to evaluate images:\n        - **SPAQ**: Spatial Perception of Aesthetic Quality\n        - **AVA**: Aesthetic Visual Analysis\n        - **KonIQ**: Konstanz Image Quality\n        - **PaQ2PiQ**: Perceptual Quality to Perceptual Image Quality\n        - **LIQE**: Learning Image Quality Evaluator\n        \n        Results include:\n        - Technical score (sharpness, noise, exposure)\n        - Aesthetic score (composition, appeal)\n        - General quality score (weighted combination)\n        - Rating (1-5 stars) and color label (Red/Yellow/Green/Blue/Purple)\n        \n        The job runs asynchronously. Use GET /api/scoring/status to monitor progress.\n        \n        **Path Handling:**\n        - Windows paths: `D:/Photos/2024` or `D:\\Photos\\2024`\n        - WSL paths: `/mnt/d/Photos/2024`\n        - Paths are automatically converted between formats when needed\n        \n        **Skip Logic:**\n        - If `skip_existing=True`: Images with complete scores are skipped\n        - If `force_rescore=True`: All images are re-scored regardless of existing data\n        - Incomplete scores (missing models or metadata) are always completed\n        \n        **Example Request:**\n        ```json\n        {\n            \"input_path\": \"D:/Photos/2024\",\n            \"skip_existing\": true,\n            \"force_rescore\": false\n        }\n        ```\n        \n        **Example Response:**\n        ```json\n        {\n            \"success\": true,\n            \"message\": \"Scoring job started successfully\",\n            \"data\": {\n                \"job_id\": 123,\n                \"input_path\": \"D:/Photos/2024\"\n            }\n        }\n        ```",
+        "description": "Initiates a batch image quality assessment job for all images in the specified directory.\n        \n        The scoring process uses a configurable ensemble of AI models, selected via the\n        `scoring.models` registry. Current production models include:\n        - **LIQE**: Learning Image Quality Evaluator (CLIP-based semantic quality)\n        - **SPAQ**: Smartphone Photography Aesthetics Quality (MUSIQ)\n        - **AVA**: Aesthetic Visual Analysis (MUSIQ)\n        - **TOPIQ**: Top-down Image Quality (no-reference)\n\n        Additional models run in shadow (stored but not fused) \u2014 e.g. **QPT V2** \u2014 and the\n        active set is config-driven. See `GET /api/models` for the live registry and per-model\n        shadow status.\n\n        Results include:\n        - Technical score (sharpness, noise, exposure)\n        - Aesthetic score (composition, appeal)\n        - General quality score (weighted combination)\n        - Rating (1-5 stars) and color label (Red/Yellow/Green/Blue/Purple)\n        \n        The job runs asynchronously. Use GET /api/scoring/status to monitor progress.\n        \n        **Path Handling:**\n        - Windows paths: `D:/Photos/2024` or `D:\\Photos\\2024`\n        - WSL paths: `/mnt/d/Photos/2024`\n        - Paths are automatically converted between formats when needed\n        \n        **Skip Logic:**\n        - If `skip_existing=True`: Images with complete scores are skipped\n        - If `force_rescore=True`: All images are re-scored regardless of existing data\n        - Incomplete scores (missing models or metadata) are always completed\n        \n        **Example Request:**\n        ```json\n        {\n            \"input_path\": \"D:/Photos/2024\",\n            \"skip_existing\": true,\n            \"force_rescore\": false\n        }\n        ```\n        \n        **Example Response:**\n        ```json\n        {\n            \"success\": true,\n            \"message\": \"Scoring job started successfully\",\n            \"data\": {\n                \"job_id\": 123,\n                \"input_path\": \"D:/Photos/2024\"\n            }\n        }\n        ```",
         "operationId": "start_scoring_api_scoring_start_post",
         "requestBody": {
           "content": {
@@ -734,60 +734,6 @@
           },
           "503": {
             "description": "Service Unavailable - Runner not initialized"
-          }
-        }
-      }
-    },
-    "/api/db/query": {
-      "post": {
-        "tags": [
-          "Vexlum Scoring API"
-        ],
-        "summary": "SQL bridge for Electron API DB mode",
-        "description": "Executes parameterized SQL against the configured database engine (Firebird or PostgreSQL).\n        Intended for the Electron gallery when ``database.engine`` is ``api`` and the app talks to this\n        WebUI over HTTP. **Treat like direct DB access** \u2014 disable on untrusted networks via config.\n\n        **Reads:** SQL must start with ``SELECT`` or ``WITH`` (``WITH``\u2026``SELECT``). Row cap:\n        ``database.api_db_query_max_rows`` (default 5000, max 50000).\n\n        **Writes:** ``INSERT`` / ``UPDATE`` / ``DELETE`` (including Firebird ``UPDATE OR INSERT``) when\n        ``database.api_db_allow_write_queries`` is true (default). DDL and ``DROP``/``TRUNCATE``/etc. are rejected.\n\n        Uses Firebird-style ``?`` placeholders; translated when ``database.engine`` is ``postgres``.",
-        "operationId": "api_db_query_api_db_query_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DbQueryRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DbQueryResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
           }
         }
       }
@@ -2785,10 +2731,31 @@
                   "type": "null"
                 }
               ],
-              "description": "Scope search to folder",
+              "description": "Scope search to folder (ignored if folder_ids set)",
               "title": "Folder Path"
             },
-            "description": "Scope search to folder"
+            "description": "Scope search to folder (ignored if folder_ids set)"
+          },
+          {
+            "name": "folder_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scope search to folder IDs (includes subfolders when expanded client-side)",
+              "title": "Folder Ids"
+            },
+            "description": "Scope search to folder IDs (includes subfolders when expanded client-side)"
           },
           {
             "name": "min_similarity",
@@ -2809,6 +2776,117 @@
               "title": "Min Similarity"
             },
             "description": "Minimum similarity threshold"
+          },
+          {
+            "name": "min_rating",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 5,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum star rating",
+              "title": "Min Rating"
+            },
+            "description": "Minimum star rating"
+          },
+          {
+            "name": "color_label",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by color label (Red, Yellow, Green, Blue, Purple)",
+              "title": "Color Label"
+            },
+            "description": "Filter by color label (Red, Yellow, Green, Blue, Purple)"
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Also require normalized keyword match (AND filter)",
+              "title": "Keyword"
+            },
+            "description": "Also require normalized keyword match (AND filter)"
+          },
+          {
+            "name": "captured_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by capture date (YYYY-MM-DD)",
+              "title": "Captured Date"
+            },
+            "description": "Filter by capture date (YYYY-MM-DD)"
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Secondary sort after relevance (capture_date, created_at, rating, score_general, ...)",
+              "title": "Sort By"
+            },
+            "description": "Secondary sort after relevance (capture_date, created_at, rating, score_general, ...)"
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Secondary sort direction (ASC or DESC)",
+              "default": "DESC",
+              "title": "Order"
+            },
+            "description": "Secondary sort direction (ASC or DESC)"
           }
         ],
         "responses": {
@@ -6301,7 +6379,7 @@
         "tags": [
           "Vexlum Scoring API"
         ],
-        "summary": "Preview validation-repair issues for scope",
+        "summary": "Preview stale/missing work for scope (alias)",
         "operationId": "preview_validation_repair_api_runs_validation_repair_preview_post",
         "requestBody": {
           "content": {
@@ -6343,6 +6421,345 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/runs/plan/preview": {
+      "post": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Preview stale/missing work for scope",
+        "operationId": "preview_validation_repair_api_runs_plan_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidationRepairPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/folder-buckets": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Paginated folder buckets for Runs auto-queue",
+        "operationId": "get_run_folder_buckets_api_runs_folder_buckets_get",
+        "parameters": [
+          {
+            "name": "root_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Root Path"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "bucket",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bucket"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 25,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "include_complete",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Complete"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/auto-drive": {
+      "post": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Auto-queue folder runs from bucket planner",
+        "operationId": "auto_drive_runs_api_runs_auto_drive_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunsAutoDriveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/drive/start": {
+      "post": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Start the durable auto-drive loop",
+        "operationId": "start_runs_drive_api_runs_drive_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunsDriveStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/drive/stop": {
+      "post": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Stop the durable auto-drive loop",
+        "operationId": "stop_runs_drive_api_runs_drive_stop_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          }
+        }
+      }
+    },
+    "/api/runs/drive/status": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Auto-drive loop status + outstanding work",
+        "operationId": "runs_drive_status_api_runs_drive_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
           }
         }
       }
@@ -8915,6 +9332,23 @@
             "title": "Embedding Map Enabled",
             "description": "True if the embedding map feature is enabled.",
             "default": false
+          },
+          "db_explorer_enabled": {
+            "type": "boolean",
+            "title": "Db Explorer Enabled",
+            "description": "True if the React DB Explorer (/ui/db) should be visible.",
+            "default": true
+          },
+          "scoring_models": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "boolean"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Scoring Models",
+            "description": "scoring.models membership map: {model_name: {enabled, shadow}}. Lets the UI show known models (and which are active vs. disabled)."
           }
         },
         "type": "object",
@@ -8922,7 +9356,21 @@
         "description": "Response model for public configuration flags.\n\nExposes a safe subset of configuration values to the frontend.",
         "example": {
           "embedding_map_enabled": true,
-          "enable_culling": false
+          "enable_culling": false,
+          "scoring_models": {
+            "claude": {
+              "enabled": false,
+              "shadow": false
+            },
+            "cursor": {
+              "enabled": false,
+              "shadow": false
+            },
+            "topiq": {
+              "enabled": false,
+              "shadow": false
+            }
+          }
         }
       },
       "CullingAnalyticsResponse": {
@@ -9128,44 +9576,6 @@
         ],
         "title": "CullingAnalyticsResponse",
         "description": "Culling and stack analytics payload (library, folder, session, or stack scope)."
-      },
-      "DbQueryRequest": {
-        "properties": {
-          "sql": {
-            "type": "string",
-            "title": "Sql",
-            "description": "SELECT/WITH (read) or INSERT/UPDATE/DELETE; Firebird-style ? placeholders"
-          },
-          "params": {
-            "items": {},
-            "type": "array",
-            "title": "Params",
-            "description": "Bound values for each ? in order"
-          }
-        },
-        "type": "object",
-        "required": [
-          "sql"
-        ],
-        "title": "DbQueryRequest",
-        "description": "Body for POST /api/db/query (Electron ApiConnector)."
-      },
-      "DbQueryResponse": {
-        "properties": {
-          "data": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Data"
-          }
-        },
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "title": "DbQueryResponse"
       },
       "DeleteFolderCacheRequest": {
         "properties": {
@@ -9533,12 +9943,6 @@
             "title": "Budget",
             "description": "Schedules at most max(0, budget - active_running_or_queued_jobs) folder runs.",
             "default": 10
-          },
-          "run_mode": {
-            "type": "string",
-            "title": "Run Mode",
-            "description": "Run mode for spawned jobs (e.g. validate_and_repair, process_unprocessed_or_empty).",
-            "default": "validate_and_repair"
           }
         },
         "type": "object",
@@ -10320,6 +10724,13 @@
             "default": false,
             "example": false
           },
+          "generate_accessibility": {
+            "type": "boolean",
+            "title": "Generate Accessibility",
+            "description": "Generate IPTC accessibility alt/extended description during tagging.",
+            "default": false,
+            "example": false
+          },
           "clustering_threshold": {
             "anyOf": [
               {
@@ -10418,55 +10829,14 @@
           },
           "run_mode": {
             "type": "string",
-            "enum": [
-              "process_all_overwrite",
-              "process_unprocessed_or_empty",
-              "validate_and_repair"
-            ],
+            "const": "process_stale_or_missing",
             "title": "Run Mode",
-            "default": "process_unprocessed_or_empty"
+            "default": "process_stale_or_missing"
           },
-          "skip_done": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Skip Done"
-          },
-          "force_rerun": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Force Rerun"
-          },
-          "fix_incomplete_stages": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fix Incomplete Stages"
-          },
-          "validation_repair_mode": {
+          "plan_dry_run": {
             "type": "boolean",
-            "title": "Validation Repair Mode",
-            "default": false
-          },
-          "validation_repair_dry_run": {
-            "type": "boolean",
-            "title": "Validation Repair Dry Run",
+            "title": "Plan Dry Run",
+            "description": "When true, run the stale/missing planner only and return the plan without enqueueing a job.",
             "default": false
           },
           "description": {
@@ -10498,6 +10868,12 @@
             "title": "Generate Captions",
             "description": "Generate BLIP captions for title/description during the keywords phase.",
             "default": true
+          },
+          "generate_accessibility": {
+            "type": "boolean",
+            "title": "Generate Accessibility",
+            "description": "Generate IPTC accessibility alt/extended description during the keywords phase.",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -10506,6 +10882,139 @@
           "scope_paths"
         ],
         "title": "RunSubmitRequest"
+      },
+      "RunsAutoDriveRequest": {
+        "properties": {
+          "root_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Path",
+            "description": "Optional root folder restriction for the bucket planner."
+          },
+          "folder_paths": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Paths",
+            "description": "Optional explicit folder paths to queue; used by per-row Queue actions."
+          },
+          "target_phases": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Phases",
+            "description": "Pipeline phases the auto-driver should consider. Defaults to the full pipeline."
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "description": "Maximum folder runs to queue in this drive tick.",
+            "default": 50
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "description": "When true, return the proposed queue operations without writing jobs.",
+            "default": false
+          },
+          "max_repeats": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Max Repeats",
+            "description": "Skip a folder/phase plan after this many prior terminal auto-drive attempts.",
+            "default": 2
+          },
+          "generate_captions": {
+            "type": "boolean",
+            "title": "Generate Captions",
+            "description": "Generate captions during keywords runs.",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RunsAutoDriveRequest"
+      },
+      "RunsDriveStartRequest": {
+        "properties": {
+          "root_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Path",
+            "description": "Optional root folder restriction; omit to drive the whole library."
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "description": "Max folder runs queued per drive tick.",
+            "default": 50
+          },
+          "target_phases": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Phases",
+            "description": "Phases to drive. Defaults to the full pipeline including bird_species."
+          },
+          "generate_captions": {
+            "type": "boolean",
+            "title": "Generate Captions",
+            "description": "Generate captions during keywords runs.",
+            "default": true
+          },
+          "max_repeats": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Max Repeats",
+            "description": "Skip a folder/phase plan after this many prior terminal attempts.",
+            "default": 2
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RunsDriveStartRequest"
       },
       "ScopePreviewRequest": {
         "properties": {
@@ -10640,7 +11149,7 @@
         },
         "type": "object",
         "title": "ScoringStartRequest",
-        "description": "Request model for starting a batch image scoring job.\n\nThis endpoint initiates quality assessment of images using multiple AI models\n(SPAQ, AVA, KonIQ, PaQ2PiQ, LIQE) to generate technical, aesthetic, and general quality scores.\n\nAttributes:\n    input_path: Directory path containing images to score. Supports Windows (D:\\...)\n               and WSL (/mnt/...) paths. Required.\n    skip_existing: If True, skip images that already have complete scores in database. \n                  Default: True. Set to False to force re-scoring.\n    force_rescore: If True, overwrite existing scores even if complete. \n                  Takes precedence over skip_existing. Default: False.\n\nExample:\n    {\n        \"input_path\": \"D:/Photos/2024\",\n        \"skip_existing\": true,\n        \"force_rescore\": false\n    }",
+        "description": "Request model for starting a batch image scoring job.\n\nThis endpoint initiates quality assessment of images using a configurable ensemble of\nAI models selected via the scoring.models registry (LIQE, MUSIQ variants such as SPAQ/AVA,\nand TOPIQ; QPT V2 runs in shadow) to generate technical, aesthetic, and general quality\nscores. See GET /api/models for the live set and per-model shadow status.\n\nAttributes:\n    input_path: Directory path containing images to score. Supports Windows (D:\\...)\n               and WSL (/mnt/...) paths. Required.\n    skip_existing: If True, skip images that already have complete scores in database. \n                  Default: True. Set to False to force re-scoring.\n    force_rescore: If True, overwrite existing scores even if complete. \n                  Takes precedence over skip_existing. Default: False.\n\nExample:\n    {\n        \"input_path\": \"D:/Photos/2024\",\n        \"skip_existing\": true,\n        \"force_rescore\": false\n    }",
         "example": {
           "force_rescore": false,
           "input_path": "D:/Photos/2024",
@@ -10889,6 +11398,13 @@
             "description": "If True, generate caption for the image using BLIP model.",
             "default": true,
             "example": true
+          },
+          "generate_accessibility": {
+            "type": "boolean",
+            "title": "Generate Accessibility",
+            "description": "If True, generate IPTC Alt Text and Extended Description via CLIP.",
+            "default": false,
+            "example": false
           }
         },
         "type": "object",
@@ -10896,12 +11412,13 @@
           "file_path"
         ],
         "title": "TaggingSingleRequest",
-        "description": "Request model for tagging a single image.\n\nAttributes:\n    file_path: Full path to the image file.\n    custom_keywords: Optional list of custom keywords. If None, uses default set.\n    generate_captions: If True, generate caption for the image. Default: True.\n\nExample:\n    {\n        \"file_path\": \"D:/Photos/2024/image.jpg\",\n        \"custom_keywords\": [\"landscape\"],\n        \"generate_captions\": true\n    }",
+        "description": "Request model for tagging a single image.\n\nAttributes:\n    file_path: Full path to the image file.\n    custom_keywords: Optional list of custom keywords. If None, uses default set.\n    generate_captions: If True, generate caption for the image. Default: True.\n    generate_accessibility: If True, generate IPTC accessibility metadata via CLIP.\n\nExample:\n    {\n        \"file_path\": \"D:/Photos/2024/image.jpg\",\n        \"custom_keywords\": [\"landscape\"],\n        \"generate_captions\": true,\n        \"generate_accessibility\": false\n    }",
         "example": {
           "custom_keywords": [
             "landscape"
           ],
           "file_path": "D:/Photos/2024/image.jpg",
+          "generate_accessibility": false,
           "generate_captions": true
         }
       },
@@ -11033,16 +11550,24 @@
             "description": "If True, generate image captions using BLIP model.",
             "default": false,
             "example": true
+          },
+          "generate_accessibility": {
+            "type": "boolean",
+            "title": "Generate Accessibility",
+            "description": "If True, generate IPTC Alt Text and Extended Description via CLIP prompt ranking.",
+            "default": false,
+            "example": false
           }
         },
         "type": "object",
         "title": "TaggingStartRequest",
-        "description": "Request model for starting a batch image tagging/keyword extraction job.\n\nUses CLIP (Contrastive Language-Image Pre-Training) to automatically tag images\nwith relevant keywords and optionally generate captions using BLIP.\n\nAttributes:\n    input_path: Optional directory path containing images to tag.\n    custom_keywords: Optional list of custom keywords to use instead of default set.\n                   If None, uses default keywords (landscape, portrait, urban, etc.).\n    overwrite: If True, overwrite existing keywords in database. Default: False.\n    generate_captions: If True, generate image captions using BLIP model. Default: False.\n\nExample:\n    {\n        \"input_path\": \"D:/Photos/2024\",\n        \"custom_keywords\": [\"landscape\", \"sunset\", \"nature\"],\n        \"overwrite\": false,\n        \"generate_captions\": true\n    }",
+        "description": "Request model for starting a batch image tagging/keyword extraction job.\n\nUses CLIP (Contrastive Language-Image Pre-Training) to automatically tag images\nwith relevant keywords and optionally generate captions using BLIP.\n\nAttributes:\n    input_path: Optional directory path containing images to tag.\n    custom_keywords: Optional list of custom keywords to use instead of default set.\n                   If None, uses default keywords (landscape, portrait, urban, etc.).\n    overwrite: If True, overwrite existing keywords in database. Default: False.\n    generate_captions: If True, generate image captions using BLIP model. Default: False.\n    generate_accessibility: If True, generate IPTC accessibility alt/extended text via CLIP.\n\nExample:\n    {\n        \"input_path\": \"D:/Photos/2024\",\n        \"custom_keywords\": [\"landscape\", \"sunset\", \"nature\"],\n        \"overwrite\": false,\n        \"generate_captions\": true,\n        \"generate_accessibility\": true\n    }",
         "example": {
           "custom_keywords": [
             "landscape",
             "sunset"
           ],
+          "generate_accessibility": false,
           "generate_captions": true,
           "input_path": "D:/Photos/2024",
           "overwrite": false

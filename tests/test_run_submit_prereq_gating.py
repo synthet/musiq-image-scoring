@@ -103,7 +103,14 @@ def test_metadata_and_scoring_accepted_with_stub_enqueue(
     )
     monkeypatch.setattr(
         "modules.db.build_validation_repair_plan",
-        lambda *a, **k: {"stage_queues": {}, "dry_run": False},
+        lambda *a, **k: {
+            "stage_queues": {"metadata": [1], "scoring": [1]},
+            "dry_run": False,
+        },
+    )
+    monkeypatch.setattr(
+        "modules.runs_autodrive.phases_with_work_from_repair_plan",
+        lambda *_a, **_k: ["metadata", "scoring"],
     )
     _stub_compute_scope_phases.add("indexing")
 
@@ -115,3 +122,31 @@ def test_metadata_and_scoring_accepted_with_stub_enqueue(
     )
     assert r.status_code == 200
     assert r.json().get("success") is True
+
+
+def test_submit_returns_nothing_to_queue_when_planner_has_no_work(
+    api_client,
+    tmp_path,
+    _stub_compute_scope_phases,
+    resolve_scope_stub,
+    monkeypatch,
+):
+    _stub_compute_scope_phases.update({"indexing", "metadata", "scoring"})
+    monkeypatch.setattr(
+        "modules.runs_autodrive.phases_with_work_from_repair_plan",
+        lambda *_a, **_k: [],
+    )
+    monkeypatch.setattr(
+        "modules.db.enqueue_job_with_phases",
+        lambda *a, **k: (42, 0),
+    )
+
+    p = tmp_path / "scope"
+    p.mkdir()
+    r = api_client.post(
+        "/api/runs/submit",
+        json=_submit_body(str(p.resolve()), ["metadata", "scoring"]),
+    )
+    assert r.status_code == 400
+    detail = r.json().get("detail")
+    assert detail["code"] == "nothing_to_queue"

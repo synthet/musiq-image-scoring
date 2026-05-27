@@ -107,7 +107,7 @@ class BioCLIPClassifier:
         # Cache text embeddings when species list is stable across a batch
         self._cached_species_list: Optional[List[str]] = None
         self._cached_text_features = None
-        # Most-recent BioCLIP image embedding (512-d, L2-normalized) populated
+        # Most-recent BioCLIP image embedding (768-d, L2-normalized) populated
         # as a side effect of classify() so BirdSpeciesRunner can persist it
         # under the ``bioclip_2_image`` space without an extra forward pass.
         self.last_image_embedding = None

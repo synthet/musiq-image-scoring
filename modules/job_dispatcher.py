@@ -96,6 +96,7 @@ class JobDispatcher:
                 self._last_busy_logged = now
             return
 
+        idle = False
         with self._dispatch_lock:
             if self._any_runner_busy():
                 return
@@ -116,23 +117,37 @@ class JobDispatcher:
 
             cont = db.get_running_job_for_phase_continuation()
             if not cont:
-                return
+                idle = True
+            else:
+                phase_code = (cont.pop("_active_phase_code", None) or "").strip().lower()
+                if not phase_code:
+                    logger.warning("Dispatcher: continuation job %s missing active phase code", cont.get("id"))
+                else:
+                    payload = self._parse_queue_payload(cont)
+                    started, err = self._start_job(cont, payload, phase_override=phase_code)
+                    if not started:
+                        reason = err or "Dispatcher failed to continue multi-phase job (unknown reason)"
+                        logger.warning("Dispatcher: continuation job %s failed to start: %s", cont.get("id"), reason)
+                        db.update_job_status(cont["id"], "failed", reason)
 
-            phase_code = (cont.pop("_active_phase_code", None) or "").strip().lower()
-            if not phase_code:
-                logger.warning("Dispatcher: continuation job %s missing active phase code", cont.get("id"))
-                return
+        # When the pipeline is fully idle, top up the queue from the durable
+        # auto-drive loop (no-op unless a drive is active). Done outside the
+        # dispatch lock because the bucket scan can be heavy on large libraries.
+        if idle:
+            self._maybe_drive_tick()
 
-            payload = self._parse_queue_payload(cont)
-            started, err = self._start_job(cont, payload, phase_override=phase_code)
-            if not started:
-                reason = err or "Dispatcher failed to continue multi-phase job (unknown reason)"
-                logger.warning("Dispatcher: continuation job %s failed to start: %s", cont.get("id"), reason)
-                db.update_job_status(cont["id"], "failed", reason)
-                
         tick_duration = time.perf_counter() - start_tick
         if tick_duration > 1.0:
             logger.warning(f"[DISPATCHER] Slow tick detected: {tick_duration:.3f}s")
+
+    def _maybe_drive_tick(self) -> None:
+        """Advance the durable auto-drive loop. Never raises (background thread)."""
+        try:
+            from modules import runs_autodrive
+
+            runs_autodrive.drive_tick()
+        except Exception:
+            logger.debug("Dispatcher: drive_tick failed", exc_info=True)
 
     @staticmethod
     def _parse_queue_payload(job: Dict[str, Any]) -> Dict[str, Any]:
@@ -527,6 +542,7 @@ class JobDispatcher:
                 custom_keywords=payload.get("custom_keywords"),
                 overwrite=bool(mode_flags["overwrite"]),
                 generate_captions=bool(payload.get("generate_captions", False)),
+                generate_accessibility=bool(payload.get("generate_accessibility", False)),
                 resolved_image_ids=scoped_resolved,
                 report_collector=report_collector,
             )

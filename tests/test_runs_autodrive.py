@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
@@ -43,7 +44,12 @@ def test_build_folder_buckets_plans_suffix_from_first_incomplete(monkeypatch):
     monkeypatch.setattr(
         runs_autodrive.db,
         "get_all_folder_phase_summaries_bulk",
-        lambda: {folder: summary},
+        lambda **_kwargs: {folder: summary},
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_phase_agg_dirty_local_paths",
+        lambda: set(),
     )
     monkeypatch.setattr(runs_autodrive, "_active_job_path_keys", lambda: set())
 
@@ -73,7 +79,12 @@ def test_build_folder_buckets_marks_prereq_blocked_when_target_omits_missing_pre
     monkeypatch.setattr(
         runs_autodrive.db,
         "get_all_folder_phase_summaries_bulk",
-        lambda: {folder: summary},
+        lambda **_kwargs: {folder: summary},
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_phase_agg_dirty_local_paths",
+        lambda: set(),
     )
     monkeypatch.setattr(runs_autodrive, "_active_job_path_keys", lambda: set())
 
@@ -81,6 +92,326 @@ def test_build_folder_buckets_marks_prereq_blocked_when_target_omits_missing_pre
 
     assert result["items"][0]["bucket"] == "blocked"
     assert result["items"][0]["blocked_by"] == {"scoring": ["metadata"]}
+
+
+def test_build_folder_buckets_non_bird_folder_complete_when_bird_species_skipped(monkeypatch):
+    folder = "/mnt/d/Photos/non-bird-only"
+    summary = [
+        _phase("indexing", "done", done=5),
+        _phase("metadata", "done", done=5),
+        _phase("scoring", "done", done=5),
+        _phase("culling", "done", done=5),
+        _phase("keywords", "done", done=5),
+        _phase("bird_species", "skipped", total=0, skipped=0),
+    ]
+
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_direct_image_counts_by_local_path_norm",
+        lambda: {folder: {"folder_id": 1, "direct_count": 5}},
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_all_folder_phase_summaries_bulk",
+        lambda **_kwargs: {folder: summary},
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_phase_agg_dirty_local_paths",
+        lambda: set(),
+    )
+    monkeypatch.setattr(runs_autodrive.db, "folder_has_bird_species_work", lambda _p: False)
+    monkeypatch.setattr(runs_autodrive, "_active_job_path_keys", lambda: set())
+
+    result = runs_autodrive.build_folder_buckets(limit=10, include_complete=True)
+
+    assert result["items"][0]["bucket"] == "complete"
+    assert result["items"][0]["next_phases"] == []
+
+
+def test_build_folder_buckets_culling_not_blocked_when_prereqs_done_outside_target(monkeypatch):
+    folder = "/mnt/d/Photos/2026-05-10"
+    summary = [
+        _phase("indexing", "done", done=10),
+        _phase("metadata", "done", done=10),
+        _phase("scoring", "done", done=10),
+        _phase("culling", "not_started"),
+    ]
+
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_direct_image_counts_by_local_path_norm",
+        lambda: {folder: {"folder_id": 1, "direct_count": 10}},
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_all_folder_phase_summaries_bulk",
+        lambda **_kwargs: {folder: summary},
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_phase_agg_dirty_local_paths",
+        lambda: set(),
+    )
+    monkeypatch.setattr(runs_autodrive, "_active_job_path_keys", lambda: set())
+
+    result = runs_autodrive.build_folder_buckets(limit=10, target_phases=["culling"])
+
+    assert result["items"][0]["bucket"] == "awaiting_culling"
+    assert result["items"][0]["blocked_by"] == {}
+
+
+def test_path_intersects_active_does_not_mark_ancestor_in_flight():
+    assert runs_autodrive._path_intersects_active("/photos/2026", {"/photos/2026/event"}) is False
+    assert runs_autodrive._path_intersects_active("/photos/2026/event", {"/photos/2026"}) is True
+    assert runs_autodrive._path_intersects_active("/photos/2026", {"/photos/2026"}) is True
+
+
+def test_phases_with_work_from_repair_plan_skips_empty_and_clustering_alias(monkeypatch):
+    def fake_plan(paths, stages, dry_run, include_stale_executor=True):
+        assert dry_run is True
+        assert include_stale_executor is False
+        return {
+            "stage_queues": {
+                "indexing": [],
+                "scoring": [1, 2, 3],
+                "clustering": [99],
+                "keywords": [],
+            }
+        }
+
+    monkeypatch.setattr(runs_autodrive.db, "build_validation_repair_plan", fake_plan)
+
+    out = runs_autodrive.phases_with_work_from_repair_plan(
+        ["/mnt/d/Photos/x"],
+        ["indexing", "scoring", "keywords"],
+        dry_run=True,
+    )
+
+    assert out == ["scoring"]
+
+
+def test_build_folder_buckets_attaches_planner_next_phases(monkeypatch):
+    folder = "/mnt/d/Photos/planner-preview"
+    summary = [
+        _phase("indexing", "done", done=3),
+        _phase("metadata", "done", done=3),
+        _phase("scoring", "not_started"),
+    ]
+
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_direct_image_counts_by_local_path_norm",
+        lambda: {folder: {"folder_id": 3, "direct_count": 3}},
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_all_folder_phase_summaries_bulk",
+        lambda **_kwargs: {folder: summary},
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_phase_agg_dirty_local_paths",
+        lambda: set(),
+    )
+    monkeypatch.setattr(runs_autodrive.db, "folder_has_bird_species_work", lambda _p: False)
+    monkeypatch.setattr(runs_autodrive, "_active_job_path_keys", lambda: set())
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda p: (p, []),
+    )
+
+    def fake_planner(paths, stages, dry_run=True, include_stale_executor=False):
+        assert include_stale_executor is False
+        return ["scoring"]
+
+    monkeypatch.setattr(runs_autodrive, "phases_with_work_from_repair_plan", fake_planner)
+
+    result = runs_autodrive.build_folder_buckets(limit=10, planner_preview_limit=5)
+
+    item = result["items"][0]
+    assert item["planner_next_phases"] == ["scoring"]
+    assert item["next_phases"][0] == "scoring"
+
+
+def test_build_folder_buckets_refreshes_when_bulk_cache_missing(monkeypatch):
+    folder = "/mnt/d/Photos/missing-bulk-cache"
+    fresh_summary = [
+        _phase("indexing", "done", done=4),
+        _phase("metadata", "done", done=4),
+        _phase("scoring", "done", done=4),
+        _phase("culling", "done", done=4),
+        _phase("keywords", "done", done=4),
+        _phase("bird_species", "skipped", total=0),
+    ]
+
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_direct_image_counts_by_local_path_norm",
+        lambda: {folder: {"folder_id": 2, "direct_count": 4}},
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_all_folder_phase_summaries_bulk",
+        lambda **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_phase_agg_dirty_local_paths",
+        lambda: set(),
+    )
+    refreshed = []
+
+    def _refresh(path, force_refresh=False):
+        refreshed.append((path, force_refresh))
+        return fresh_summary
+
+    monkeypatch.setattr(runs_autodrive.db, "get_folder_phase_summary", _refresh)
+    monkeypatch.setattr(runs_autodrive.db, "folder_has_bird_species_work", lambda _p: False)
+    monkeypatch.setattr(runs_autodrive, "_active_job_path_keys", lambda: set())
+
+    result = runs_autodrive.build_folder_buckets(
+        limit=10,
+        refresh_dirty_limit=10,
+        include_complete=True,
+    )
+
+    assert len(refreshed) == 1
+    assert refreshed[0][1] is True
+    assert result["items"][0]["bucket"] == "complete"
+
+
+def test_enqueue_auto_bucket_uses_only_repair_plan_phases_with_work(monkeypatch):
+    folder = "/mnt/d/Photos/2026-05-20"
+    bucket = {
+        "path": folder,
+        "next_phases": ["indexing", "metadata", "scoring", "keywords"],
+        "bucket": "awaiting_indexing",
+    }
+    plan_calls = []
+
+    def fake_plan(paths, stages, dry_run, include_stale_executor=True):
+        plan_calls.append((list(paths), list(stages), dry_run, include_stale_executor))
+        if dry_run:
+            return {"stage_queues": {"indexing": [], "scoring": [10, 11], "keywords": [10]}}
+        return {
+            "stage_queues": {"scoring": [10, 11], "keywords": [10]},
+            "issue_counts_by_reason": {"stale_executor": 2},
+        }
+
+    monkeypatch.setattr(runs_autodrive.db, "build_validation_repair_plan", fake_plan)
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda p: (p, []),
+    )
+    monkeypatch.setattr(runs_autodrive.os.path, "isdir", lambda _p: True)
+    monkeypatch.setattr(runs_autodrive, "assert_prereqs_for_scope", lambda *_a, **_k: None)
+    enqueued = {}
+
+    def fake_enqueue(path, first_phase, job_type, payload, description, phase_codes=None, **_kw):
+        enqueued["phase_codes"] = list(phase_codes or [])
+        enqueued["payload_phases"] = payload.get("target_phases")
+        return 9001, 1
+
+    monkeypatch.setattr(runs_autodrive.db, "enqueue_job_with_phases", fake_enqueue)
+    monkeypatch.setattr(runs_autodrive, "augment_queue_payload_for_audit", lambda p, **_k: p)
+    monkeypatch.setattr(
+        runs_autodrive,
+        "build_run_submit_description",
+        lambda **_k: "test",
+    )
+
+    job_id, pos, skip = runs_autodrive._enqueue_auto_bucket(bucket, generate_captions=False)
+
+    assert skip is None
+    assert job_id == 9001
+    assert enqueued["phase_codes"] == ["scoring", "keywords"]
+    assert plan_calls[0][2] is True
+    assert plan_calls[1][2] is False
+    assert plan_calls[1][1] == ["scoring", "keywords"]
+    assert plan_calls[0][3] is False
+    assert plan_calls[1][3] is False
+
+
+def test_build_folder_buckets_refreshes_dirty_folder(monkeypatch):
+    folder = "/mnt/d/Photos/dirty-folder"
+    fresh_summary = [_phase("scoring", "done", done=3)]
+
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_direct_image_counts_by_local_path_norm",
+        lambda: {folder: {"folder_id": 1, "direct_count": 3}},
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_all_folder_phase_summaries_bulk",
+        lambda **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_phase_agg_dirty_local_paths",
+        lambda: {os.path.normpath(folder)},
+    )
+    refreshed = []
+
+    def _refresh(path, force_refresh=False):
+        refreshed.append((path, force_refresh))
+        return fresh_summary
+
+    monkeypatch.setattr(runs_autodrive.db, "get_folder_phase_summary", _refresh)
+    monkeypatch.setattr(runs_autodrive.db, "folder_has_bird_species_work", lambda _p: False)
+    monkeypatch.setattr(runs_autodrive, "_active_job_path_keys", lambda: set())
+
+    runs_autodrive.build_folder_buckets(limit=10, refresh_dirty_limit=5)
+
+    assert len(refreshed) == 1
+    assert refreshed[0][1] is True
+
+
+def test_auto_drive_skips_non_leaf_parent(monkeypatch):
+    parent = "/mnt/d/Photos/parent"
+    child = "/mnt/d/Photos/parent/child"
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_direct_image_counts_by_local_path_norm",
+        lambda: {
+            parent: {"folder_id": 1, "direct_count": 0},
+            child: {"folder_id": 2, "direct_count": 5},
+        },
+    )
+    monkeypatch.setattr(runs_autodrive, "_reconcile_stale_ips_for_drive", lambda: None)
+    monkeypatch.setattr(
+        runs_autodrive,
+        "build_folder_buckets",
+        lambda **_kwargs: {
+            "items": [
+                {
+                    "path": parent,
+                    "bucket": "awaiting_scoring",
+                    "next_phases": ["scoring"],
+                    "plan_key": "parent",
+                },
+                {
+                    "path": child,
+                    "bucket": "awaiting_scoring",
+                    "next_phases": ["scoring"],
+                    "plan_key": "child",
+                },
+            ],
+            "total": 2,
+            "bucket_counts": {"awaiting_scoring": 2},
+            "phase_counts": {"scoring": 2},
+        },
+    )
+    monkeypatch.setattr(runs_autodrive, "_recent_auto_attempt_counts", lambda *_a, **_k: {})
+
+    result = runs_autodrive.auto_drive_runs(dry_run=True, limit=10)
+
+    scheduled_paths = [s["folder_path"] for s in result["scheduled"]]
+    assert child in scheduled_paths
+    assert parent not in scheduled_paths
 
 
 def test_auto_drive_dry_run_returns_candidates(monkeypatch):

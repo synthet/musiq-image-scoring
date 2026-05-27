@@ -21,6 +21,9 @@
 | [.cursor/commands/*.md](../.cursor/commands/) | Slash commands | workflow | active | agent-sdlc | Mirror wiki commands into .claude if missing |
 | [.cursor/skills/*/SKILL.md](../.cursor/skills/) | Canonical skills (AST10) | coding, MCP | active | SKILL_INVENTORY | Mirror to `.claude/skills/` |
 | [.cursor/agents/*.md](../.cursor/agents/) | Subagent role YAML | coding | active | AGENTS.md | Keep synced to `.claude/agents/` |
+| [.cursor/rules/external-cli-subagents.mdc](../.cursor/rules/external-cli-subagents.mdc) | External Codex/Gemini review safety | governance | active | subagent-orchestrator | Mirror `.claude/rules/` |
+| [.cursor/skills/subagent-review/](../.cursor/skills/subagent-review/) | MCP external review workflow | workflow | active | `../subagent-orchestrator` | Mirror `.claude/skills/` |
+| [docs/technical/EXTERNAL_CLI_REVIEWS.md](../docs/technical/EXTERNAL_CLI_REVIEWS.md) | Setup for imgscore-subagent-orchestrator MCP | cross-repo | active | sibling orchestrator | None |
 | [.claude/skills/*/SKILL.md](../.claude/skills/) | Claude mirror of skills | coding | duplicate-of | `.cursor/skills/` | Same-PR sync |
 | [.claude/commands/*.md](../.claude/commands/) | Claude slash commands | workflow | partial-mirror | `.cursor/commands/` | Align sets (wiki commands may differ) |
 | [.claude/agents/*.md](../.claude/agents/) | Claude mirror of agents | coding | duplicate-of | `.cursor/agents/` | Same-PR sync |

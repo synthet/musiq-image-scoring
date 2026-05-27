@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.25.0] - 2026-05-26
+
+### Added
+
+- **CLIP accessibility metadata**: `modules/clip_accessibility.py`, XMP read/write, Alembic **0025**, tagging/scoring integration, and maintenance backfill script.
+- **BioCLIP 768-d embeddings**: `bioclip` embedding space and Alembic **0026** for `image_embeddings_768`.
+- **Runs dashboard**: React `/ui/` dashboard page with run queue and bucket planner visibility.
+- **Canonical file path lookup**: `resolve_canonical_file_path_for_lookup` maps gallery Windows aliases to `images.file_path` (WSL paths).
+- **External CLI reviews**: Codex/Gemini subagent docs, commands, and MCP orchestrator wiring (review-only).
+
+### Changed
+
+- **Auto-drive / planner**: Ignore bare `executor_version_changed` when stored version is empty; `include_stale_executor=False` on auto-drive enqueue; JIT non-empty `stage_queues`; `planner_next_phases` on folder-buckets API and Runs UI.
+- **Scoring executor version**: Registry and IPS writes use canonical **`5.0.0`** (`SCORING_EXECUTOR_VERSION`).
+- **Manual run submit**: Narrow phases via JIT; **`400 nothing_to_queue`** when the planner has no work.
+
+### Fixed
+
+- **Auto-drive reprocessing**: Folders with all core phases `done` are no longer re-queued solely for stale executor metadata (run 3245 class).
+- **`fix_image_metadata`**: Canonical path resolution; missing files and DB-unavailable paths return clear errors without pool init failures.
+- **Bird species** folder phase summary and related planner/policy tests.
+
 ## [7.24.0] - 2026-05-25
 
 ### Added

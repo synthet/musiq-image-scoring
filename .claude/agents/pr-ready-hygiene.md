@@ -42,6 +42,10 @@ When all checks are green and the PR is ready to open:
 - Confirm the PR body contains `Closes #<N>` (per **`backlog-queue`** rule).
 - Flip the issue's `Stage` to `Review` on the GitHub Project board.
 
+## External review (optional)
+
+For a second opinion before opening a large PR, the user may run **`/run-subagent-review`** (review-only via subagent-orchestrator MCP); that does not replace ruff/pytest here.
+
 ## Escalation
 
 Stop and ask the user for ambiguous behavior, API or schema design, or large refactors. Do not treat fixing all historical lint in the repo as in-scope unless asked.

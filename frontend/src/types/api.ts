@@ -161,6 +161,8 @@ export interface RunFolderBucket {
   bucket: string
   current_phase: StageCode | null
   next_phases: StageCode[]
+  /** JIT planner stages with non-empty work (auto-drive rules; may be shorter than next_phases). */
+  planner_next_phases?: StageCode[]
   blocked_by: Record<string, string[]>
   overall_percent: number
   phase_statuses: RunFolderBucketPhase[]

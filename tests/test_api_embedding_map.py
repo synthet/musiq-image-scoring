@@ -567,7 +567,7 @@ def test_embedding_spaces_postgres_returns_registry_rows(monkeypatch):
     fake_rows = [
         {"code": "mobilenet_v2_imagenet_gap", "dim": 1280, "description": "default", "active": 1},
         {"code": "clip_vit_b32_image", "dim": 512, "description": "clip", "active": 1},
-        {"code": "bioclip_2_image", "dim": 512, "description": "bioclip", "active": 1},
+        {"code": "bioclip_2_image", "dim": 768, "description": "bioclip", "active": 1},
         {"code": "blip_vit_b16_image", "dim": 768, "description": "blip", "active": 1},
     ]
 

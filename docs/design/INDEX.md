@@ -11,6 +11,8 @@
 | Surface | Repo | Route / entry | Styling |
 |---------|------|---------------|---------|
 | Primary product UI | **image-scoring-backend** | `/ui/` (React + Vite SPA) | Tailwind v4 + design package `tailwind-theme.css` |
+| Runs planner (buckets) | **image-scoring-backend** | `/ui/dashboard` | Same SPA; folder buckets + Drive to Complete |
+| Runs list | **image-scoring-backend** | `/ui/runs` | Active / Queued / History only |
 | Operator status | **image-scoring-backend** | `/app` (minimal Gradio) | Base Gradio + design package `gradio-snippet.css` |
 | Desktop gallery | **image-scoring-gallery** | Electron + Vite renderer | CSS Modules + design package `tokens.css` |
 

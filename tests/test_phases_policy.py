@@ -1,6 +1,6 @@
 import pytest
 
-from modules.phases import PhaseCode, PhaseExecutor, PhaseRegistry
+from modules.phases import PhaseCode, PhaseExecutor, PhaseRegistry, SCORING_EXECUTOR_VERSION
 from modules import phases_policy
 
 
@@ -244,3 +244,45 @@ def test_policy_runs_bird_species_when_version_changed(monkeypatch):
     decision = phases_policy.explain_phase_run_decision(1, PhaseCode.BIRD_SPECIES)
     assert decision["should_run"] is True
     assert decision["reason"] == "executor_version_changed"
+
+
+def test_policy_skips_legacy_null_executor_version_when_data_complete(monkeypatch):
+    """Pre-versioning IPS rows (executor_version=NULL) must not force stale_executor reruns."""
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_phase_statuses",
+        lambda image_id: {"metadata": {"status": "done", "executor_version": None}},
+    )
+    monkeypatch.setattr(
+        phases_policy.db,
+        "is_image_metadata_complete",
+        lambda image_id: True,
+    )
+    PhaseRegistry.register(PhaseExecutor(code=PhaseCode.METADATA, executor_version="1.0.0"))
+
+    decision = phases_policy.explain_phase_run_decision(1, PhaseCode.METADATA)
+    assert decision["should_run"] is False
+    assert decision["reason"] == "already_done_current_executor"
+
+
+def test_policy_skips_scoring_when_canonical_executor_version_matches(monkeypatch):
+    """IPS rows with SCORING_EXECUTOR_VERSION must match registry, not per-model VERSION tags."""
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_phase_statuses",
+        lambda image_id: {
+            "scoring": {"status": "done", "executor_version": SCORING_EXECUTOR_VERSION},
+        },
+    )
+    monkeypatch.setattr(
+        phases_policy.db,
+        "is_image_scoring_complete",
+        lambda image_id: True,
+    )
+    PhaseRegistry.register(
+        PhaseExecutor(code=PhaseCode.SCORING, executor_version=SCORING_EXECUTOR_VERSION),
+    )
+
+    decision = phases_policy.explain_phase_run_decision(1, PhaseCode.SCORING)
+    assert decision["should_run"] is False
+    assert decision["reason"] == "already_done_current_executor"

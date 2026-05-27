@@ -152,6 +152,11 @@ def create_tab(app_config):
                         value=tagging_config.get('captions_default', False),
                         info="Default value for 'Captions' checkbox in Tagging tab"
                     )
+                    cfg_tagging_accessibility = gr.Checkbox(
+                        label="Generate Accessibility Metadata (Default)",
+                        value=tagging_config.get('accessibility_default', False),
+                        info="CLIP-based IPTC alt text and extended description during tagging"
+                    )
                     cfg_tagging_max_tokens = gr.Number(
                         value=tagging_config.get('max_new_tokens', 50),
                         label="Max New Tokens (BLIP)",
@@ -181,7 +186,7 @@ def create_tab(app_config):
             prep_queue, scoring_queue, result_queue, clustering_batch,
             stack_threshold, stack_gap, clust_force, cull_auto,
             page_size, export_format,
-            tag_overwrite, tag_captions, tag_tokens, tag_clip_model
+            tag_overwrite, tag_captions, tag_accessibility, tag_tokens, tag_clip_model
         ):
             try:
                 thresh = float(stack_threshold) if stack_threshold else 0.15
@@ -214,6 +219,7 @@ def create_tab(app_config):
                 config.save_config_value('tagging', {
                     'overwrite_default': tag_overwrite,
                     'captions_default': tag_captions,
+                    'accessibility_default': tag_accessibility,
                     'max_new_tokens': int(tag_tokens) if tag_tokens else 50,
                     'clip_model': tag_clip_model
                 })
@@ -228,7 +234,7 @@ def create_tab(app_config):
                 50, 10, 50, 32,
                 0.15, 120, False, False,
                 50, 'json',
-                False, False, 50, 'openai/clip-vit-base-patch32'
+                False, False, False, 50, 'openai/clip-vit-base-patch32'
             )
         
         # Wire up events
@@ -238,7 +244,8 @@ def create_tab(app_config):
             cfg_clustering_batch_size,
             cfg_stack_threshold, cfg_stack_time_gap, cfg_clustering_force_rescan, cfg_culling_auto_export,
             cfg_gallery_page_size, cfg_default_export_format,
-            cfg_tagging_overwrite, cfg_tagging_captions, cfg_tagging_max_tokens, cfg_tagging_clip_model
+            cfg_tagging_overwrite, cfg_tagging_captions, cfg_tagging_accessibility,
+            cfg_tagging_max_tokens, cfg_tagging_clip_model
         ]
         
         cfg_save_btn.click(

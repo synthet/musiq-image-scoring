@@ -7,6 +7,7 @@ Historical reports, research, reviews, and debugging sessions.
 | Document | Description |
 |----------|-------------|
 | [WORK_SUMMARY_2026-03-08.md](WORK_SUMMARY_2026-03-08.md) | Work summary |
+| [WORK_SUMMARY_2026-05-26.md](WORK_SUMMARY_2026-05-26.md) | Auto-drive run 3245 investigation + empty composite scores dry-run |
 | [DEEP_RESEARCH_REPORT.md](DEEP_RESEARCH_REPORT.md) | Deep research report |
 | [CLIP_MODELS_CULLING_SCORING_2026-05-23.md](CLIP_MODELS_CULLING_SCORING_2026-05-23.md) | CLIP / OpenCLIP / MetaCLIP for culling and prompt-based scoring |
 | [AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md](AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md) | Image auto-culling algorithms and best practices |
@@ -21,6 +22,9 @@ Historical reports, research, reviews, and debugging sessions.
 |----------|-------------|
 | [GRADIO_SERVING_DECISION.md](GRADIO_SERVING_DECISION.md) | Why Gradio + FastAPI fits this product; when Triton/BentoML would matter |
 | [CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md](CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md) | Culling phase done but no stacks — SelectionRunner phase-order bug (fixed) |
+| [AUTODRIVE_REPROCESSING_INVESTIGATION_2026-05-26.md](AUTODRIVE_REPROCESSING_INVESTIGATION_2026-05-26.md) | Auto-drive false reprocessing (run 3245) — `stale_executor` / executor_version policy |
+| [AUTO_DRIVE_FIX_SUMMARY.md](AUTO_DRIVE_FIX_SUMMARY.md) | Operator summary — fixes for planner version gate + runs_autodrive buckets |
+| [AUTODRIVE_REPROCESSING_SUMMARY.md](AUTODRIVE_REPROCESSING_SUMMARY.md) | Short investigation summary (run 3245) — links to fix summary and full RCA |
 | [RUN_ORCHESTRATION_AUDIT_2026-04-17.md](RUN_ORCHESTRATION_AUDIT_2026-04-17.md) | Run orchestration audit — MUSIQ import regression, dispatcher busy-as-fail, stale `running` rows, path-validation gap, MCP SSE event-loop stalls |
 | [CODE_REVIEW_2026-04-15.md](CODE_REVIEW_2026-04-15.md) | Code review of 2026-04-15 commits — job_type stability, MUSIQ imports, indexing log persistence, conflict-marker guard, `a6fdb34` scratch/junk blocker |
 | [UI_RUNS_CODE_REVIEW_2026-04-18.md](UI_RUNS_CODE_REVIEW_2026-04-18.md) | Deep review of `/ui/runs` — 30 findings across cancel/pause races, enqueue-vs-phases race, limit=120 active drop, status enum drift, WS perf |

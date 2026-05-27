@@ -75,7 +75,7 @@ Treat a new space as **not interchangeable** with MobileNet embeddings without m
 |---|---|---|---|---|
 | `mobilenet_v2_imagenet_gap` | 1280 | `image_embeddings` | `modules/clustering.py` (culling / indexing) | `CLUSTER_VERSION` |
 | `clip_vit_b32_image` | 512 | `image_embeddings_512` | `modules/tagging.py::KeywordScorer.predict` (keywords phase) | `openai/clip-vit-base-patch32` |
-| `bioclip_2_image` | 512 | `image_embeddings_512` | `modules/bird_species.py::BioCLIPClassifier.classify` (bird-species phase) | `hf-hub:imageomics/bioclip-2` |
+| `bioclip_2_image` | 768 | `image_embeddings_768` | `modules/bird_species.py::BioCLIPClassifier.classify` (bird-species phase) | `hf-hub:imageomics/bioclip-2` |
 | `blip_vit_b16_image` | 768 | `image_embeddings_768` | `modules/tagging.py::CaptionGenerator.generate` (keywords phase, captions enabled) | `Salesforce/blip-image-captioning-base` |
 
 All four spaces share the same keyed-fact-table shape (`image_id`, `embedding_space_id`, `embedding vector(N)`, `model_version`, `updated_at`) with a unique key on `(image_id, embedding_space_id)` and an HNSW cosine index on `embedding`. Dimension routing is centralized in `modules/db._pg_embedding_table_for_dim()`.
@@ -109,7 +109,7 @@ The `embeddings` section in `config.json` gates per-model persistence and pins t
 
 - **`get_embedding_space_id` caches positive hits only.** A miss (Postgres engine not active, registry row not yet seeded by Alembic, or transient DB error) does *not* poison the cache; the next call performs a fresh DB lookup. A long-running webui/runner started before a `0012`-style migration runs will recover automatically once the migration completes.
 - **`BLIP_768` only fills when captions are generated.** `CaptionGenerator.generate(extract_embedding=True)` is the producer, and the runner only sets `extract_embedding=True` when `generate_captions=True`. Tagging-only jobs leave `image_embeddings_768` empty by design — BLIP's vision tower is only worth running when a caption is already needed.
-- **`BIOCLIP_512` only fills during bird-species jobs.** `BirdSpeciesRunner` is the only writer. Empty rows for `bioclip_2_image` are usually "no bird-species job ran", not a defect.
+- **`BIOCLIP_768` only fills during bird-species jobs.** `BirdSpeciesRunner` is the only writer. Empty rows for `bioclip_2_image` are usually "no bird-species job ran", not a defect. Alembic `0026` corrects the registry if `bioclip_2_image` was still listed as 512-d (BioCLIP 2 is ViT-L/14, not ViT-B/32).
 - **Shared `tagging_engine` path does not extract embeddings yet.** `TaggingRunner(tagging_engine=...)` skips the `_persist_tagging_embeddings` call (the engine doesn't surface `last_image_embedding`). Production call sites use `TaggingRunner()` with no engine and persist correctly; the runner emits a one-time `WARNING` per instance if persist flags are enabled on the engine path so the gap is discoverable.
 - **Persist failures log at `WARNING`.** Earlier code logged at `DEBUG`, hiding real upsert errors at default log levels. If an `image_embeddings_*` table is mysteriously empty, `grep "embedding upsert failed\|embedding persist failed" webui.log` first.
 

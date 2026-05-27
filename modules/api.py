@@ -760,13 +760,15 @@ class TaggingStartRequest(SelectorRequest):
                        If None, uses default keywords (landscape, portrait, urban, etc.).
         overwrite: If True, overwrite existing keywords in database. Default: False.
         generate_captions: If True, generate image captions using BLIP model. Default: False.
+        generate_accessibility: If True, generate IPTC accessibility alt/extended text via CLIP.
     
     Example:
         {
             "input_path": "D:/Photos/2024",
             "custom_keywords": ["landscape", "sunset", "nature"],
             "overwrite": false,
-            "generate_captions": true
+            "generate_captions": true,
+            "generate_accessibility": true
         }
     """
     input_path: Optional[str] = Field(
@@ -789,13 +791,19 @@ class TaggingStartRequest(SelectorRequest):
         description="If True, generate image captions using BLIP model.",
         example=True
     )
+    generate_accessibility: bool = Field(
+        False,
+        description="If True, generate IPTC Alt Text and Extended Description via CLIP prompt ranking.",
+        example=False
+    )
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "input_path": "D:/Photos/2024",
             "custom_keywords": ["landscape", "sunset"],
             "overwrite": False,
-            "generate_captions": True
+            "generate_captions": True,
+            "generate_accessibility": False
         }
     })
 
@@ -885,12 +893,14 @@ class TaggingSingleRequest(BaseModel):
         file_path: Full path to the image file.
         custom_keywords: Optional list of custom keywords. If None, uses default set.
         generate_captions: If True, generate caption for the image. Default: True.
+        generate_accessibility: If True, generate IPTC accessibility metadata via CLIP.
     
     Example:
         {
             "file_path": "D:/Photos/2024/image.jpg",
             "custom_keywords": ["landscape"],
-            "generate_captions": true
+            "generate_captions": true,
+            "generate_accessibility": false
         }
     """
     file_path: str = Field(
@@ -908,12 +918,18 @@ class TaggingSingleRequest(BaseModel):
         description="If True, generate caption for the image using BLIP model.",
         example=True
     )
+    generate_accessibility: bool = Field(
+        False,
+        description="If True, generate IPTC Alt Text and Extended Description via CLIP.",
+        example=False
+    )
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "file_path": "D:/Photos/2024/image.jpg",
             "custom_keywords": ["landscape"],
-            "generate_captions": True
+            "generate_captions": True,
+            "generate_accessibility": False
         }
     })
 
@@ -1269,6 +1285,11 @@ class PipelineSubmitRequest(SelectorRequest):
     generate_captions: bool = Field(
         False,
         description="Generate captions during tagging.",
+        example=False
+    )
+    generate_accessibility: bool = Field(
+        False,
+        description="Generate IPTC accessibility alt/extended description during tagging.",
         example=False
     )
     clustering_threshold: Optional[float] = Field(
@@ -1929,7 +1950,8 @@ def create_api_router() -> APIRouter:
                                 "input_path": {"type": "string"},
                                 "custom_keywords": {"type": "array", "items": {"type": "string"}},
                                 "overwrite": {"type": "boolean", "default": False},
-                                "generate_captions": {"type": "boolean", "default": False}
+                                "generate_captions": {"type": "boolean", "default": False},
+                                "generate_accessibility": {"type": "boolean", "default": False}
                             }
                         }
                     },
@@ -2036,6 +2058,7 @@ def create_api_router() -> APIRouter:
                                 "skip_existing": {"type": "boolean", "default": True},
                                 "custom_keywords": {"type": "array", "items": {"type": "string"}},
                                 "generate_captions": {"type": "boolean", "default": False},
+                                "generate_accessibility": {"type": "boolean", "default": False},
                                 "clustering_threshold": {"type": "number"},
                                 "clustering_time_gap": {"type": "integer"},
                                 "clustering_force_rescan": {"type": "boolean", "default": False}
@@ -2465,6 +2488,7 @@ def create_api_router() -> APIRouter:
                 "custom_keywords": request.custom_keywords,
                 "overwrite": request.overwrite,
                 "generate_captions": request.generate_captions,
+                "generate_accessibility": request.generate_accessibility,
                 "resolved_image_ids": selector_result.get("resolved_image_ids"),
             },
             trigger="api",
@@ -2564,7 +2588,8 @@ def create_api_router() -> APIRouter:
         success, message = _tagging_runner.run_single_image(
             request.file_path,
             request.custom_keywords,
-            request.generate_captions
+            request.generate_captions,
+            request.generate_accessibility,
         )
         
         return ApiResponse(
@@ -5249,6 +5274,7 @@ def create_api_router() -> APIRouter:
                         "custom_keywords": request.custom_keywords,
                         "overwrite": not request.skip_existing,
                         "generate_captions": request.generate_captions,
+                        "generate_accessibility": request.generate_accessibility,
                     },
                 ),
                 description=wf_desc,
@@ -6022,6 +6048,10 @@ def create_api_router() -> APIRouter:
             True,
             description="Generate BLIP captions for title/description during the keywords phase.",
         )
+        generate_accessibility: bool = Field(
+            False,
+            description="Generate IPTC accessibility alt/extended description during the keywords phase.",
+        )
 
         @model_validator(mode="after")
         def _normalize_run_mode(self):
@@ -6088,6 +6118,24 @@ def create_api_router() -> APIRouter:
         limit: int = Query(25, ge=1, le=200),
         offset: int = Query(0, ge=0),
         include_complete: bool = False,
+        refresh_dirty_limit: int = Query(
+            100,
+            ge=0,
+            le=500,
+            description=(
+                "Max folder phase summaries to force-refresh when bulk cache is missing "
+                "or phase_agg_dirty=1 (0 = only refresh missing cache entries)."
+            ),
+        ),
+        planner_preview_limit: int = Query(
+            25,
+            ge=0,
+            le=100,
+            description=(
+                "Max folder-bucket rows on this page to compute JIT planner_next_phases "
+                "(0 disables; matches auto-drive enqueue rules)."
+            ),
+        ),
     ):
         try:
             from modules import runs_autodrive
@@ -6100,6 +6148,8 @@ def create_api_router() -> APIRouter:
                 limit=limit,
                 offset=offset,
                 include_complete=include_complete,
+                refresh_dirty_limit=refresh_dirty_limit,
+                planner_preview_limit=planner_preview_limit,
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
@@ -6123,6 +6173,56 @@ def create_api_router() -> APIRouter:
             raise HTTPException(status_code=400, detail=str(e)) from e
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
+
+    class RunsDriveStartRequest(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        root_path: Optional[str] = Field(
+            None,
+            description="Optional root folder restriction; omit to drive the whole library.",
+        )
+        limit: int = Field(50, ge=1, le=500, description="Max folder runs queued per drive tick.")
+        target_phases: Optional[List[str]] = Field(
+            None,
+            description="Phases to drive. Defaults to the full pipeline including bird_species.",
+        )
+        generate_captions: bool = Field(True, description="Generate captions during keywords runs.")
+        max_repeats: int = Field(
+            2,
+            ge=1,
+            le=20,
+            description="Skip a folder/phase plan after this many prior terminal attempts.",
+        )
+
+    @router.post("/runs/drive/start", summary="Start the durable auto-drive loop")
+    async def start_runs_drive(request: RunsDriveStartRequest):
+        try:
+            from modules import runs_autodrive
+
+            return await asyncio.to_thread(
+                runs_autodrive.start_drive,
+                root_path=request.root_path,
+                limit=request.limit,
+                target_phases=request.target_phases,
+                generate_captions=request.generate_captions,
+                max_repeats=request.max_repeats,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/runs/drive/stop", summary="Stop the durable auto-drive loop")
+    async def stop_runs_drive():
+        from modules import runs_autodrive
+
+        return {"state": await asyncio.to_thread(runs_autodrive.stop_drive, "manual")}
+
+    @router.get("/runs/drive/status", summary="Auto-drive loop status + outstanding work")
+    async def runs_drive_status():
+        from modules import runs_autodrive
+
+        return await asyncio.to_thread(runs_autodrive.get_drive_status_with_outstanding)
 
     @router.post("/runs/submit", summary="Submit a new Run")
     async def submit_run(request: RunSubmitRequest):
@@ -6219,6 +6319,51 @@ def create_api_router() -> APIRouter:
                 detail={"code": "missing_prerequisites", "missing": prereq_miss},
             )
 
+        if phase_values and not request.plan_dry_run:
+            from modules.runs_autodrive import phases_with_work_from_repair_plan
+
+            requested_phases = list(phase_values)
+            try:
+                narrowed = await asyncio.to_thread(
+                    phases_with_work_from_repair_plan,
+                    scope_paths,
+                    requested_phases,
+                    dry_run=True,
+                    include_stale_executor=True,
+                )
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"run planning failed: {e}") from e
+            if not narrowed:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "code": "nothing_to_queue",
+                        "message": "No stale or missing work for the requested stages in this scope.",
+                        "requested_phases": requested_phases,
+                    },
+                )
+            phase_values = narrowed
+            phases = normalize_phase_codes(phase_values)
+            first_p = phases[0]
+            if first_p == PhaseCode.INDEXING:
+                phase_code = "indexing"
+                job_type = "indexing"
+            elif first_p == PhaseCode.METADATA:
+                phase_code = "metadata"
+                job_type = "metadata"
+            elif first_p == PhaseCode.SCORING:
+                phase_code = "scoring"
+                job_type = "scoring"
+            elif first_p == PhaseCode.KEYWORDS:
+                phase_code = "keywords"
+                job_type = "tagging"
+            elif first_p == PhaseCode.CULLING:
+                phase_code = "culling"
+                job_type = "selection"
+            elif first_p == PhaseCode.BIRD_SPECIES:
+                phase_code = "bird_species"
+                job_type = "bird_species"
+
         mode_flags = resolve_run_mode_flags(CANONICAL_RUN_MODE)
 
         payload = {
@@ -6235,6 +6380,7 @@ def create_api_router() -> APIRouter:
             "phases": phase_values,
             "target_phases": phase_values,
             "generate_captions": bool(request.generate_captions),
+            "generate_accessibility": bool(request.generate_accessibility),
             "post_run_audit": True,
         }
         payload = augment_queue_payload_for_audit(payload, trigger="api", tool_id="run_submit")

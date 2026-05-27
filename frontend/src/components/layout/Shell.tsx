@@ -5,6 +5,7 @@ import {
   PanelLeft,
   Zap,
   Workflow,
+  LayoutDashboard,
   Stethoscope,
   ScrollText,
   MapPin,
@@ -19,7 +20,7 @@ import { useWsStore } from '@/stores/wsStore'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { runsApi } from '@/api/runs'
-import { RUNS_ACTIVE_QUERY_KEY } from '@/queryKeys/runs'
+import { RUNS_ACTIVE_QUERY_KEY, RUNS_DRIVE_STATUS_KEY } from '@/queryKeys/runs'
 import { useConfig } from '@/hooks/useConfig'
 
 export function Shell() {
@@ -47,6 +48,13 @@ export function Shell() {
     refetchInterval: 5000,
   })
   const runs = Array.isArray(runsRaw) ? runsRaw : []
+
+  const { data: driveStatus } = useQuery({
+    queryKey: RUNS_DRIVE_STATUS_KEY,
+    queryFn: () => runsApi.drive.status(),
+    refetchInterval: 5000,
+  })
+  const driving = Boolean(driveStatus?.state?.enabled)
 
   useEffect(() => {
     if (runsVersion === 0) return
@@ -76,12 +84,13 @@ export function Shell() {
 
         <nav className="flex items-center gap-1">
           <NavItem to="/runs" icon={<Workflow size={14} />} label="Runs" />
+          <NavItem to="/dashboard" icon={<LayoutDashboard size={14} />} label="Dashboard" />
           <NavItem to="/images" icon={<Image size={14} />} label="Images" />
           {isEmbeddingMapEnabled && (
             <NavItem to="/embeddings" icon={<ChartScatter size={14} />} label="Atlas" />
           )}
           {isDbExplorerEnabled && (
-            <NavItem to="/db" icon={<Table2 size={14} />} label="DB Explorer" />
+            <NavItem to="/db" icon={<Table2 size={14} />} label="DB" />
           )}
           <NavItem to="/map" icon={<MapPin size={14} />} label="Map" />
           <NavItem to="/diagnostics" icon={<Stethoscope size={14} />} label="Health" />
@@ -89,14 +98,24 @@ export function Shell() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          {(activeCount > 0 || queuedCount > 0) && (
-            <NavLink to="/runs" className="text-xs text-[#9d9d9d] hover:text-[#4fc1ff] transition-colors">
-              {activeCount > 0 && (
-                <span className="text-[#4fc1ff] font-medium">{activeCount} active</span>
+          {(driving || activeCount > 0 || queuedCount > 0) && (
+            <div className="flex items-center gap-2 text-xs text-[#9d9d9d]">
+              {driving && (
+                <NavLink to="/dashboard" className="font-medium text-[#4fc1ff] hover:underline">
+                  Driving
+                </NavLink>
               )}
-              {activeCount > 0 && queuedCount > 0 && <span className="mx-1">·</span>}
-              {queuedCount > 0 && <span>{queuedCount} queued</span>}
-            </NavLink>
+              {(activeCount > 0 || queuedCount > 0) && (
+                <NavLink to="/runs" className="hover:text-[#4fc1ff] transition-colors">
+                  {driving && <span className="mr-1">·</span>}
+                  {activeCount > 0 && (
+                    <span className="text-[#4fc1ff] font-medium">{activeCount} active</span>
+                  )}
+                  {activeCount > 0 && queuedCount > 0 && <span className="mx-1">·</span>}
+                  {queuedCount > 0 && <span>{queuedCount} queued</span>}
+                </NavLink>
+              )}
+            </div>
           )}
 
           <div className="flex items-center gap-1.5">

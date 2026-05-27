@@ -811,6 +811,8 @@ def _write_legacy_keywords_column() -> bool:
 
     Firebird / legacy engines always return ``True`` (column remains the canonical store there until migrated).
 
+    Returns ``False`` automatically when the column no longer exists on Postgres.
+
     See ``docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`` (planned column drop v7.0).
     """
     try:
@@ -819,10 +821,57 @@ def _write_legacy_keywords_column() -> bool:
         eng = "postgres"
     if eng != "postgres":
         return True
+    if not _postgres_images_has_keywords_column():
+        return False
     return bool(config.get_config_value("database.write_legacy_keywords_column", True))
 
 
+_pg_images_keywords_column_exists: bool | None = None
+
+
+def reset_postgres_keywords_column_cache() -> None:
+    """Clear cached ``images.keywords`` presence (e.g. after column drop migration)."""
+    global _pg_images_keywords_column_exists
+    _pg_images_keywords_column_exists = None
+
+
+def _postgres_images_has_keywords_column() -> bool:
+    """True when ``images.keywords`` still exists on PostgreSQL."""
+    global _pg_images_keywords_column_exists
+    if _pg_images_keywords_column_exists is not None:
+        return _pg_images_keywords_column_exists
+    if _get_db_engine() != "postgres":
+        _pg_images_keywords_column_exists = False
+        return False
+    try:
+        row = db_postgres.execute_select_one(
+            """
+            SELECT 1 AS x FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'images'
+              AND column_name = 'keywords'
+            LIMIT 1
+            """
+        )
+        _pg_images_keywords_column_exists = row is not None
+    except Exception:
+        _pg_images_keywords_column_exists = False
+    return _pg_images_keywords_column_exists
+
+
+def _images_table_has_legacy_keywords_column() -> bool:
+    """True when SQL may reference ``images.keywords`` (Firebird or Postgres with column)."""
+    if _get_db_engine() != "postgres":
+        return True
+    return _postgres_images_has_keywords_column()
+
+
 _pg_images_embedding_column_exists: bool | None = None
+
+
+def reset_postgres_embedding_column_cache() -> None:
+    """Clear cached ``images.image_embedding`` presence (e.g. after migration 0024)."""
+    global _pg_images_embedding_column_exists
+    _pg_images_embedding_column_exists = None
 
 
 def _postgres_images_has_image_embedding_column() -> bool:
@@ -1850,6 +1899,7 @@ def init_db():
             if not db_postgres:
                 raise RuntimeError("database.engine is postgres but modules.db_postgres is unavailable")
             db_postgres.init_db()
+            reset_postgres_embedding_column_cache()
             seed_pipeline_phases()
         else:
             _init_db_impl()
@@ -2241,6 +2291,8 @@ def _init_db_impl():
             keywords BLOB SUB_TYPE TEXT,
             title VARCHAR(500),
             description BLOB SUB_TYPE TEXT,
+            alt_text VARCHAR(500),
+            extended_description BLOB SUB_TYPE TEXT,
             create_date TIMESTAMP,
             modify_date TIMESTAMP,
             extracted_at TIMESTAMP
@@ -2262,6 +2314,20 @@ def _init_db_impl():
             if not _index_exists(c, idx):
                 try: c.execute(f"CREATE INDEX {idx.lower()} ON image_xmp({col})")
                 except Exception: pass
+        if not _column_exists(c, 'IMAGE_XMP', 'ALT_TEXT'):
+            try:
+                c.execute("ALTER TABLE image_xmp ADD alt_text VARCHAR(500)")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            c = conn.cursor()
+        if not _column_exists(c, 'IMAGE_XMP', 'EXTENDED_DESCRIPTION'):
+            try:
+                c.execute("ALTER TABLE image_xmp ADD extended_description BLOB SUB_TYPE TEXT")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            c = conn.cursor()
 
     # DELETED_IMAGES — tombstone when an image row is deleted (parity with PostgreSQL)
     if not _table_exists(c, 'DELETED_IMAGES'):
@@ -8130,6 +8196,66 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
     return image_id
 
 
+def resolve_canonical_file_path_for_lookup(file_path):
+    """
+    Map an API or gallery path to the canonical ``images.file_path`` value.
+
+    Gallery list queries prefer ``file_paths.path`` (Windows) via COALESCE;
+    backend rows are keyed by ``images.file_path`` (often WSL ``/mnt/...``).
+    """
+    if not file_path or not str(file_path).strip():
+        return None
+    path = str(file_path).strip()
+
+    def _by_images_path(p):
+        row = get_connector().query_one(
+            "SELECT file_path FROM images WHERE file_path = ?",
+            (p,),
+        )
+        return row["file_path"] if row else None
+
+    def _by_file_paths_alias(p):
+        row = get_connector().query_one(
+            """
+            SELECT i.file_path FROM images i
+            INNER JOIN file_paths fp ON fp.image_id = i.id
+            WHERE fp.path = ?
+            LIMIT 1
+            """,
+            (p,),
+        )
+        return row["file_path"] if row else None
+
+    hit = _by_images_path(path) or _by_file_paths_alias(path)
+    if hit:
+        return hit
+
+    variants = {path}
+    try:
+        variants.add(os.path.normpath(path))
+    except Exception:
+        pass
+    try:
+        from modules import utils as _utils
+
+        wsl = _utils.convert_path_to_wsl(path)
+        if wsl:
+            variants.add(wsl)
+        local = _utils.convert_path_to_local(path)
+        if local:
+            variants.add(local)
+    except Exception:
+        pass
+
+    for variant in variants:
+        if not variant or variant == path:
+            continue
+        hit = _by_images_path(variant) or _by_file_paths_alias(variant)
+        if hit:
+            return hit
+    return None
+
+
 def get_image_details(file_path):
     """
     Returns image details with keywords from normalized schema (Postgres)
@@ -8138,12 +8264,22 @@ def get_image_details(file_path):
     Keywords are loaded via COALESCE(IMAGE_KEYWORDS, IMAGES.KEYWORDS, '')
     to transparently use the primary normalized source.
     """
+    canonical = resolve_canonical_file_path_for_lookup(file_path)
+    if not canonical:
+        return {}
+    file_path = canonical
+
     if _get_db_engine() == "postgres":
         # Postgres: fetch all columns, replace keywords with COALESCE
+        embedding_col = (
+            "i.image_embedding,"
+            if _postgres_images_has_image_embedding_column()
+            else ""
+        )
         sql = f"""
             SELECT
                 i.id, i.file_path, i.file_name, i.folder_id, i.stack_id,
-                i.image_embedding, i.rating, i.label, i.title, i.description,
+                {embedding_col} i.rating, i.label, i.title, i.description,
                 i.metadata, i.scores_json, i.created_at, i.updated_at,
                 i.thumbnail_path, i.thumbnail_path_win, i.score_general, i.burst_uuid,
                 i.image_hash, i.hash_version,
@@ -8277,7 +8413,7 @@ def upsert_image_xmp(image_id: int, data: dict) -> bool:
     """
     Upsert XMP sidecar metadata for an image into IMAGE_XMP.
     data keys: rating, label, pick_status, burst_uuid, stack_id, keywords,
-    title, description, create_date, modify_date
+    title, description, alt_text, extended_description, create_date, modify_date
     """
     if not image_id or not isinstance(data, dict):
         return False
@@ -8291,8 +8427,9 @@ def upsert_image_xmp(image_id: int, data: dict) -> bool:
         get_connector().execute(
             '''UPDATE OR INSERT INTO image_xmp (
                 image_id, rating, label, pick_status, burst_uuid, stack_id,
-                keywords, title, description, create_date, modify_date, extracted_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                keywords, title, description, alt_text, extended_description,
+                create_date, modify_date, extracted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             MATCHING (image_id)''',
             (
                 image_id,
@@ -8304,6 +8441,8 @@ def upsert_image_xmp(image_id: int, data: dict) -> bool:
                 keywords_val,
                 _str_or_none(data.get('title')),
                 _str_or_none(data.get('description')),
+                _str_or_none(data.get('alt_text')),
+                _str_or_none(data.get('extended_description')),
                 _parse_exif_timestamp(data.get('create_date')),
                 _parse_exif_timestamp(data.get('modify_date')),
                 extracted_at,
@@ -8872,6 +9011,26 @@ def get_culling_incomplete_predicate_sql(
     )
 
 
+def _sql_image_has_birds_keyword(table_alias: str = "i") -> str:
+    """True when the image has a birds keyword (normalized or legacy column)."""
+    prefix = f"{table_alias}." if table_alias else ""
+    norm_birds = f"""EXISTS (
+        SELECT 1 FROM image_keywords ik_b
+        JOIN keywords_dim kd_b ON kd_b.keyword_id = ik_b.keyword_id
+        WHERE ik_b.image_id = {prefix}id
+          AND LOWER(kd_b.keyword_norm) LIKE '%birds%'
+    )"""
+    if not _images_table_has_legacy_keywords_column():
+        return norm_birds
+    legacy_birds = f"LOWER(CAST({prefix}keywords AS VARCHAR(2048))) LIKE '%birds%'"
+    return f"({norm_birds} OR {legacy_birds})"
+
+
+def _sql_bird_species_in_scope(table_alias: str = "i") -> str:
+    """Images that count toward folder bird_species phase aggregates (birds-tagged only)."""
+    return _sql_image_has_birds_keyword(table_alias)
+
+
 def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
     """Return an image-level WHERE clause identifying images with missing data for a phase."""
     prefix = f"{table_alias}." if table_alias else ""
@@ -8907,36 +9066,32 @@ def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
         return get_culling_incomplete_predicate_sql(table_alias, cohesion_folders_expr=None)
 
     if code == "keywords":
-        return f"""(
-            NOT EXISTS (
+        missing_norm = f"""NOT EXISTS (
                 SELECT 1 FROM image_keywords ik WHERE ik.image_id = {prefix}id
-            )
+            )"""
+        if not _images_table_has_legacy_keywords_column():
+            return missing_norm
+        return f"""(
+            {missing_norm}
             AND ({prefix}keywords IS NULL OR TRIM(CAST({prefix}keywords AS VARCHAR(2048))) = '')
         )"""
 
     if code == "bird_species":
-        # Check normalized keywords
-        norm_birds_check = f"""EXISTS (
-            SELECT 1 FROM image_keywords ik_b
-            JOIN keywords_dim kd_b ON kd_b.keyword_id = ik_b.keyword_id
-            WHERE ik_b.image_id = {prefix}id
-              AND LOWER(kd_b.keyword_norm) LIKE '%birds%'
-        )"""
         norm_species_check = f"""EXISTS (
             SELECT 1 FROM image_keywords ik_s
             JOIN keywords_dim kd_s ON kd_s.keyword_id = ik_s.keyword_id
             WHERE ik_s.image_id = {prefix}id
               AND LOWER(kd_s.keyword_norm) LIKE 'species:%'
         )"""
-        
-        # Check legacy keywords
-        # Note: We cast to VARCHAR to handle potential large keyword strings in some DB dialects
-        legacy_birds_check = f"LOWER(CAST({prefix}keywords AS VARCHAR(2048))) LIKE '%birds%'"
-        legacy_species_check = f"LOWER(CAST({prefix}keywords AS VARCHAR(2048))) LIKE '%species:%'"
-
+        species_present = norm_species_check
+        if _images_table_has_legacy_keywords_column():
+            legacy_species_check = (
+                f"LOWER(CAST({prefix}keywords AS VARCHAR(2048))) LIKE '%species:%'"
+            )
+            species_present = f"({norm_species_check} OR {legacy_species_check})"
         return f"""(
-            ({norm_birds_check} OR {legacy_birds_check})
-            AND NOT ({norm_species_check} OR {legacy_species_check})
+            ({_sql_image_has_birds_keyword(table_alias or "")})
+            AND NOT ({species_present})
         )"""
 
     return "1=0"  # Default to no matches for unknown phase
@@ -9366,11 +9521,17 @@ def build_validation_repair_plan(
     scope_paths: list[str],
     stage_codes: list[str] | None = None,
     dry_run: bool = True,
+    include_stale_executor: bool = True,
 ) -> dict:
     """Build a stale/missing work plan for scope (delegates to run_phase_planner)."""
     from modules.run_phase_planner import plan_scope, to_legacy_repair_plan
 
-    plan = plan_scope(scope_paths, stage_codes, dry_run=dry_run)
+    plan = plan_scope(
+        scope_paths,
+        stage_codes,
+        dry_run=dry_run,
+        include_stale_executor=include_stale_executor,
+    )
     return to_legacy_repair_plan(plan)
 
 
@@ -12111,7 +12272,7 @@ def get_batch_image_embedding_presence(image_ids: list[int]) -> dict[int, dict[s
                 spaces = [
                     {"id": 1, "code": "mobilenet_v2_imagenet_gap", "dim": 1280},
                     {"id": 2, "code": "clip_vit_b32_image", "dim": 512},
-                    {"id": 3, "code": "bioclip_2_image", "dim": 512},
+                    {"id": 3, "code": "bioclip_2_image", "dim": 768},
                     {"id": 4, "code": "blip_vit_b16_image", "dim": 768}
                 ]
 
@@ -12493,6 +12654,33 @@ def list_folder_paths_under_scope(local_fs_path: str) -> list:
     return [r["path"] for r in rows]
 
 
+def folder_has_bird_species_work(folder_path: str) -> bool:
+    """True when the folder subtree has birds-tagged images still missing species classification."""
+    from modules import utils
+
+    if not folder_path or not str(folder_path).strip():
+        return False
+
+    wsl_path = utils.convert_path_to_wsl(folder_path) if hasattr(utils, "convert_path_to_wsl") else folder_path
+    target_path = wsl_path if wsl_path else folder_path
+    path_like_unix = target_path + "/%"
+    path_like_win = target_path + "\\%"
+    incomplete = get_phase_incomplete_sql("bird_species", "i")
+
+    row = get_connector().query_one(
+        f"""
+        SELECT 1 AS x
+        FROM images i
+        JOIN folders f ON f.id = i.folder_id
+        WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+          AND ({incomplete})
+        LIMIT 1
+        """,
+        (target_path, path_like_unix, path_like_win),
+    )
+    return row is not None
+
+
 def _heal_stale_phase_flags(folder_path):
     """Reset image_phase_status to 'not_started' where status is 'done' but
     actual data is missing.  Called during force-refresh so the UI accurately
@@ -12565,38 +12753,25 @@ def _heal_stale_phase_flags(folder_path):
             "heal_stale_phase_flags: reset %d metadata flags (done but missing/corrupt) under '%s'",
             len(meta_rows), folder_path)
 
-    # --- Indexing: done flag but no embedding ---
+    # --- Indexing: done flag but no embedding (fact table + optional legacy column on Postgres) ---
     if _get_db_engine() == "postgres":
         missing_emb = f"NOT ({_postgres_has_default_embedding_sql('i')})"
-        indexing_rows = get_connector().query(
-            f"""
-            SELECT i.id
-            FROM images i
-            JOIN folders f ON f.id = i.folder_id
-            JOIN image_phase_status ips ON ips.image_id = i.id
-            JOIN pipeline_phases pp ON pp.id = ips.phase_id
-            WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
-              AND LOWER(TRIM(pp.code)) = 'indexing'
-              AND LOWER(TRIM(ips.status)) = 'done'
-              AND {missing_emb}
-            """,
-            (target_path, path_like_unix, path_like_win),
-        )
     else:
-        indexing_rows = get_connector().query(
-            """
-            SELECT i.id
-            FROM images i
-            JOIN folders f ON f.id = i.folder_id
-            JOIN image_phase_status ips ON ips.image_id = i.id
-            JOIN pipeline_phases pp ON pp.id = ips.phase_id
-            WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
-              AND LOWER(TRIM(pp.code)) = 'indexing'
-              AND LOWER(TRIM(ips.status)) = 'done'
-              AND i.image_embedding IS NULL
-            """,
-            (target_path, path_like_unix, path_like_win),
-        )
+        missing_emb = "i.image_embedding IS NULL"
+    indexing_rows = get_connector().query(
+        f"""
+        SELECT i.id
+        FROM images i
+        JOIN folders f ON f.id = i.folder_id
+        JOIN image_phase_status ips ON ips.image_id = i.id
+        JOIN pipeline_phases pp ON pp.id = ips.phase_id
+        WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+          AND LOWER(TRIM(pp.code)) = 'indexing'
+          AND LOWER(TRIM(ips.status)) = 'done'
+          AND {missing_emb}
+        """,
+        (target_path, path_like_unix, path_like_win),
+    )
 
     for row in indexing_rows or []:
         set_image_phase_status(row["id"], "indexing", "not_started")
@@ -12608,8 +12783,11 @@ def _heal_stale_phase_flags(folder_path):
             len(indexing_rows), folder_path)
 
     # --- Keywords: done flag but no keyword rows ---
+    kw_missing_legacy = ""
+    if _images_table_has_legacy_keywords_column():
+        kw_missing_legacy = " AND (i.keywords IS NULL OR TRIM(i.keywords) = '')"
     kw_rows = get_connector().query(
-        """
+        f"""
         SELECT i.id
         FROM images i
         JOIN folders f ON f.id = i.folder_id
@@ -12620,8 +12798,7 @@ def _heal_stale_phase_flags(folder_path):
           AND LOWER(TRIM(ips.status)) = 'done'
           AND NOT EXISTS (
               SELECT 1 FROM image_keywords ik WHERE ik.image_id = i.id
-          )
-          AND (i.keywords IS NULL OR TRIM(i.keywords) = '')
+          ){kw_missing_legacy}
         """,
         (target_path, path_like_unix, path_like_win))
 
@@ -12676,21 +12853,24 @@ def get_folder_phase_summary(folder_path, force_refresh=False):
         path_like_unix = target_path + "/%"
         path_like_win = target_path + "\\%"
 
+        birds_scope = _sql_bird_species_in_scope("i")
+        agg_scope = f"(LOWER(TRIM(pp.code)) <> 'bird_species' OR ({birds_scope}))"
+
         rows = get_connector().query(
-            """
+            f"""
             SELECT
                 pp.code,
                 pp.name,
                 pp.sort_order,
-                COUNT(i.id) as total_images,
-                COALESCE(SUM(CASE WHEN ips.status = 'done' THEN 1 ELSE 0 END), 0) as done_count,
-                COALESCE(SUM(CASE WHEN ips.status = 'failed' THEN 1 ELSE 0 END), 0) as failed_count,
-                COALESCE(SUM(CASE WHEN ips.status = 'running' THEN 1 ELSE 0 END), 0) as running_count,
-                COALESCE(SUM(CASE WHEN ips.status = 'queued' THEN 1 ELSE 0 END), 0) as queued_count,
-                COALESCE(SUM(CASE WHEN ips.status = 'paused' THEN 1 ELSE 0 END), 0) as paused_count,
-                COALESCE(SUM(CASE WHEN ips.status = 'cancel_requested' THEN 1 ELSE 0 END), 0) as cancel_requested_count,
-                COALESCE(SUM(CASE WHEN ips.status = 'restarting' THEN 1 ELSE 0 END), 0) as restarting_count,
-                COALESCE(SUM(CASE WHEN ips.status = 'skipped' THEN 1 ELSE 0 END), 0) as skipped_count,
+                COUNT(CASE WHEN {agg_scope} THEN i.id END) as total_images,
+                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'done' THEN 1 ELSE 0 END), 0) as done_count,
+                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'failed' THEN 1 ELSE 0 END), 0) as failed_count,
+                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'running' THEN 1 ELSE 0 END), 0) as running_count,
+                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'queued' THEN 1 ELSE 0 END), 0) as queued_count,
+                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'paused' THEN 1 ELSE 0 END), 0) as paused_count,
+                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'cancel_requested' THEN 1 ELSE 0 END), 0) as cancel_requested_count,
+                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'restarting' THEN 1 ELSE 0 END), 0) as restarting_count,
+                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'skipped' THEN 1 ELSE 0 END), 0) as skipped_count,
                 pp.optional
             FROM pipeline_phases pp
             CROSS JOIN (
@@ -12731,7 +12911,10 @@ def get_folder_phase_summary(folder_path, force_refresh=False):
             # an indexing run that emits ``already_indexed`` for every image).
             advance_ready = done + skipped
             if total == 0:
-                status = "not_started"
+                if code == "bird_species" and is_optional:
+                    status = "skipped"
+                else:
+                    status = "not_started"
             elif done == total:
                 status = "done"
             elif skipped == total and is_optional:
@@ -12822,7 +13005,16 @@ def get_folder_fulfillment_stats_for_path(folder_path: str) -> dict:
     path_like_unix = target_path + "/%"
     path_like_win = target_path + "\\%"
 
-    sql = """
+    kw_has_legacy = _images_table_has_legacy_keywords_column()
+    kw_count_expr = (
+        "EXISTS (SELECT 1 FROM image_keywords ik WHERE ik.image_id = i.id)"
+        if not kw_has_legacy
+        else """(
+                EXISTS (SELECT 1 FROM image_keywords ik WHERE ik.image_id = i.id)
+                OR (i.keywords IS NOT NULL AND TRIM(COALESCE(i.keywords, '')) <> '')
+            )"""
+    )
+    sql = f"""
         SELECT
             COUNT(i.id) AS total,
             COALESCE(SUM(CASE WHEN i.score_general IS NOT NULL AND i.score_general > 0 THEN 1 ELSE 0 END), 0) AS scored,
@@ -12831,8 +13023,7 @@ def get_folder_fulfillment_stats_for_path(folder_path: str) -> dict:
                   OR (i.thumbnail_path_win IS NOT NULL AND TRIM(COALESCE(i.thumbnail_path_win, '')) <> '')
                 THEN 1 ELSE 0 END), 0) AS thumbnails,
             COALESCE(SUM(CASE
-                WHEN EXISTS (SELECT 1 FROM image_keywords ik WHERE ik.image_id = i.id)
-                  OR (i.keywords IS NOT NULL AND TRIM(COALESCE(i.keywords, '')) <> '')
+                WHEN {kw_count_expr}
                 THEN 1 ELSE 0 END), 0) AS keywords,
             COALESCE(SUM(CASE
                 WHEN EXISTS (
@@ -12896,18 +13087,41 @@ def get_folder_fulfillment_stats(folder_id: int) -> dict:
     return get_folder_fulfillment_stats_for_path(row["path"])
 
 
-def get_all_folder_phase_summaries_bulk():
+def get_folder_phase_agg_dirty_local_paths() -> set:
+    """Normalized local folder paths whose ``phase_agg_json`` cache is dirty."""
+    from modules import utils
+
+    rows = get_connector().query(
+        "SELECT path FROM folders WHERE COALESCE(phase_agg_dirty, 1) <> 0"
+    )
+    out: set = set()
+    for row in rows or []:
+        wsl_path = row.get("path")
+        local_path = (
+            utils.convert_path_to_local(wsl_path)
+            if hasattr(utils, "convert_path_to_local")
+            else wsl_path
+        )
+        if local_path:
+            out.add(os.path.normpath(local_path))
+    return out
+
+
+def get_all_folder_phase_summaries_bulk(*, include_dirty_cache: bool = True):
     """Single-query bulk load of phase summary cache for all folders.
 
     Returns dict mapping normalized local path -> list of phase summary dicts.
-    Includes all folders that have a cached phase_agg_json (clean or dirty).
-    Dirty/stale data is acceptable here — callers use this for sidebar display
-    where slightly stale is far better than N individual expensive queries.
+    When ``include_dirty_cache`` is False, folders with ``phase_agg_dirty=1`` are
+    omitted so callers can recompute via ``get_folder_phase_summary(force_refresh=True)``.
     """
     from modules import utils
-    rows = get_connector().query("SELECT path, phase_agg_json FROM folders WHERE phase_agg_json IS NOT NULL")
+    rows = get_connector().query(
+        "SELECT path, phase_agg_json, phase_agg_dirty FROM folders WHERE phase_agg_json IS NOT NULL"
+    )
     result = {}
     for row in rows:
+        if not include_dirty_cache and (row.get("phase_agg_dirty") or 0) != 0:
+            continue
         wsl_path = row["path"]
         local_path = utils.convert_path_to_local(wsl_path) if hasattr(utils, 'convert_path_to_local') else wsl_path
         if not local_path:

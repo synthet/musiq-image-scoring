@@ -318,8 +318,15 @@ class PipelineOrchestrator:
                 runner_state="running",
             )
             if next_phase == PhaseCode.KEYWORDS.value:
-                generate_captions = config.get_config_section('tagging').get('captions_default', True)
-                msg = runner.start_batch(self.folder_path, self.current_phase_job_id, generate_captions=generate_captions)
+                tagging_cfg = config.get_config_section('tagging') or {}
+                generate_captions = tagging_cfg.get('captions_default', True)
+                generate_accessibility = tagging_cfg.get('accessibility_default', False)
+                msg = runner.start_batch(
+                    self.folder_path,
+                    self.current_phase_job_id,
+                    generate_captions=generate_captions,
+                    generate_accessibility=generate_accessibility,
+                )
             else:
                 msg = runner.start_batch(self.folder_path, self.current_phase_job_id)
             return f"Started {next_phase}: {msg}"

@@ -32,8 +32,10 @@ def _fetch_diagnostics_local() -> dict[str, Any] | None:
         return None
 
 
-def _collect_anomalies(payload: dict[str, Any], *, local_diag: dict[str, Any] | None) -> list[str]:
-    flags: list[str] = []
+def _collect_anomalies(payload: dict[str, Any], *, local_diag: dict[str, Any] | None) -> tuple[list[str], list[str]]:
+    """Return (warnings, errors). Warnings do not stop continuous monitoring."""
+    warnings: list[str] = []
+    errors: list[str] = []
     state = payload.get("state") or {}
     outstanding = payload.get("outstanding") or {}
     last_result = state.get("last_result") or {}
@@ -41,23 +43,30 @@ def _collect_anomalies(payload: dict[str, Any], *, local_diag: dict[str, Any] | 
 
     loop_detected = int(last_result.get("loop_detected") or 0)
     if loop_detected > 0:
-        flags.append(f"loop_detected={loop_detected} on last tick")
+        warnings.append(f"loop_detected={loop_detected} on last tick")
 
     stop_reason = state.get("stop_reason")
     schedulable = int(health.get("schedulable_folders") or 0)
     if stop_reason == "stalled" and schedulable > 0:
-        flags.append(f"stalled_with_schedulable_work (schedulable={schedulable})")
+        errors.append(f"stalled_with_schedulable_work (schedulable={schedulable})")
 
     if local_diag:
         for item in local_diag.get("anomalies") or []:
             code = item.get("code") or "anomaly"
             msg = item.get("message") or ""
-            flags.append(f"{code}: {msg}".strip(": "))
+            line = f"{code}: {msg}".strip(": ")
+            severity = str(item.get("severity") or "").lower()
+            if severity == "error":
+                errors.append(line)
+            else:
+                warnings.append(line)
 
-    return flags
+    return warnings, errors
 
 
-def _print_human(payload: dict[str, Any], flags: list[str]) -> None:
+def _print_human(payload: dict[str, Any], warnings: list[str], errors: list[str], *, header: str = "") -> None:
+    if header:
+        print(header)
     state = payload.get("state") or {}
     outstanding = payload.get("outstanding") or {}
     last_result = state.get("last_result") or {}
@@ -88,11 +97,15 @@ def _print_human(payload: dict[str, Any], flags: list[str]) -> None:
     if bucket_counts:
         parts = ", ".join(f"{k}={v}" for k, v in sorted(bucket_counts.items()))
         print(f"Buckets: {parts}")
-    if flags:
-        print("Anomalies:")
-        for f in flags:
+    if errors:
+        print("Errors:")
+        for f in errors:
             print(f"  - {f}")
-    else:
+    if warnings:
+        print("Warnings:")
+        for f in warnings:
+            print(f"  - {f}")
+    if not errors and not warnings:
         print("Anomalies: none")
 
 
@@ -116,23 +129,55 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Failed to reach {args.base_url}: {exc}", file=sys.stderr)
             return 2
         local_diag = _fetch_diagnostics_local() if args.local_diagnostics else None
-        flags = _collect_anomalies(payload, local_diag=local_diag)
+        warnings, errors = _collect_anomalies(payload, local_diag=local_diag)
         if args.json:
-            out = {"status": payload, "anomalies": flags, "healthy": not flags}
+            out = {
+                "status": payload,
+                "warnings": warnings,
+                "errors": errors,
+                "healthy": not errors,
+            }
             if local_diag:
                 out["local_diagnostics"] = local_diag
             print(json.dumps(out, indent=2))
         else:
-            _print_human(payload, flags)
-        return 1 if flags else 0
+            _print_human(payload, warnings, errors)
+        if errors:
+            return 1
+        if warnings and args.once:
+            return 1
+        return 0
 
     if args.once:
         return run_once()
 
+    poll_n = 0
     while True:
-        code = run_once()
-        if code != 0:
-            return code
+        poll_n += 1
+        header = f"--- poll {poll_n} @ {time.strftime('%H:%M:%S')} ---"
+        try:
+            payload = _fetch_status(args.base_url)
+        except urllib.error.URLError as exc:
+            print(f"{header}\nFailed to reach {args.base_url}: {exc}", file=sys.stderr)
+            return 2
+        local_diag = _fetch_diagnostics_local() if args.local_diagnostics else None
+        warnings, errors = _collect_anomalies(payload, local_diag=local_diag)
+        if args.json:
+            out = {
+                "poll": poll_n,
+                "status": payload,
+                "warnings": warnings,
+                "errors": errors,
+                "healthy": not errors,
+            }
+            if local_diag:
+                out["local_diagnostics"] = local_diag
+            print(json.dumps(out, indent=2))
+        else:
+            _print_human(payload, warnings, errors, header=header)
+            print()
+        if errors:
+            return 1
         time.sleep(max(0.5, args.interval))
 
 

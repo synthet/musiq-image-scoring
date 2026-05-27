@@ -385,11 +385,14 @@ class TaggingRunner:
     def get_status(self):
         return self.is_running, "\n".join(self.log_history), self.status_message, self.current_count, self.total_count
         
-    def start_batch(self, input_path: str, job_id: int = None, custom_keywords: List[str] = None, overwrite: bool = False, generate_captions: Optional[bool] = None, resolved_image_ids: List[int] = None, report_collector=None):
+    def start_batch(self, input_path: str, job_id: int = None, custom_keywords: List[str] = None, overwrite: bool = False, generate_captions: Optional[bool] = None, generate_accessibility: Optional[bool] = None, resolved_image_ids: List[int] = None, report_collector=None):
         # Resolve generate_captions from config if not provided
         if generate_captions is None:
             from modules import config
             generate_captions = config.get_config_section('tagging').get('captions_default', True)
+        if generate_accessibility is None:
+            from modules import config
+            generate_accessibility = config.get_config_section('tagging').get('accessibility_default', False)
         if self.is_running:
             return "Error: Already running."
 
@@ -409,7 +412,16 @@ class TaggingRunner:
                 try:
                     from modules.pipeline_diagnostics import phase_timer
                     with phase_timer("TaggingRunner.batch", job_id):
-                        self._run_batch_internal(input_path, custom_keywords, overwrite, generate_captions, job_id=job_id, resolved_image_ids=resolved_image_ids, report_collector=report_collector)
+                        self._run_batch_internal(
+                            input_path,
+                            custom_keywords,
+                            overwrite,
+                            generate_captions,
+                            generate_accessibility,
+                            job_id=job_id,
+                            resolved_image_ids=resolved_image_ids,
+                            report_collector=report_collector,
+                        )
                 except Exception:
                     self.status_message = "Failed"
                     raise
@@ -425,7 +437,7 @@ class TaggingRunner:
         self._thread.start()
         return "Started"
 
-    def _run_batch_internal(self, input_path: str, custom_keywords: List[str] = None, overwrite: bool = False, generate_captions: bool = False, job_id: int = None, resolved_image_ids: List[int] = None, report_collector=None):
+    def _run_batch_internal(self, input_path: str, custom_keywords: List[str] = None, overwrite: bool = False, generate_captions: bool = False, generate_accessibility: bool = False, job_id: int = None, resolved_image_ids: List[int] = None, report_collector=None):
         """
         Internal sync runner for tagging process.
         """
@@ -689,7 +701,32 @@ class TaggingRunner:
 
                 tags = [t.strip() for t in (tags or []) if t and t.strip()]
                 caption = (caption or "").strip()
-                produced_output = bool(tags or caption)
+
+                alt_text = None
+                extended_description = None
+                if generate_accessibility:
+                    from modules import clip_accessibility
+
+                    acc = clip_accessibility.describe_from_clip(
+                        image_id=row['id'],
+                        image_path=original_windows_path,
+                        keywords=tags,
+                        scorer=self.scorer if self.tagging_engine is None else None,
+                        overwrite=overwrite,
+                    )
+                    if not acc.get('error'):
+                        alt_text = (acc.get('alt_text') or '').strip() or None
+                        extended_description = (
+                            (acc.get('extended_description') or '').strip() or None
+                        )
+                        if acc.get('skipped'):
+                            log(
+                                f"Accessibility skipped image_id={row['id']}: {acc.get('reason')}",
+                                "DEBUG",
+                                image_id=row["id"],
+                            )
+
+                produced_output = bool(tags or caption or alt_text or extended_description)
 
                 if produced_output:
                     tags_str = ",".join(tags)
@@ -698,7 +735,19 @@ class TaggingRunner:
                         "title": title if title else row.get('title'),
                         "description": caption if caption else row.get('description')
                     })])
-                    self.write_metadata(original_windows_path, tags, title, caption)
+                    if alt_text or extended_description:
+                        db.upsert_image_xmp(row['id'], {
+                            'alt_text': alt_text,
+                            'extended_description': extended_description,
+                        })
+                    self.write_metadata(
+                        original_windows_path,
+                        tags,
+                        title,
+                        caption,
+                        alt_text=alt_text or "",
+                        extended_description=extended_description or "",
+                    )
                     processed_count += 1
                     processed_folders.add(folder)
                     db.set_image_phase_status(
@@ -878,7 +927,17 @@ class TaggingRunner:
                         exc,
                     )
 
-    def write_metadata(self, image_path: str, keywords: List[str], title: str = "", description: str = "", rating: int = 0, label: str = "") -> bool:
+    def write_metadata(
+        self,
+        image_path: str,
+        keywords: List[str],
+        title: str = "",
+        description: str = "",
+        rating: int = 0,
+        label: str = "",
+        alt_text: str = "",
+        extended_description: str = "",
+    ) -> bool:
         """
         Write keywords and metadata to image using unified XMP module.
         """
@@ -890,6 +949,8 @@ class TaggingRunner:
                 keywords=keywords if keywords else None,
                 title=title if title else None,
                 description=description if description else None,
+                alt_text=alt_text if alt_text else None,
+                extended_description=extended_description if extended_description else None,
                 use_sidecar=True,
                 use_embedded=True
             )
@@ -903,13 +964,25 @@ class TaggingRunner:
     def stop(self):
         self.stop_event.set()
 
-    def run_single_image(self, file_path, custom_keywords=None, generate_captions=True):
+    def run_single_image(
+        self,
+        file_path,
+        custom_keywords=None,
+        generate_captions=True,
+        generate_accessibility=None,
+    ):
         """
         Runs tagging/captioning for a single image, blocking.
         Returns: success (bool), message (str)
         """
         if not os.path.exists(file_path):
             return False, f"File not found: {file_path}"
+
+        if generate_accessibility is None:
+            from modules import config
+            generate_accessibility = config.get_config_section('tagging').get(
+                'accessibility_default', False
+            )
         
         self.status_message = "Tagging (Manual)..."
         
@@ -951,7 +1024,27 @@ class TaggingRunner:
                  import textwrap
                  title = textwrap.shorten(caption, width=50, placeholder="...")
                  
-            if tags or caption:
+            alt_text = None
+            extended_description = None
+            if generate_accessibility:
+                from modules import clip_accessibility
+
+                row_for_acc = db.get_image_details(file_path)
+                image_id_acc = row_for_acc['id'] if row_for_acc else None
+                acc = clip_accessibility.describe_from_clip(
+                    image_id=image_id_acc,
+                    image_path=file_path,
+                    keywords=tags,
+                    scorer=self.scorer,
+                    overwrite=False,
+                )
+                if not acc.get('error'):
+                    alt_text = (acc.get('alt_text') or '').strip() or None
+                    extended_description = (
+                        (acc.get('extended_description') or '').strip() or None
+                    )
+
+            if tags or caption or alt_text or extended_description:
                 tags_str = ",".join(tags)
                 # Update DB
                 try:
@@ -972,15 +1065,29 @@ class TaggingRunner:
 
                     # Sync keywords to normalized schema (dual-write)
                     db._sync_image_keywords(image_id, tags_str)
+                    if alt_text or extended_description:
+                        db.upsert_image_xmp(image_id, {
+                            'alt_text': alt_text,
+                            'extended_description': extended_description,
+                        })
                     success_msg = f"Tags: {len(tags)} found"
                     if caption:
                         success_msg += ", Caption generated"
+                    if alt_text or extended_description:
+                        success_msg += ", Accessibility metadata generated"
                 except Exception as e:
                     logger.error(f"Error updating image tags: {e}", exc_info=True)
                     return False, f"Database error: {e}"
                 
                 # Write Metadata
-                self.write_metadata(file_path, tags, title, caption)
+                self.write_metadata(
+                    file_path,
+                    tags,
+                    title,
+                    caption,
+                    alt_text=alt_text or "",
+                    extended_description=extended_description or "",
+                )
                 
                 self.status_message = "Idle"
                 return True, success_msg

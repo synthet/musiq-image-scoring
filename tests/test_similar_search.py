@@ -410,6 +410,40 @@ class TestFindOutliers:
 
 
 
+class TestSearchSimilarPostgresSql:
+    """Postgres pgvector path must not reference dropped images.image_embedding."""
+
+    def test_search_similar_sql_omits_legacy_column_when_absent(self):
+        query_vec = np.random.randn(1280).astype(np.float32)
+        mock_row = {"image_id": 2, "file_path": "/b.jpg", "similarity": 0.91}
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = None
+        mock_cursor.fetchall.return_value = [mock_row]
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        mock_cm = MagicMock()
+        mock_cm.__enter__.return_value = mock_conn
+        mock_cm.__exit__.return_value = False
+
+        with patch("modules.similar_search.db") as mock_db:
+            mock_db._get_db_engine.return_value = "postgres"
+            mock_db.get_image_embedding.return_value = query_vec.tobytes()
+            mock_db._pg_default_embedding_space_subquery_sql.return_value = "(SELECT 1)"
+            mock_db._postgres_has_default_embedding_sql.return_value = "TRUE"
+            mock_db._postgres_default_embedding_select_expr.return_value = "ie.embedding"
+            mock_db.connection.return_value = mock_cm
+
+            result = similar_search.search_similar_images(example_image_id=1, limit=5)
+
+        assert isinstance(result, list)
+        executed_sql = mock_cursor.execute.call_args[0][0]
+        assert "i.image_embedding" not in executed_sql
+        assert "ie.embedding" in executed_sql
+
+
 class TestSearchByTextFilters:
     """Unit tests for text-search SQL helpers and filtered search."""
 

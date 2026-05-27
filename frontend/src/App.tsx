@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Shell } from '@/components/layout/Shell'
 import { RunsPage } from '@/pages/RunsPage'
+import { DashboardPage } from '@/pages/DashboardPage'
 import { RunDetailPage } from '@/pages/RunDetailPage'
 import { DiagnosticsPage } from '@/pages/DiagnosticsPage'
 import { LogsPage } from '@/pages/LogsPage'
@@ -45,6 +46,7 @@ export default function App() {
             <Route index element={<Navigate to="/runs" replace />} />
             <Route path="/runs" element={<RunsPage />} />
             <Route path="/runs/:runId" element={<RunDetailPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/images" element={<ImagesPage />} />
             <Route path="/images/:imageId" element={<ImageInspectorPage />} />
             <Route path="/embeddings" element={<ProtectedAtlasRoute />} />

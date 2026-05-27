@@ -258,7 +258,7 @@ val = get_config_value("scoring.force_rescore_default", default=False)
 
 Start with **[`docs/CANONICAL_SOURCES.md`](docs/CANONICAL_SOURCES.md)** (contract and schema authority), then **[`docs/WIKI_SCHEMA.md`](docs/WIKI_SCHEMA.md)** when adding or moving wiki pages.
 
-**Agent infra:** **[`.agent/AGENT_INFRA_INVENTORY.md`](.agent/AGENT_INFRA_INVENTORY.md)**, **[`.agent/COMMANDS.md`](.agent/COMMANDS.md)**, **[`.agent/SAFETY.md`](.agent/SAFETY.md)**, **[`.agent/subagents/README.md`](.agent/subagents/README.md)**, **[`.agent/workflows/`](.agent/workflows/)**.
+**Agent infra:** **[`.agent/AGENT_INFRA_INVENTORY.md`](.agent/AGENT_INFRA_INVENTORY.md)**, **[`.agent/COMMANDS.md`](.agent/COMMANDS.md)**, **[`.agent/SAFETY.md`](.agent/SAFETY.md)**, **[`.agent/subagents/README.md`](.agent/subagents/README.md)**, **[`.agent/workflows/`](.agent/workflows/)**. **External CLI reviews:** MCP `imgscore-subagent-orchestrator` + `/check-subagents`, `/run-*-review` — [docs/technical/EXTERNAL_CLI_REVIEWS.md](docs/technical/EXTERNAL_CLI_REVIEWS.md).
 
 - `docs/README.md` — Documentation hub and quick links
 - `docs/technical/DB_SCHEMA.md` — Database schema reference

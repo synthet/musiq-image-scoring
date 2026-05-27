@@ -255,6 +255,9 @@ heal_test_results.json
 # ML feature cache (regenerated at runtime)
 thumbnails/feature_cache/
 
+# External sub-agent run outputs (subagent-orchestrator MCP)
+.agent-runs/
+
 # Agent scratch / cache
 .agent/scratch/
 brain/

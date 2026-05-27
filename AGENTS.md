@@ -33,13 +33,15 @@ For [OWASP Agentic Skills Top 10](https://github.com/kenhuangus/agentic-skills-t
 
 **Inventory and PR review:** [.agent/SKILL_INVENTORY.md](.agent/SKILL_INVENTORY.md) · [.agent/SKILL_CHANGE_AST10_REVIEW.md](.agent/SKILL_CHANGE_AST10_REVIEW.md)
 
-**Cursor slash commands** (type `/` in chat): **`/spec`**, **`/plan`**, **`/implement`**, **`/test-and-fix`**, **`/pr-ready`**, **`/release-notes`**, **`/backup-db`**, **`/critical-commit-audit`**. This repo also defines **`/release`** (semver release for this backend). **Claude Code** mirrors the agent-sdlc commands under `.claude/commands/`.
+**Cursor slash commands** (type `/` in chat): **`/spec`**, **`/plan`**, **`/implement`**, **`/test-and-fix`**, **`/pr-ready`**, **`/release-notes`**, **`/backup-db`**, **`/critical-commit-audit`**, **`/check-subagents`**, **`/run-codex-review`**, **`/run-gemini-review`**, **`/run-subagent-review`**. This repo also defines **`/release`** (semver release for this backend). **Claude Code** mirrors the agent-sdlc and external-review commands under `.claude/commands/`.
+
+**External CLI reviews:** sibling [`subagent-orchestrator`](../subagent-orchestrator) via MCP **`imgscore-subagent-orchestrator`** — see [docs/technical/EXTERNAL_CLI_REVIEWS.md](docs/technical/EXTERNAL_CLI_REVIEWS.md).
 
 ## MCP servers (Vexlum Scoring)
 
 The same FastMCP app exposes **53** tools; Cursor can attach it in two ways (separate `mcpServers` entries).
 
-**Unique server names:** Each repo’s `.cursor/mcp.json` uses a workspace prefix so keys do not collide when Cursor merges configs: **`imgscore-py-*`** (Python / `image-scoring` workspace), **`imgscore-el-*`** (`electron-image-scoring` workspace). Shared tools such as Playwright or Chrome use the same prefix (`imgscore-py-playwright`, `imgscore-el-playwright`, …).
+**Unique server names:** Each repo’s `.cursor/mcp.json` uses a workspace prefix so keys do not collide when Cursor merges configs: **`imgscore-py-*`** (Python / `image-scoring` workspace), **`imgscore-el-*`** (`electron-image-scoring` workspace), **`imgscore-subagent-orchestrator`** (external Codex/Gemini review-only CLI; sibling `../subagent-orchestrator`). Shared tools such as Playwright or Chrome use the same prefix (`imgscore-py-playwright`, `imgscore-el-playwright`, …).
 
 ### Configuration
 

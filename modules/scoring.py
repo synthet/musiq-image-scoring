@@ -626,16 +626,25 @@ class ScoringRunner:
         Returns: Success (bool), Message (str)
         """
         try:
-            # 1. File Check
-            if not os.path.exists(file_path):
-                # Check if it was moved/renamed? 
-                # For now just error out
-                return False, f"File not found: {file_path}"
-                
-            # 2. Get existing DB data
-            details = db.get_image_details(file_path)
+            try:
+                canonical_path = db.resolve_canonical_file_path_for_lookup(file_path)
+            except Exception:
+                canonical_path = None
+            if not canonical_path:
+                if not os.path.exists(file_path):
+                    return False, f"File not found: {file_path}"
+                return False, "Image not found in database"
+
+            # 1. Get existing DB data (canonical images.file_path)
+            details = db.get_image_details(canonical_path)
             if not details:
                 return False, "Image not found in database"
+
+            from modules import utils as _utils
+
+            disk_path = _utils.resolve_file_path(canonical_path, details.get("id")) or canonical_path
+            if not disk_path or not os.path.exists(disk_path):
+                return False, f"File not found: {file_path}"
             
             # Helper to retrieve score from various places
             scores = {}
@@ -683,7 +692,7 @@ class ScoringRunner:
                     SET score_general = ?, score_aesthetic = ?, score_technical = ?,
                         rating = ?, label = ?
                     WHERE file_path = ?
-                """, (gen, aes, tech, rating, label, file_path))
+                """, (gen, aes, tech, rating, label, canonical_path))
                 
                 # Also update scores_json summary if possible (complex text manipulation)
                 # Maybe skip for now as columns are the source of truth for UI
@@ -693,7 +702,7 @@ class ScoringRunner:
             # 5. Write Metadata (XMP)
             # Use xmp module
             from modules import xmp
-            is_raw = os.path.splitext(file_path)[1].lower() in ['.nef', '.nrw']
+            is_raw = os.path.splitext(disk_path)[1].lower() in ['.nef', '.nrw']
             
             # Retrieve additional metadata from DB
             title = details.get('title', '')
@@ -702,7 +711,7 @@ class ScoringRunner:
             keywords = [k.strip() for k in keywords_str.split(',')] if keywords_str else []
             
             success = xmp.write_metadata_unified(
-                image_path=file_path,
+                image_path=disk_path,
                 rating=rating,
                 label=label,
                 title=title,
@@ -716,11 +725,11 @@ class ScoringRunner:
             new_thumb = None
             thumb_warn = ""
             try:
-                thumb_path = thumbnails.get_thumb_path(file_path)
+                thumb_path = thumbnails.get_thumb_path(disk_path)
                 if os.path.exists(thumb_path):
                     os.remove(thumb_path)
 
-                new_thumb = thumbnails.generate_thumbnail(file_path)
+                new_thumb = thumbnails.generate_thumbnail(disk_path)
                 if new_thumb and details.get("id"):
                     db.update_image_thumbnail_paths(int(details["id"]), new_thumb, None)
             except Exception as e:

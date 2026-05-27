@@ -225,7 +225,7 @@ def search_similar_images(example_path=None, example_image_id=None,
         c = conn.cursor()
         sub = db._pg_default_embedding_space_subquery_sql()
         has_e = db._postgres_has_default_embedding_sql("i")
-        emb_expr = "COALESCE(ie.embedding, i.image_embedding)"
+        emb_expr = db._postgres_default_embedding_select_expr("i", "ie")
 
         params = [query_vec, example_image_id]
         folder_clause = ""
@@ -617,8 +617,8 @@ def find_near_duplicates(threshold=None, folder_path=None, limit=None):
         sub = db._pg_default_embedding_space_subquery_sql()
         has_e_a = db._postgres_has_default_embedding_sql("a")
         has_e_b = db._postgres_has_default_embedding_sql("b")
-        emb_expr = "COALESCE(ie_a.embedding, a.image_embedding)"
-        emb_expr_b = "COALESCE(ie_b.embedding, b.image_embedding)"
+        emb_expr = db._postgres_default_embedding_select_expr("a", "ie_a")
+        emb_expr_b = db._postgres_default_embedding_select_expr("b", "ie_b")
         cosine_dist_threshold = 1.0 - threshold  # convert similarity → distance
 
         sql = f"""

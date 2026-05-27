@@ -113,11 +113,13 @@ def register_all(
 
 
 def _get_scorer_version(scoring_runner) -> str:
-    """Try to read the VERSION from the shared scorer model."""
-    try:
-        if scoring_runner.shared_scorer and hasattr(scoring_runner.shared_scorer, 'VERSION'):
-            return scoring_runner.shared_scorer.VERSION
-    except Exception:
-        pass
-    # Fallback — scorer not loaded yet at registration time
-    return "1.0.0"
+    """Phase-registry scoring version (must match IPS writes in pipeline runners).
+
+    Do not use per-model ``shared_scorer.VERSION`` (e.g. topiq-nr-1) here — that tag
+    describes the active backend, not the pipeline scoring phase generation stored in
+    ``image_phase_status.executor_version``.
+    """
+    _ = scoring_runner
+    from modules.phases import SCORING_EXECUTOR_VERSION
+
+    return SCORING_EXECUTOR_VERSION

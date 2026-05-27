@@ -88,8 +88,9 @@ def extract_blip_image_features(blip_model: Any, pixel_values: Any) -> np.ndarra
 
 
 def extract_bioclip_image_features(img_features: Any) -> np.ndarray | None:
-    """Return a 512-d L2-normalized image embedding from BioCLIP ``encode_image``.
+    """Return a 768-d L2-normalized image embedding from BioCLIP 2 ``encode_image``.
 
+    BioCLIP 2 (ViT-L/14, ``hf-hub:imageomics/bioclip-2``) outputs 768 dimensions.
     ``img_features`` is the tensor already computed by
     ``open_clip_model.encode_image(img_tensor)``; this helper only reshapes,
     converts, and L2-normalizes. It does not run additional inference.

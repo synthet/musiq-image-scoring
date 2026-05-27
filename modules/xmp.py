@@ -26,11 +26,44 @@ NAMESPACES = {
     'photoshop': 'http://ns.adobe.com/photoshop/1.0/',
     'xmpDM': 'http://ns.adobe.com/xmp/1.0/DynamicMedia/',
     'MicrosoftPhoto': 'http://ns.microsoft.com/photo/1.0/',
+    'iptcCore': 'http://iptc.org/std/Iptc4xmpCore/1.0/',
 }
 
 # Register namespaces for clean XML output
 for prefix, uri in NAMESPACES.items():
     ET.register_namespace(prefix, uri)
+
+_XML_LANG = '{http://www.w3.org/XML/1998/namespace}lang'
+
+
+def _set_iptc_lang_alt_element(desc, local_name: str, text: str | None) -> None:
+    """Write iptcCore AltTextAccessibility / ExtDescrAccessibility as rdf:Alt."""
+    if not text or not str(text).strip():
+        return
+    iptc_ns = NAMESPACES['iptcCore']
+    tag = f'{{{iptc_ns}}}{local_name}'
+    existing = desc.find(f'.//{{{iptc_ns}}}{local_name}')
+    if existing is not None:
+        desc.remove(existing)
+    elem = ET.SubElement(desc, tag)
+    alt = ET.SubElement(elem, f'{{{NAMESPACES["rdf"]}}}Alt')
+    li = ET.SubElement(alt, f'{{{NAMESPACES["rdf"]}}}li')
+    li.set(_XML_LANG, 'x-default')
+    li.text = str(text).strip()
+
+
+def _read_iptc_lang_alt_element(desc, local_name: str) -> str | None:
+    """Read x-default rdf:li from iptcCore accessibility Alt elements."""
+    iptc_ns = NAMESPACES['iptcCore']
+    elem = desc.find(f'.//{{{iptc_ns}}}{local_name}')
+    if elem is None:
+        return None
+    li = elem.find('.//rdf:li', NAMESPACES) or elem.find(
+        './/{http://www.w3.org/1999/02/22-rdf-syntax-ns#}li'
+    )
+    if li is not None and li.text:
+        return li.text.strip()
+    return None
 
 
 def get_xmp_path(image_path: str) -> str:
@@ -454,7 +487,8 @@ def read_xmp_full(image_path: str) -> dict:
     Read full XMP sidecar data for IMAGE_XMP cache.
     
     Returns dict with keys: rating, label, pick_status, burst_uuid, stack_id,
-    keywords, title, description, create_date, modify_date.
+    keywords, title, description, alt_text, extended_description,
+    create_date, modify_date.
     """
     xmp_path = get_xmp_path(image_path)
     result = {
@@ -466,6 +500,8 @@ def read_xmp_full(image_path: str) -> dict:
         'keywords': None,
         'title': None,
         'description': None,
+        'alt_text': None,
+        'extended_description': None,
         'create_date': None,
         'modify_date': None,
     }
@@ -552,6 +588,14 @@ def read_xmp_full(image_path: str) -> dict:
                 li = desc_elem.find('.//rdf:li', NAMESPACES) or desc_elem.find('.//{http://www.w3.org/1999/02/22-rdf-syntax-ns#}li')
                 if li is not None and li.text:
                     result['description'] = li.text.strip()
+
+        alt_text = _read_iptc_lang_alt_element(desc, 'AltTextAccessibility')
+        if alt_text:
+            result['alt_text'] = alt_text
+
+        extended = _read_iptc_lang_alt_element(desc, 'ExtDescrAccessibility')
+        if extended:
+            result['extended_description'] = extended
         
     except Exception as e:
         logger.warning(f"Failed to read XMP full {xmp_path}: {e}")
@@ -637,6 +681,8 @@ def write_metadata_unified(image_path: str,
                            keywords: list = None,
                            title: str = None,
                            description: str = None,
+                           alt_text: str = None,
+                           extended_description: str = None,
                            is_picked: bool = None,
                            use_sidecar: bool = True,
                            use_embedded: bool = False) -> bool:
@@ -653,6 +699,8 @@ def write_metadata_unified(image_path: str,
         keywords: List of keyword strings
         title: Image title
         description: Image description/caption
+        alt_text: IPTC Alt Text Accessibility (CLIP-generated when tagging)
+        extended_description: IPTC Extended Description Accessibility
         is_picked: Pick/reject flag for culling
         use_sidecar: Write to .xmp sidecar file (default: True)
         use_embedded: Write to embedded EXIF/XMP in file (default: False)
@@ -729,8 +777,14 @@ def write_metadata_unified(image_path: str,
                 desc_elem = ET.SubElement(desc, f'{{{dc_ns}}}description')
                 alt = ET.SubElement(desc_elem, f'{{{NAMESPACES["rdf"]}}}Alt')
                 li = ET.SubElement(alt, f'{{{NAMESPACES["rdf"]}}}li')
-                li.set('{http://www.w3.org/XML/1998/namespace}lang', 'x-default')
+                li.set(_XML_LANG, 'x-default')
                 li.text = description
+
+            if alt_text:
+                _set_iptc_lang_alt_element(desc, 'AltTextAccessibility', alt_text)
+
+            if extended_description:
+                _set_iptc_lang_alt_element(desc, 'ExtDescrAccessibility', extended_description)
             
             # Add modification timestamp
             desc.set(f'{{{NAMESPACES["xmp"]}}}ModifyDate', datetime.now().isoformat())
@@ -749,7 +803,14 @@ def write_metadata_unified(image_path: str,
     if use_embedded:
         try:
             embedded_success = _write_metadata_embedded(
-                image_path, rating, label, keywords, title, description
+                image_path,
+                rating,
+                label,
+                keywords,
+                title,
+                description,
+                alt_text=alt_text,
+                extended_description=extended_description,
             )
             if embedded_success:
                 success = True
@@ -764,7 +825,9 @@ def _write_metadata_embedded(image_path: str,
                               label: str = None,
                               keywords: list = None,
                               title: str = None,
-                              description: str = None) -> bool:
+                              description: str = None,
+                              alt_text: str = None,
+                              extended_description: str = None) -> bool:
     """
     Write metadata to embedded EXIF/IPTC/XMP using exiftool.
     This modifies the original file.
@@ -806,6 +869,12 @@ def _write_metadata_embedded(image_path: str,
         cmd.append(f'-XMP:Description={description}')
         cmd.append(f'-XPComment={description}')
         cmd.append(f'-IPTC:Caption-Abstract={description}')
+
+    if alt_text:
+        cmd.append(f'-XMP-iptcCore:AltTextAccessibility={alt_text}')
+
+    if extended_description:
+        cmd.append(f'-XMP-iptcCore:ExtDescrAccessibility={extended_description}')
     
     # Only run if we have something to write
     if len(cmd) <= 3:

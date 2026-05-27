@@ -34,6 +34,14 @@
 - Treat `execute_code`, `set_config_value`, `run_processing_job`, and other write-capable tools as **high risk**. Prefer read-only diagnostics unless the user explicitly requests writes ([.agent/workflows/safe_mcp_diagnostics.md](workflows/safe_mcp_diagnostics.md)).
 - On shared machines, SSE MCP attaches to a live WebUI; do not assume an isolated process.
 
+## External CLI reviews (subagent-orchestrator)
+
+- Review-only: never set `allowWrites: true` on `run_subagent` (rejected in v0.1).
+- Selected source files are sent to **Codex / Gemini** per their provider policies; do not use for proprietary code you cannot export.
+- Never include `secrets.json`, `.env`, credentials, or full `config.json` in `task`, `files`, or `extraContext`.
+- Outputs land in `.agent-runs/` (gitignored); treat as sensitive until reviewed.
+- See [docs/technical/EXTERNAL_CLI_REVIEWS.md](../docs/technical/EXTERNAL_CLI_REVIEWS.md).
+
 ## Git
 
 - Never modify `.git/config` or add non-standard extensions (see AGENTS.md / CLAUDE.md).

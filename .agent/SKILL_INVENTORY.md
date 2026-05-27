@@ -26,6 +26,7 @@ Central list of **first-party** `SKILL.md` files in this repository for governan
 | mcp-debugging-workflow | `.cursor/skills/mcp-debugging-workflow/SKILL.md` | MCP debugging workflow | L2 | Yes | 2026-04-25 |
 | security-review | `.cursor/skills/security-review/SKILL.md` | Pre-merge security sanity | L1 | Yes | 2026-04-25 |
 | wsl-tf-python-runner | `.cursor/skills/wsl-tf-python-runner/SKILL.md` | WSL / venv / pytest commands | L2 | Yes | 2026-04-25 |
+| subagent-review | `.cursor/skills/subagent-review/SKILL.md` | External Codex/Gemini review via subagent-orchestrator MCP | L2 | Yes | 2026-05-26 |
 
 ## Claude Code mirror
 
@@ -53,6 +54,9 @@ Project subagents live under **`.cursor/agents/`** (canonical) and are mirrored 
 | critical-commit-audit | `.cursor/agents/critical-commit-audit.md` | High-severity post-commit bug hunt | L2 | Yes | 2026-05-15 |
 | pr-ready-hygiene | `.cursor/agents/pr-ready-hygiene.md` | Scoped lint/tests; PR-ready checklist | L2 | Yes | 2026-05-15 |
 | wsl-tf-python-runner | `.cursor/agents/wsl-tf-python-runner.md` | WSL / venv / pytest marker resolution | L2 | Yes | 2026-05-15 |
+| external-codex-review | `.cursor/agents/external-codex-review.md` | Codex-only external CLI review (MCP) | L2 | Yes | 2026-05-26 |
+| external-gemini-review | `.cursor/agents/external-gemini-review.md` | Gemini-only external CLI review (MCP) | L2 | Yes | 2026-05-26 |
+| external-cli-reviewer | `.cursor/agents/external-cli-reviewer.md` | Detect + run + panel-style external reviews | L2 | Yes | 2026-05-26 |
 
 ## Related repository
 

@@ -70,8 +70,10 @@ def explain_phase_run_decision(
         decision["reason"] = "already_running"
         return decision
 
-    # status == done (or unknown terminal): compare versions
-    if active_version and stored_version != active_version:
+    # status == done (or unknown terminal): compare versions when both are known.
+    # Legacy rows often have executor_version=NULL; treat as unknown and fall through
+    # to data-validation instead of forcing executor_version_changed.
+    if active_version and stored_version and stored_version != active_version:
         decision["reason"] = "executor_version_changed"
         return decision
 

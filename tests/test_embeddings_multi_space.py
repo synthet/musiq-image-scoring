@@ -58,10 +58,10 @@ def test_extract_clip_image_features_handles_missing_attr():
 def test_extract_bioclip_image_features_normalizes_raw_tensor_like():
     from modules.embeddings_extract import extract_bioclip_image_features
 
-    arr = np.array([[0.0, 3.0, 4.0] + [0.0] * 509], dtype=np.float32)
+    arr = np.array([[0.0, 3.0, 4.0] + [0.0] * 765], dtype=np.float32)
     out = extract_bioclip_image_features(arr)
     assert out is not None
-    assert out.shape == (512,)
+    assert out.shape == (768,)
     assert abs(float(np.linalg.norm(out)) - 1.0) < 1e-5
 
 
