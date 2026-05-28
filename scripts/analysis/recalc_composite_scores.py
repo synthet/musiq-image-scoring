@@ -131,19 +131,21 @@ def fetch_scored_images(conn, folder_path: Optional[str] = None) -> List[dict]:
         batch = ids[start : start + batch_size]
         ph = ",".join(["?"] * len(batch))
         ims_query = f"""
-            SELECT ims.image_id, ims.model_name, ims.normalized
+            SELECT ims.image_id, ims.model_name,
+                   COALESCE(ims.normalized, ims.raw_score) AS score_val
             FROM image_model_scores ims
             WHERE ims.image_id IN ({ph})
               AND ims.model_name IN ({model_ph})
               AND ims.status = 'success'
               AND ims.is_shadow = FALSE
-              AND ims.normalized IS NOT NULL
+              AND COALESCE(ims.normalized, ims.raw_score) IS NOT NULL
         """
         c.execute(ims_query, list(batch) + list(models_to_load))
         for ims_row in _rows_to_dicts(c):
             m = str(ims_row["model_name"]).lower()
-            if m in ims_by_model:
-                ims_by_model[m][ims_row["image_id"]] = float(ims_row["normalized"])
+            val = ims_row.get("score_val")
+            if m in ims_by_model and val is not None:
+                ims_by_model[m][ims_row["image_id"]] = float(val)
 
     for row in rows:
         rid = row["id"]

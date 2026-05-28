@@ -17,17 +17,30 @@ def _ensure_new_helpers(mod):
     if not hasattr(mod, "is_image_bird_species_complete"):
         def is_image_bird_species_complete(image_id: int) -> bool:
             conn = mod.get_connector()
-            row = conn.query_one("SELECT keywords FROM images WHERE id = ?", (image_id,))
-            if not row:
-                return False
-            kw_str = str(row.get("keywords") or "").lower()
             cnt_birds = conn.query_one(
                 "SELECT COUNT(*) AS c FROM image_keywords ik "
                 "JOIN keywords_dim kd ON kd.keyword_id = ik.keyword_id "
                 "WHERE ik.image_id = ? AND LOWER(kd.keyword_norm) LIKE '%birds%'",
                 (image_id,),
             )
-            has_birds = "birds" in kw_str or int((cnt_birds or {}).get("c") or 0) > 0
+            has_birds = int((cnt_birds or {}).get("c") or 0) > 0
+            if mod._images_table_has_legacy_keywords_column():
+                row = conn.query_one(
+                    "SELECT keywords FROM images WHERE id = ?", (image_id,)
+                )
+                if not row:
+                    return False
+                kw_str = str(row.get("keywords") or "").lower()
+                has_birds = has_birds or "birds" in kw_str
+                if not has_birds:
+                    return True
+                cnt_species = conn.query_one(
+                    "SELECT COUNT(*) AS c FROM image_keywords ik "
+                    "JOIN keywords_dim kd ON kd.keyword_id = ik.keyword_id "
+                    "WHERE ik.image_id = ? AND LOWER(kd.keyword_norm) LIKE 'species:%'",
+                    (image_id,),
+                )
+                return "species:" in kw_str or int((cnt_species or {}).get("c") or 0) > 0
             if not has_birds:
                 return True
             cnt_species = conn.query_one(
@@ -36,7 +49,7 @@ def _ensure_new_helpers(mod):
                 "WHERE ik.image_id = ? AND LOWER(kd.keyword_norm) LIKE 'species:%'",
                 (image_id,),
             )
-            return "species:" in kw_str or int((cnt_species or {}).get("c") or 0) > 0
+            return int((cnt_species or {}).get("c") or 0) > 0
         mod.is_image_bird_species_complete = is_image_bird_species_complete
 
     if not hasattr(mod, "is_image_culling_complete"):

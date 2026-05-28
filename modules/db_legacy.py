@@ -835,6 +835,36 @@ def reset_postgres_keywords_column_cache() -> None:
     _pg_images_keywords_column_exists = None
 
 
+def _pin_postgres_keywords_column_absent() -> None:
+    """Record that ``images.keywords`` is gone (runtime error or post-migration).
+
+    Unlike :func:`reset_postgres_keywords_column_cache`, this prevents a follow-up
+    ``information_schema`` probe from re-enabling legacy SQL when the catalog is stale.
+    """
+    global _pg_images_keywords_column_exists
+    _pg_images_keywords_column_exists = False
+
+
+def _is_postgres_missing_keywords_column_error(exc: BaseException) -> bool:
+    """True when PostgreSQL reports the legacy ``images.keywords`` column is gone.
+
+    Prefer pgcode 42703 (``UndefinedColumn``) when the driver exposes it; fall back
+    to a strict message match that requires both an ``images`` and ``keywords``
+    reference so unrelated "does not exist" errors don't trigger the legacy latch.
+    """
+    pgcode = getattr(exc, "pgcode", None) or getattr(getattr(exc, "orig", None), "pgcode", None)
+    msg = str(exc).lower()
+    if pgcode == "42703" and "keywords" in msg:
+        return True
+    if "does not exist" not in msg:
+        return False
+    # Require a column-qualified reference (``images.keywords`` or ``i.keywords``)
+    # so a missing ``keywords_dim`` table or similar can't satisfy this check.
+    return any(token in msg for token in ('"keywords"', ".keywords", " keywords ")) and (
+        "images" in msg or '"i"' in msg or " i." in msg
+    )
+
+
 def _postgres_images_has_keywords_column() -> bool:
     """True when ``images.keywords`` still exists on PostgreSQL."""
     global _pg_images_keywords_column_exists
@@ -846,9 +876,14 @@ def _postgres_images_has_keywords_column() -> bool:
     try:
         row = db_postgres.execute_select_one(
             """
-            SELECT 1 AS x FROM information_schema.columns
-            WHERE table_schema = 'public' AND table_name = 'images'
-              AND column_name = 'keywords'
+            SELECT 1 AS x
+            FROM pg_catalog.pg_attribute a
+            INNER JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+            INNER JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public'
+              AND c.relname = 'images'
+              AND a.attname = 'keywords'
+              AND NOT a.attisdropped
             LIMIT 1
             """
         )
@@ -1900,6 +1935,7 @@ def init_db():
                 raise RuntimeError("database.engine is postgres but modules.db_postgres is unavailable")
             db_postgres.init_db()
             reset_postgres_embedding_column_cache()
+            reset_postgres_keywords_column_cache()
             seed_pipeline_phases()
         else:
             _init_db_impl()
@@ -4684,10 +4720,17 @@ def get_folder_direct_image_counts_by_local_path_norm():
     from modules import utils
 
     try:
+        # Avoid correlated COUNT(*) per folder (can be very slow on large libraries).
         rows = get_connector().query(
-            "SELECT f.id AS id, f.path AS path, "
-            "(SELECT COUNT(*) FROM images i WHERE i.folder_id = f.id) AS direct_count "
-            "FROM folders f"
+            """
+            SELECT
+                f.id AS id,
+                f.path AS path,
+                COUNT(i.id) AS direct_count
+            FROM folders f
+            LEFT JOIN images i ON i.folder_id = f.id
+            GROUP BY f.id, f.path
+            """
         )
     except Exception as e:
         logging.error("get_folder_direct_image_counts_by_local_path_norm query failed: %s", e)
@@ -12786,8 +12829,7 @@ def _heal_stale_phase_flags(folder_path):
     kw_missing_legacy = ""
     if _images_table_has_legacy_keywords_column():
         kw_missing_legacy = " AND (i.keywords IS NULL OR TRIM(i.keywords) = '')"
-    kw_rows = get_connector().query(
-        f"""
+    kw_sql = f"""
         SELECT i.id
         FROM images i
         JOIN folders f ON f.id = i.folder_id
@@ -12799,8 +12841,18 @@ def _heal_stale_phase_flags(folder_path):
           AND NOT EXISTS (
               SELECT 1 FROM image_keywords ik WHERE ik.image_id = i.id
           ){kw_missing_legacy}
-        """,
-        (target_path, path_like_unix, path_like_win))
+        """
+    kw_params = (target_path, path_like_unix, path_like_win)
+    try:
+        kw_rows = get_connector().query(kw_sql, kw_params)
+    except Exception as kw_err:
+        if _is_postgres_missing_keywords_column_error(kw_err):
+            _pin_postgres_keywords_column_absent()
+            kw_rows = get_connector().query(
+                kw_sql.replace(kw_missing_legacy, ""), kw_params
+            )
+        else:
+            raise
 
     for row in kw_rows or []:
         set_image_phase_status(row["id"], "keywords", "not_started")
@@ -12852,41 +12904,58 @@ def get_folder_phase_summary(folder_path, force_refresh=False):
 
         path_like_unix = target_path + "/%"
         path_like_win = target_path + "\\%"
+        query_params = (target_path, path_like_unix, path_like_win)
 
-        birds_scope = _sql_bird_species_in_scope("i")
-        agg_scope = f"(LOWER(TRIM(pp.code)) <> 'bird_species' OR ({birds_scope}))"
-
-        rows = get_connector().query(
-            f"""
-            SELECT
-                pp.code,
-                pp.name,
-                pp.sort_order,
-                COUNT(CASE WHEN {agg_scope} THEN i.id END) as total_images,
-                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'done' THEN 1 ELSE 0 END), 0) as done_count,
-                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'failed' THEN 1 ELSE 0 END), 0) as failed_count,
-                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'running' THEN 1 ELSE 0 END), 0) as running_count,
-                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'queued' THEN 1 ELSE 0 END), 0) as queued_count,
-                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'paused' THEN 1 ELSE 0 END), 0) as paused_count,
-                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'cancel_requested' THEN 1 ELSE 0 END), 0) as cancel_requested_count,
-                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'restarting' THEN 1 ELSE 0 END), 0) as restarting_count,
-                COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'skipped' THEN 1 ELSE 0 END), 0) as skipped_count,
-                pp.optional
-            FROM pipeline_phases pp
-            CROSS JOIN (
-                SELECT id FROM images
-                WHERE folder_id IN (
-                    SELECT id FROM folders
-                    WHERE path = ? OR path LIKE ? OR path LIKE ?
-                )
-            ) i
-            LEFT JOIN image_phase_status ips
-                ON ips.image_id = i.id AND ips.phase_id = pp.id
-            WHERE pp.enabled = 1
-            GROUP BY pp.code, pp.name, pp.sort_order, pp.optional
-            ORDER BY pp.sort_order
-            """,
-            (target_path, path_like_unix, path_like_win))
+        rows = None
+        for attempt in range(2):
+            birds_scope = _sql_bird_species_in_scope("i")
+            agg_scope = f"(LOWER(TRIM(pp.code)) <> 'bird_species' OR ({birds_scope}))"
+            try:
+                rows = get_connector().query(
+                    f"""
+                    SELECT
+                        pp.code,
+                        pp.name,
+                        pp.sort_order,
+                        COUNT(CASE WHEN {agg_scope} THEN i.id END) as total_images,
+                        COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'done' THEN 1 ELSE 0 END), 0) as done_count,
+                        COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'failed' THEN 1 ELSE 0 END), 0) as failed_count,
+                        COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'running' THEN 1 ELSE 0 END), 0) as running_count,
+                        COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'queued' THEN 1 ELSE 0 END), 0) as queued_count,
+                        COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'paused' THEN 1 ELSE 0 END), 0) as paused_count,
+                        COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'cancel_requested' THEN 1 ELSE 0 END), 0) as cancel_requested_count,
+                        COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'restarting' THEN 1 ELSE 0 END), 0) as restarting_count,
+                        COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'skipped' THEN 1 ELSE 0 END), 0) as skipped_count,
+                        pp.optional
+                    FROM pipeline_phases pp
+                    CROSS JOIN (
+                        SELECT id FROM images
+                        WHERE folder_id IN (
+                            SELECT id FROM folders
+                            WHERE path = ? OR path LIKE ? OR path LIKE ?
+                        )
+                    ) i
+                    LEFT JOIN image_phase_status ips
+                        ON ips.image_id = i.id AND ips.phase_id = pp.id
+                    WHERE pp.enabled = 1
+                    GROUP BY pp.code, pp.name, pp.sort_order, pp.optional
+                    ORDER BY pp.sort_order
+                    """,
+                    query_params)
+                break
+            except Exception as query_err:
+                if (
+                    attempt == 0
+                    and _get_db_engine() == "postgres"
+                    and _is_postgres_missing_keywords_column_error(query_err)
+                ):
+                    _pin_postgres_keywords_column_absent()
+                    logger.info(
+                        "get_folder_phase_summary: legacy images.keywords missing; "
+                        "retrying with normalized keyword tables only"
+                    )
+                    continue
+                raise
 
         result = []
         scoring_done = False

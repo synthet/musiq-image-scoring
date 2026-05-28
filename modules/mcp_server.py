@@ -836,14 +836,46 @@ def get_error_summary() -> dict:
             """)
             summary["images_missing_technical_score"] = c.fetchone()[0]
 
-            models = ['spaq', 'koniq', 'ava', 'paq2piq', 'liqe']
+            models = ["spaq", "koniq", "ava", "paq2piq", "liqe"]
             for model in models:
                 col = f"score_{model}"
-                c.execute(f"""
-                    SELECT COUNT(*) FROM images
-                    WHERE {col} IS NULL OR {col} = 0
-                """)
-                summary[f"images_missing_{model}"] = c.fetchone()[0]
+                key = f"images_missing_{model}"
+                try:
+                    # Postgres: per-model columns were dropped in Alembic 0023; compute
+                    # missing counts from the normalized ``image_model_scores`` overlay.
+                    c.execute(
+                        f"""
+                        SELECT COUNT(*)
+                        FROM images i
+                        LEFT JOIN ({_IMS_OVERLAY_SUBQUERY}) ims ON ims.image_id = i.id
+                        WHERE ims.{col} IS NULL OR ims.{col} <= 0
+                        """
+                    )
+                    summary[key] = c.fetchone()[0]
+                except Exception as overlay_err:
+                    try:
+                        # Legacy fallback (Firebird/older Postgres installs).
+                        c.execute(
+                            f"""
+                            SELECT COUNT(*)
+                            FROM images
+                            WHERE {col} IS NULL OR {col} = 0
+                            """
+                        )
+                        summary[key] = c.fetchone()[0]
+                    except Exception as legacy_err:
+                        # Don't silently omit the key — surface the failure so callers
+                        # can tell "no data" apart from "query broke".
+                        logger.warning(
+                            "get_error_summary: %s unavailable (overlay=%s, legacy=%s)",
+                            col,
+                            overlay_err,
+                            legacy_err,
+                        )
+                        summary[key] = None
+                        summary.setdefault("_errors", []).append(
+                            {"field": key, "reason": str(legacy_err)[:200]}
+                        )
 
             c.execute("SELECT COUNT(*) FROM images WHERE folder_id IS NULL")
             summary["orphaned_images"] = c.fetchone()[0]

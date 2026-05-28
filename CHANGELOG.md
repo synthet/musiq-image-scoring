@@ -13,6 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.26.0] - 2026-05-27
+
+### Added
+
+- **MCP `get_drive_diagnostics`**: Auto-drive arm state, dirty-folder refresh, and batch kick visibility for agents.
+- **Validation repair preview**: `include_stale_executor` and `align_auto_drive` on the repair-plan API to mirror auto-drive enqueue rules.
+- **Folder-buckets planner preview**: `planner_preview_max_images` cap, wall-clock budget with `planner_preview_skipped` flags; default `planner_preview_limit=0` (opt-in).
+- **Phase policy data-complete guard**: Skip reruns when phase status is missing or `not_started`/`failed` but underlying phase data is already complete.
+
+### Changed
+
+- **Auto-drive start API**: Returns `arm_drive` state plus `kick_drive_batch_async` in one response.
+- **Canonical path resolution**: Broader gallery Windows ↔ WSL alias handling in `db_legacy`.
+- **Scope selector**: Frontend scope API alignment for folder scope.
+
+### Fixed
+
+- **Auto-drive**: Leaf-folder detection and planner preview wall-clock budget exhaustion.
+- **Bird species** folder phase summary, run submit prereq gating, and related autodrive tests.
+
 ## [7.25.0] - 2026-05-26
 
 ### Added

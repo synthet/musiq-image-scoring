@@ -150,3 +150,45 @@ def test_submit_returns_nothing_to_queue_when_planner_has_no_work(
     assert r.status_code == 400
     detail = r.json().get("detail")
     assert detail["code"] == "nothing_to_queue"
+
+
+def test_plan_preview_align_auto_drive_disables_stale_executor(api_client, monkeypatch):
+    captured: dict = {}
+
+    def fake_plan(scope_paths, stages, dry_run, include_stale_executor=True):
+        captured["include_stale_executor"] = include_stale_executor
+        return {"stage_queues": {}, "issue_counts_by_reason": {}}
+
+    monkeypatch.setattr("modules.db.build_validation_repair_plan", fake_plan)
+
+    p = pathlib.Path("/tmp/scope-preview-test")
+    r = api_client.post(
+        "/api/runs/plan/preview",
+        json={
+            "scope_paths": [str(p)],
+            "stages": ["indexing", "metadata"],
+            "align_auto_drive": True,
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert captured.get("include_stale_executor") is False
+
+
+def test_plan_preview_include_stale_executor_explicit(api_client, monkeypatch):
+    captured: dict = {}
+
+    def fake_plan(scope_paths, stages, dry_run, include_stale_executor=True):
+        captured["include_stale_executor"] = include_stale_executor
+        return {"stage_queues": {}, "issue_counts_by_reason": {}}
+
+    monkeypatch.setattr("modules.db.build_validation_repair_plan", fake_plan)
+
+    r = api_client.post(
+        "/api/runs/plan/preview",
+        json={
+            "scope_paths": ["/tmp/scope"],
+            "include_stale_executor": False,
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert captured.get("include_stale_executor") is False

@@ -94,5 +94,6 @@ Canonical mode: `process_stale_or_missing` — see [RUN_OPTIONS_MODE_MATRIX.md](
 
 1. Restart WebUI so phase registry picks up `SCORING_EXECUTOR_VERSION`.
 2. Rebuild React UI if using bundled `/ui/` assets.
-3. For a suspect folder, `POST /api/runs/plan/preview` with `scope_paths` — confirm `stage_queues` lengths before auto-drive.
+3. For a suspect folder, `POST /api/runs/plan/preview` with `scope_paths` and `"align_auto_drive": true` — confirm `stage_queues` match auto-drive enqueue (not full repair with `stale_executor`).
 4. New auto-drive jobs should enqueue **only stages with non-empty** planner queues.
+5. Optional hygiene: `python scripts/maintenance/backfill_executor_version_ips.py --dry-run` then apply (sets `executor_version` on `done` rows with complete data).

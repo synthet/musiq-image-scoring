@@ -13,9 +13,19 @@ def _reset_phase_registry():
 
 def test_policy_runs_when_status_missing(monkeypatch):
     monkeypatch.setattr(phases_policy.db, "get_image_phase_statuses", lambda image_id: {})
+    monkeypatch.setattr(phases_policy.db, "is_image_scoring_complete", lambda image_id: False)
     decision = phases_policy.explain_phase_run_decision(1, PhaseCode.SCORING)
     assert decision["should_run"] is True
     assert decision["reason"] == "missing_phase_status"
+
+
+def test_policy_skips_when_status_missing_but_data_complete(monkeypatch):
+    """No phase_status row + data already present (e.g. backfill) must not re-run."""
+    monkeypatch.setattr(phases_policy.db, "get_image_phase_statuses", lambda image_id: {})
+    monkeypatch.setattr(phases_policy.db, "is_image_scoring_complete", lambda image_id: True)
+    decision = phases_policy.explain_phase_run_decision(1, PhaseCode.SCORING)
+    assert decision["should_run"] is False
+    assert decision["reason"] == "data_complete_missing_phase_status"
 
 
 def test_policy_skips_when_done_same_version(monkeypatch):
@@ -85,9 +95,36 @@ def test_policy_runs_when_failed(monkeypatch):
         "get_image_phase_statuses",
         lambda image_id: {"scoring": {"status": "failed"}},
     )
+    monkeypatch.setattr(phases_policy.db, "is_image_scoring_complete", lambda image_id: False)
     decision = phases_policy.explain_phase_run_decision(1, PhaseCode.SCORING)
     assert decision["should_run"] is True
     assert decision["reason"] == "status_failed"
+
+
+def test_policy_skips_when_status_not_started_but_data_complete(monkeypatch):
+    """Phase row in not_started state with data already present must not re-run."""
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_phase_statuses",
+        lambda image_id: {"scoring": {"status": "not_started"}},
+    )
+    monkeypatch.setattr(phases_policy.db, "is_image_scoring_complete", lambda image_id: True)
+    decision = phases_policy.explain_phase_run_decision(1, PhaseCode.SCORING)
+    assert decision["should_run"] is False
+    assert decision["reason"] == "data_complete_status_not_started"
+
+
+def test_policy_skips_when_status_failed_but_data_complete(monkeypatch):
+    """Phase row in failed state with data present (e.g. partial write) must not re-run."""
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_phase_statuses",
+        lambda image_id: {"scoring": {"status": "failed"}},
+    )
+    monkeypatch.setattr(phases_policy.db, "is_image_scoring_complete", lambda image_id: True)
+    decision = phases_policy.explain_phase_run_decision(1, PhaseCode.SCORING)
+    assert decision["should_run"] is False
+    assert decision["reason"] == "data_complete_status_failed"
 
 
 def test_policy_force_run(monkeypatch):

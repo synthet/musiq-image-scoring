@@ -4,8 +4,19 @@ import type { ScopePreviewResult, FolderNode, ValidationRepairPreview } from '@/
 export const scopeApi = {
   preview: (paths: string[], recursive: boolean) =>
     api.post<ScopePreviewResult>('/scope/preview', { paths, recursive }),
-  validationRepairPreview: (scope_paths: string[], stages?: string[]) =>
-    api.post<ValidationRepairPreview>('/runs/validation-repair/preview', { scope_paths, stages }),
+  validationRepairPreview: (
+    scope_paths: string[],
+    stages?: string[],
+    options?: { alignAutoDrive?: boolean; includeStaleExecutor?: boolean },
+  ) =>
+    api.post<ValidationRepairPreview>('/runs/validation-repair/preview', {
+      scope_paths,
+      stages,
+      ...(options?.alignAutoDrive ? { align_auto_drive: true } : {}),
+      ...(options?.includeStaleExecutor !== undefined
+        ? { include_stale_executor: options.includeStaleExecutor }
+        : {}),
+    }),
 
   tree: () => api.get<FolderNode[]>('/scope/tree'),
 

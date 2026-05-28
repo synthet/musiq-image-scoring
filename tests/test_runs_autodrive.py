@@ -552,19 +552,31 @@ def test_auto_drive_passes_limit_to_build_folder_buckets(monkeypatch):
 
 
 def test_get_drive_status_with_outstanding_uses_target_phases(monkeypatch):
-    captured = {}
-
-    def fake_build(**kwargs):
-        captured.update(kwargs)
-        return {"total": 0, "bucket_counts": {}, "phase_counts": {}}
-
-    monkeypatch.setattr(runs_autodrive, "build_folder_buckets", fake_build)
     with runs_autodrive._DRIVE_LOCK:
         runs_autodrive._DRIVE_STATE["target_phases"] = ["scoring"]
 
     runs_autodrive.get_drive_status_with_outstanding()
+    assert runs_autodrive.get_drive_state()["target_phases"] == ["scoring"]
 
-    assert captured.get("target_phases") == ["scoring"]
+
+def test_get_drive_status_with_outstanding_uses_last_result_when_present():
+    with runs_autodrive._DRIVE_LOCK:
+        runs_autodrive._DRIVE_STATE["last_result"] = {
+            "scheduled": 1,
+            "skipped": 0,
+            "candidates": 2,
+            "total_outstanding": 12,
+            "loop_detected": 0,
+            "bucket_counts": {"awaiting_scoring": 12},
+            "phase_counts": {"scoring": 12},
+            "health": runs_autodrive._bucket_health_from_counts({"awaiting_scoring": 12}),
+        }
+
+    out = runs_autodrive.get_drive_status_with_outstanding()
+
+    assert out["outstanding"]["source"] == "last_result"
+    assert out["outstanding"]["total_outstanding"] == 12
+    assert out["outstanding"]["bucket_counts"]["awaiting_scoring"] == 12
 
 
 # ---------------------------------------------------------------------------

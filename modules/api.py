@@ -6063,6 +6063,17 @@ def create_api_router() -> APIRouter:
     class ValidationRepairPreviewRequest(BaseModel):
         scope_paths: List[str]
         stages: Optional[List[str]] = None
+        include_stale_executor: bool = Field(
+            True,
+            description=(
+                "When false, exclude executor-version-only drift from stage_queues "
+                "(same as auto-drive enqueue)."
+            ),
+        )
+        align_auto_drive: bool = Field(
+            False,
+            description="When true, forces include_stale_executor=false for this preview.",
+        )
 
     class RunsAutoDriveRequest(BaseModel):
         model_config = ConfigDict(extra="forbid")
@@ -6099,12 +6110,16 @@ def create_api_router() -> APIRouter:
         scope_paths = [p for p in scope_paths if p]
         if not scope_paths:
             raise HTTPException(status_code=400, detail="scope_paths must not be empty")
+        include_stale = request.include_stale_executor
+        if request.align_auto_drive:
+            include_stale = False
         try:
             result = await asyncio.to_thread(
                 db.build_validation_repair_plan,
                 scope_paths,
                 request.stages or [],
                 True,
+                include_stale_executor=include_stale,
             )
             return result
         except Exception as e:
@@ -6128,12 +6143,22 @@ def create_api_router() -> APIRouter:
             ),
         ),
         planner_preview_limit: int = Query(
-            25,
+            0,
             ge=0,
             le=100,
             description=(
                 "Max folder-bucket rows on this page to compute JIT planner_next_phases "
-                "(0 disables; matches auto-drive enqueue rules)."
+                "(default 0; opt in for accurate enqueue preview, but each row runs a "
+                "per-image plan_scope and can be slow on folders with many images)."
+            ),
+        ),
+        planner_preview_max_images: int = Query(
+            500,
+            ge=0,
+            le=100000,
+            description=(
+                "Skip planner preview on folders larger than this image count "
+                "(0 disables the cap)."
             ),
         ),
     ):
@@ -6150,6 +6175,7 @@ def create_api_router() -> APIRouter:
                 include_complete=include_complete,
                 refresh_dirty_limit=refresh_dirty_limit,
                 planner_preview_limit=planner_preview_limit,
+                planner_preview_max_images=planner_preview_max_images,
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
@@ -6200,12 +6226,16 @@ def create_api_router() -> APIRouter:
             from modules import runs_autodrive
 
             return await asyncio.to_thread(
-                runs_autodrive.start_drive,
-                root_path=request.root_path,
-                limit=request.limit,
-                target_phases=request.target_phases,
-                generate_captions=request.generate_captions,
-                max_repeats=request.max_repeats,
+                lambda: {
+                    "state": runs_autodrive.arm_drive(
+                        root_path=request.root_path,
+                        limit=request.limit,
+                        target_phases=request.target_phases,
+                        generate_captions=request.generate_captions,
+                        max_repeats=request.max_repeats,
+                    ),
+                    "batch": runs_autodrive.kick_drive_batch_async(force=True),
+                },
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e

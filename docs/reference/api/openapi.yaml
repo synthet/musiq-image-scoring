@@ -8109,6 +8109,16 @@ components:
             type: array
           - type: 'null'
           title: Stages
+        include_stale_executor:
+          type: boolean
+          default: true
+          title: Include Stale Executor
+          description: When false, exclude executor-version-only drift (auto-drive enqueue rules).
+        align_auto_drive:
+          type: boolean
+          default: false
+          title: Align Auto Drive
+          description: When true, same as include_stale_executor=false.
       type: object
       required:
       - scope_paths

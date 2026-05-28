@@ -25,6 +25,26 @@ def get_phase_executor_version(phase_code, current_executor_version=None) -> str
     return None
 
 
+def _phase_data_complete(image_id: int, code: str) -> bool | None:
+    """Return True/False if the phase has a data-completeness checker, else None."""
+    from modules.phases import PhaseCode
+    if code == PhaseCode.SCORING.value:
+        return bool(db.is_image_scoring_complete(image_id))
+    if code == PhaseCode.KEYWORDS.value:
+        return bool(db.is_image_keywords_complete(image_id))
+    if code == PhaseCode.METADATA.value:
+        return bool(db.is_image_metadata_complete(image_id))
+    if code == PhaseCode.INDEXING.value:
+        return bool(db.is_image_indexing_complete(image_id))
+    if code == PhaseCode.BIRD_SPECIES.value:
+        return bool(db.is_image_bird_species_complete(image_id))
+    if code == PhaseCode.CULLING.value:
+        if not db.is_image_culling_complete(image_id):
+            return False
+        return not db.is_image_culling_similarity_artefacts_missing(image_id)
+    return None
+
+
 def explain_phase_run_decision(
     image_id: int,
     phase_code,
@@ -53,6 +73,13 @@ def explain_phase_run_decision(
         return decision
 
     if not stored:
+        # No phase_status row. Before queueing, check whether the underlying
+        # data is already present (e.g. backfilled via image_model_scores)
+        # so we don't re-run completed work when the row was never written.
+        if _phase_data_complete(image_id, code) is True:
+            decision["should_run"] = False
+            decision["reason"] = "data_complete_missing_phase_status"
+            return decision
         decision["reason"] = "missing_phase_status"
         return decision
 
@@ -62,6 +89,13 @@ def explain_phase_run_decision(
     decision["stored_executor_version"] = stored_version
 
     if status in (PhaseStatus.NOT_STARTED, PhaseStatus.FAILED):
+        # phase_status says not_started/failed, but a previous run may have
+        # populated the data anyway (interrupted commit, manual backfill,
+        # legacy migration). Skip the rerun when the data is complete.
+        if _phase_data_complete(image_id, code) is True:
+            decision["should_run"] = False
+            decision["reason"] = f"data_complete_status_{status}"
+            return decision
         decision["reason"] = f"status_{status}"
         return decision
 

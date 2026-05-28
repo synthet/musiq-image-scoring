@@ -88,16 +88,17 @@ Verification (post-run):
 
 - Gap closed from **10,879 → 19** (`score_general IS NULL OR = 0` with successful `image_model_scores`).
 - Image 30323 (the original report): `score = 0.0` → composites now `general=0.5846 / technical=0.6884 / aesthetic=0.5524`, `rating=3`, `label=Green`.
-- **19 stragglers** all in `/mnt/d/Photos/Z6ii/40mm/2025/2025-07-31/`. Spot-checked image 24635: full 7-model coverage with valid `normalized` values. Likely excluded by `fetch_scored_images` query joins (folder/canonical-model filter) — minor; tracked as a follow-up.
+- **19 stragglers** (post–library-wide recalc) were in `/mnt/d/Photos/Z6ii/40mm/2025/2025-07-31/` — folder scored/indexed **after** the global recalc run, not a `fetch_scored_images` bug. **Resolved 2026-05-27:** folder recalc applied **91** composite updates; library-wide straggler count is now **0**.
 
 ---
 
 ## Open follow-ups
 
-1. ~~**Run `recalc_composite_scores.py` in batches**~~ — **done 2026-05-26 22:17** library-wide; 11,045 rows updated in 61.1 s. 19 stragglers in `/mnt/d/Photos/Z6ii/40mm/2025/2025-07-31/` remain — investigate why `fetch_scored_images` excludes them.
-2. **Deploy smoke** — restart WebUI, rebuild `/ui/` if using `static/app/`; confirm new auto-drive jobs enqueue short `target_phases` (pre-fix runs like 3245 keep old payloads).
-3. **Backfill `executor_version` on legacy `image_phase_status` rows** (optional ops hygiene) — policy fix masks NULL; see rollout plan § B4.
+1. ~~**Run `recalc_composite_scores.py` in batches**~~ — library-wide **2026-05-26** (11,045 rows); folder catch-up **2025-07-31** **2026-05-27** (91 rows). Stragglers closed.
+2. **Deploy smoke** — restart WebUI, rebuild `/ui/` if using `static/app/`; `align_auto_drive` plan preview timed out against live API (slow DB); JIT in-process confirms `['keywords', 'bird_species']` for run-3245 folder.
+3. **Backfill `executor_version`** — canary **500** applied on `2025-03-16` folder. Library-wide: `python scripts/maintenance/backfill_executor_version_ips.py` (dry-run showed ≥8k/phase at default `--limit 100000`; indexing/scoring/keywords often 0 NULL when data complete).
 4. ~~**Regression test for legacy NULL IPS**~~ — done: `test_plan_scope_empty_queues_legacy_null_metadata_and_canonical_scoring` in `tests/test_run_phase_planner.py`.
+5. ~~**Plan preview vs auto-drive**~~ — `align_auto_drive` on `POST /api/runs/plan/preview`; New Run scope UI uses it.
 
 **Addressed with item 1 rollout:** stale `phase_agg_json` / `awaiting_indexing` mis-bucket — `refresh_dirty_limit` on `GET /api/runs/folder-buckets` and `_resolve_folder_phase_summary`.
 
@@ -114,6 +115,8 @@ Verification (post-run):
 - **Tests:** `test_phases_policy.py`, `test_runs_autodrive.py`, `test_run_phase_planner.py`, `test_run_submit_prereq_gating.py`
 - **Docs:** `AUTO_DRIVE_FIX_SUMMARY.md`, `AUTODRIVE_REPROCESSING_SUMMARY.md`
 - **Diagnostics:** `scripts/diagnostics/capture_run_planner_snapshot.py`
+- **Maintenance:** `scripts/maintenance/backfill_executor_version_ips.py`
+- **Follow-up session:** plan preview `align_auto_drive`, ScopeSelector repair preview alignment
 
 ## Investigation methods used
 

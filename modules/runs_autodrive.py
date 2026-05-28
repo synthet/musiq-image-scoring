@@ -147,19 +147,40 @@ def phases_with_work_from_repair_plan(
     return out
 
 
+PLANNER_PREVIEW_BUDGET_SEC = 5.0
+# Hard wall-clock cap on per-row planner previews so a slow ``build_validation_repair_plan``
+# can't turn ``/api/runs/folder-buckets`` into a 90-second hang. Items past the budget get
+# ``planner_next_phases: []`` and a ``planner_preview_skipped`` flag so the UI can show
+# "preview unavailable" instead of pretending there's no work.
+
+
 def _attach_planner_preview_to_bucket_items(
     items: list[dict[str, Any]],
     *,
     target_phases: Sequence[str],
     planner_preview_limit: int,
+    budget_sec: float = PLANNER_PREVIEW_BUDGET_SEC,
+    max_images: int = 500,
 ) -> None:
     """Populate ``planner_next_phases`` on bucket rows (JIT dry-run, auto-drive rules)."""
     preview_cap = max(0, _as_int(planner_preview_limit, 0))
+    image_cap = max(0, _as_int(max_images, 0))
+    deadline = time.monotonic() + max(0.0, float(budget_sec)) if budget_sec else None
+    budget_exhausted = False
     for idx, item in enumerate(items):
         item["planner_next_phases"] = []
         if idx >= preview_cap:
             continue
         if item.get("bucket") in ("blocked", "complete"):
+            continue
+        if image_cap and _as_int(item.get("image_count")) > image_cap:
+            # plan_scope is O(images × stages × DB round trips); skip giant folders to
+            # keep ``/api/runs/folder-buckets`` snappy. UI can fetch lazily per row.
+            item["planner_preview_skipped"] = "too_many_images"
+            continue
+        if deadline is not None and time.monotonic() >= deadline:
+            budget_exhausted = True
+            item["planner_preview_skipped"] = "budget_exhausted"
             continue
         candidates = sort_phase_value_strings(
             [str(p) for p in item.get("next_phases") or list(target_phases)]
@@ -182,6 +203,11 @@ def _attach_planner_preview_to_bucket_items(
                 item.get("path"),
                 exc_info=True,
             )
+    if budget_exhausted:
+        logger.info(
+            "runs_autodrive: planner preview budget %.1fs exhausted; skipped remaining items",
+            float(budget_sec),
+        )
 
 
 def _resolve_folder_phase_summary(
@@ -522,6 +548,7 @@ def build_folder_buckets(
     folder_paths: Optional[Sequence[str]] = None,
     refresh_dirty_limit: int = 0,
     planner_preview_limit: int = 25,
+    planner_preview_max_images: int = 500,
 ) -> dict[str, Any]:
     limit = max(1, min(_as_int(limit, 25), 500))
     offset = max(0, _as_int(offset, 0))
@@ -605,6 +632,7 @@ def build_folder_buckets(
         page,
         target_phases=target,
         planner_preview_limit=planner_preview_limit,
+        max_images=planner_preview_max_images,
     )
     for item in page:
         item.pop("path_key", None)
@@ -832,6 +860,7 @@ _DRIVE_STATE: Dict[str, Any] = {
     "started_at": None,
     "last_tick_at": 0.0,
     "last_result": None,
+    "last_batch_error": None,
     "stop_reason": None,
     "idle_no_progress_ticks": 0,
 }
@@ -930,6 +959,30 @@ def start_drive(
     max_repeats: int = 2,
 ) -> Dict[str, Any]:
     """Enable the durable drive and immediately schedule the first batch."""
+    state = arm_drive(
+        root_path=root_path,
+        limit=limit,
+        target_phases=target_phases,
+        generate_captions=generate_captions,
+        max_repeats=max_repeats,
+    )
+    result = _run_drive_batch(force=True)
+    return {"state": state, "result": result}
+
+
+def arm_drive(
+    *,
+    root_path: Optional[str] = None,
+    limit: int = 50,
+    target_phases: Optional[Sequence[Any]] = None,
+    generate_captions: bool = True,
+    max_repeats: int = 2,
+) -> Dict[str, Any]:
+    """Enable the durable drive without running an immediate batch.
+
+    This is safe for API handlers that must return quickly. Use
+    ``kick_drive_batch_async(force=True)`` to enqueue work without blocking.
+    """
     with _DRIVE_LOCK:
         _DRIVE_STATE.update(
             {
@@ -942,14 +995,41 @@ def start_drive(
                 "started_at": time.time(),
                 "last_tick_at": 0.0,
                 "last_result": None,
+                "last_batch_error": None,
                 "stop_reason": None,
                 "idle_no_progress_ticks": 0,
             }
         )
-    logger.info("runs_autodrive: drive started (root_path=%s)", get_drive_state().get("root_path"))
+    logger.info("runs_autodrive: drive armed (root_path=%s)", get_drive_state().get("root_path"))
     _broadcast_drive("drive_started")
-    result = _run_drive_batch(force=True)
-    return {"state": get_drive_state(), "result": result}
+    return get_drive_state()
+
+
+def kick_drive_batch_async(*, force: bool = False) -> Dict[str, Any]:
+    """Run one drive batch in a background thread and return immediately.
+
+    If a batch is already in flight the second call is a no-op (returns
+    ``started=False, reason="busy"``) so duplicate clicks don't lie about
+    queuing fresh work.
+    """
+    if _DRIVE_BATCH_LOCK.locked():
+        return {"started": False, "reason": "busy"}
+
+    def _runner():
+        try:
+            _run_drive_batch(force=bool(force))
+        except Exception as exc:
+            logger.exception("runs_autodrive: async drive batch failed")
+            with _DRIVE_LOCK:
+                _DRIVE_STATE["last_batch_error"] = {
+                    "at": time.time(),
+                    "type": type(exc).__name__,
+                    "message": str(exc)[:500],
+                }
+
+    t = threading.Thread(target=_runner, daemon=True, name="runs-autodrive-batch")
+    t.start()
+    return {"started": True}
 
 
 def stop_drive(reason: str = "manual") -> Dict[str, Any]:
@@ -990,8 +1070,14 @@ def _run_drive_batch(*, force: bool = False) -> Optional[Dict[str, Any]]:
 
         try:
             result = auto_drive_runs(dry_run=False, **params)
-        except Exception:
+        except Exception as exc:
             logger.exception("runs_autodrive: drive batch failed")
+            with _DRIVE_LOCK:
+                _DRIVE_STATE["last_batch_error"] = {
+                    "at": time.time(),
+                    "type": type(exc).__name__,
+                    "message": str(exc)[:500],
+                }
             return None
 
         health = result.get("health") or _bucket_health_from_counts(result.get("bucket_counts", {}))
@@ -1009,6 +1095,7 @@ def _run_drive_batch(*, force: bool = False) -> Optional[Dict[str, Any]]:
         stop_reason: Optional[str] = None
         with _DRIVE_LOCK:
             _DRIVE_STATE["last_result"] = summary
+            _DRIVE_STATE["last_batch_error"] = None
             if immediate_stop == "complete":
                 _DRIVE_STATE["idle_no_progress_ticks"] = 0
                 stop_reason = "complete"
@@ -1061,30 +1148,30 @@ def drive_tick() -> Optional[Dict[str, Any]]:
 def get_drive_status_with_outstanding() -> Dict[str, Any]:
     """Drive state plus a light snapshot of outstanding work for the UI."""
     state = get_drive_state()
-    try:
-        # ``build_folder_buckets`` computes totals/bucket_counts over all rows
-        # before paginating, so limit=1 is enough for the summary.
-        planned = build_folder_buckets(
-            root_path=state.get("root_path"),
-            limit=1,
-            include_complete=False,
-            target_phases=state.get("target_phases"),
-        )
-        bucket_counts = planned.get("bucket_counts", {})
+    last = state.get("last_result")
+    if isinstance(last, dict) and last:
+        bucket_counts = last.get("bucket_counts", {}) or {}
         outstanding = {
-            "total_outstanding": planned.get("total", 0),
+            "total_outstanding": _as_int(last.get("total_outstanding")),
             "bucket_counts": bucket_counts,
-            "phase_counts": planned.get("phase_counts", {}),
-            "health": _bucket_health_from_counts(bucket_counts),
+            "phase_counts": last.get("phase_counts", {}) or {},
+            "health": last.get("health") or _bucket_health_from_counts(bucket_counts),
+            "source": "last_result",
         }
-    except Exception:
-        logger.debug("runs_autodrive: outstanding snapshot failed", exc_info=True)
+    else:
+        # Avoid recomputing ``build_folder_buckets`` here: even with limit=1 it must
+        # scan all folders to produce totals and counts, which can block API polling
+        # on large libraries.
         outstanding = {
             "total_outstanding": None,
             "bucket_counts": {},
             "phase_counts": {},
             "health": _bucket_health_from_counts({}),
+            "source": "unknown",
         }
+    last_err = state.get("last_batch_error")
+    if last_err:
+        outstanding["last_batch_error"] = last_err
     return {"state": state, "outstanding": outstanding}
 
 

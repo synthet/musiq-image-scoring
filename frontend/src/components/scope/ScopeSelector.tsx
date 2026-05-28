@@ -97,7 +97,9 @@ export function ScopeSelector() {
       qc.invalidateQueries({ queryKey: ['folders-tree'] })
       setRepairPreviewLoading(true)
       const stagesOrdered = ALL_STAGES.filter((code) => stages.has(code))
-      const rep = await scopeApi.validationRepairPreview(validPaths, stagesOrdered)
+      const rep = await scopeApi.validationRepairPreview(validPaths, stagesOrdered, {
+        alignAutoDrive: true,
+      })
       setRepairPreview(rep)
     } catch (e) {
       setPreview(null)
