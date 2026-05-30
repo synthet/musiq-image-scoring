@@ -137,7 +137,9 @@ GET /api/raw-preview?path=<url-encoded-file-path>
 **Image detail optional field** (when technical failure detection has run): `technical_failure_detection` — `version`, `technical_failure_score` (0–100), `primary_reject_reason`, nested `technical_failures` metrics. Table: `image_technical_failures`; also under `scores_json.summary` after scoring.
 | GET | `/api/folders` | Folder listing |
 | GET | `/api/stacks` | Stacks with cover images |
-| GET | `/api/stacks/{stack_id}/images` | Images in a stack |
+| GET | `/api/stacks/{stack_id}/images` | Images in a stack (includes `sub_stack_id` when two-level culling ran) |
+| GET | `/api/stacks/{stack_id}/substacks` | Sub-stacks for a root stack (two-level culling) |
+| GET | `/api/substacks/{sub_stack_id}/images` | Images in a sub-stack |
 | GET | `/api/stats` | Database statistics |
 
 ### GET /api/images — Query Parameters
@@ -247,6 +249,32 @@ These fields serve different purposes. Do not substitute one for another when in
   "stack_id": 42
 }
 ```
+
+Each image object may include `sub_stack_id` (integer or null) when two-level culling has assigned leaf sub-stacks.
+
+### GET /api/stacks/{stack_id}/substacks — Response
+```json
+{
+  "substacks": [
+    {
+      "id": 101,
+      "stack_id": 42,
+      "name": "substack_42_1",
+      "best_image_id": 1001,
+      "level1_space": "mobilenet_v2_imagenet_gap",
+      "level2_visual_space": "mobilenet_v2_imagenet_gap",
+      "level2_semantic_space": "clip_vit_b32_image",
+      "policy_version": "2.0",
+      "image_count": 5
+    }
+  ],
+  "count": 3,
+  "stack_id": 42
+}
+```
+
+### GET /api/substacks/{sub_stack_id}/images — Response
+Same shape as stack images; `sub_stack_id` in the envelope instead of `stack_id`.
 
 ### GET /api/stats — Response (DatabaseStats)
 

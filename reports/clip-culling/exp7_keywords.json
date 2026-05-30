@@ -1,0 +1,149 @@
+{
+  "jaccard_vs_b32_baseline": {
+    "openai": 0.0972,
+    "openclip": 0.1625
+  },
+  "jaccard_openai_vs_openclip": 0.4279,
+  "top_tags": {
+    "openai": {
+      "birds": 1948,
+      "nature": 165,
+      "insect": 113,
+      "macro": 67,
+      "wildlife": 37,
+      "water": 26,
+      "forest": 13,
+      "transportation": 11,
+      "landscape": 8,
+      "urban": 5,
+      "flowers": 3,
+      "aerial": 3
+    },
+    "openclip": {
+      "wildlife": 1679,
+      "birds": 1307,
+      "insect": 95,
+      "nature": 64,
+      "water": 58,
+      "transportation": 13,
+      "aerial": 12,
+      "macro": 12,
+      "minimal": 10,
+      "landscape": 5,
+      "forest": 3,
+      "flowers": 2
+    },
+    "b32_baseline": {
+      "birds": 981,
+      "wildlife": 977,
+      "nature": 894,
+      "animals": 703,
+      "minimal": 513,
+      "forest": 317,
+      "macro": 212,
+      "abstract": 117,
+      "urban": 83,
+      "insect": 64,
+      "transportation": 30,
+      "aerial": 22
+    }
+  },
+  "f1_vs_human": null,
+  "n_human_truth": 0,
+  "note": "No source='user' keywords in seed; reporting inter-model agreement vs B/32 baseline only.",
+  "spot_check": [
+    {
+      "image_id": 5512,
+      "file": "DSC_1253.NEF",
+      "b32_baseline": [],
+      "openai_l14": [
+        "insect"
+      ],
+      "openclip_l14": [
+        "insect",
+        "nature",
+        "wildlife"
+      ]
+    },
+    {
+      "image_id": 5513,
+      "file": "DSC_1265.NEF",
+      "b32_baseline": [],
+      "openai_l14": [
+        "birds"
+      ],
+      "openclip_l14": [
+        "birds"
+      ]
+    },
+    {
+      "image_id": 5514,
+      "file": "DSC_1276.NEF",
+      "b32_baseline": [],
+      "openai_l14": [
+        "birds"
+      ],
+      "openclip_l14": [
+        "birds",
+        "wildlife"
+      ]
+    },
+    {
+      "image_id": 5515,
+      "file": "DSC_1277.NEF",
+      "b32_baseline": [],
+      "openai_l14": [
+        "birds"
+      ],
+      "openclip_l14": [
+        "birds"
+      ]
+    },
+    {
+      "image_id": 5516,
+      "file": "DSC_1278.NEF",
+      "b32_baseline": [],
+      "openai_l14": [
+        "birds"
+      ],
+      "openclip_l14": [
+        "birds"
+      ]
+    },
+    {
+      "image_id": 5517,
+      "file": "DSC_1279.NEF",
+      "b32_baseline": [],
+      "openai_l14": [
+        "birds"
+      ],
+      "openclip_l14": [
+        "birds"
+      ]
+    },
+    {
+      "image_id": 5518,
+      "file": "DSC_1283.NEF",
+      "b32_baseline": [],
+      "openai_l14": [
+        "birds"
+      ],
+      "openclip_l14": [
+        "birds",
+        "wildlife"
+      ]
+    },
+    {
+      "image_id": 5519,
+      "file": "DSC_1289.NEF",
+      "b32_baseline": [],
+      "openai_l14": [
+        "birds"
+      ],
+      "openclip_l14": [
+        "birds"
+      ]
+    }
+  ],
+  "siglip2_keywords_error": "expected str, bytes or os.PathLike object, not NoneType"
+}

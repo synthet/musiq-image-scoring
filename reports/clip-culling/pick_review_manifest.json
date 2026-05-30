@@ -1,0 +1,2246 @@
+{
+ "23256": {
+  "n": 19,
+  "k": 5,
+  "models": {
+   "mobilenet_v2_imagenet_gap": {
+    "sil": 0.30891138315200806,
+    "clusters": [
+     [
+      {
+       "id": 48139,
+       "name": "DSC_1575.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/74/744f0089cf648b91d36451c9a4b2c59f.jpg",
+       "pick": true
+      },
+      {
+       "id": 48133,
+       "name": "DSC_1569.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/97/9792a9c7ca12198cfeafe9aeed5335bd.jpg",
+       "pick": true
+      },
+      {
+       "id": 48136,
+       "name": "DSC_1572.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/8a/8ae6ba1f1267c9f37e3e3ac7e8448cc4.jpg",
+       "pick": true
+      },
+      {
+       "id": 48134,
+       "name": "DSC_1570.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/ed/ed40da2c4c6c579e861dee0b1fe39dc1.jpg",
+       "pick": false
+      },
+      {
+       "id": 48132,
+       "name": "DSC_1568.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/06/06d80f4fb45b1a30aa4a655436f19c0f.jpg",
+       "pick": false
+      },
+      {
+       "id": 48138,
+       "name": "DSC_1574.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/92/92bf01082c93152e8735ea2a5334a913.jpg",
+       "pick": false
+      },
+      {
+       "id": 48137,
+       "name": "DSC_1573.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/ef/efa50de768a282273d9954fd4e8ddff3.jpg",
+       "pick": false
+      },
+      {
+       "id": 48135,
+       "name": "DSC_1571.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/b6c99753f4f5d1cdf54bb662b07e6b9c.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48127,
+       "name": "DSC_1563.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/6f/6f9e2661a814330f300299d6476bf15d.jpg",
+       "pick": true
+      },
+      {
+       "id": 48128,
+       "name": "DSC_1564.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/34/34cf19e7b2dd0aa198ec03a5ed60fea2.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48123,
+       "name": "DSC_1559.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/3c/3cab175071b7080d15a75531049f0415.jpg",
+       "pick": true
+      },
+      {
+       "id": 48126,
+       "name": "DSC_1562.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/33/3324bafecdb39e31405ea4855630b51f.jpg",
+       "pick": true
+      },
+      {
+       "id": 48124,
+       "name": "DSC_1560.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/2a/2a5a335947fa344b7e612a8f05b21c7a.jpg",
+       "pick": true
+      },
+      {
+       "id": 48122,
+       "name": "DSC_1558.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/93/934734e79df68b8252afa269c147cad6.jpg",
+       "pick": false
+      },
+      {
+       "id": 48125,
+       "name": "DSC_1561.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7e/7e290bc704ac5a7cf24c9da084f22016.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48131,
+       "name": "DSC_1567.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/e7/e75556202b8815abd870e368bb72aaab.jpg",
+       "pick": true
+      },
+      {
+       "id": 48129,
+       "name": "DSC_1565.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/43/43c604cccda848e14f6ea8fc590c8e3a.jpg",
+       "pick": true
+      },
+      {
+       "id": 48130,
+       "name": "DSC_1566.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a2/a26a30521f3de6a2eab55eb0865f6cf3.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48120,
+       "name": "DSC_1556.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a4/a462e8b7be7af892eefa6aa93d079582.jpg",
+       "pick": true
+      }
+     ]
+    ]
+   },
+   "clip_vit_b32_image": {
+    "sil": 0.38326019048690796,
+    "clusters": [
+     [
+      {
+       "id": 48134,
+       "name": "DSC_1570.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/ed/ed40da2c4c6c579e861dee0b1fe39dc1.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48136,
+       "name": "DSC_1572.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/8a/8ae6ba1f1267c9f37e3e3ac7e8448cc4.jpg",
+       "pick": true
+      },
+      {
+       "id": 48138,
+       "name": "DSC_1574.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/92/92bf01082c93152e8735ea2a5334a913.jpg",
+       "pick": true
+      },
+      {
+       "id": 48131,
+       "name": "DSC_1567.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/e7/e75556202b8815abd870e368bb72aaab.jpg",
+       "pick": true
+      },
+      {
+       "id": 48137,
+       "name": "DSC_1573.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/ef/efa50de768a282273d9954fd4e8ddff3.jpg",
+       "pick": false
+      },
+      {
+       "id": 48129,
+       "name": "DSC_1565.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/43/43c604cccda848e14f6ea8fc590c8e3a.jpg",
+       "pick": false
+      },
+      {
+       "id": 48130,
+       "name": "DSC_1566.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a2/a26a30521f3de6a2eab55eb0865f6cf3.jpg",
+       "pick": false
+      },
+      {
+       "id": 48135,
+       "name": "DSC_1571.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/b6c99753f4f5d1cdf54bb662b07e6b9c.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48139,
+       "name": "DSC_1575.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/74/744f0089cf648b91d36451c9a4b2c59f.jpg",
+       "pick": true
+      },
+      {
+       "id": 48133,
+       "name": "DSC_1569.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/97/9792a9c7ca12198cfeafe9aeed5335bd.jpg",
+       "pick": true
+      },
+      {
+       "id": 48132,
+       "name": "DSC_1568.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/06/06d80f4fb45b1a30aa4a655436f19c0f.jpg",
+       "pick": true
+      },
+      {
+       "id": 48127,
+       "name": "DSC_1563.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/6f/6f9e2661a814330f300299d6476bf15d.jpg",
+       "pick": false
+      },
+      {
+       "id": 48128,
+       "name": "DSC_1564.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/34/34cf19e7b2dd0aa198ec03a5ed60fea2.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48123,
+       "name": "DSC_1559.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/3c/3cab175071b7080d15a75531049f0415.jpg",
+       "pick": true
+      },
+      {
+       "id": 48126,
+       "name": "DSC_1562.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/33/3324bafecdb39e31405ea4855630b51f.jpg",
+       "pick": true
+      },
+      {
+       "id": 48124,
+       "name": "DSC_1560.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/2a/2a5a335947fa344b7e612a8f05b21c7a.jpg",
+       "pick": true
+      },
+      {
+       "id": 48122,
+       "name": "DSC_1558.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/93/934734e79df68b8252afa269c147cad6.jpg",
+       "pick": false
+      },
+      {
+       "id": 48125,
+       "name": "DSC_1561.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7e/7e290bc704ac5a7cf24c9da084f22016.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48120,
+       "name": "DSC_1556.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a4/a462e8b7be7af892eefa6aa93d079582.jpg",
+       "pick": true
+      }
+     ]
+    ]
+   },
+   "openclip_l14_laion2b_image": {
+    "sil": 0.3628271222114563,
+    "clusters": [
+     [
+      {
+       "id": 48136,
+       "name": "DSC_1572.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/8a/8ae6ba1f1267c9f37e3e3ac7e8448cc4.jpg",
+       "pick": true
+      },
+      {
+       "id": 48134,
+       "name": "DSC_1570.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/ed/ed40da2c4c6c579e861dee0b1fe39dc1.jpg",
+       "pick": true
+      },
+      {
+       "id": 48138,
+       "name": "DSC_1574.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/92/92bf01082c93152e8735ea2a5334a913.jpg",
+       "pick": true
+      },
+      {
+       "id": 48137,
+       "name": "DSC_1573.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/ef/efa50de768a282273d9954fd4e8ddff3.jpg",
+       "pick": false
+      },
+      {
+       "id": 48135,
+       "name": "DSC_1571.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/b6c99753f4f5d1cdf54bb662b07e6b9c.jpg",
+       "pick": false
+      },
+      {
+       "id": 48128,
+       "name": "DSC_1564.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/34/34cf19e7b2dd0aa198ec03a5ed60fea2.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48139,
+       "name": "DSC_1575.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/74/744f0089cf648b91d36451c9a4b2c59f.jpg",
+       "pick": true
+      },
+      {
+       "id": 48133,
+       "name": "DSC_1569.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/97/9792a9c7ca12198cfeafe9aeed5335bd.jpg",
+       "pick": true
+      },
+      {
+       "id": 48127,
+       "name": "DSC_1563.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/6f/6f9e2661a814330f300299d6476bf15d.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48123,
+       "name": "DSC_1559.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/3c/3cab175071b7080d15a75531049f0415.jpg",
+       "pick": true
+      },
+      {
+       "id": 48126,
+       "name": "DSC_1562.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/33/3324bafecdb39e31405ea4855630b51f.jpg",
+       "pick": true
+      },
+      {
+       "id": 48124,
+       "name": "DSC_1560.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/2a/2a5a335947fa344b7e612a8f05b21c7a.jpg",
+       "pick": true
+      },
+      {
+       "id": 48122,
+       "name": "DSC_1558.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/93/934734e79df68b8252afa269c147cad6.jpg",
+       "pick": false
+      },
+      {
+       "id": 48125,
+       "name": "DSC_1561.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7e/7e290bc704ac5a7cf24c9da084f22016.jpg",
+       "pick": false
+      },
+      {
+       "id": 48120,
+       "name": "DSC_1556.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a4/a462e8b7be7af892eefa6aa93d079582.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48131,
+       "name": "DSC_1567.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/e7/e75556202b8815abd870e368bb72aaab.jpg",
+       "pick": true
+      },
+      {
+       "id": 48129,
+       "name": "DSC_1565.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/43/43c604cccda848e14f6ea8fc590c8e3a.jpg",
+       "pick": true
+      },
+      {
+       "id": 48130,
+       "name": "DSC_1566.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a2/a26a30521f3de6a2eab55eb0865f6cf3.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48132,
+       "name": "DSC_1568.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/06/06d80f4fb45b1a30aa4a655436f19c0f.jpg",
+       "pick": true
+      }
+     ]
+    ]
+   },
+   "openai_clip_vit_l14_image": {
+    "sil": 0.380422979593277,
+    "clusters": [
+     [
+      {
+       "id": 48134,
+       "name": "DSC_1570.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/ed/ed40da2c4c6c579e861dee0b1fe39dc1.jpg",
+       "pick": true
+      },
+      {
+       "id": 48132,
+       "name": "DSC_1568.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/06/06d80f4fb45b1a30aa4a655436f19c0f.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48136,
+       "name": "DSC_1572.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/8a/8ae6ba1f1267c9f37e3e3ac7e8448cc4.jpg",
+       "pick": true
+      },
+      {
+       "id": 48138,
+       "name": "DSC_1574.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/92/92bf01082c93152e8735ea2a5334a913.jpg",
+       "pick": true
+      },
+      {
+       "id": 48137,
+       "name": "DSC_1573.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/ef/efa50de768a282273d9954fd4e8ddff3.jpg",
+       "pick": true
+      },
+      {
+       "id": 48135,
+       "name": "DSC_1571.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/b6c99753f4f5d1cdf54bb662b07e6b9c.jpg",
+       "pick": false
+      },
+      {
+       "id": 48128,
+       "name": "DSC_1564.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/34/34cf19e7b2dd0aa198ec03a5ed60fea2.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48131,
+       "name": "DSC_1567.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/e7/e75556202b8815abd870e368bb72aaab.jpg",
+       "pick": true
+      },
+      {
+       "id": 48129,
+       "name": "DSC_1565.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/43/43c604cccda848e14f6ea8fc590c8e3a.jpg",
+       "pick": true
+      },
+      {
+       "id": 48130,
+       "name": "DSC_1566.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a2/a26a30521f3de6a2eab55eb0865f6cf3.jpg",
+       "pick": true
+      },
+      {
+       "id": 48127,
+       "name": "DSC_1563.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/6f/6f9e2661a814330f300299d6476bf15d.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48123,
+       "name": "DSC_1559.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/3c/3cab175071b7080d15a75531049f0415.jpg",
+       "pick": true
+      },
+      {
+       "id": 48126,
+       "name": "DSC_1562.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/33/3324bafecdb39e31405ea4855630b51f.jpg",
+       "pick": true
+      },
+      {
+       "id": 48124,
+       "name": "DSC_1560.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/2a/2a5a335947fa344b7e612a8f05b21c7a.jpg",
+       "pick": true
+      },
+      {
+       "id": 48122,
+       "name": "DSC_1558.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/93/934734e79df68b8252afa269c147cad6.jpg",
+       "pick": false
+      },
+      {
+       "id": 48125,
+       "name": "DSC_1561.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7e/7e290bc704ac5a7cf24c9da084f22016.jpg",
+       "pick": false
+      },
+      {
+       "id": 48120,
+       "name": "DSC_1556.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a4/a462e8b7be7af892eefa6aa93d079582.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48139,
+       "name": "DSC_1575.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/74/744f0089cf648b91d36451c9a4b2c59f.jpg",
+       "pick": true
+      },
+      {
+       "id": 48133,
+       "name": "DSC_1569.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/97/9792a9c7ca12198cfeafe9aeed5335bd.jpg",
+       "pick": true
+      }
+     ]
+    ]
+   },
+   "siglip2_base_image": {
+    "sil": 0.39837464690208435,
+    "clusters": [
+     [
+      {
+       "id": 48139,
+       "name": "DSC_1575.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/74/744f0089cf648b91d36451c9a4b2c59f.jpg",
+       "pick": true
+      },
+      {
+       "id": 48133,
+       "name": "DSC_1569.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/97/9792a9c7ca12198cfeafe9aeed5335bd.jpg",
+       "pick": true
+      },
+      {
+       "id": 48136,
+       "name": "DSC_1572.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/8a/8ae6ba1f1267c9f37e3e3ac7e8448cc4.jpg",
+       "pick": true
+      },
+      {
+       "id": 48134,
+       "name": "DSC_1570.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/ed/ed40da2c4c6c579e861dee0b1fe39dc1.jpg",
+       "pick": false
+      },
+      {
+       "id": 48138,
+       "name": "DSC_1574.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/92/92bf01082c93152e8735ea2a5334a913.jpg",
+       "pick": false
+      },
+      {
+       "id": 48137,
+       "name": "DSC_1573.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/ef/efa50de768a282273d9954fd4e8ddff3.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48135,
+       "name": "DSC_1571.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/b6c99753f4f5d1cdf54bb662b07e6b9c.jpg",
+       "pick": true
+      },
+      {
+       "id": 48127,
+       "name": "DSC_1563.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/6f/6f9e2661a814330f300299d6476bf15d.jpg",
+       "pick": true
+      },
+      {
+       "id": 48128,
+       "name": "DSC_1564.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/34/34cf19e7b2dd0aa198ec03a5ed60fea2.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48123,
+       "name": "DSC_1559.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/3c/3cab175071b7080d15a75531049f0415.jpg",
+       "pick": true
+      },
+      {
+       "id": 48126,
+       "name": "DSC_1562.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/33/3324bafecdb39e31405ea4855630b51f.jpg",
+       "pick": true
+      },
+      {
+       "id": 48124,
+       "name": "DSC_1560.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/2a/2a5a335947fa344b7e612a8f05b21c7a.jpg",
+       "pick": true
+      },
+      {
+       "id": 48122,
+       "name": "DSC_1558.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/93/934734e79df68b8252afa269c147cad6.jpg",
+       "pick": false
+      },
+      {
+       "id": 48125,
+       "name": "DSC_1561.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7e/7e290bc704ac5a7cf24c9da084f22016.jpg",
+       "pick": false
+      },
+      {
+       "id": 48120,
+       "name": "DSC_1556.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a4/a462e8b7be7af892eefa6aa93d079582.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48131,
+       "name": "DSC_1567.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/e7/e75556202b8815abd870e368bb72aaab.jpg",
+       "pick": true
+      },
+      {
+       "id": 48129,
+       "name": "DSC_1565.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/43/43c604cccda848e14f6ea8fc590c8e3a.jpg",
+       "pick": true
+      },
+      {
+       "id": 48130,
+       "name": "DSC_1566.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a2/a26a30521f3de6a2eab55eb0865f6cf3.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48132,
+       "name": "DSC_1568.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/06/06d80f4fb45b1a30aa4a655436f19c0f.jpg",
+       "pick": true
+      }
+     ]
+    ]
+   },
+   "dinov2_reg_base_image": {
+    "sil": 0.49092939496040344,
+    "clusters": [
+     [
+      {
+       "id": 48139,
+       "name": "DSC_1575.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/74/744f0089cf648b91d36451c9a4b2c59f.jpg",
+       "pick": true
+      },
+      {
+       "id": 48133,
+       "name": "DSC_1569.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/97/9792a9c7ca12198cfeafe9aeed5335bd.jpg",
+       "pick": true
+      },
+      {
+       "id": 48136,
+       "name": "DSC_1572.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/8a/8ae6ba1f1267c9f37e3e3ac7e8448cc4.jpg",
+       "pick": true
+      },
+      {
+       "id": 48134,
+       "name": "DSC_1570.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/ed/ed40da2c4c6c579e861dee0b1fe39dc1.jpg",
+       "pick": false
+      },
+      {
+       "id": 48138,
+       "name": "DSC_1574.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/92/92bf01082c93152e8735ea2a5334a913.jpg",
+       "pick": false
+      },
+      {
+       "id": 48137,
+       "name": "DSC_1573.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/ef/efa50de768a282273d9954fd4e8ddff3.jpg",
+       "pick": false
+      },
+      {
+       "id": 48135,
+       "name": "DSC_1571.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/b6c99753f4f5d1cdf54bb662b07e6b9c.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48127,
+       "name": "DSC_1563.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/6f/6f9e2661a814330f300299d6476bf15d.jpg",
+       "pick": true
+      },
+      {
+       "id": 48128,
+       "name": "DSC_1564.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/34/34cf19e7b2dd0aa198ec03a5ed60fea2.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48123,
+       "name": "DSC_1559.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/3c/3cab175071b7080d15a75531049f0415.jpg",
+       "pick": true
+      },
+      {
+       "id": 48126,
+       "name": "DSC_1562.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/33/3324bafecdb39e31405ea4855630b51f.jpg",
+       "pick": true
+      },
+      {
+       "id": 48124,
+       "name": "DSC_1560.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/2a/2a5a335947fa344b7e612a8f05b21c7a.jpg",
+       "pick": true
+      },
+      {
+       "id": 48122,
+       "name": "DSC_1558.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/93/934734e79df68b8252afa269c147cad6.jpg",
+       "pick": false
+      },
+      {
+       "id": 48125,
+       "name": "DSC_1561.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7e/7e290bc704ac5a7cf24c9da084f22016.jpg",
+       "pick": false
+      },
+      {
+       "id": 48120,
+       "name": "DSC_1556.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a4/a462e8b7be7af892eefa6aa93d079582.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48131,
+       "name": "DSC_1567.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/e7/e75556202b8815abd870e368bb72aaab.jpg",
+       "pick": true
+      },
+      {
+       "id": 48129,
+       "name": "DSC_1565.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/43/43c604cccda848e14f6ea8fc590c8e3a.jpg",
+       "pick": true
+      },
+      {
+       "id": 48130,
+       "name": "DSC_1566.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a2/a26a30521f3de6a2eab55eb0865f6cf3.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48132,
+       "name": "DSC_1568.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.8,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/06/06d80f4fb45b1a30aa4a655436f19c0f.jpg",
+       "pick": true
+      }
+     ]
+    ]
+   }
+  }
+ },
+ "23288": {
+  "n": 19,
+  "k": 5,
+  "models": {
+   "mobilenet_v2_imagenet_gap": {
+    "sil": 0.3435347080230713,
+    "clusters": [
+     [
+      {
+       "id": 48764,
+       "name": "DSC_2202.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/5b/5b3340071be6a22d76d302d75509755e.jpg",
+       "pick": true
+      },
+      {
+       "id": 48759,
+       "name": "DSC_2197.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a2/a2fde867bc5dec3c90eedaa7d8ce23e3.jpg",
+       "pick": true
+      },
+      {
+       "id": 48758,
+       "name": "DSC_2196.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/1a/1ac5055a106f392399db28dbc71a50c5.jpg",
+       "pick": true
+      },
+      {
+       "id": 48754,
+       "name": "DSC_2192.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/4f/4f9238ff2e8edfd453d068972e872af4.jpg",
+       "pick": false
+      },
+      {
+       "id": 48755,
+       "name": "DSC_2193.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7a/7a0381ead64e71ba289255726591d0fc.jpg",
+       "pick": false
+      },
+      {
+       "id": 48763,
+       "name": "DSC_2201.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/83/83d00931d407a8164e460d46309d3583.jpg",
+       "pick": false
+      },
+      {
+       "id": 48760,
+       "name": "DSC_2198.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/64/64680987acb4a9c4c3ad5b663ca1b344.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48747,
+       "name": "DSC_2185.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/d4/d4b39bcd632d3d94602ad7389772b633.jpg",
+       "pick": true
+      },
+      {
+       "id": 48750,
+       "name": "DSC_2188.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/dc/dc962be8020e29922f34fe528b98b073.jpg",
+       "pick": true
+      },
+      {
+       "id": 48748,
+       "name": "DSC_2186.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/1c/1ce32b89638e30776a8af14f8a72f7df.jpg",
+       "pick": true
+      },
+      {
+       "id": 48751,
+       "name": "DSC_2189.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7a/7a19b802091ea165c294f25325203711.jpg",
+       "pick": false
+      },
+      {
+       "id": 48749,
+       "name": "DSC_2187.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/88/88f96ef184ae71171ded9bb1463d3070.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48753,
+       "name": "DSC_2191.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/bb/bb71b772bdb51f40ea2d75f494f23dbc.jpg",
+       "pick": true
+      },
+      {
+       "id": 48752,
+       "name": "DSC_2190.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/0c/0c589843026164653cf562fa0fa9d7a1.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48761,
+       "name": "DSC_2199.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/41/4147d5b90cbfd0b40a788536ae054f81.jpg",
+       "pick": true
+      },
+      {
+       "id": 48762,
+       "name": "DSC_2200.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/24/24771f33a43c405c126230b75bc8ed86.jpg",
+       "pick": true
+      },
+      {
+       "id": 48756,
+       "name": "DSC_2194.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/46/46054fc2249ce1fe2635bae838a83c5e.jpg",
+       "pick": true
+      },
+      {
+       "id": 48757,
+       "name": "DSC_2195.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/eb/ebcc645abd08dad48f3e1790db1f86f4.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48741,
+       "name": "DSC_2179.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/b6848a376ade2d0f245fb055a57aabbc.jpg",
+       "pick": true
+      }
+     ]
+    ]
+   },
+   "clip_vit_b32_image": {
+    "sil": 0.4523845911026001,
+    "clusters": [
+     [
+      {
+       "id": 48764,
+       "name": "DSC_2202.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/5b/5b3340071be6a22d76d302d75509755e.jpg",
+       "pick": true
+      },
+      {
+       "id": 48759,
+       "name": "DSC_2197.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a2/a2fde867bc5dec3c90eedaa7d8ce23e3.jpg",
+       "pick": true
+      },
+      {
+       "id": 48758,
+       "name": "DSC_2196.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/1a/1ac5055a106f392399db28dbc71a50c5.jpg",
+       "pick": true
+      },
+      {
+       "id": 48754,
+       "name": "DSC_2192.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/4f/4f9238ff2e8edfd453d068972e872af4.jpg",
+       "pick": false
+      },
+      {
+       "id": 48755,
+       "name": "DSC_2193.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7a/7a0381ead64e71ba289255726591d0fc.jpg",
+       "pick": false
+      },
+      {
+       "id": 48763,
+       "name": "DSC_2201.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/83/83d00931d407a8164e460d46309d3583.jpg",
+       "pick": false
+      },
+      {
+       "id": 48760,
+       "name": "DSC_2198.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/64/64680987acb4a9c4c3ad5b663ca1b344.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48747,
+       "name": "DSC_2185.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/d4/d4b39bcd632d3d94602ad7389772b633.jpg",
+       "pick": true
+      },
+      {
+       "id": 48750,
+       "name": "DSC_2188.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/dc/dc962be8020e29922f34fe528b98b073.jpg",
+       "pick": true
+      },
+      {
+       "id": 48748,
+       "name": "DSC_2186.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/1c/1ce32b89638e30776a8af14f8a72f7df.jpg",
+       "pick": true
+      },
+      {
+       "id": 48751,
+       "name": "DSC_2189.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7a/7a19b802091ea165c294f25325203711.jpg",
+       "pick": false
+      },
+      {
+       "id": 48749,
+       "name": "DSC_2187.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/88/88f96ef184ae71171ded9bb1463d3070.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48753,
+       "name": "DSC_2191.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/bb/bb71b772bdb51f40ea2d75f494f23dbc.jpg",
+       "pick": true
+      },
+      {
+       "id": 48752,
+       "name": "DSC_2190.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/0c/0c589843026164653cf562fa0fa9d7a1.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48761,
+       "name": "DSC_2199.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/41/4147d5b90cbfd0b40a788536ae054f81.jpg",
+       "pick": true
+      },
+      {
+       "id": 48762,
+       "name": "DSC_2200.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/24/24771f33a43c405c126230b75bc8ed86.jpg",
+       "pick": true
+      },
+      {
+       "id": 48756,
+       "name": "DSC_2194.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/46/46054fc2249ce1fe2635bae838a83c5e.jpg",
+       "pick": true
+      },
+      {
+       "id": 48757,
+       "name": "DSC_2195.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/eb/ebcc645abd08dad48f3e1790db1f86f4.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48741,
+       "name": "DSC_2179.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/b6848a376ade2d0f245fb055a57aabbc.jpg",
+       "pick": true
+      }
+     ]
+    ]
+   },
+   "openclip_l14_laion2b_image": {
+    "sil": 0.41391807794570923,
+    "clusters": [
+     [
+      {
+       "id": 48764,
+       "name": "DSC_2202.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/5b/5b3340071be6a22d76d302d75509755e.jpg",
+       "pick": true
+      },
+      {
+       "id": 48759,
+       "name": "DSC_2197.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a2/a2fde867bc5dec3c90eedaa7d8ce23e3.jpg",
+       "pick": true
+      },
+      {
+       "id": 48758,
+       "name": "DSC_2196.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/1a/1ac5055a106f392399db28dbc71a50c5.jpg",
+       "pick": true
+      },
+      {
+       "id": 48761,
+       "name": "DSC_2199.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/41/4147d5b90cbfd0b40a788536ae054f81.jpg",
+       "pick": false
+      },
+      {
+       "id": 48763,
+       "name": "DSC_2201.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/83/83d00931d407a8164e460d46309d3583.jpg",
+       "pick": false
+      },
+      {
+       "id": 48762,
+       "name": "DSC_2200.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/24/24771f33a43c405c126230b75bc8ed86.jpg",
+       "pick": false
+      },
+      {
+       "id": 48760,
+       "name": "DSC_2198.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/64/64680987acb4a9c4c3ad5b663ca1b344.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48754,
+       "name": "DSC_2192.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/4f/4f9238ff2e8edfd453d068972e872af4.jpg",
+       "pick": true
+      },
+      {
+       "id": 48755,
+       "name": "DSC_2193.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7a/7a0381ead64e71ba289255726591d0fc.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48747,
+       "name": "DSC_2185.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/d4/d4b39bcd632d3d94602ad7389772b633.jpg",
+       "pick": true
+      },
+      {
+       "id": 48750,
+       "name": "DSC_2188.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/dc/dc962be8020e29922f34fe528b98b073.jpg",
+       "pick": true
+      },
+      {
+       "id": 48748,
+       "name": "DSC_2186.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/1c/1ce32b89638e30776a8af14f8a72f7df.jpg",
+       "pick": true
+      },
+      {
+       "id": 48751,
+       "name": "DSC_2189.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7a/7a19b802091ea165c294f25325203711.jpg",
+       "pick": false
+      },
+      {
+       "id": 48741,
+       "name": "DSC_2179.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/b6848a376ade2d0f245fb055a57aabbc.jpg",
+       "pick": false
+      },
+      {
+       "id": 48749,
+       "name": "DSC_2187.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/88/88f96ef184ae71171ded9bb1463d3070.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48753,
+       "name": "DSC_2191.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/bb/bb71b772bdb51f40ea2d75f494f23dbc.jpg",
+       "pick": true
+      },
+      {
+       "id": 48752,
+       "name": "DSC_2190.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/0c/0c589843026164653cf562fa0fa9d7a1.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48756,
+       "name": "DSC_2194.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/46/46054fc2249ce1fe2635bae838a83c5e.jpg",
+       "pick": true
+      },
+      {
+       "id": 48757,
+       "name": "DSC_2195.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/eb/ebcc645abd08dad48f3e1790db1f86f4.jpg",
+       "pick": true
+      }
+     ]
+    ]
+   },
+   "openai_clip_vit_l14_image": {
+    "sil": 0.3673933744430542,
+    "clusters": [
+     [
+      {
+       "id": 48764,
+       "name": "DSC_2202.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/5b/5b3340071be6a22d76d302d75509755e.jpg",
+       "pick": true
+      },
+      {
+       "id": 48759,
+       "name": "DSC_2197.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a2/a2fde867bc5dec3c90eedaa7d8ce23e3.jpg",
+       "pick": true
+      },
+      {
+       "id": 48758,
+       "name": "DSC_2196.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/1a/1ac5055a106f392399db28dbc71a50c5.jpg",
+       "pick": true
+      },
+      {
+       "id": 48754,
+       "name": "DSC_2192.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/4f/4f9238ff2e8edfd453d068972e872af4.jpg",
+       "pick": false
+      },
+      {
+       "id": 48761,
+       "name": "DSC_2199.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/41/4147d5b90cbfd0b40a788536ae054f81.jpg",
+       "pick": false
+      },
+      {
+       "id": 48755,
+       "name": "DSC_2193.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7a/7a0381ead64e71ba289255726591d0fc.jpg",
+       "pick": false
+      },
+      {
+       "id": 48763,
+       "name": "DSC_2201.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/83/83d00931d407a8164e460d46309d3583.jpg",
+       "pick": false
+      },
+      {
+       "id": 48762,
+       "name": "DSC_2200.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/24/24771f33a43c405c126230b75bc8ed86.jpg",
+       "pick": false
+      },
+      {
+       "id": 48760,
+       "name": "DSC_2198.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/64/64680987acb4a9c4c3ad5b663ca1b344.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48747,
+       "name": "DSC_2185.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/d4/d4b39bcd632d3d94602ad7389772b633.jpg",
+       "pick": true
+      },
+      {
+       "id": 48750,
+       "name": "DSC_2188.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/dc/dc962be8020e29922f34fe528b98b073.jpg",
+       "pick": true
+      },
+      {
+       "id": 48748,
+       "name": "DSC_2186.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/1c/1ce32b89638e30776a8af14f8a72f7df.jpg",
+       "pick": true
+      },
+      {
+       "id": 48751,
+       "name": "DSC_2189.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7a/7a19b802091ea165c294f25325203711.jpg",
+       "pick": false
+      },
+      {
+       "id": 48749,
+       "name": "DSC_2187.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/88/88f96ef184ae71171ded9bb1463d3070.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48753,
+       "name": "DSC_2191.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/bb/bb71b772bdb51f40ea2d75f494f23dbc.jpg",
+       "pick": true
+      },
+      {
+       "id": 48752,
+       "name": "DSC_2190.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/0c/0c589843026164653cf562fa0fa9d7a1.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48756,
+       "name": "DSC_2194.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/46/46054fc2249ce1fe2635bae838a83c5e.jpg",
+       "pick": true
+      },
+      {
+       "id": 48757,
+       "name": "DSC_2195.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/eb/ebcc645abd08dad48f3e1790db1f86f4.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48741,
+       "name": "DSC_2179.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/b6848a376ade2d0f245fb055a57aabbc.jpg",
+       "pick": true
+      }
+     ]
+    ]
+   },
+   "siglip2_base_image": {
+    "sil": 0.34798112511634827,
+    "clusters": [
+     [
+      {
+       "id": 48764,
+       "name": "DSC_2202.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/5b/5b3340071be6a22d76d302d75509755e.jpg",
+       "pick": true
+      },
+      {
+       "id": 48759,
+       "name": "DSC_2197.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a2/a2fde867bc5dec3c90eedaa7d8ce23e3.jpg",
+       "pick": true
+      },
+      {
+       "id": 48758,
+       "name": "DSC_2196.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/1a/1ac5055a106f392399db28dbc71a50c5.jpg",
+       "pick": true
+      },
+      {
+       "id": 48761,
+       "name": "DSC_2199.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/41/4147d5b90cbfd0b40a788536ae054f81.jpg",
+       "pick": false
+      },
+      {
+       "id": 48762,
+       "name": "DSC_2200.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/24/24771f33a43c405c126230b75bc8ed86.jpg",
+       "pick": false
+      },
+      {
+       "id": 48756,
+       "name": "DSC_2194.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/46/46054fc2249ce1fe2635bae838a83c5e.jpg",
+       "pick": false
+      },
+      {
+       "id": 48757,
+       "name": "DSC_2195.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/eb/ebcc645abd08dad48f3e1790db1f86f4.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48763,
+       "name": "DSC_2201.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/83/83d00931d407a8164e460d46309d3583.jpg",
+       "pick": true
+      },
+      {
+       "id": 48760,
+       "name": "DSC_2198.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/64/64680987acb4a9c4c3ad5b663ca1b344.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48753,
+       "name": "DSC_2191.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/bb/bb71b772bdb51f40ea2d75f494f23dbc.jpg",
+       "pick": true
+      },
+      {
+       "id": 48754,
+       "name": "DSC_2192.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/4f/4f9238ff2e8edfd453d068972e872af4.jpg",
+       "pick": true
+      },
+      {
+       "id": 48752,
+       "name": "DSC_2190.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/0c/0c589843026164653cf562fa0fa9d7a1.jpg",
+       "pick": true
+      },
+      {
+       "id": 48755,
+       "name": "DSC_2193.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7a/7a0381ead64e71ba289255726591d0fc.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48747,
+       "name": "DSC_2185.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/d4/d4b39bcd632d3d94602ad7389772b633.jpg",
+       "pick": true
+      },
+      {
+       "id": 48750,
+       "name": "DSC_2188.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/dc/dc962be8020e29922f34fe528b98b073.jpg",
+       "pick": true
+      },
+      {
+       "id": 48748,
+       "name": "DSC_2186.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/1c/1ce32b89638e30776a8af14f8a72f7df.jpg",
+       "pick": true
+      },
+      {
+       "id": 48751,
+       "name": "DSC_2189.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7a/7a19b802091ea165c294f25325203711.jpg",
+       "pick": false
+      },
+      {
+       "id": 48749,
+       "name": "DSC_2187.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/88/88f96ef184ae71171ded9bb1463d3070.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48741,
+       "name": "DSC_2179.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/b6848a376ade2d0f245fb055a57aabbc.jpg",
+       "pick": true
+      }
+     ]
+    ]
+   },
+   "dinov2_reg_base_image": {
+    "sil": 0.36291471123695374,
+    "clusters": [
+     [
+      {
+       "id": 48764,
+       "name": "DSC_2202.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/5b/5b3340071be6a22d76d302d75509755e.jpg",
+       "pick": true
+      },
+      {
+       "id": 48759,
+       "name": "DSC_2197.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/a2/a2fde867bc5dec3c90eedaa7d8ce23e3.jpg",
+       "pick": true
+      },
+      {
+       "id": 48758,
+       "name": "DSC_2196.NEF",
+       "rating": 4,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/1a/1ac5055a106f392399db28dbc71a50c5.jpg",
+       "pick": true
+      },
+      {
+       "id": 48761,
+       "name": "DSC_2199.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/41/4147d5b90cbfd0b40a788536ae054f81.jpg",
+       "pick": false
+      },
+      {
+       "id": 48763,
+       "name": "DSC_2201.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/83/83d00931d407a8164e460d46309d3583.jpg",
+       "pick": false
+      },
+      {
+       "id": 48762,
+       "name": "DSC_2200.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/24/24771f33a43c405c126230b75bc8ed86.jpg",
+       "pick": false
+      },
+      {
+       "id": 48760,
+       "name": "DSC_2198.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/64/64680987acb4a9c4c3ad5b663ca1b344.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48753,
+       "name": "DSC_2191.NEF",
+       "rating": 4,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/bb/bb71b772bdb51f40ea2d75f494f23dbc.jpg",
+       "pick": true
+      },
+      {
+       "id": 48754,
+       "name": "DSC_2192.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/4f/4f9238ff2e8edfd453d068972e872af4.jpg",
+       "pick": true
+      },
+      {
+       "id": 48752,
+       "name": "DSC_2190.NEF",
+       "rating": 3,
+       "label": "Blue",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/0c/0c589843026164653cf562fa0fa9d7a1.jpg",
+       "pick": true
+      },
+      {
+       "id": 48755,
+       "name": "DSC_2193.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7a/7a0381ead64e71ba289255726591d0fc.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48747,
+       "name": "DSC_2185.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/d4/d4b39bcd632d3d94602ad7389772b633.jpg",
+       "pick": true
+      },
+      {
+       "id": 48750,
+       "name": "DSC_2188.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/dc/dc962be8020e29922f34fe528b98b073.jpg",
+       "pick": true
+      },
+      {
+       "id": 48748,
+       "name": "DSC_2186.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/1c/1ce32b89638e30776a8af14f8a72f7df.jpg",
+       "pick": true
+      },
+      {
+       "id": 48751,
+       "name": "DSC_2189.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/7a/7a19b802091ea165c294f25325203711.jpg",
+       "pick": false
+      },
+      {
+       "id": 48749,
+       "name": "DSC_2187.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/88/88f96ef184ae71171ded9bb1463d3070.jpg",
+       "pick": false
+      }
+     ],
+     [
+      {
+       "id": 48756,
+       "name": "DSC_2194.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/46/46054fc2249ce1fe2635bae838a83c5e.jpg",
+       "pick": true
+      },
+      {
+       "id": 48757,
+       "name": "DSC_2195.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.7,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/eb/ebcc645abd08dad48f3e1790db1f86f4.jpg",
+       "pick": true
+      }
+     ],
+     [
+      {
+       "id": 48741,
+       "name": "DSC_2179.NEF",
+       "rating": 3,
+       "label": "Green",
+       "score": 0.6,
+       "thumb": "/mnt/d/Projects/image-scoring-backend/thumbnails/b6/b6848a376ade2d0f245fb055a57aabbc.jpg",
+       "pick": true
+      }
+     ]
+    ]
+   }
+  }
+ }
+}

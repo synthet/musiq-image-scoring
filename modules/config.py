@@ -153,6 +153,28 @@ def save_config_section(section, section_data):
         logging.error(f"Failed to save config section: {e}")
 
 
+def merge_and_save_config_section(section: str, patch: dict) -> None:
+    """Deep-merge ``patch`` into an existing config section, then persist to config.json."""
+    existing = get_config_section(section) or {}
+    if not isinstance(existing, dict):
+        existing = {}
+    if not isinstance(patch, dict):
+        patch = {}
+    save_config_section(section, _deep_merge_dict(existing, patch))
+
+
+def get_allowed_paths_from_config() -> list:
+    """Resolve image path allowlist: ``system.allowed_paths`` with legacy top-level fallback."""
+    data = load_config()
+    system_paths = (data.get("system") or {}).get("allowed_paths")
+    if isinstance(system_paths, list) and system_paths:
+        return list(system_paths)
+    legacy = data.get("allowed_paths")
+    if isinstance(legacy, list) and legacy:
+        return list(legacy)
+    return []
+
+
 def get_export_templates():
     """
     Get all export templates.
@@ -347,8 +369,14 @@ def validate_config() -> dict:
         for k in ["host", "port", "dbname", "user"]:
             if not db_sec.get("postgres", {}).get(k):
                 issues.append(f"database.postgres.{k} is required when engine is postgres")
+    elif engine == "api":
+        api_url = str(db_sec.get("api_url") or (db_sec.get("api") or {}).get("url") or "").strip()
+        if not api_url:
+            issues.append("database.api_url (or database.api.url) is required when engine is api")
     else:
-        issues.append(f"database.engine must be 'firebird' or 'postgres' (got {engine!r})")
+        issues.append(
+            f"database.engine must be 'firebird', 'postgres', or 'api' (got {engine!r})"
+        )
 
     for path_key in ("scoring_input_path", "tagging_input_path", "stacks_input_path", "culling_input_path", "selection_input_path"):
         p = data.get(path_key)

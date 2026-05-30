@@ -1,0 +1,19 @@
+{
+  "folders": [
+    62,
+    44,
+    45,
+    676
+  ],
+  "stats": {
+    "folders": 4,
+    "keywords_dim": 78,
+    "stacks": 688,
+    "images": 2126,
+    "stacks_best_backfilled": 688,
+    "image_keywords": 6158,
+    "image_model_scores": 12904,
+    "image_exif": 2126,
+    "embeddings": 5171
+  }
+}

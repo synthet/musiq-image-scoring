@@ -1,0 +1,262 @@
+{
+  "n_species_stacks": 52,
+  "k": 3,
+  "mean_selection_overlap_l14_vs_bioclip": 0.532,
+  "examples": [
+    {
+      "stack": 23262,
+      "n_species_imgs": 53,
+      "div_l14": 0.0685,
+      "div_bioclip": 0.0156,
+      "selection_overlap": 0.333,
+      "picks_l14": [
+        48186,
+        48206,
+        48224
+      ],
+      "picks_bioclip": [
+        48186,
+        48202,
+        48208
+      ]
+    },
+    {
+      "stack": 23268,
+      "n_species_imgs": 18,
+      "div_l14": 0.0431,
+      "div_bioclip": 0.0083,
+      "selection_overlap": 0.667,
+      "picks_l14": [
+        48328,
+        48335,
+        48355
+      ],
+      "picks_bioclip": [
+        48328,
+        48335,
+        48340
+      ]
+    },
+    {
+      "stack": 23272,
+      "n_species_imgs": 68,
+      "div_l14": 0.0624,
+      "div_bioclip": 0.0308,
+      "selection_overlap": 0.667,
+      "picks_l14": [
+        48370,
+        48408,
+        48435
+      ],
+      "picks_bioclip": [
+        48370,
+        48408,
+        48430
+      ]
+    },
+    {
+      "stack": 23287,
+      "n_species_imgs": 42,
+      "div_l14": 0.0775,
+      "div_bioclip": 0.0414,
+      "selection_overlap": 0.333,
+      "picks_l14": [
+        48720,
+        48730,
+        48742
+      ],
+      "picks_bioclip": [
+        48705,
+        48720,
+        48745
+      ]
+    },
+    {
+      "stack": 23255,
+      "n_species_imgs": 7,
+      "div_l14": 0.0448,
+      "div_bioclip": 0.0499,
+      "selection_overlap": 0.667,
+      "picks_l14": [
+        48114,
+        48117,
+        48119
+      ],
+      "picks_bioclip": [
+        48114,
+        48118,
+        48119
+      ]
+    },
+    {
+      "stack": 23256,
+      "n_species_imgs": 19,
+      "div_l14": 0.0856,
+      "div_bioclip": 0.154,
+      "selection_overlap": 0.333,
+      "picks_l14": [
+        48125,
+        48127,
+        48134
+      ],
+      "picks_bioclip": [
+        48126,
+        48134,
+        48139
+      ]
+    },
+    {
+      "stack": 23259,
+      "n_species_imgs": 7,
+      "div_l14": 0.0403,
+      "div_bioclip": 0.0772,
+      "selection_overlap": 0.667,
+      "picks_l14": [
+        48145,
+        48148,
+        48149
+      ],
+      "picks_bioclip": [
+        48148,
+        48149,
+        48150
+      ]
+    },
+    {
+      "stack": 23261,
+      "n_species_imgs": 15,
+      "div_l14": 0.0646,
+      "div_bioclip": 0.0285,
+      "selection_overlap": 0.333,
+      "picks_l14": [
+        48169,
+        48175,
+        48179
+      ],
+      "picks_bioclip": [
+        48168,
+        48175,
+        48178
+      ]
+    },
+    {
+      "stack": 23263,
+      "n_species_imgs": 18,
+      "div_l14": 0.1075,
+      "div_bioclip": 0.1561,
+      "selection_overlap": 0.667,
+      "picks_l14": [
+        48234,
+        48240,
+        48248
+      ],
+      "picks_bioclip": [
+        48234,
+        48241,
+        48248
+      ]
+    },
+    {
+      "stack": 23264,
+      "n_species_imgs": 4,
+      "div_l14": 0.0472,
+      "div_bioclip": 0.0158,
+      "selection_overlap": 1.0,
+      "picks_l14": [
+        48236,
+        48237,
+        48238
+      ],
+      "picks_bioclip": [
+        48236,
+        48237,
+        48238
+      ]
+    },
+    {
+      "stack": 23265,
+      "n_species_imgs": 15,
+      "div_l14": 0.089,
+      "div_bioclip": 0.1007,
+      "selection_overlap": 0.333,
+      "picks_l14": [
+        48261,
+        48267,
+        48268
+      ],
+      "picks_bioclip": [
+        48259,
+        48262,
+        48267
+      ]
+    },
+    {
+      "stack": 23266,
+      "n_species_imgs": 49,
+      "div_l14": 0.0935,
+      "div_bioclip": 0.1788,
+      "selection_overlap": 0.333,
+      "picks_l14": [
+        48271,
+        48290,
+        48309
+      ],
+      "picks_bioclip": [
+        48271,
+        48297,
+        48316
+      ]
+    },
+    {
+      "stack": 23267,
+      "n_species_imgs": 8,
+      "div_l14": 0.0386,
+      "div_bioclip": 0.0232,
+      "selection_overlap": 0.333,
+      "picks_l14": [
+        48320,
+        48323,
+        48325
+      ],
+      "picks_bioclip": [
+        48319,
+        48323,
+        48324
+      ]
+    },
+    {
+      "stack": 23269,
+      "n_species_imgs": 6,
+      "div_l14": 0.0361,
+      "div_bioclip": 0.1242,
+      "selection_overlap": 1.0,
+      "picks_l14": [
+        48344,
+        48346,
+        48347
+      ],
+      "picks_bioclip": [
+        48344,
+        48346,
+        48347
+      ]
+    },
+    {
+      "stack": 23270,
+      "n_species_imgs": 6,
+      "div_l14": 0.0277,
+      "div_bioclip": 0.0063,
+      "selection_overlap": 0.333,
+      "picks_l14": [
+        48349,
+        48350,
+        48352
+      ],
+      "picks_bioclip": [
+        48348,
+        48351,
+        48352
+      ]
+    }
+  ]
+}

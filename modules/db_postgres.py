@@ -189,6 +189,40 @@ _SEED_EXTRA_EMBEDDING_SPACES_SQL = [
         WHERE NOT EXISTS (SELECT 1 FROM embedding_spaces WHERE code = 'blip_vit_b16_image')
         """
     ),
+    # Optional culling towers (2026-05-29 spike) — 768-d image embeddings,
+    # opt-in via embeddings.culling_spaces; selectable per two-level level.
+    (
+        """
+        INSERT INTO embedding_spaces (code, dim, description, active)
+        SELECT 'openclip_l14_laion2b_image', 768,
+               'OpenCLIP ViT-L/14 laion2b_s32b_b82k image tower — culling grouping (A/B)', 1
+        WHERE NOT EXISTS (SELECT 1 FROM embedding_spaces WHERE code = 'openclip_l14_laion2b_image')
+        """
+    ),
+    (
+        """
+        INSERT INTO embedding_spaces (code, dim, description, active)
+        SELECT 'openai_clip_vit_l14_image', 768,
+               'OpenAI CLIP ViT-L/14 image tower — culling grouping / semantic sub-stack', 1
+        WHERE NOT EXISTS (SELECT 1 FROM embedding_spaces WHERE code = 'openai_clip_vit_l14_image')
+        """
+    ),
+    (
+        """
+        INSERT INTO embedding_spaces (code, dim, description, active)
+        SELECT 'dinov2_reg_base_image', 768,
+               'DINOv2-reg base image tower (timm proxy) — culling grouping (HOLD)', 1
+        WHERE NOT EXISTS (SELECT 1 FROM embedding_spaces WHERE code = 'dinov2_reg_base_image')
+        """
+    ),
+    (
+        """
+        INSERT INTO embedding_spaces (code, dim, description, active)
+        SELECT 'siglip2_base_image', 768,
+               'SigLIP2 base patch16-224 image tower — culling grouping / keywords', 1
+        WHERE NOT EXISTS (SELECT 1 FROM embedding_spaces WHERE code = 'siglip2_base_image')
+        """
+    ),
 ]
 
 
@@ -448,6 +482,23 @@ def _init_db_transaction():
             );
             """)
 
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS sub_stacks (
+                id                      SERIAL PRIMARY KEY,
+                stack_id                INTEGER NOT NULL REFERENCES stacks(id) ON DELETE CASCADE,
+                name                    VARCHAR(255),
+                best_image_id           INTEGER,
+                level1_space            VARCHAR(64),
+                level2_visual_space     VARCHAR(64),
+                level2_semantic_space   VARCHAR(64),
+                policy_version          VARCHAR(50),
+                created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sub_stacks_stack_id ON sub_stacks(stack_id);"
+            )
+
             # ------------------------------------------------------------------
             # JOBS  (full column set matching Firebird schema)
             # ------------------------------------------------------------------
@@ -513,6 +564,7 @@ def _init_db_transaction():
                 hash_version        INTEGER NOT NULL DEFAULT 1,
                 folder_id           INTEGER REFERENCES folders(id) ON DELETE SET NULL,
                 stack_id            INTEGER REFERENCES stacks(id) ON DELETE SET NULL,
+                sub_stack_id        INTEGER REFERENCES sub_stacks(id) ON DELETE SET NULL,
                 burst_uuid          VARCHAR(64),
                 cull_decision       VARCHAR(20),
                 cull_policy_version VARCHAR(50),
@@ -531,11 +583,16 @@ def _init_db_transaction():
                 "ALTER TABLE images ADD COLUMN IF NOT EXISTS pick_status SMALLINT NOT NULL DEFAULT 0;"
             )
             cur.execute(
+                "ALTER TABLE images ADD COLUMN IF NOT EXISTS sub_stack_id "
+                "INTEGER REFERENCES sub_stacks(id) ON DELETE SET NULL;"
+            )
+            cur.execute(
                 "UPDATE images SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP) "
                 "WHERE updated_at IS NULL"
             )
             cur.execute("CREATE INDEX IF NOT EXISTS idx_images_folder_id ON images(folder_id);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_images_stack_id ON images(stack_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_images_sub_stack_id ON images(sub_stack_id);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_images_pick_status ON images(pick_status);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_images_hash ON images(image_hash);")
             cur.execute(
@@ -1147,5 +1204,31 @@ def _init_db_transaction():
                 FOR EACH ROW
                 EXECUTE PROCEDURE trg_record_deleted_image_fn();
             """)
+
+            # ------------------------------------------------------------------
+            # AUDITLOG — RFC 6902 (JSON Patch) change records for critical writes
+            # ------------------------------------------------------------------
+            # One row per audited insert/update on a critical entity. ``patch`` is
+            # an RFC 6902 op array (``add`` for inserts, ``replace`` for updates)
+            # with a non-standard ``oldValue`` on replaces for debugging. Written
+            # by ``modules/audit.py``; see migration 0027.
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS auditlog (
+                id              BIGSERIAL PRIMARY KEY,
+                table_name      VARCHAR(64) NOT NULL,
+                record_id       BIGINT,
+                operation       VARCHAR(16) NOT NULL,
+                patch           JSONB NOT NULL,
+                thread_name     VARCHAR(128),
+                run_id          BIGINT,
+                phase_code      VARCHAR(50),
+                source          VARCHAR(128),
+                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_auditlog_table_record ON auditlog(table_name, record_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_auditlog_run_id ON auditlog(run_id) WHERE run_id IS NOT NULL;")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_auditlog_created_at ON auditlog(created_at);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_auditlog_thread_name ON auditlog(thread_name);")
 
             logger.info("PostgreSQL schema initialization completed.")

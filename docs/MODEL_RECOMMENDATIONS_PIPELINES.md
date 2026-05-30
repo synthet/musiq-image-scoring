@@ -22,6 +22,7 @@ Chosen posture:
 
 **Research inputs:**
 
+- [CULLING_MODEL_RECOMMENDATION_2026-05-29.md](reports/CULLING_MODEL_RECOMMENDATION_2026-05-29.md) — synthesis: which model improves grouping vs rejection vs stack selection (post L/14 spike)
 - [CLIP_MODELS_CULLING_SCORING_2026-05-23.md](reports/CLIP_MODELS_CULLING_SCORING_2026-05-23.md) — CLIP-family comparison for culling signals and prompt design
 - [AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md](reports/AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md) — industry culling pipeline patterns
 - [DEEP_RESEARCH_REPORT.md](reports/DEEP_RESEARCH_REPORT.md) — IQA candidates (ARNIQA, QualiCLIP, TOPIQ)

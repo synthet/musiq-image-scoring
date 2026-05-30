@@ -24,6 +24,8 @@ def _stub_jit_replan_without_db(monkeypatch):
 
     monkeypatch.setattr(JobDispatcher, "_jit_replan_phase", _stub)
     monkeypatch.setattr("modules.job_dispatcher.db.update_job_payload", lambda *a, **k: None)
+    # Unit tests mock dequeue_next_job; do not reload queue_payload from a live DB row.
+    monkeypatch.setattr("modules.job_dispatcher.db.get_job_by_id", lambda job_id: None)
 
 
 class DummyRunner:
@@ -83,7 +85,7 @@ def test_dispatcher_sees_real_selection_runner_busy(monkeypatch):
     """SelectionRunner must expose is_running so JobDispatcher does not double-dispatch culling."""
     hold = threading.Event()
 
-    def fake_run_internal(self, input_path, force_rescan, job_id=None):
+    def fake_run_internal(self, input_path, force_rescan, job_id=None, resolved_image_ids=None):
         hold.wait()
 
     monkeypatch.setattr(SelectionRunner, "_run_internal", fake_run_internal)

@@ -568,12 +568,32 @@ paths:
     get:
       tags:
       - Vexlum Scoring API
-      summary: Get application configuration
-      description: "Returns the current `config.json` contents. Sections: `scoring`,\
-        \ `processing`,\n        `culling`, `ui`, `tagging`. Used by the Settings\
-        \ tab; Electron should read this\n        on startup and display values in\
-        \ its Settings pane."
-      operationId: get_config_api_config_get
+      summary: Get public configuration
+      description: Returns a safe subset of configuration flags for the frontend (React SPA).
+      operationId: get_public_config_api_config_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+        '400':
+          description: Bad Request - Invalid input parameters
+        '404':
+          description: Not Found - Resource not found
+        '500':
+          description: Internal Server Error
+        '503':
+          description: Service Unavailable - Runner not initialized
+  /api/config/full:
+    get:
+      tags:
+      - Vexlum Scoring API
+      summary: Get full application configuration
+      description: "Returns merged `config.json` + `environment.json` for Settings integrations\
+        \ and Electron. Prefer `GET /api/config` for the React feature-flag subset."
+      operationId: get_config_full_api_config_full_get
       responses:
         '200':
           description: Successful Response
@@ -3572,6 +3592,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/stacks/{stack_id}/substacks:
+    get:
+      tags:
+      - Vexlum Scoring API
+      summary: Get sub-stacks for a root stack
+      description: Returns persisted leaf sub-stacks from two-level culling (visual then semantic clustering).
+      operationId: get_stack_substacks_api_stacks__stack_id__substacks_get
+      parameters:
+      - name: stack_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Stack Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '500':
+          description: Internal Server Error
+  /api/substacks/{sub_stack_id}/images:
+    get:
+      tags:
+      - Vexlum Scoring API
+      summary: Get images in a sub-stack
+      description: Returns images belonging to a two-level culling sub-stack.
+      operationId: get_substack_images_api_substacks__sub_stack_id__images_get
+      parameters:
+      - name: sub_stack_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Sub Stack Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '500':
+          description: Internal Server Error
   /api/stats:
     get:
       tags:

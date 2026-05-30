@@ -12,6 +12,7 @@ This index breaks out each proposed `image_embedding` use case into a separate i
 - [05 - 2D Embedding Map](EMBEDDING_APP_05_2D_EMBEDDING_MAP.md)
 - [06 - Smart Stack Representative](EMBEDDING_APP_06_SMART_STACK_REPRESENTATIVE.md)
 - [07 - More Like This UI](EMBEDDING_APP_07_MORE_LIKE_THIS_UI.md)
+- [Two-level culling](two-level-culling.md) — persisted sub-stacks, visual→semantic split, best-M with N cap
 
 ## Scope and assumptions
 

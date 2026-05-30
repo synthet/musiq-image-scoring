@@ -1,0 +1,889 @@
+{
+  "gap_seconds": 2.0,
+  "thresholds": [
+    0.04,
+    0.06,
+    0.08,
+    0.1,
+    0.12,
+    0.15,
+    0.18,
+    0.22,
+    0.25,
+    0.3
+  ],
+  "spaces": {
+    "mobilenet_v2_imagenet_gap": {
+      "n_images_with_emb": 2126,
+      "gap_seconds": 2.0,
+      "threshold_sweep": [
+        {
+          "threshold": 0.04,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0312,
+          "mean_ami": 0.0874,
+          "mean_homogeneity": 0.9992,
+          "mean_completeness": 0.7313,
+          "mean_false_merge_rate": 0.0,
+          "mean_false_split_rate": 0.0169,
+          "mean_silhouette": 0.0653,
+          "mean_n_clusters": 446.0
+        },
+        {
+          "threshold": 0.06,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0915,
+          "mean_ami": 0.1785,
+          "mean_homogeneity": 0.9942,
+          "mean_completeness": 0.7506,
+          "mean_false_merge_rate": 0.0002,
+          "mean_false_split_rate": 0.0162,
+          "mean_silhouette": 0.0896,
+          "mean_n_clusters": 376.75
+        },
+        {
+          "threshold": 0.08,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.1689,
+          "mean_ami": 0.29,
+          "mean_homogeneity": 0.9833,
+          "mean_completeness": 0.7726,
+          "mean_false_merge_rate": 0.0008,
+          "mean_false_split_rate": 0.0153,
+          "mean_silhouette": 0.1352,
+          "mean_n_clusters": 320.25
+        },
+        {
+          "threshold": 0.1,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.2694,
+          "mean_ami": 0.4088,
+          "mean_homogeneity": 0.9702,
+          "mean_completeness": 0.8015,
+          "mean_false_merge_rate": 0.0018,
+          "mean_false_split_rate": 0.0138,
+          "mean_silhouette": 0.1844,
+          "mean_n_clusters": 269.0
+        },
+        {
+          "threshold": 0.12,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.3447,
+          "mean_ami": 0.5031,
+          "mean_homogeneity": 0.9507,
+          "mean_completeness": 0.8261,
+          "mean_false_merge_rate": 0.003,
+          "mean_false_split_rate": 0.0125,
+          "mean_silhouette": 0.2287,
+          "mean_n_clusters": 224.25
+        },
+        {
+          "threshold": 0.15,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.4222,
+          "mean_ami": 0.5898,
+          "mean_homogeneity": 0.9197,
+          "mean_completeness": 0.8572,
+          "mean_false_merge_rate": 0.0049,
+          "mean_false_split_rate": 0.0106,
+          "mean_silhouette": 0.2885,
+          "mean_n_clusters": 173.0
+        },
+        {
+          "threshold": 0.18,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.4231,
+          "mean_ami": 0.6125,
+          "mean_homogeneity": 0.876,
+          "mean_completeness": 0.8763,
+          "mean_false_merge_rate": 0.0097,
+          "mean_false_split_rate": 0.0093,
+          "mean_silhouette": 0.3137,
+          "mean_n_clusters": 137.25
+        },
+        {
+          "threshold": 0.22,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.3698,
+          "mean_ami": 0.6143,
+          "mean_homogeneity": 0.8011,
+          "mean_completeness": 0.9014,
+          "mean_false_merge_rate": 0.0237,
+          "mean_false_split_rate": 0.0075,
+          "mean_silhouette": 0.3235,
+          "mean_n_clusters": 98.5
+        },
+        {
+          "threshold": 0.25,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.3272,
+          "mean_ami": 0.6032,
+          "mean_homogeneity": 0.749,
+          "mean_completeness": 0.914,
+          "mean_false_merge_rate": 0.0342,
+          "mean_false_split_rate": 0.0067,
+          "mean_silhouette": 0.3257,
+          "mean_n_clusters": 76.25
+        },
+        {
+          "threshold": 0.3,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.2955,
+          "mean_ami": 0.5795,
+          "mean_homogeneity": 0.658,
+          "mean_completeness": 0.9424,
+          "mean_false_merge_rate": 0.0721,
+          "mean_false_split_rate": 0.0035,
+          "mean_silhouette": 0.3129,
+          "mean_n_clusters": 51.0
+        }
+      ],
+      "best_threshold": {
+        "threshold": 0.18,
+        "n_folders_evaluated": 4,
+        "mean_ari": 0.4231,
+        "mean_ami": 0.6125,
+        "mean_homogeneity": 0.876,
+        "mean_completeness": 0.8763,
+        "mean_false_merge_rate": 0.0097,
+        "mean_false_split_rate": 0.0093,
+        "mean_silhouette": 0.3137,
+        "mean_n_clusters": 137.25
+      },
+      "mean_ari_vs_existing_stacks_bias_flagged": 0.5933,
+      "note": "Primary GT is EXIF-burst (unbiased). stack_id ARI is MobileNet-biased secondary."
+    },
+    "clip_vit_b32_image": {
+      "n_images_with_emb": 2064,
+      "gap_seconds": 2.0,
+      "threshold_sweep": [
+        {
+          "threshold": 0.04,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.4086,
+          "mean_ami": 0.5652,
+          "mean_homogeneity": 0.9249,
+          "mean_completeness": 0.8401,
+          "mean_false_merge_rate": 0.0037,
+          "mean_false_split_rate": 0.0115,
+          "mean_silhouette": 0.2592,
+          "mean_n_clusters": 184.5
+        },
+        {
+          "threshold": 0.06,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.397,
+          "mean_ami": 0.6146,
+          "mean_homogeneity": 0.8125,
+          "mean_completeness": 0.8895,
+          "mean_false_merge_rate": 0.0217,
+          "mean_false_split_rate": 0.0079,
+          "mean_silhouette": 0.3149,
+          "mean_n_clusters": 106.5
+        },
+        {
+          "threshold": 0.08,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.3111,
+          "mean_ami": 0.5878,
+          "mean_homogeneity": 0.7003,
+          "mean_completeness": 0.9275,
+          "mean_false_merge_rate": 0.0628,
+          "mean_false_split_rate": 0.0048,
+          "mean_silhouette": 0.3275,
+          "mean_n_clusters": 67.5
+        },
+        {
+          "threshold": 0.1,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.2312,
+          "mean_ami": 0.5524,
+          "mean_homogeneity": 0.6178,
+          "mean_completeness": 0.9549,
+          "mean_false_merge_rate": 0.1023,
+          "mean_false_split_rate": 0.0026,
+          "mean_silhouette": 0.3458,
+          "mean_n_clusters": 46.75
+        },
+        {
+          "threshold": 0.12,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.1573,
+          "mean_ami": 0.4653,
+          "mean_homogeneity": 0.5116,
+          "mean_completeness": 0.9644,
+          "mean_false_merge_rate": 0.2178,
+          "mean_false_split_rate": 0.0018,
+          "mean_silhouette": 0.3431,
+          "mean_n_clusters": 34.75
+        },
+        {
+          "threshold": 0.15,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.131,
+          "mean_ami": 0.4127,
+          "mean_homogeneity": 0.4317,
+          "mean_completeness": 0.9845,
+          "mean_false_merge_rate": 0.2805,
+          "mean_false_split_rate": 0.0004,
+          "mean_silhouette": 0.3908,
+          "mean_n_clusters": 23.25
+        },
+        {
+          "threshold": 0.18,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0929,
+          "mean_ami": 0.3585,
+          "mean_homogeneity": 0.3617,
+          "mean_completeness": 0.9906,
+          "mean_false_merge_rate": 0.3303,
+          "mean_false_split_rate": 0.0003,
+          "mean_silhouette": 0.4163,
+          "mean_n_clusters": 16.25
+        },
+        {
+          "threshold": 0.22,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0374,
+          "mean_ami": 0.2482,
+          "mean_homogeneity": 0.2414,
+          "mean_completeness": 0.9886,
+          "mean_false_merge_rate": 0.4959,
+          "mean_false_split_rate": 0.0003,
+          "mean_silhouette": 0.3547,
+          "mean_n_clusters": 10.0
+        },
+        {
+          "threshold": 0.25,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0281,
+          "mean_ami": 0.1839,
+          "mean_homogeneity": 0.1765,
+          "mean_completeness": 0.9892,
+          "mean_false_merge_rate": 0.6085,
+          "mean_false_split_rate": 0.0002,
+          "mean_silhouette": 0.3672,
+          "mean_n_clusters": 7.0
+        },
+        {
+          "threshold": 0.3,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0027,
+          "mean_ami": 0.0423,
+          "mean_homogeneity": 0.053,
+          "mean_completeness": 0.9595,
+          "mean_false_merge_rate": 0.8772,
+          "mean_false_split_rate": 0.0002,
+          "mean_silhouette": 0.3901,
+          "mean_n_clusters": 4.25
+        }
+      ],
+      "best_threshold": {
+        "threshold": 0.04,
+        "n_folders_evaluated": 4,
+        "mean_ari": 0.4086,
+        "mean_ami": 0.5652,
+        "mean_homogeneity": 0.9249,
+        "mean_completeness": 0.8401,
+        "mean_false_merge_rate": 0.0037,
+        "mean_false_split_rate": 0.0115,
+        "mean_silhouette": 0.2592,
+        "mean_n_clusters": 184.5
+      },
+      "mean_ari_vs_existing_stacks_bias_flagged": 0.4716,
+      "note": "Primary GT is EXIF-burst (unbiased). stack_id ARI is MobileNet-biased secondary."
+    },
+    "openai_clip_vit_l14_image": {
+      "n_images_with_emb": 2126,
+      "gap_seconds": 2.0,
+      "threshold_sweep": [
+        {
+          "threshold": 0.04,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.401,
+          "mean_ami": 0.5902,
+          "mean_homogeneity": 0.9124,
+          "mean_completeness": 0.8438,
+          "mean_false_merge_rate": 0.006,
+          "mean_false_split_rate": 0.0114,
+          "mean_silhouette": 0.2728,
+          "mean_n_clusters": 173.75
+        },
+        {
+          "threshold": 0.06,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.4419,
+          "mean_ami": 0.6507,
+          "mean_homogeneity": 0.8061,
+          "mean_completeness": 0.9091,
+          "mean_false_merge_rate": 0.0258,
+          "mean_false_split_rate": 0.0061,
+          "mean_silhouette": 0.3269,
+          "mean_n_clusters": 97.0
+        },
+        {
+          "threshold": 0.08,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.3673,
+          "mean_ami": 0.6232,
+          "mean_homogeneity": 0.7045,
+          "mean_completeness": 0.9501,
+          "mean_false_merge_rate": 0.0629,
+          "mean_false_split_rate": 0.0029,
+          "mean_silhouette": 0.3651,
+          "mean_n_clusters": 63.25
+        },
+        {
+          "threshold": 0.1,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.2666,
+          "mean_ami": 0.577,
+          "mean_homogeneity": 0.63,
+          "mean_completeness": 0.965,
+          "mean_false_merge_rate": 0.0874,
+          "mean_false_split_rate": 0.0021,
+          "mean_silhouette": 0.382,
+          "mean_n_clusters": 46.5
+        },
+        {
+          "threshold": 0.12,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.2115,
+          "mean_ami": 0.4857,
+          "mean_homogeneity": 0.5289,
+          "mean_completeness": 0.9756,
+          "mean_false_merge_rate": 0.2238,
+          "mean_false_split_rate": 0.0008,
+          "mean_silhouette": 0.3819,
+          "mean_n_clusters": 35.25
+        },
+        {
+          "threshold": 0.15,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.1337,
+          "mean_ami": 0.4207,
+          "mean_homogeneity": 0.4431,
+          "mean_completeness": 0.9877,
+          "mean_false_merge_rate": 0.2741,
+          "mean_false_split_rate": 0.0004,
+          "mean_silhouette": 0.4631,
+          "mean_n_clusters": 24.25
+        },
+        {
+          "threshold": 0.18,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.1002,
+          "mean_ami": 0.3812,
+          "mean_homogeneity": 0.3869,
+          "mean_completeness": 0.9924,
+          "mean_false_merge_rate": 0.3079,
+          "mean_false_split_rate": 0.0002,
+          "mean_silhouette": 0.4552,
+          "mean_n_clusters": 17.75
+        },
+        {
+          "threshold": 0.22,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0511,
+          "mean_ami": 0.2943,
+          "mean_homogeneity": 0.2854,
+          "mean_completeness": 0.9963,
+          "mean_false_merge_rate": 0.4156,
+          "mean_false_split_rate": 0.0001,
+          "mean_silhouette": 0.4146,
+          "mean_n_clusters": 12.0
+        },
+        {
+          "threshold": 0.25,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0356,
+          "mean_ami": 0.2379,
+          "mean_homogeneity": 0.218,
+          "mean_completeness": 0.9972,
+          "mean_false_merge_rate": 0.5129,
+          "mean_false_split_rate": 0.0,
+          "mean_silhouette": 0.4112,
+          "mean_n_clusters": 9.0
+        },
+        {
+          "threshold": 0.3,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0102,
+          "mean_ami": 0.1132,
+          "mean_homogeneity": 0.1081,
+          "mean_completeness": 0.9942,
+          "mean_false_merge_rate": 0.7629,
+          "mean_false_split_rate": 0.0,
+          "mean_silhouette": 0.3981,
+          "mean_n_clusters": 5.25
+        }
+      ],
+      "best_threshold": {
+        "threshold": 0.06,
+        "n_folders_evaluated": 4,
+        "mean_ari": 0.4419,
+        "mean_ami": 0.6507,
+        "mean_homogeneity": 0.8061,
+        "mean_completeness": 0.9091,
+        "mean_false_merge_rate": 0.0258,
+        "mean_false_split_rate": 0.0061,
+        "mean_silhouette": 0.3269,
+        "mean_n_clusters": 97.0
+      },
+      "mean_ari_vs_existing_stacks_bias_flagged": 0.3343,
+      "note": "Primary GT is EXIF-burst (unbiased). stack_id ARI is MobileNet-biased secondary."
+    },
+    "openclip_l14_laion2b_image": {
+      "n_images_with_emb": 2126,
+      "gap_seconds": 2.0,
+      "threshold_sweep": [
+        {
+          "threshold": 0.04,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.3134,
+          "mean_ami": 0.5059,
+          "mean_homogeneity": 0.9576,
+          "mean_completeness": 0.801,
+          "mean_false_merge_rate": 0.0019,
+          "mean_false_split_rate": 0.0138,
+          "mean_silhouette": 0.2055,
+          "mean_n_clusters": 251.75
+        },
+        {
+          "threshold": 0.06,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.4502,
+          "mean_ami": 0.6362,
+          "mean_homogeneity": 0.8822,
+          "mean_completeness": 0.8678,
+          "mean_false_merge_rate": 0.0103,
+          "mean_false_split_rate": 0.0096,
+          "mean_silhouette": 0.2789,
+          "mean_n_clusters": 144.0
+        },
+        {
+          "threshold": 0.08,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.4471,
+          "mean_ami": 0.6472,
+          "mean_homogeneity": 0.7947,
+          "mean_completeness": 0.9124,
+          "mean_false_merge_rate": 0.0381,
+          "mean_false_split_rate": 0.0056,
+          "mean_silhouette": 0.32,
+          "mean_n_clusters": 95.75
+        },
+        {
+          "threshold": 0.1,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.3767,
+          "mean_ami": 0.6216,
+          "mean_homogeneity": 0.7221,
+          "mean_completeness": 0.9351,
+          "mean_false_merge_rate": 0.0566,
+          "mean_false_split_rate": 0.004,
+          "mean_silhouette": 0.3421,
+          "mean_n_clusters": 69.25
+        },
+        {
+          "threshold": 0.12,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.3035,
+          "mean_ami": 0.5923,
+          "mean_homogeneity": 0.6539,
+          "mean_completeness": 0.9602,
+          "mean_false_merge_rate": 0.0787,
+          "mean_false_split_rate": 0.0023,
+          "mean_silhouette": 0.3791,
+          "mean_n_clusters": 49.75
+        },
+        {
+          "threshold": 0.15,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.201,
+          "mean_ami": 0.4788,
+          "mean_homogeneity": 0.5228,
+          "mean_completeness": 0.9768,
+          "mean_false_merge_rate": 0.2286,
+          "mean_false_split_rate": 0.001,
+          "mean_silhouette": 0.4026,
+          "mean_n_clusters": 35.25
+        },
+        {
+          "threshold": 0.18,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.1451,
+          "mean_ami": 0.4343,
+          "mean_homogeneity": 0.4665,
+          "mean_completeness": 0.9774,
+          "mean_false_merge_rate": 0.259,
+          "mean_false_split_rate": 0.0008,
+          "mean_silhouette": 0.3802,
+          "mean_n_clusters": 29.0
+        },
+        {
+          "threshold": 0.22,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.1306,
+          "mean_ami": 0.4101,
+          "mean_homogeneity": 0.4245,
+          "mean_completeness": 0.9885,
+          "mean_false_merge_rate": 0.2793,
+          "mean_false_split_rate": 0.0004,
+          "mean_silhouette": 0.4241,
+          "mean_n_clusters": 20.75
+        },
+        {
+          "threshold": 0.25,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0906,
+          "mean_ami": 0.3657,
+          "mean_homogeneity": 0.3685,
+          "mean_completeness": 0.9939,
+          "mean_false_merge_rate": 0.3212,
+          "mean_false_split_rate": 0.0002,
+          "mean_silhouette": 0.478,
+          "mean_n_clusters": 16.25
+        },
+        {
+          "threshold": 0.3,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0526,
+          "mean_ami": 0.2965,
+          "mean_homogeneity": 0.2871,
+          "mean_completeness": 0.9993,
+          "mean_false_merge_rate": 0.4087,
+          "mean_false_split_rate": 0.0,
+          "mean_silhouette": 0.4416,
+          "mean_n_clusters": 11.5
+        }
+      ],
+      "best_threshold": {
+        "threshold": 0.06,
+        "n_folders_evaluated": 4,
+        "mean_ari": 0.4502,
+        "mean_ami": 0.6362,
+        "mean_homogeneity": 0.8822,
+        "mean_completeness": 0.8678,
+        "mean_false_merge_rate": 0.0103,
+        "mean_false_split_rate": 0.0096,
+        "mean_silhouette": 0.2789,
+        "mean_n_clusters": 144.0
+      },
+      "mean_ari_vs_existing_stacks_bias_flagged": 0.3646,
+      "note": "Primary GT is EXIF-burst (unbiased). stack_id ARI is MobileNet-biased secondary."
+    },
+    "dinov2_reg_base_image": {
+      "n_images_with_emb": 2126,
+      "gap_seconds": 2.0,
+      "threshold_sweep": [
+        {
+          "threshold": 0.04,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.1294,
+          "mean_ami": 0.2545,
+          "mean_homogeneity": 0.987,
+          "mean_completeness": 0.7495,
+          "mean_false_merge_rate": 0.0005,
+          "mean_false_split_rate": 0.016,
+          "mean_silhouette": 0.1435,
+          "mean_n_clusters": 401.75
+        },
+        {
+          "threshold": 0.06,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.2378,
+          "mean_ami": 0.3995,
+          "mean_homogeneity": 0.9669,
+          "mean_completeness": 0.7745,
+          "mean_false_merge_rate": 0.0014,
+          "mean_false_split_rate": 0.0147,
+          "mean_silhouette": 0.2039,
+          "mean_n_clusters": 327.0
+        },
+        {
+          "threshold": 0.08,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.33,
+          "mean_ami": 0.4974,
+          "mean_homogeneity": 0.9364,
+          "mean_completeness": 0.8,
+          "mean_false_merge_rate": 0.0036,
+          "mean_false_split_rate": 0.013,
+          "mean_silhouette": 0.2533,
+          "mean_n_clusters": 262.0
+        },
+        {
+          "threshold": 0.1,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.3637,
+          "mean_ami": 0.5403,
+          "mean_homogeneity": 0.8964,
+          "mean_completeness": 0.8172,
+          "mean_false_merge_rate": 0.0083,
+          "mean_false_split_rate": 0.0117,
+          "mean_silhouette": 0.2864,
+          "mean_n_clusters": 211.5
+        },
+        {
+          "threshold": 0.12,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.377,
+          "mean_ami": 0.566,
+          "mean_homogeneity": 0.8574,
+          "mean_completeness": 0.8356,
+          "mean_false_merge_rate": 0.018,
+          "mean_false_split_rate": 0.0097,
+          "mean_silhouette": 0.3007,
+          "mean_n_clusters": 177.0
+        },
+        {
+          "threshold": 0.15,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.3666,
+          "mean_ami": 0.5765,
+          "mean_homogeneity": 0.8008,
+          "mean_completeness": 0.8545,
+          "mean_false_merge_rate": 0.0347,
+          "mean_false_split_rate": 0.008,
+          "mean_silhouette": 0.3243,
+          "mean_n_clusters": 141.0
+        },
+        {
+          "threshold": 0.18,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.3499,
+          "mean_ami": 0.5663,
+          "mean_homogeneity": 0.7443,
+          "mean_completeness": 0.8703,
+          "mean_false_merge_rate": 0.0742,
+          "mean_false_split_rate": 0.0066,
+          "mean_silhouette": 0.3349,
+          "mean_n_clusters": 112.5
+        },
+        {
+          "threshold": 0.22,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.2803,
+          "mean_ami": 0.5379,
+          "mean_homogeneity": 0.6789,
+          "mean_completeness": 0.8844,
+          "mean_false_merge_rate": 0.1197,
+          "mean_false_split_rate": 0.0054,
+          "mean_silhouette": 0.3481,
+          "mean_n_clusters": 86.0
+        },
+        {
+          "threshold": 0.25,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.2567,
+          "mean_ami": 0.5232,
+          "mean_homogeneity": 0.6453,
+          "mean_completeness": 0.8909,
+          "mean_false_merge_rate": 0.1338,
+          "mean_false_split_rate": 0.0049,
+          "mean_silhouette": 0.3853,
+          "mean_n_clusters": 73.75
+        },
+        {
+          "threshold": 0.3,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.2149,
+          "mean_ami": 0.4983,
+          "mean_homogeneity": 0.5923,
+          "mean_completeness": 0.9084,
+          "mean_false_merge_rate": 0.1692,
+          "mean_false_split_rate": 0.0037,
+          "mean_silhouette": 0.4298,
+          "mean_n_clusters": 58.25
+        }
+      ],
+      "best_threshold": {
+        "threshold": 0.12,
+        "n_folders_evaluated": 4,
+        "mean_ari": 0.377,
+        "mean_ami": 0.566,
+        "mean_homogeneity": 0.8574,
+        "mean_completeness": 0.8356,
+        "mean_false_merge_rate": 0.018,
+        "mean_false_split_rate": 0.0097,
+        "mean_silhouette": 0.3007,
+        "mean_n_clusters": 177.0
+      },
+      "mean_ari_vs_existing_stacks_bias_flagged": 0.2663,
+      "note": "Primary GT is EXIF-burst (unbiased). stack_id ARI is MobileNet-biased secondary."
+    },
+    "siglip2_base_image": {
+      "n_images_with_emb": 2126,
+      "gap_seconds": 2.0,
+      "threshold_sweep": [
+        {
+          "threshold": 0.04,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.4315,
+          "mean_ami": 0.6109,
+          "mean_homogeneity": 0.878,
+          "mean_completeness": 0.8586,
+          "mean_false_merge_rate": 0.0124,
+          "mean_false_split_rate": 0.0097,
+          "mean_silhouette": 0.2682,
+          "mean_n_clusters": 151.5
+        },
+        {
+          "threshold": 0.06,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.4066,
+          "mean_ami": 0.6291,
+          "mean_homogeneity": 0.7518,
+          "mean_completeness": 0.9203,
+          "mean_false_merge_rate": 0.0486,
+          "mean_false_split_rate": 0.0051,
+          "mean_silhouette": 0.3322,
+          "mean_n_clusters": 82.25
+        },
+        {
+          "threshold": 0.08,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.2976,
+          "mean_ami": 0.5812,
+          "mean_homogeneity": 0.6521,
+          "mean_completeness": 0.9513,
+          "mean_false_merge_rate": 0.0815,
+          "mean_false_split_rate": 0.003,
+          "mean_silhouette": 0.3658,
+          "mean_n_clusters": 52.0
+        },
+        {
+          "threshold": 0.1,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.2097,
+          "mean_ami": 0.4913,
+          "mean_homogeneity": 0.5423,
+          "mean_completeness": 0.9605,
+          "mean_false_merge_rate": 0.2041,
+          "mean_false_split_rate": 0.0019,
+          "mean_silhouette": 0.3467,
+          "mean_n_clusters": 37.75
+        },
+        {
+          "threshold": 0.12,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.1466,
+          "mean_ami": 0.4333,
+          "mean_homogeneity": 0.464,
+          "mean_completeness": 0.9792,
+          "mean_false_merge_rate": 0.2591,
+          "mean_false_split_rate": 0.0012,
+          "mean_silhouette": 0.4083,
+          "mean_n_clusters": 27.5
+        },
+        {
+          "threshold": 0.15,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.1278,
+          "mean_ami": 0.4037,
+          "mean_homogeneity": 0.4134,
+          "mean_completeness": 0.9932,
+          "mean_false_merge_rate": 0.2861,
+          "mean_false_split_rate": 0.0002,
+          "mean_silhouette": 0.5075,
+          "mean_n_clusters": 19.25
+        },
+        {
+          "threshold": 0.18,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0818,
+          "mean_ami": 0.3419,
+          "mean_homogeneity": 0.3373,
+          "mean_completeness": 0.996,
+          "mean_false_merge_rate": 0.3447,
+          "mean_false_split_rate": 0.0001,
+          "mean_silhouette": 0.4629,
+          "mean_n_clusters": 14.5
+        },
+        {
+          "threshold": 0.22,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0524,
+          "mean_ami": 0.265,
+          "mean_homogeneity": 0.2501,
+          "mean_completeness": 0.9954,
+          "mean_false_merge_rate": 0.459,
+          "mean_false_split_rate": 0.0001,
+          "mean_silhouette": 0.4429,
+          "mean_n_clusters": 10.5
+        },
+        {
+          "threshold": 0.25,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0332,
+          "mean_ami": 0.2142,
+          "mean_homogeneity": 0.1899,
+          "mean_completeness": 0.9947,
+          "mean_false_merge_rate": 0.5635,
+          "mean_false_split_rate": 0.0001,
+          "mean_silhouette": 0.4479,
+          "mean_n_clusters": 8.0
+        },
+        {
+          "threshold": 0.3,
+          "n_folders_evaluated": 4,
+          "mean_ari": 0.0113,
+          "mean_ami": 0.1139,
+          "mean_homogeneity": 0.1062,
+          "mean_completeness": 0.9983,
+          "mean_false_merge_rate": 0.7509,
+          "mean_false_split_rate": 0.0,
+          "mean_silhouette": 0.4246,
+          "mean_n_clusters": 5.5
+        }
+      ],
+      "best_threshold": {
+        "threshold": 0.04,
+        "n_folders_evaluated": 4,
+        "mean_ari": 0.4315,
+        "mean_ami": 0.6109,
+        "mean_homogeneity": 0.878,
+        "mean_completeness": 0.8586,
+        "mean_false_merge_rate": 0.0124,
+        "mean_false_split_rate": 0.0097,
+        "mean_silhouette": 0.2682,
+        "mean_n_clusters": 151.5
+      },
+      "mean_ari_vs_existing_stacks_bias_flagged": 0.3859,
+      "note": "Primary GT is EXIF-burst (unbiased). stack_id ARI is MobileNet-biased secondary."
+    }
+  },
+  "ranking_by_burst_ari": [
+    {
+      "space": "openclip_l14_laion2b_image",
+      "mean_ari": 0.4502,
+      "best_threshold": 0.06
+    },
+    {
+      "space": "openai_clip_vit_l14_image",
+      "mean_ari": 0.4419,
+      "best_threshold": 0.06
+    },
+    {
+      "space": "siglip2_base_image",
+      "mean_ari": 0.4315,
+      "best_threshold": 0.04
+    },
+    {
+      "space": "mobilenet_v2_imagenet_gap",
+      "mean_ari": 0.4231,
+      "best_threshold": 0.18
+    },
+    {
+      "space": "clip_vit_b32_image",
+      "mean_ari": 0.4086,
+      "best_threshold": 0.04
+    },
+    {
+      "space": "dinov2_reg_base_image",
+      "mean_ari": 0.377,
+      "best_threshold": 0.12
+    }
+  ]
+}

@@ -5,6 +5,7 @@ Use these files as authority before adding or changing APIs, database fields, ph
 | Topic | Authoritative file(s) |
 |---|---|
 | REST API contract | [technical/API_CONTRACT.md](technical/API_CONTRACT.md), [reference/api/openapi.yaml](reference/api/openapi.yaml), [reference/api/API.md](reference/api/API.md), [modules/api.py](../modules/api.py) |
+| Application config (`config.json`, `environment.json`) | [technical/CONFIG.md](technical/CONFIG.md), [modules/config.py](../modules/config.py), [config.example.json](../config.example.json) |
 | OpenAPI generation / schema artifact | [reference/api/openapi.yaml](reference/api/openapi.yaml), [openapi.json](../openapi.json), [reference/api/API_SCHEMA_IMPLEMENTATION.md](reference/api/API_SCHEMA_IMPLEMENTATION.md) |
 | Database schema and columns | [technical/DB_SCHEMA.md](technical/DB_SCHEMA.md), [modules/db_postgres.py](../modules/db_postgres.py), [migrations/versions/](../migrations/versions/) |
 | PostgreSQL + pgvector migration history | [planning/database/FIREBIRD_POSTGRES_MIGRATION.md](planning/database/FIREBIRD_POSTGRES_MIGRATION.md), [planning/database/DB_VECTORS_REFACTOR.md](planning/database/DB_VECTORS_REFACTOR.md) |

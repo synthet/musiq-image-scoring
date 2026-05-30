@@ -39,7 +39,7 @@ def _validate_file_path(file_path: str) -> str:
 
     global _ALLOWED_IMAGE_ROOTS
     if _ALLOWED_IMAGE_ROOTS is None:
-        _ALLOWED_IMAGE_ROOTS = config.get_config_value("allowed_paths", [])
+        _ALLOWED_IMAGE_ROOTS = config.get_allowed_paths_from_config()
         _ALLOWED_IMAGE_ROOTS.extend(config.get_default_allowed_paths())
 
     if _ALLOWED_IMAGE_ROOTS and not any(

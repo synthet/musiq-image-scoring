@@ -1,0 +1,73 @@
+{
+  "thumbnail_max_size": [
+    512,
+    512
+  ],
+  "mobilenet_clustering_resize": [
+    224,
+    224
+  ],
+  "embedding_towers": {
+    "clip_b32": {
+      "model_name": "ViT-B-32",
+      "pretrained": "openai",
+      "resize": 224,
+      "center_crop": [
+        224,
+        224
+      ]
+    },
+    "openai": {
+      "model_name": "ViT-L-14-quickgelu",
+      "pretrained": "openai",
+      "resize": 224,
+      "center_crop": [
+        224,
+        224
+      ]
+    },
+    "openclip": {
+      "model_name": "ViT-L-14",
+      "pretrained": "laion2b_s32b_b82k",
+      "resize": 224,
+      "center_crop": [
+        224,
+        224
+      ]
+    },
+    "dinov2": {
+      "timm_name": "vit_base_patch14_dinov2.lvd142m",
+      "input_size": [
+        3,
+        518,
+        518
+      ],
+      "crop_pct": 1.0,
+      "interpolation": "bicubic"
+    },
+    "siglip2": {
+      "hf_model_id": "google/siglip2-base-patch16-224",
+      "kind": "siglip2",
+      "processor_size": {
+        "height": 224,
+        "width": 224
+      },
+      "vision_image_size": 224
+    }
+  },
+  "iqa_scorers": {
+    "liqe": {
+      "max_dimension": 518,
+      "default": 518
+    },
+    "topiq": {
+      "max_dimension": 1024
+    },
+    "arniqa": {
+      "max_dimension": 1024
+    },
+    "musiq_raw_conversion": {
+      "max_resolution": 512
+    }
+  }
+}

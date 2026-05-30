@@ -191,32 +191,32 @@ def create_tab(app_config):
             try:
                 thresh = float(stack_threshold) if stack_threshold else 0.15
                 gap = int(stack_gap) if stack_gap else 120
-                config.save_config_value('scoring', {
+                config.merge_and_save_config_section('scoring', {
                     'force_rescore_default': force_rescore,
                     'default_sort_by': sort_by,
                     'default_sort_order': sort_order
                 })
-                config.save_config_value('processing', {
+                config.merge_and_save_config_section('processing', {
                     'prep_queue_size': int(prep_queue) if prep_queue else 50,
                     'scoring_queue_size': int(scoring_queue) if scoring_queue else 10,
                     'result_queue_size': int(result_queue) if result_queue else 50,
                     'clustering_batch_size': int(clustering_batch) if clustering_batch else 32
                 })
-                config.save_config_value('clustering', {
+                config.merge_and_save_config_section('clustering', {
                     'default_threshold': thresh,
                     'default_time_gap': gap,
                     'force_rescan_default': clust_force
                 })
-                config.save_config_value('culling', {
+                config.merge_and_save_config_section('culling', {
                     'default_threshold': thresh,
                     'default_time_gap': gap,
                     'auto_export_default': cull_auto
                 })
-                config.save_config_value('ui', {
+                config.merge_and_save_config_section('ui', {
                     'gallery_page_size': int(page_size) if page_size else 50,
                     'default_export_format': export_format
                 })
-                config.save_config_value('tagging', {
+                config.merge_and_save_config_section('tagging', {
                     'overwrite_default': tag_overwrite,
                     'captions_default': tag_captions,
                     'accessibility_default': tag_accessibility,

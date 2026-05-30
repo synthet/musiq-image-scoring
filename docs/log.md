@@ -6,6 +6,22 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-05-29] created | Input-size culling + IQA research harness
+
+Added `scripts/research/clip_culling/input_size_{native,embed,eval}.py`, `report_input_size.py`, `common.load_pil_resized`, optional `--preprocess-size` on OpenCLIP/timm towers. NPZ caches under `reports/clip-culling/input-size/`. Doc: [reports/INPUT_SIZE_CULLING_2026-05-29.md](reports/INPUT_SIZE_CULLING_2026-05-29.md). Tests: `tests/test_clip_culling_input_size.py`.
+
+## [2026-05-29] created | Application config reference and API split
+
+Added [technical/CONFIG.md](technical/CONFIG.md) (canonical config keys, merge order, deprecated paths). Split `GET /api/config` (public `ConfigResponse`) from `GET /api/config/full` (merged JSON). Fixed Gradio settings merge (`merge_and_save_config_section`), `system.allowed_paths` in path security, and `validate_config` for `database.engine: api`. Updated [config.example.json](../config.example.json) and OpenAPI artifacts.
+
+## [2026-05-29] updated | DINOv2/SigLIP2 culling spike (exp8)
+
+Ran [scripts/research/clip_culling/](../../scripts/research/clip_culling/) against `image-scoring-postgres-e2e`: persisted `dinov2_reg_base_image` (timm DINOv2 base) and `siglip2_base_image`; added exp8 grouping vs EXIF-burst GT. **DINOv2 burst-GT ARI 0.377 &lt; MobileNet 0.423**; OpenCLIP L/14 best at 0.450. Updated [reports/CULLING_MODEL_RECOMMENDATION_2026-05-29.md](reports/CULLING_MODEL_RECOMMENDATION_2026-05-29.md) and [reports/clip-culling/SUMMARY.md](../../reports/clip-culling/SUMMARY.md).
+
+## [2026-05-29] created | Culling model recommendation memo
+
+Added [reports/CULLING_MODEL_RECOMMENDATION_2026-05-29.md](reports/CULLING_MODEL_RECOMMENDATION_2026-05-29.md) — synthesizes the 2026-05-28 CLIP L/14 spike and roadmap: DINOv2-reg base for grouping (validate first), keep ARNIQA/IQA for rejection, MMR + scores for stack selection. Linked from [MODEL_RECOMMENDATIONS_PIPELINES.md](MODEL_RECOMMENDATIONS_PIPELINES.md) Research inputs.
+
 ## [2026-05-26] created | External CLI review agent infra (subagent-orchestrator)
 
 Onboarded sibling `subagent-orchestrator` MCP (`imgscore-subagent-orchestrator`), rule `external-cli-subagents`, skill `subagent-review`, slash commands `/check-subagents` and `/run-*-review`, and subagents `external-*`. See [technical/EXTERNAL_CLI_REVIEWS.md](technical/EXTERNAL_CLI_REVIEWS.md).

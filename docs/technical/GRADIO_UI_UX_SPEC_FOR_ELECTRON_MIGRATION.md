@@ -449,5 +449,5 @@ Connect once on app start. The server broadcasts JSON messages for all job lifec
 
 ### 11.5 Settings Persistence
 
-`GET /api/config` / `POST /api/config` — reads and writes `config.json` sections used by the Settings tab. Sections: `scoring`, `processing`, `culling`, `ui`, `tagging`.
+`GET /api/config` — public feature flags for React (`ConfigResponse`). `GET /api/config/full` — full merged config for Settings/Electron. `POST /api/config/{section}` — writes `config.json` sections: `scoring`, `processing`, `culling`, `ui`, `tagging`.
 

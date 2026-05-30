@@ -13,6 +13,7 @@ import queue
 from typing import List, Optional, Any, Union, Dict, Tuple
 
 from modules import config
+from modules import audit
 from modules.events import event_manager
 try:
     from modules import db_postgres
@@ -3593,7 +3594,20 @@ def update_image_field(image_id: int, field_name: str, value) -> bool:
     if field_name not in valid_fields:
         logging.warning(f"Invalid field name for update: {field_name}")
         return False
-    
+
+    # Capture prior value for the audit log (only when auditing is on, to avoid
+    # an extra SELECT on the hot path). field_name is whitelisted above.
+    _audit_on = audit.is_enabled("images")
+    _audit_old = None
+    if _audit_on:
+        try:
+            _row = get_connector().query_one(
+                f"SELECT {field_name} FROM images WHERE id = ?", (image_id,)
+            )
+            _audit_old = _row.get(field_name) if _row else None
+        except Exception:
+            _audit_old = None
+
     try:
         # field_name is safe: validated against whitelist above
         if field_name == "keywords" and not _write_legacy_keywords_column():
@@ -3609,6 +3623,13 @@ def update_image_field(image_id: int, field_name: str, value) -> bool:
                 _sync_image_keywords(image_id, value)
             except Exception as e:
                 logging.warning(f"Keyword sync failed for image {image_id}: {e}")
+
+        if _audit_on:
+            audit.record_audit(
+                "images", image_id, "update",
+                audit.build_field_update_patch(field_name, _audit_old, value),
+                source="db.update_image_field",
+            )
 
         # Broadcast image update
         try:
@@ -5094,6 +5115,22 @@ def create_job(input_path, phase_code=None, job_type=None, status="pending", cur
     )
     job_id = rows[0]['id'] if rows else None
 
+    audit.record_audit(
+        "jobs", job_id, "insert",
+        audit.build_insert_patch({
+            "status": status,
+            "input_path": input_path,
+            "job_type": job_type,
+            "phase_id": phase_id,
+            "current_phase": current_phase,
+            "runner_state": runner_state,
+            "description": description,
+        }),
+        run_id=job_id,
+        phase_code=phase_code,
+        source="db.create_job",
+    )
+
     record_pipeline_event(
         "state-change",
         f"Job #{job_id} created ({status})",
@@ -5365,6 +5402,14 @@ def update_job_status(job_id, status, log=None, current_phase=None, next_phase_i
         return old_status, new_status, final_phase, final_next_idx, final_runner_state, root_job_type
 
     old_status, broadcast_status, final_phase, final_next_idx, final_runner_state, job_type_after = get_connector().run_transaction(_tx)
+
+    audit.record_audit(
+        "jobs", job_id, "update",
+        audit.build_field_update_patch("status", old_status, broadcast_status),
+        run_id=job_id,
+        phase_code=final_phase,
+        source="db.update_job_status",
+    )
 
     event_type = "state-change"
     severity = "info"
@@ -8839,6 +8884,17 @@ def update_image_metadata(file_path, keywords, title, description, rating, label
     """
     Updates the metadata fields for a given image path.
     """
+    _audit_on = audit.is_enabled("images")
+    _audit_before = None
+    if _audit_on:
+        try:
+            _audit_before = get_connector().query_one(
+                "SELECT id, keywords, title, description, rating, label FROM images WHERE file_path = ?",
+                (file_path,),
+            )
+        except Exception:
+            _audit_before = None
+
     try:
         if _write_legacy_keywords_column():
             get_connector().execute(
@@ -8853,6 +8909,17 @@ def update_image_metadata(file_path, keywords, title, description, rating, label
         row = get_connector().query_one("SELECT id FROM images WHERE file_path = ?", (file_path,))
         if row:
             _sync_image_keywords(row["id"], keywords)
+
+        if _audit_on and row:
+            after = {"keywords": keywords, "title": title, "description": description,
+                     "rating": rating, "label": label}
+            if not _write_legacy_keywords_column():
+                after.pop("keywords", None)
+            audit.record_audit(
+                "images", row["id"], "update",
+                audit.build_update_patch(_audit_before, after),
+                source="db.update_image_metadata",
+            )
 
         # Broadcast image update
         try:
@@ -8884,11 +8951,27 @@ def update_image_pick_status(image_id: int, pick_status: int) -> bool:
     """
     if pick_status not in (-1, 0, 1):
         raise ValueError(f"pick_status must be -1, 0, or 1; got {pick_status!r}")
+    _audit_on = audit.is_enabled("images")
+    _audit_old = None
+    if _audit_on:
+        try:
+            _row = get_connector().query_one(
+                "SELECT pick_status FROM images WHERE id = ?", (image_id,)
+            )
+            _audit_old = _row.get("pick_status") if _row else None
+        except Exception:
+            _audit_old = None
     try:
         get_connector().execute(
             "UPDATE images SET pick_status = ? WHERE id = ?",
             (pick_status, image_id),
         )
+        if _audit_on:
+            audit.record_audit(
+                "images", image_id, "update",
+                audit.build_field_update_patch("pick_status", _audit_old, pick_status),
+                source="db.update_image_pick_status",
+            )
         try:
             from modules.events import event_manager
             event_manager.broadcast_threadsafe(
@@ -10032,11 +10115,40 @@ def batch_update_cull_decisions(updates: list, policy_version: str = "1.0", batc
     if not updates:
         return
     try:
+        _audit_on = audit.is_enabled("images")
+        _audit_old = {}
+        if _audit_on:
+            try:
+                ids = [img_id for img_id, _, _ in updates]
+                placeholders = ",".join(["?"] * len(ids))
+                rows = get_connector().query(
+                    f"SELECT id, cull_decision FROM images WHERE id IN ({placeholders})",
+                    tuple(ids),
+                ) or []
+                _audit_old = {r["id"]: r.get("cull_decision") for r in rows}
+            except Exception:
+                _audit_old = {}
+
         all_params = [(decision, policy_version, img_id) for img_id, decision, _ in updates]
         get_connector().execute_many(
             "UPDATE images SET cull_decision = ?, cull_policy_version = ? WHERE id = ?",
             all_params,
         )
+
+        if _audit_on:
+            audit.record_audit_batch(
+                "images", "update",
+                (
+                    (
+                        img_id,
+                        audit.build_field_update_patch(
+                            "cull_decision", _audit_old.get(img_id), decision
+                        ),
+                    )
+                    for img_id, decision, _ in updates
+                ),
+                source="db.batch_update_cull_decisions",
+            )
 
         invalidate_folder_images_cache()
         for img_id, decision, file_path in updates:
@@ -10480,6 +10592,172 @@ def create_stacks_batch(stacks_data):
     except Exception as e:
         logging.error(f"Failed to batch create stacks: {e}")
         return False, str(e)
+
+
+def create_sub_stacks_batch(sub_stacks_data):
+    """
+    Creates multiple sub-stacks and updates images.sub_stack_id in one transaction.
+
+    sub_stacks_data: list of dicts {
+        'stack_id': int,
+        'name': str | None,
+        'best_image_id': int | None,
+        'level1_space': str | None,
+        'level2_visual_space': str | None,
+        'level2_semantic_space': str | None,
+        'policy_version': str | None,
+        'image_ids': [int],
+    }
+    """
+    if not sub_stacks_data:
+        return True, "No sub-stacks to create."
+
+    created_ids = []
+    timestamp = datetime.datetime.now()
+
+    def _tx(tx):
+        for data in sub_stacks_data:
+            ret = tx.execute_returning(
+                """
+                INSERT INTO sub_stacks (
+                    stack_id, name, best_image_id,
+                    level1_space, level2_visual_space, level2_semantic_space,
+                    policy_version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                """,
+                (
+                    data["stack_id"],
+                    data.get("name"),
+                    data.get("best_image_id"),
+                    data.get("level1_space"),
+                    data.get("level2_visual_space"),
+                    data.get("level2_semantic_space"),
+                    data.get("policy_version"),
+                    timestamp,
+                ),
+            )
+            sub_stack_id = ret[0]["id"] if ret else None
+            created_ids.append(sub_stack_id)
+            if sub_stack_id and data.get("image_ids"):
+                for img_id in data["image_ids"]:
+                    tx.execute(
+                        "UPDATE images SET sub_stack_id = ? WHERE id = ?",
+                        (sub_stack_id, img_id),
+                    )
+
+    try:
+        get_connector().run_transaction(_tx)
+        return True, f"Created {len(sub_stacks_data)} sub-stacks."
+    except Exception as e:
+        logging.error("Failed to batch create sub-stacks: %s", e)
+        return False, str(e)
+
+
+def clear_sub_stacks_for_stack_ids(stack_ids: list[int]) -> int:
+    """Delete sub_stacks for the given root stack ids; null sub_stack_id on images."""
+    if not stack_ids:
+        return 0
+    placeholders = ",".join(["?"] * len(stack_ids))
+
+    def _tx(tx):
+        tx.execute(
+            f"UPDATE images SET sub_stack_id = NULL WHERE stack_id IN ({placeholders})",
+            tuple(stack_ids),
+        )
+        return tx.execute(
+            f"DELETE FROM sub_stacks WHERE stack_id IN ({placeholders})",
+            tuple(stack_ids),
+        )
+
+    try:
+        return int(get_connector().run_transaction(_tx) or 0)
+    except Exception as e:
+        logging.error("Failed to clear sub-stacks for stacks %s: %s", stack_ids, e)
+        return 0
+
+
+def clear_sub_stacks_for_folder(folder_path: str) -> tuple[bool, str]:
+    """Remove all sub-stacks for images in a folder (idempotent re-run helper)."""
+    folder_path = (folder_path or "").strip()
+    if not folder_path:
+        return False, "Empty folder path"
+
+    try:
+        folder_row = get_connector().query_one(
+            "SELECT id FROM folders WHERE path = ?", (os.path.normpath(folder_path),)
+        )
+        if folder_row:
+            rows = get_connector().query(
+                "SELECT DISTINCT stack_id FROM images WHERE folder_id = ? AND stack_id IS NOT NULL",
+                (folder_row["id"],),
+            )
+        else:
+            fp = folder_path.rstrip("/\\") + "%"
+            rows = get_connector().query(
+                "SELECT DISTINCT stack_id FROM images WHERE file_path LIKE ? AND stack_id IS NOT NULL",
+                (fp,),
+            )
+        stack_ids = [r["stack_id"] for r in rows if r.get("stack_id") is not None]
+        deleted = clear_sub_stacks_for_stack_ids(stack_ids)
+        return True, f"Cleared sub-stacks for {len(stack_ids)} stacks ({deleted} rows deleted)."
+    except Exception as e:
+        logging.error("Failed to clear sub-stacks in folder %s: %s", folder_path, e)
+        return False, str(e)
+
+
+def get_substacks_for_stack(stack_id: int):
+    """Return sub-stacks for a root stack with image counts."""
+    rows = list(
+        get_connector().query(
+            """
+            SELECT ss.id,
+                   ss.stack_id,
+                   ss.name,
+                   ss.best_image_id,
+                   ss.level1_space,
+                   ss.level2_visual_space,
+                   ss.level2_semantic_space,
+                   ss.policy_version,
+                   ss.created_at,
+                   COUNT(i.id) AS image_count
+            FROM sub_stacks ss
+            LEFT JOIN images i ON i.sub_stack_id = ss.id
+            WHERE ss.stack_id = ?
+            GROUP BY ss.id, ss.stack_id, ss.name, ss.best_image_id,
+                     ss.level1_space, ss.level2_visual_space, ss.level2_semantic_space,
+                     ss.policy_version, ss.created_at
+            ORDER BY ss.id
+            """,
+            (stack_id,),
+        )
+    )
+    return rows
+
+
+def get_images_in_substack(sub_stack_id: int):
+    """Return images belonging to a sub-stack, sorted by score."""
+    tie = _stack_quality_tiebreak_sql()
+    rows = list(
+        get_connector().query(
+            f"""
+            SELECT i.*,
+                   e.iso             AS exif_iso,
+                   e.exposure_time   AS exif_exposure_time,
+                   e.image_width     AS exif_image_width,
+                   e.image_height    AS exif_image_height
+            FROM images i
+            LEFT JOIN image_exif e ON e.image_id = i.id
+            WHERE i.sub_stack_id = ?
+            ORDER BY i.score_general DESC NULLS LAST
+            {tie}
+            """,
+            (sub_stack_id,),
+        )
+    )
+    for r in rows:
+        r.pop("image_embedding", None)
+    return rows
+
 
 # --- Manual Stack Operations ---
 
@@ -11405,6 +11683,47 @@ def get_image_embeddings_batch(image_ids: list[int]) -> dict[int, bytes]:
         return {}
 
 
+def get_image_embeddings_batch_for_space(space_code: str, image_ids: list[int]) -> dict[int, bytes]:
+    """Return image_id -> raw embedding bytes for a named embedding space (Postgres)."""
+    if not image_ids or not space_code:
+        return {}
+    try:
+        if _get_db_engine() != "postgres":
+            if space_code == "mobilenet_v2_imagenet_gap":
+                return get_image_embeddings_batch(image_ids)
+            return {}
+
+        from modules.embedding_spaces import SPACE_DIMS, get_embedding_space_id
+
+        expected_dim = SPACE_DIMS.get(space_code)
+        if expected_dim is None:
+            logger.warning("get_image_embeddings_batch_for_space: unknown space %r", space_code)
+            return {}
+        sid = get_embedding_space_id(space_code)
+        if sid is None:
+            return {}
+
+        table = _pg_embedding_table_for_dim(expected_dim)
+        placeholders = ",".join(["%s"] * len(image_ids))
+        rows = db_postgres.execute_select(
+            f"""
+            SELECT e.image_id AS id, e.embedding AS emb
+            FROM {table} e
+            WHERE e.embedding_space_id = %s
+              AND e.image_id IN ({placeholders})
+            """,
+            (sid, *image_ids),
+        )
+        return {
+            r["id"]: _pg_vec_to_bytes(r["emb"])
+            for r in rows
+            if r.get("emb") is not None
+        }
+    except Exception as e:
+        logger.error("Error getting batch embeddings for space %r: %s", space_code, e)
+        return {}
+
+
 def get_embeddings_for_search(folder_path=None, limit=None):
     """
     Return (image_id, file_path, embedding_bytes) for images with stored embeddings.
@@ -12093,6 +12412,7 @@ def set_image_phase_status(image_id, phase_code, status,
         return
 
     now = datetime.datetime.now()
+    _audit_capture: dict = {}
 
     def _tx(tx):
         # Check existing row
@@ -12105,6 +12425,8 @@ def set_image_phase_status(image_id, phase_code, status,
         if existing:
             row_id = existing["id"]
             old_status = (existing["status"] or "not_started").strip()
+            _audit_capture["op"] = "update"
+            _audit_capture["old_status"] = old_status
             attempt_count = existing["attempt_count"] or 0
 
             # Guard: running → running is not allowed (duplicate job protection)
@@ -12176,8 +12498,10 @@ def set_image_phase_status(image_id, phase_code, status,
 
             params.append(row_id)
             tx.execute(f"UPDATE image_phase_status SET {', '.join(fields)} WHERE id = ?", params)
+            _audit_capture["written"] = True
         else:
             # INSERT new row
+            _audit_capture["op"] = "insert"
             started = now if status == PhaseStatus.RUNNING else None
             finished = now if status in (PhaseStatus.DONE, PhaseStatus.FAILED, PhaseStatus.SKIPPED) else None
 
@@ -12191,6 +12515,7 @@ def set_image_phase_status(image_id, phase_code, status,
                  skip_reason if status == PhaseStatus.SKIPPED else None,
                  skipped_by if status == PhaseStatus.SKIPPED else None)
             )
+            _audit_capture["written"] = True
 
         frow = tx.query_one("SELECT folder_id FROM images WHERE id = ?", (image_id,))
         folder_id_local = frow["folder_id"] if frow else None
@@ -12222,6 +12547,24 @@ def set_image_phase_status(image_id, phase_code, status,
     except Exception as e:
         logger.error("set_image_phase_status failed (img=%s, phase=%s): %s", image_id, phase_code, e)
         raise
+
+    if tx_ok and _audit_capture.get("written"):
+        new_status = getattr(status, "value", status)
+        if _audit_capture.get("op") == "insert":
+            _patch = audit.build_insert_patch(
+                {"status": new_status, "job_id": job_id, "attempt_count": 0}
+            )
+        else:
+            _patch = audit.build_field_update_patch(
+                "status", _audit_capture.get("old_status"), new_status
+            )
+        audit.record_audit(
+            "image_phase_status", image_id, _audit_capture.get("op") or "update",
+            _patch,
+            run_id=job_id,
+            phase_code=phase_code,
+            source="db.set_image_phase_status",
+        )
 
     if tx_ok and _get_db_engine() == "postgres" and status == PhaseStatus.FAILED:
         attempt_row = get_connector().query_one(

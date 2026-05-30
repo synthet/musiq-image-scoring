@@ -1,0 +1,28 @@
+[
+  {
+    "space": "dinov2_reg_base_image",
+    "embedded": 2126,
+    "failed": 0,
+    "telemetry": {
+      "images": 2126,
+      "seconds": 330.86,
+      "ms_per_image": 155.6,
+      "peak_vram_mb": 1004.2,
+      "timm_name": "vit_base_patch14_dinov2.lvd142m",
+      "note": "timm DINOv2 base 768-d; HF dinov2_with_registers needs transformers>=4.40"
+    }
+  },
+  {
+    "space": "siglip2_base_image",
+    "embedded": 2126,
+    "failed": 0,
+    "telemetry": {
+      "images": 2126,
+      "seconds": 379.83,
+      "ms_per_image": 182.8,
+      "peak_vram_mb": 916.6,
+      "kind": "siglip2",
+      "hf_model_id": "google/siglip2-base-patch16-224"
+    }
+  }
+]

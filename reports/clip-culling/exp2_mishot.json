@@ -1,0 +1,36 @@
+{
+  "n_total": 2126,
+  "n_reject": 573,
+  "metrics": {
+    "clipiqa_bad_openai": {
+      "n": 2126,
+      "roc_auc": 0.5604,
+      "pr_auc": 0.34
+    },
+    "neg_sharp_openai": {
+      "n": 2126,
+      "roc_auc": 0.5348,
+      "pr_auc": 0.3004
+    },
+    "neg_expo_openai": {
+      "n": 2126,
+      "roc_auc": 0.5462,
+      "pr_auc": 0.3133
+    },
+    "neg_aesthetic_openai": {
+      "n": 2126,
+      "roc_auc": 0.6112,
+      "pr_auc": 0.3557
+    },
+    "baseline_neg_score_technical": {
+      "n": 2126,
+      "roc_auc": 0.6883,
+      "pr_auc": 0.5749
+    },
+    "baseline_neg_arniqa": {
+      "n": 2126,
+      "roc_auc": 0.5981,
+      "pr_auc": 0.3763
+    }
+  }
+}

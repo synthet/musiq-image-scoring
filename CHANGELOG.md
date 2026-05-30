@@ -13,6 +13,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.27.0] - 2026-05-30
+
+### Added
+
+- **Audit log**: `modules/audit.py`, Alembic **0027** (`auditlog` table with RFC 6902 patches), config `database.audit_log_enabled`; correlation via `run_id`, `phase_code`, and `source`.
+- **Sub-stacks**: Alembic **0028**; REST `GET /api/stacks/{stack_id}/substacks` and `GET /api/substacks/{sub_stack_id}/images`.
+- **Culling embedding spaces**: Alembic **0029**; `modules/embedding_extractors.py`, extended `embedding_spaces` registry, and `scripts/backfill_culling_embeddings.py`.
+- **Two-level culling**: `modules/two_level_culling.py` — sequential visual→semantic sub-stacks with best-M/N-cap picks; selection policy and config keys in `config.example.json`.
+- **Config API split**: public `GET /api/config` vs operator `GET /api/config/full`; canonical reference [docs/technical/CONFIG.md](docs/technical/CONFIG.md).
+- **CLIP culling research harness**: `scripts/research/clip_culling/` (experiments, input-size study, backfill helpers) and related reports under `docs/reports/`.
+- **Tests**: audit, two-level culling, culling embedding spaces, config API routes, and allowed-paths security.
+
+### Changed
+
+- **Selection / culling**: two-level stack orchestration with diversity scoring and `selection_policy` best-M classification.
+- **OpenAPI** and [API_CONTRACT.md](docs/technical/API_CONTRACT.md) updated for substacks and config endpoints.
+- **Embeddings** documentation and `config.example.json` aligned with new culling spaces.
+
+### Fixed
+
+- **Job dispatcher unit tests**: stub `db.get_job_by_id` so mocked queue payloads are not overwritten by live DB rows during dispatch.
+- **Config validation**: `database.engine: api`, Gradio settings merge, and `system.allowed_paths` in path security checks.
+
 ## [7.26.0] - 2026-05-27
 
 ### Added

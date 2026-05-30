@@ -19,6 +19,16 @@ from modules.selection_metadata import write_selection_metadata
 from modules.indexing_policy import filter_image_rows_for_nef_policy
 from modules.sub_clustering import compute_sub_clusters
 from modules.config import get_config_value
+from modules.two_level_culling import (
+    TWO_LEVEL_POLICY_VERSION,
+    TwoLevelConfig,
+    TwoLevelLevelConfig,
+    SubStackSlotInfo,
+    allocate_picks_uniform,
+    assign_decisions_for_stack,
+    build_substack_persist_rows,
+    compute_leaf_substacks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +56,38 @@ class SelectionConfig:
     # stack so the pick/reject policy is run per visually-distinct sub-group
     # rather than the whole stack. Set to None to disable.
     sub_cluster_distance_threshold: Optional[float] = None
+    # Two-level culling (persisted sub-stacks, best-M with N cap). None = read config.
+    two_level_enabled: Optional[bool] = None
+
+
+def _load_two_level_config(cfg: SelectionConfig) -> TwoLevelConfig:
+    """Resolve two-level culling settings from SelectionConfig + config.json."""
+    tl = get_config_value("culling.two_level", default={}) or {}
+    div = tl.get("diversity") or {}
+
+    def _level(key: str, default_space: str, default_thr: float) -> TwoLevelLevelConfig:
+        block = tl.get(key) or {}
+        return TwoLevelLevelConfig(
+            embedding_space=str(block.get("embedding_space") or default_space),
+            distance_threshold=float(block.get("distance_threshold", default_thr)),
+        )
+
+    return TwoLevelConfig(
+        picks_per_substack=int(tl.get("picks_per_substack", 3)),
+        max_picks_per_stack=int(tl.get("max_picks_per_stack", 20)),
+        reject_non_picks=bool(tl.get("reject_non_picks", True)),
+        level1=_level("level1", "mobilenet_v2_imagenet_gap", 0.15),
+        level2=_level("level2", "mobilenet_v2_imagenet_gap", 0.05),
+        diversity_enabled=bool(div.get("enabled", True)),
+        diversity_lambda=float(div.get("lambda", 0.70)),
+        score_field=cfg.score_field,
+    )
+
+
+def _two_level_enabled(cfg: SelectionConfig) -> bool:
+    if cfg.two_level_enabled is not None:
+        return bool(cfg.two_level_enabled)
+    return bool(get_config_value("culling.two_level.enabled", default=False))
 
 
 @dataclass
@@ -242,16 +284,74 @@ class SelectionService:
                 except (TypeError, ValueError):
                     sub_thr_val = None
                 sub_clustering_enabled = sub_thr_val is not None and sub_thr_val > 0.0
+                use_two_level = _two_level_enabled(cfg)
+                tl_cfg = _load_two_level_config(cfg) if use_two_level else None
+                policy_version = TWO_LEVEL_POLICY_VERSION if use_two_level else POLICY_VERSION
+
+                if use_two_level:
+                    db.clear_sub_stacks_for_folder(folder)
 
                 self._progress(progress_cb, pct_base, "Assigning pick/reject bands...")
                 folder_decisions: list[tuple[int, str, str]] = []
                 folder_subcluster_count = 0
                 for stack_id, group in by_stack.items():
-                    # Group images of this stack into tight sub-clusters
-                    # (visually near-identical micro-groups) so we can apply
-                    # the 33/33 (or configured) policy *per sub-group*. The
-                    # None bucket — unstacked images — is treated as one
-                    # implicit sub-cluster to preserve legacy behaviour.
+                    if use_two_level and stack_id is not None and len(group) >= 2 and tl_cfg is not None:
+                        ids_for_emb = [img["id"] for img in group]
+                        emb_level2 = db.get_image_embeddings_batch_for_space(
+                            tl_cfg.level2.embedding_space, ids_for_emb
+                        )
+                        leaf_groups = compute_leaf_substacks(
+                            group,
+                            emb_level2,
+                            tl_cfg.level2.distance_threshold,
+                        )
+                        if not leaf_groups:
+                            leaf_groups = [list(group)]
+                        folder_subcluster_count += len(leaf_groups)
+
+                        slot_infos: list[SubStackSlotInfo] = []
+                        for lg in leaf_groups:
+                            top_score = 0.0
+                            for img in lg:
+                                try:
+                                    top_score = max(
+                                        top_score,
+                                        float(img.get(tl_cfg.score_field) or 0),
+                                    )
+                                except (TypeError, ValueError):
+                                    pass
+                            slot_infos.append(SubStackSlotInfo(size=len(lg), top_score=top_score))
+
+                        slot_counts = allocate_picks_uniform(
+                            slot_infos,
+                            tl_cfg.picks_per_substack,
+                            tl_cfg.max_picks_per_stack,
+                        )
+
+                        persist_rows = build_substack_persist_rows(
+                            stack_id,
+                            leaf_groups,
+                            level1_space=tl_cfg.level1.embedding_space,
+                            level2_space=tl_cfg.level2.embedding_space,
+                            sort_key=sort_key,
+                        )
+                        if persist_rows:
+                            db.create_sub_stacks_batch(persist_rows)
+
+                        stack_decisions = assign_decisions_for_stack(
+                            leaf_groups,
+                            slot_counts,
+                            sort_key=sort_key,
+                            reject_non_picks=tl_cfg.reject_non_picks,
+                            diversity_enabled=tl_cfg.diversity_enabled,
+                            diversity_lambda=tl_cfg.diversity_lambda,
+                            score_field=tl_cfg.score_field,
+                            embeddings_for_mmr=emb_level2,
+                        )
+                        folder_decisions.extend(stack_decisions)
+                        continue
+
+                    # Legacy path: in-memory sub-clusters + 33/33 bands (or unstacked bucket)
                     if sub_clustering_enabled and stack_id is not None and len(group) >= 2:
                         ids_for_emb = [img["id"] for img in group]
                         emb_map = db.get_image_embeddings_batch(ids_for_emb)
@@ -290,17 +390,18 @@ class SelectionService:
                             path = path_by_id.get(img_id, "")
                             folder_decisions.append((img_id, decision, path))
 
-                if sub_clustering_enabled:
+                if sub_clustering_enabled or use_two_level:
                     logger.debug(
-                        "[culling] sub-clustering folder=%s stacks=%s sub_clusters=%s threshold=%.4f",
+                        "[culling] sub-clustering folder=%s stacks=%s sub_clusters=%s two_level=%s threshold=%s",
                         folder,
                         len(by_stack),
                         folder_subcluster_count,
+                        use_two_level,
                         sub_thr_val,
                     )
-                        
+
                 # 5. Persist DB
-                db.batch_update_cull_decisions(folder_decisions, policy_version=POLICY_VERSION)
+                db.batch_update_cull_decisions(folder_decisions, policy_version=policy_version)
                 
                 # 6. Write Sidecars
                 stack_id_by_img = {img["id"]: img.get("stack_id") for img in images}

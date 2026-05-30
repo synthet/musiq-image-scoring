@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 import time
 
 from modules import db
+from modules.audit import audit_context
 from modules.run_modes import CANONICAL_RUN_MODE, normalize_run_mode, resolve_run_mode_flags
 
 logger = logging.getLogger(__name__)
@@ -364,7 +365,12 @@ class JobDispatcher:
         logger.info(f"[DISPATCHER] Starting job {job_id} on {runner_name} (phase: {phase}, path: {input_path})")
         
         try:
-            result = self._dispatch_to_runner(phase, runner, job_id, input_path, payload)
+            # Bind run/phase/source so synchronous DB writes during dispatch land
+            # in auditlog with correlation. Note: contextvars do not propagate
+            # into runner worker threads — thread-spawning runners still record
+            # thread_name and any explicit run_id (e.g. job lifecycle / phases).
+            with audit_context(run_id=job_id, phase_code=phase, source=runner_name):
+                result = self._dispatch_to_runner(phase, runner, job_id, input_path, payload)
         except Exception as exc:
             logger.exception("Runner %s raised during start for job %s", runner_name, job_id)
             return False, f"Runner '{runner_name}' raised: {exc}"

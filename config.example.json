@@ -1,8 +1,8 @@
 {
-  "test_key": "test_value",
   "scoring_input_path": "/path/to/your/photos",
   "tagging_input_path": "",
   "stacks_input_path": "/path/to/your/photos",
+  "culling_input_path": "/path/to/your/photos",
   "technical_failures": {
     "enabled": false,
     "use_classical_metrics": true,
@@ -75,10 +75,29 @@
     "force_rescan_default": false
   },
   "culling": {
+    "enabled": false,
     "default_threshold": 0.15,
     "default_time_gap": 120,
     "auto_export_default": false,
-    "sub_cluster_distance_threshold": 0.05
+    "sub_cluster_distance_threshold": 0.05,
+    "two_level": {
+      "enabled": false,
+      "picks_per_substack": 3,
+      "max_picks_per_stack": 20,
+      "reject_non_picks": true,
+      "level1": {
+        "embedding_space": "mobilenet_v2_imagenet_gap",
+        "distance_threshold": 0.15
+      },
+      "level2": {
+        "embedding_space": "openclip_l14_laion2b_image",
+        "distance_threshold": 0.06
+      },
+      "diversity": {
+        "enabled": true,
+        "lambda": 0.70
+      }
+    }
   },
   "ui": {
     "gallery_page_size": 50,
@@ -90,7 +109,6 @@
     "max_new_tokens": 50,
     "clip_model": "openai/clip-vit-base-patch32"
   },
-  "culling_input_path": "/path/to/your/photos",
   "paths": {
     "host_project_root_wsl": "",
     "host_project_root_win": ""
@@ -100,6 +118,8 @@
     "enable_api_db_query": true,
     "db_explorer_enabled": true,
     "api_db_query_max_rows": 5000,
+    "write_legacy_keywords_column": true,
+    "write_legacy_image_embedding_column": false,
     "postgres": {
       "host": "127.0.0.1",
       "port": 5432,
@@ -133,10 +153,12 @@
     "persist_clip_image": true,
     "persist_blip_image": true,
     "persist_bioclip_image": true,
+    "culling_spaces": ["openclip_l14_laion2b_image"],
     "model_versions": {
       "clip_vit_b32_image": "openai/clip-vit-base-patch32",
       "blip_vit_b16_image": "Salesforce/blip-image-captioning-base",
       "bioclip_2_image": "hf-hub:imageomics/bioclip-2"
     }
-  }
+  },
+  "debug": false
 }

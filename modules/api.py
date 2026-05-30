@@ -4715,6 +4715,46 @@ def create_api_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e))
 
     @router.get(
+        "/stacks/{stack_id}/substacks",
+        summary="Get sub-stacks for a root stack",
+        description=(
+            "Returns persisted leaf sub-stacks from two-level culling "
+            "(visual then semantic clustering). Empty when two-level culling "
+            "has not run or is disabled."
+        ),
+    )
+    async def get_stack_substacks(stack_id: int):
+        """Get sub-stacks belonging to a root stack."""
+        from modules import db
+        try:
+            substacks = db.get_substacks_for_stack(stack_id)
+            return {
+                "substacks": [dict(s) if hasattr(s, "keys") else s for s in substacks],
+                "count": len(substacks),
+                "stack_id": stack_id,
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get(
+        "/substacks/{sub_stack_id}/images",
+        summary="Get images in a sub-stack",
+        description="Returns images belonging to a two-level culling sub-stack.",
+    )
+    async def get_substack_images(sub_stack_id: int):
+        """Get all images in a sub-stack."""
+        from modules import db
+        try:
+            images = db.get_images_in_substack(sub_stack_id)
+            return {
+                "images": [dict(img) for img in images],
+                "count": len(images),
+                "sub_stack_id": sub_stack_id,
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get(
         "/stats",
         summary="Get database statistics",
         description="""
@@ -5985,15 +6025,15 @@ def create_api_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e))
 
     @router.get(
-        "/config",
-        summary="Get application configuration",
+        "/config/full",
+        summary="Get full application configuration",
         description="""
-        Returns the current `config.json` contents. Sections: `scoring`, `processing`,
-        `culling`, `ui`, `tagging`. Used by the Settings tab; Electron should read this
-        on startup and display values in its Settings pane.
+        Returns merged `config.json` + `environment.json` contents for Settings integrations
+        and Electron. Prefer `GET /api/config` for the React SPA feature-flag subset.
+        Passwords and tokens may be present; callers should not expose this response publicly.
         """
     )
-    async def get_config():
+    async def get_config_full():
         from modules.config import load_config
         try:
             return load_config()

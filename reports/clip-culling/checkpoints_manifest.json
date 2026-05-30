@@ -1,0 +1,37 @@
+{
+  "towers": {
+    "openai_clip_vit_l14_image": {
+      "open_clip": [
+        "ViT-L-14-quickgelu",
+        "openai"
+      ],
+      "url": "https://huggingface.co/openai/clip-vit-large-patch14",
+      "dim": 768
+    },
+    "openclip_l14_laion2b_image": {
+      "open_clip": [
+        "ViT-L-14",
+        "laion2b_s32b_b82k"
+      ],
+      "url": "https://huggingface.co/laion/CLIP-ViT-L-14-laion2B-s32B-b82K",
+      "dim": 768
+    },
+    "dinov2_reg_base_image": {
+      "timm": "vit_base_patch14_dinov2.lvd142m",
+      "url": "https://huggingface.co/facebook/dinov2-with-registers-base",
+      "note": "Spike uses timm DINOv2 base 768-d (transformers 4.37 lacks dinov2_with_registers)",
+      "dim": 768
+    },
+    "siglip2_base_image": {
+      "hf": "google/siglip2-base-patch16-224",
+      "url": "https://huggingface.co/google/siglip2-base-patch16-224",
+      "dim": 768
+    }
+  },
+  "aesthetic_head": {
+    "url": "https://github.com/christophschuhmann/improved-aesthetic-predictor/raw/main/sac+logos+ava1-l14-linearMSE.pth",
+    "path": "/home/dmnsy/.cache/clip_culling/sac+logos+ava1-l14-linearMSE.pth",
+    "size": 3714759,
+    "sha256": "21dd590f3ccdc646f0d53120778b296013b096a035a2718c9cb0d511bff0f1e0"
+  }
+}

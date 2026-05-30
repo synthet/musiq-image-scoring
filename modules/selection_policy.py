@@ -13,6 +13,7 @@ from math import floor
 DEFAULT_PICK_FRACTION = 0.33
 DEFAULT_REJECT_FRACTION = 0.33
 POLICY_VERSION = "1.0"
+TWO_LEVEL_POLICY_VERSION = "2.0"
 
 # Tie-break order for ranking (documented): score_field DESC, then EXIF
 # (ISO ASC, exposure ASC, date_time_original ASC, id ASC via quality_ranking),
@@ -73,6 +74,41 @@ def classify_sorted_ids(sorted_ids: list[int], frac: float = DEFAULT_PICK_FRACTI
         if i < picks:
             out[image_id] = "pick"
         elif i >= n - rejects:
+            out[image_id] = "reject"
+        else:
+            out[image_id] = "neutral"
+    return out
+
+
+def classify_best_m(
+    sorted_ids: list[int],
+    m: int,
+    *,
+    reject_rest: bool = True,
+) -> dict[int, str]:
+    """Classify top *m* images as pick; remainder reject or neutral.
+
+    Args:
+        sorted_ids: Image IDs sorted best-first (highest score first).
+        m: Number of picks to accept from this sub-stack.
+        reject_rest: When True, non-picks are ``reject``; else ``neutral``.
+
+    Small-stack rules:
+        n=1: neutral
+        n>=2: up to ``m`` picks (capped at n)
+    """
+    n = len(sorted_ids)
+    if n == 0:
+        return {}
+    if n == 1:
+        return {sorted_ids[0]: "neutral"}
+
+    picks = max(0, min(int(m), n))
+    out: dict[int, str] = {}
+    for i, image_id in enumerate(sorted_ids):
+        if i < picks:
+            out[image_id] = "pick"
+        elif reject_rest:
             out[image_id] = "reject"
         else:
             out[image_id] = "neutral"

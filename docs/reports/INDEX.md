@@ -10,6 +10,8 @@ Historical reports, research, reviews, and debugging sessions.
 | [WORK_SUMMARY_2026-05-26.md](WORK_SUMMARY_2026-05-26.md) | Auto-drive run 3245 investigation + empty composite scores dry-run |
 | [DEEP_RESEARCH_REPORT.md](DEEP_RESEARCH_REPORT.md) | Deep research report |
 | [CLIP_MODELS_CULLING_SCORING_2026-05-23.md](CLIP_MODELS_CULLING_SCORING_2026-05-23.md) | CLIP / OpenCLIP / MetaCLIP for culling and prompt-based scoring |
+| [CULLING_MODEL_RECOMMENDATION_2026-05-29.md](CULLING_MODEL_RECOMMENDATION_2026-05-29.md) | Model choice for grouping, mishot rejection, and stack selection (post L/14 spike) |
+| [INPUT_SIZE_CULLING_2026-05-29.md](INPUT_SIZE_CULLING_2026-05-29.md) | Thumbnail / long-edge sweep for culling embeddings + IQA signal quality |
 | [AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md](AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md) | Image auto-culling algorithms and best practices |
 | [PARTNER_UPDATES.md](PARTNER_UPDATES.md) | Updates from partner agents |
 | [IAA_PAPER_ANALYSIS.md](IAA_PAPER_ANALYSIS.md) | Analysis of modern IAA models paper |
