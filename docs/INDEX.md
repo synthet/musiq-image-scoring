@@ -50,6 +50,7 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | Page | Purpose |
 |---|---|
 | [technical/API_CONTRACT.md](technical/API_CONTRACT.md) | REST API contract summary. |
+| [technical/OPENAPI_CROSS_PROJECT.md](technical/OPENAPI_CROSS_PROJECT.md) | OpenAPI ownership and cross-repo sync (backend, gallery, UI). |
 | [reference/api/openapi.yaml](reference/api/openapi.yaml) | OpenAPI specification. |
 | [reference/api/API.md](reference/api/API.md) | REST API documentation. |
 | [reference/api/API_SCHEMA_IMPLEMENTATION.md](reference/api/API_SCHEMA_IMPLEMENTATION.md) | API schema implementation notes. |

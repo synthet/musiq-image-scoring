@@ -26,6 +26,7 @@ The integration relies on two primary shared components:
 * **Protocol**: The backend defines the REST API surface in `modules/api.py`.
 * **Agent Action**: Any modification to request/response structures or endpoint paths requires a corresponding update in the gallery.
 * **Sync Point**: The gallery agent must update `electron/apiService.ts` and relevant frontend hooks.
+* **OpenAPI**: Canonical machine schema is backend-owned; see [OPENAPI_CROSS_PROJECT.md](OPENAPI_CROSS_PROJECT.md). Gallery syncs `api-contract/openapi.json` and runs `npm run generate:api-types` after backend `openapi.json` changes.
 
 **Culling / stack analytics (2026-05):** Backend exposes `GET /api/analytics/culling`, `GET /api/analytics/culling/sessions/{id}`, `GET /api/analytics/stacks/{id}` (see [CULLING_ANALYTICS.md](CULLING_ANALYTICS.md)). Gallery consumes via IPC `api:get-culling-analytics` and `api:get-stack-analytics`; UI in `src/components/CullingAnalytics/`. No new DB columns — read-only aggregates over existing tables.
 

@@ -165,8 +165,8 @@ def test_reconcile_failed_salvages_scoring_rows_with_outputs(monkeypatch):
     scoring_salvage_sql, salvage_params = update_calls[0]
     assert "SET status = 'done'" in scoring_salvage_sql
     assert "code = 'scoring'" in scoring_salvage_sql
-    assert "score IS NOT NULL" in scoring_salvage_sql
-    assert "scores_json IS NOT NULL" in scoring_salvage_sql
+    assert "image_model_scores" in scoring_salvage_sql
+    assert "scores_json IS NOT NULL" not in scoring_salvage_sql
     assert salvage_params[0] == "stale_running_reconciled:job_cancelled:outputs_present"
 
     culling_salvage_sql, _ = update_calls[1]

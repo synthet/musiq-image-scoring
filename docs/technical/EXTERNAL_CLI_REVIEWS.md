@@ -13,7 +13,11 @@ Optional **review-only** second opinions from **Codex** or **Gemini CLI**, orche
    ```
 
 3. Install and authenticate **codex** and/or **gemini** CLIs on your PATH (see orchestrator `detect_subagents` notes).
-4. Reload MCP in Cursor after changing [`.cursor/mcp.json`](../../.cursor/mcp.json).
+4. Enable **`imgscore-subagent-orchestrator`** in [`.cursor/mcp.json`](../../.cursor/mcp.json) (`"disabled": false`) and reload MCP in Cursor.
+
+## Duplicate MCP servers
+
+Cursor merges **project** [`.cursor/mcp.json`](../../.cursor/mcp.json) with **user-level** MCP config. If you also have a global `subagent-orchestrator` or `user-subagent-orchestrator` entry, **disable one** — prefer the project key `imgscore-subagent-orchestrator` so `WORKSPACE_ROOT` is this repository and tool names stay prefixed consistently with other `imgscore-py-*` servers.
 
 ## MCP in this repo
 

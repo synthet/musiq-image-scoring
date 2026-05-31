@@ -33,6 +33,8 @@ Verified patterns from [AGENTS.md](../AGENTS.md), [.agent/INFRA_QUICKSTART.md](I
 ## Docs / wiki
 
 - Authority: [docs/CANONICAL_SOURCES.md](../docs/CANONICAL_SOURCES.md), [docs/WIKI_SCHEMA.md](../docs/WIKI_SCHEMA.md)
+- Slash commands: `/wiki-ingest`, `/wiki-lint`, `/wiki-query` (see `.cursor/commands/`)
+- Skill: `.cursor/skills/docs-wiki/SKILL.md`
 - After substantive doc moves: append [docs/log.md](../docs/log.md)
 
 ## MCP / support

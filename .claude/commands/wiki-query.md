@@ -1,3 +1,5 @@
+> **Cursor:** Same intent as Claude `/wiki-query`. When customizing, keep in sync with `.cursor/commands/wiki-query.md`.
+
 # /wiki-query — Query the wiki and optionally file the answer
 
 Answer a question by searching the docs wiki. Good answers can be filed back as new wiki pages so explorations compound in the knowledge base.

@@ -10,9 +10,16 @@ interface RunLiveData {
   eta_seconds: number
 }
 
+export type WsConnectionStatus = 'connecting' | 'live' | 'offline'
+
 interface WsStore {
+  /** @deprecated Prefer connectionStatus; true when status === 'live'. */
   connected: boolean
-  setConnected: (v: boolean) => void
+  connectionStatus: WsConnectionStatus
+  wasEverLive: boolean
+  setConnectionLive: () => void
+  setConnectionConnecting: () => void
+  setConnectionOffline: () => void
 
   // Per-run live progress
   runProgress: Record<number, RunLiveData>
@@ -41,7 +48,12 @@ interface WsStore {
 
 export const useWsStore = create<WsStore>((set) => ({
   connected: false,
-  setConnected: (connected) => set({ connected }),
+  connectionStatus: 'connecting',
+  wasEverLive: false,
+  setConnectionLive: () =>
+    set({ connected: true, connectionStatus: 'live', wasEverLive: true }),
+  setConnectionConnecting: () => set({ connected: false, connectionStatus: 'connecting' }),
+  setConnectionOffline: () => set({ connected: false, connectionStatus: 'offline' }),
 
   runProgress: {},
   setRunProgress: (e) =>

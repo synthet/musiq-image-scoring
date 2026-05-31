@@ -78,8 +78,8 @@ export function GalleryPage() {
                   className={clsx(
                     'w-7 h-7 flex items-center justify-center rounded text-xs border transition-colors',
                     baseFilters.rating?.startsWith(String(r))
-                      ? 'bg-[#003f6e] border-[#007acc] text-[#4fc1ff]'
-                      : 'border-[#474747] text-[#9d9d9d] hover:border-[#4fc1ff]',
+                      ? 'bg-[var(--color-accent-dim)] border-[var(--color-accent)] text-[var(--color-accent-bright)]'
+                      : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent-bright)]',
                   )}
                 >
                   {r === 0 ? 'Any' : <Star size={10} />}
@@ -97,8 +97,8 @@ export function GalleryPage() {
                   className={clsx(
                     'w-full text-left text-xs px-2 py-1 rounded border transition-colors',
                     baseFilters.label === l
-                      ? 'bg-[#003f6e] border-[#007acc] text-[#4fc1ff]'
-                      : 'border-transparent text-[#9d9d9d] hover:bg-[#3c3c3c]',
+                      ? 'bg-[var(--color-accent-dim)] border-[var(--color-accent)] text-[var(--color-accent-bright)]'
+                      : 'border-transparent text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]',
                   )}
                 >
                   {l}

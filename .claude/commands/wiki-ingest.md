@@ -1,3 +1,5 @@
+> **Cursor:** Same intent as Claude `/wiki-ingest`. When customizing, keep in sync with `.cursor/commands/wiki-ingest.md`.
+
 # /wiki-ingest — Process a source into the wiki
 
 Ingest a new source document (article, paper, report, code analysis, or user-provided file) into the docs wiki. The wiki is a persistent, compounding knowledge base — each ingest updates multiple pages.

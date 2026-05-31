@@ -46,4 +46,4 @@ AI image scoring, tagging, clustering, and gallery APIs — Python backend (Fast
 ## Electron gallery (sibling repo)
 
 - `npm run doctor` in **image-scoring-gallery** — Node + `config.json` + `webui.lock`.
-- Gallery [AGENTS.md](https://github.com/synthet/image-scoring-gallery/blob/main/AGENTS.md) for `imgscore-el-gallery` MCP.
+- Gallery [AGENTS.md](https://github.com/synthet/image-scoring-gallery/blob/main/AGENTS.md) for **`gallery`** MCP.

@@ -102,6 +102,44 @@ def rerun_keywords_wrapper(details, tagging_runner):
     else:
         return gr.update(visible=True), f"❌ {msg}"
 
+def legacy_model_times_from_details(details: dict) -> dict:
+    """Extract per-model inference times from legacy ``scores_json`` when present."""
+    raw = (details or {}).get("scores_json")
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+        if not isinstance(data, dict):
+            return {}
+        summary = data.get("summary") or {}
+        performance = summary.get("performance") or {}
+        model_times = performance.get("model_times") or {}
+        return model_times if isinstance(model_times, dict) else {}
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return {}
+
+
+def _resolve_nef_path_from_details(details: dict) -> str | None:
+    """Resolve companion NEF path from image details (extension swap, then legacy blob)."""
+    base_path = (details or {}).get("file_path", "")
+    if base_path:
+        stem = os.path.splitext(base_path)[0]
+        for candidate in (stem + ".NEF", stem + ".nef"):
+            if os.path.exists(candidate):
+                return candidate
+    scores_json = (details or {}).get("scores_json", {})
+    if isinstance(scores_json, str):
+        try:
+            scores_json = json.loads(scores_json)
+        except (json.JSONDecodeError, ValueError):
+            scores_json = {}
+    if isinstance(scores_json, dict):
+        nef_meta = scores_json.get("nef_metadata") or {}
+        if isinstance(nef_meta, dict) and nef_meta.get("file_path"):
+            return nef_meta.get("file_path")
+    return None
+
+
 def delete_nef(details):
     """
     Deletes the NEF file associated with the image.
@@ -110,36 +148,7 @@ def delete_nef(details):
         return gr.update(value="No image selected", visible=True), gr.update(visible=False)
     
     try:
-        # Resolve 'details' if it's a string (though it should be dict from State?)
-        # Gradio might pass the dict as JSON object
-        
-        # Find NEF path
-        # 1. Try nef_metadata['file_path']
-        # 2. Try replacing extension of main file_path
-        
-        nef_path = None
-        
-        # Check nef_metadata
-        scores_json = details.get('scores_json', {})
-        if isinstance(scores_json, str):
-             try: scores_json = json.loads(scores_json)
-             except (json.JSONDecodeError, ValueError): scores_json = {}
-             
-        nef_meta = scores_json.get('nef_metadata', {})
-        if nef_meta.get('file_path'):
-            nef_path = nef_meta.get('file_path')
-            
-        # Fallback: Assume simple sidecar
-        if not nef_path:
-            base_path = details.get('file_path', '')
-            if base_path:
-                # Replace suffix with .NEF (try sensitive)
-                p = os.path.splitext(base_path)[0]
-                candidates = [p + ".NEF", p + ".nef"]
-                for c in candidates:
-                    if os.path.exists(c):
-                        nef_path = c
-                        break
+        nef_path = _resolve_nef_path_from_details(details)
         
         deleted_files = []
         if nef_path and os.path.exists(nef_path):

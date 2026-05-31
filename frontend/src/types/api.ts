@@ -388,6 +388,7 @@ export interface Image {
   // New model scores (added by this pipeline, not yet in Electron)
   musiq_score?: number | null       // MUSIQ
   topiq_score?: number | null       // TOPIQ
+  arniqa_score?: number | null      // ARNIQA (legacy flat column; prefer model_scores)
   qalign_score?: number | null      // Q-Align
   composite_score?: number | null   // computed composite
   // Structured per-model scores from image_model_scores (incl. shadow engines
@@ -405,15 +406,29 @@ export interface Image {
   /** Stable identifier from metadata / indexing (DB: image_uuid) */
   image_uuid?: string | null
   stack_id?: number | null
+  sub_stack_id?: number | null
   burst_uuid?: string | null
-  scores_json?: string | null
   model_version?: string | null
+  job_id?: number | null
+  metadata?: string | null
+  pick_status?: number | null
+  cull_decision?: string | null
+  cull_policy_version?: string | null
+  thumbnail_path_win?: string | null
 
   /** Phase-level status rows (mapping of phase_code -> status row) */
   phase_statuses?: Record<string, ImagePhaseStatusRow | string> | null
 
   /** Presence flags for embedding spaces (mobilenet, clip, bioclip, blip) */
   embeddings_present?: Record<string, boolean> | null
+}
+
+/** From `image_technical_failures` via GET /api/images/{id}. */
+export interface TechnicalFailureDetection {
+  version?: string
+  technical_failure_score: number
+  primary_reject_reason?: string | null
+  technical_failures?: Record<string, number>
 }
 
 /** Per-phase row from `get_image_phase_statuses` (GET /api/images/{id}). */
@@ -440,6 +455,9 @@ export interface ImageDetail extends Image {
   resolved_path?: string | null
   /** Phase code → status info (legacy responses may use plain string values). */
   phase_statuses?: Record<string, ImagePhaseStatusRow | string> | null
+  /** Parsed `images.metadata` when valid JSON (indexing fingerprints). */
+  indexing_metadata?: Record<string, unknown> | null
+  technical_failure_detection?: TechnicalFailureDetection | null
 }
 
 // ─── WebSocket events ────────────────────────────────────────────────────

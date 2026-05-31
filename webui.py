@@ -183,7 +183,10 @@ def main():
     if mcp_enabled and not mcp_available:
         print("MCP Server: not available (missing dependency). Install with: pip install mcp")
     if server_host not in {"127.0.0.1", "localhost"} and mcp_execute_enabled:
-        print("Warning: ENABLE_MCP_EXECUTE_CODE is enabled while WEBUI_HOST exposes the server beyond localhost.")
+        print(
+            "Warning: ENABLE_MCP_EXECUTE_CODE is enabled while WEBUI_HOST exposes the API beyond localhost. "
+            "/mcp still accepts only loopback and private Docker/WSL client IPs."
+        )
     
     mcp_mount_error: str | None = None
 
@@ -318,12 +321,23 @@ def main():
 
     @app.get("/mcp-status")
     def mcp_status():
+        mcp_token_configured = False
+        mcp_client_allowlist: list[str] = []
+        if mcp_available:
+            try:
+                from modules.mcp_server import _expected_mcp_token, get_mcp_client_allowlist_cidrs
+                mcp_token_configured = _expected_mcp_token() is not None
+                mcp_client_allowlist = get_mcp_client_allowlist_cidrs()
+            except Exception:
+                pass
         return {
             "enabled": mcp_enabled,
             "available": mcp_available,
             "execute_code_enabled": mcp_execute_enabled,
+            "mcp_token_required": mcp_token_configured,
+            "mcp_client_allowlist": mcp_client_allowlist,
             "mount_error": mcp_mount_error,
-            "expected_sse_url": f"http://{display_host}:{server_port}/mcp/sse",
+            "expected_sse_url": f"http://127.0.0.1:{server_port}/mcp/sse",
             "server_host": server_host,
             "server_port": server_port,
         }

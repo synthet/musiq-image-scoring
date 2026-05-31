@@ -8,7 +8,7 @@ Use **Vexlum Scoring MCP** without accidental writes, config mutation, or unsafe
 
 ## When to use
 
-- Any AI or operator is connecting `imgscore-py-stdio`, `imgscore-el-stdio`, or SSE MCP to a live WebUI.
+- Any AI or operator is connecting **`scoring`** or **`webui`** MCP to a live WebUI.
 
 ## Canonical docs first
 
@@ -47,7 +47,7 @@ Exact names must match [AGENTS.md](../../AGENTS.md) tool inventory (regenerate f
 
 ## Shared host / SSE warnings
 
-- **SSE** (`imgscore-py-sse` / `imgscore-el-sse`) connects to a **live** WebUI process on `127.0.0.1:7860` (or configured port). Others on the same machine could theoretically use the same endpoint — treat as sensitive when `execute_code` is enabled.
+- **SSE** (**`webui`**) connects to a **live** WebUI process on `127.0.0.1:7860` (or configured port). Others on the same machine could theoretically use the same endpoint — treat as sensitive when `execute_code` is enabled.
 
 ## Do not
 

@@ -26,6 +26,8 @@ Central list of **first-party** `SKILL.md` files in this repository for governan
 | mcp-debugging-workflow | `.cursor/skills/mcp-debugging-workflow/SKILL.md` | MCP debugging workflow | L2 | Yes | 2026-04-25 |
 | security-review | `.cursor/skills/security-review/SKILL.md` | Pre-merge security sanity | L1 | Yes | 2026-04-25 |
 | wsl-tf-python-runner | `.cursor/skills/wsl-tf-python-runner/SKILL.md` | WSL / venv / pytest commands | L2 | Yes | 2026-04-25 |
+| wsl-environment | `.cursor/skills/wsl-environment/SKILL.md` | WSL2 lifecycle — venv provision, long GPU jobs, recovery, disk | L2 | Yes | 2026-05-30 |
+| docs-wiki | `.cursor/skills/docs-wiki/SKILL.md` | Backend docs wiki maintenance | L1 | — (Cursor only; `.agent/skills/docs-wiki` is thin alias) | 2026-05-31 |
 | subagent-review | `.cursor/skills/subagent-review/SKILL.md` | External Codex/Gemini review via subagent-orchestrator MCP | L2 | Yes | 2026-05-26 |
 
 ## Claude Code mirror
@@ -42,6 +44,7 @@ Skills listed with **Mirror = Yes** must stay in sync with **`.cursor/skills/<na
 | scoring-pipeline | `.agent/skills/scoring-pipeline/SKILL.md` | Pipeline architecture | L1 | 2026-04-25 |
 | webui-dev | `.agent/skills/webui-dev/SKILL.md` | WebUI dev workflow | L1 | 2026-04-25 |
 | webui-gradio | `.agent/skills/webui-gradio/SKILL.md` | Gradio UI architecture | L1 | 2026-04-25 |
+| docs-wiki | `.agent/skills/docs-wiki/SKILL.md` | Alias → `.cursor/skills/docs-wiki` | L1 | 2026-05-31 |
 
 ## Subagents (Cursor / Claude Code)
 
@@ -50,10 +53,11 @@ Project subagents live under **`.cursor/agents/`** (canonical) and are mirrored 
 | Subagent `name` | Path | Purpose (short) | Risk | Claude mirror | Last reviewed |
 |-----------------|------|-----------------|------|---------------|---------------|
 | imgscore-backend-implementer | `.cursor/agents/imgscore-backend-implementer.md` | Scoped backend implementation, minimal diff | L2 | Yes | 2026-05-15 |
-| imgscore-mcp-debug | `.cursor/agents/imgscore-mcp-debug.md` | Read-only MCP triage (53-tool surface) | L1 | Yes | 2026-05-15 |
+| imgscore-mcp-debug | `.cursor/agents/imgscore-mcp-debug.md` | Read-only MCP triage | L1 | Yes | 2026-05-31 |
 | critical-commit-audit | `.cursor/agents/critical-commit-audit.md` | High-severity post-commit bug hunt | L2 | Yes | 2026-05-15 |
 | pr-ready-hygiene | `.cursor/agents/pr-ready-hygiene.md` | Scoped lint/tests; PR-ready checklist | L2 | Yes | 2026-05-15 |
 | wsl-tf-python-runner | `.cursor/agents/wsl-tf-python-runner.md` | WSL / venv / pytest marker resolution | L2 | Yes | 2026-05-15 |
+| wsl-environment | `.cursor/agents/wsl-environment.md` | WSL2 lifecycle — provision, detached jobs, recovery | L2 | Yes | 2026-05-30 |
 | external-codex-review | `.cursor/agents/external-codex-review.md` | Codex-only external CLI review (MCP) | L2 | Yes | 2026-05-26 |
 | external-gemini-review | `.cursor/agents/external-gemini-review.md` | Gemini-only external CLI review (MCP) | L2 | Yes | 2026-05-26 |
 | external-cli-reviewer | `.cursor/agents/external-cli-reviewer.md` | Detect + run + panel-style external reviews | L2 | Yes | 2026-05-26 |

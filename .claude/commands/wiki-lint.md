@@ -1,3 +1,5 @@
+> **Cursor:** Same intent as Claude `/wiki-lint`. When customizing, keep in sync with `.cursor/commands/wiki-lint.md`.
+
 # /wiki-lint — Health-check the docs wiki
 
 Audit the wiki for structural problems, stale content, and missed connections. Keep the knowledge base healthy as it grows.

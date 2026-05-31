@@ -5,77 +5,15 @@ alwaysApply: true
 
 # Vexlum Scoring MCP
 
-When the user asks about **debugging**, **investigating failures**, **database health**, **scoring/tagging/clustering jobs** (batch rows in `jobs`), or **Gradio / WebUI state**, use the image-scoring MCP server.
+When the user asks about **debugging**, **investigating failures**, **database health**, **scoring/tagging/clustering jobs** (batch rows in `jobs`), or **Gradio / WebUI state**, use the image-scoring MCP servers.
 
-## Terminology (agents)
+## Server Selection (project keys)
 
-Use the same vocabulary as product UI and docs. **Canonical reference:** [`docs/technical/PIPELINE_TERMINOLOGY.md`](../../docs/technical/PIPELINE_TERMINOLOGY.md).
+| Server key | Transport | When to use |
+|------------|-----------|-------------|
+| **`image-scoring-backend-stdio`** | stdio | DB/jobs offline; WSL `~/.venvs/tf`. |
+| **`image-scoring-backend-webui`** | SSE | Live WebUI; `execute_code` when `ENABLE_MCP_EXECUTE_CODE=1`. |
+| **`image-scoring-gallery-stdio`** | stdio | Gallery logs, `api_*`. |
+| **`image-scoring-gallery-live`** | SSE | Electron `cdp_*`. |
 
-- **Pipeline stages (user-facing):** Discovery → Inspection → **Quality Analysis** → **Similarity Clustering** → **Tagging** (optional: Bird Species ID).  
-- **DB `phase_code` values:** `indexing`, `metadata`, `scoring`, `culling`, `keywords` — do not rename in prose when discussing schema/SQL.  
-- **REST / `job_type`:** paths and types still say `scoring`, `tagging`, `clustering`; map mentally to the stage names above when explaining results to users.  
-- **Runs:** the React `/ui/` app and Electron gallery often say **run** for a `jobs` row; MCP tools still use `job_id` / `get_recent_jobs` — that is expected.
-
-## Server Selection
-
-| Cursor workspace | Server key | Transport | Meaning |
-|------------------|------------|-----------|---------|
-| **image-scoring** (Python) | `imgscore-py-stdio` | stdio | `cwd` / `PYTHONPATH` = this repo (`${workspaceFolder}`). If the WebUI is up, tools that need live runners fall back to `/api/*` over HTTP (see `modules/mcp_http_client.py`); `execute_code` remains SSE-only. |
-| **electron-image-scoring** | `imgscore-el-stdio` | stdio | Same `python -m modules.mcp_server`, but `cwd` / `PYTHONPATH` = sibling **image-scoring** path. |
-| Python ws + WebUI | `imgscore-py-sse` | SSE | Same URL as below; use the key from the workspace you opened. |
-| Electron ws + WebUI | `imgscore-el-sse` | SSE | `http://127.0.0.1:7860/mcp/sse` by default; `execute_code` when **`ENABLE_MCP_EXECUTE_CODE=1`**. |
-
-Other servers in `.cursor/mcp.json` use the same prefix (**`imgscore-py-*`** vs **`imgscore-el-*`**) so Playwright, Firebird, and Chrome DevTools do not duplicate names when configs merge.
-
-**Before calling**: Check the tool schema in `mcps/project-0-image-scoring-image-scoring/tools/<tool>.json` for required parameters and types.
-
-## Start Here (Diagnostic Tools)
-
-Use these first when investigating issues:
-
-- **`get_error_summary`** — Quick overview of all errors (failed jobs, missing scores, orphaned records)
-- **`check_database_health`** — Data integrity validation (orphaned records, duplicates)
-- **`get_model_status`** — GPU/model loading, CUDA/PyTorch/TensorFlow status
-- **`diagnose_phase_consistency`** — Per-image vs folder phase mismatches (`image_id`)
-
-## image-scoring vs mcp-firebird
-
-**Primary path:** app data and diagnostics target **PostgreSQL** ([`docs/CANONICAL_SOURCES.md`](../../docs/CANONICAL_SOURCES.md)). The **mcp-firebird** row below is **legacy / rare**—only when you are inspecting or maintaining a **Firebird** deployment or legacy tooling, not for normal Postgres work.
-
-| Use Case | Prefer | Reason |
-|----------|--------|--------|
-| App-level diagnostics (errors, jobs, phase consistency) | `imgscore-py-stdio`, `imgscore-el-stdio`, or SSE keys above | Same backend; pick key by workspace / WebUI |
-| Legacy Firebird schema inspection (tables, columns, indexes) | `imgscore-py-firebird` / `imgscore-el-firebird` (npx `mcp-firebird`) | Generic Firebird tools — **not** default for Postgres |
-| Read-only SELECT for app tables on Postgres | Vexlum Scoring MCP `execute_sql` | Enforces SELECT-only |
-| Ad-hoc Firebird SQL (non-Postgres installs only) | mcp-firebird `execute-query` | Full Firebird SQL |
-
-## Quick Decision Tree
-
-- **"Why did quality analysis / scoring fail?"** (`scoring` phase or `job_type` scoring) → `get_error_summary` → `get_failed_images` → `get_model_status` → `read_debug_log`
-- **"Is the system healthy?"** → `check_database_health` → `get_model_status` → `validate_config`
-- **"How fast is processing?"** → `get_performance_metrics` → `get_runner_status` → `get_pipeline_stats`
-- **"Find images with X property"** → `query_images` with filters → `get_image_details` for specifics
-- **"What's in the database?"** → `get_database_stats` → `get_folder_tree` → `get_stacks_summary`
-- **"Debug Gradio UI / inspect component state"** → Use `imgscore-py-sse` or `imgscore-el-sse` and `execute_code` (assign to `result` to return a value; requires `ENABLE_MCP_EXECUTE_CODE=1`)
-
-## Full tool list
-
-Canonical registrations: count **`@mcp.tool`** handlers in [`modules/mcp_server.py`](../../modules/mcp_server.py) (current checkout **53**). Regenerate the signed table in [`AGENTS.md`](../../AGENTS.md) via `python scripts/generate_mcp_tool_inventory.py --update-docs AGENTS.md docs/technical/MCP_DEBUGGING_TOOLS.md`. Human-oriented notes: [`.agent/mcp_tools_reference.md`](../../.agent/mcp_tools_reference.md), safe triage: [`.agent/workflows/safe_mcp_diagnostics.md`](../../.agent/workflows/safe_mcp_diagnostics.md).
-
-### Recommended read-only triage (default)
-
-`validate_config`, `verify_environment`, `get_database_engine_info`, `check_database_health`, `get_error_summary`, `get_failed_images`, `get_db_schema`, `search_logs`, `get_job_details`, `export_debug_bundle` — extend with `get_run_diagnostics`, `get_job_execution_report`, `read_debug_log` as needed.
-
-### High-impact tools (disable in MCP `disabledTools` unless explicitly needed)
-
-`execute_code`, `set_config_value`, `run_processing_job`, `process_newly_imported_folders`, `rebase_file_paths`, `prune_missing_files`, `set_image_metadata`, `propagate_tags`, `manage_runners`.
-
-**SSE:** Shared-host warning — `imgscore-py-sse` / `imgscore-el-sse` attach to the live WebUI; `execute_code` runs code in that process when enabled.
-
-## Optional: Firebird MCP (`imgscore-py-firebird` / `imgscore-el-firebird`)
-
-If **`disabledTools`** is set on the Firebird MCP server, many low-level tools are hidden to reduce noise. Remove or edit `disabledTools` when you need schema dumps, plans, or batch queries.
-
-## Related: mcp-kanban
-
-For **persistent tickets / kanban / multi-session handoffs** (separate user-level MCP), see **`mcp-kanban.mdc`** and skill **`mcp-kanban-workflow`**.
+See backend [`.cursor/rules/image-scoring-mcp.mdc`](../../.cursor/rules/image-scoring-mcp.mdc) for full tables and triage flows.

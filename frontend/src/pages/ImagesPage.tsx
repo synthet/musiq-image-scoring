@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate, Link } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { ChevronLeft, ChevronRight, Database, Scan, FileText, Zap, Layers, Tag, Bird, Fingerprint, Compass, Dna, MessageSquare } from 'lucide-react'
+import { EMBEDDING_SPACE_COLORS, EMBEDDING_SPACE_LABELS } from '@synthet/image-scoring-design'
 import { galleryApi } from '@/api/gallery'
 import { useUiStore } from '@/stores/uiStore'
 import { Button } from '@/components/ui/button'
@@ -12,13 +13,18 @@ import type { Image, ImagePhaseStatusRow } from '@/types/api'
 
 const PAGE_SIZES = [25, 50, 100] as const
 
-const SORT_COLUMNS: { key: string; label: string; sortable?: boolean }[] = [
+const PHASES_HEADER_HINT =
+  'Indexing · Metadata · Scoring · Culling · Keywords · Bird species (hover icons for status)'
+const EMBEDDINGS_HEADER_HINT =
+  'MobileNetV2 · CLIP · BioCLIP · BLIP (hover icons for present/missing)'
+
+const SORT_COLUMNS: { key: string; label: string; sortable?: boolean; headerHint?: string }[] = [
   { key: 'id', label: 'ID' },
   { key: 'file_name', label: 'File' },
   { key: 'file_path', label: 'Path' },
   { key: 'score_general', label: 'Quality' },
-  { key: 'phases', label: 'Phases' },
-  { key: 'embeddings', label: 'Embeddings' },
+  { key: 'phases', label: 'Phases', sortable: false, headerHint: PHASES_HEADER_HINT },
+  { key: 'embeddings', label: 'Embeddings', sortable: false, headerHint: EMBEDDINGS_HEADER_HINT },
   { key: 'created_at', label: 'Created' },
 ]
 
@@ -27,16 +33,16 @@ function truncatePath(s: string, max = 64): string {
   return `…${s.slice(-(max - 1))}`
 }
 
-function PhaseIcon({ 
-  code, 
-  status, 
-  error, 
-  icon: Icon 
-}: { 
-  code: string; 
-  status?: string; 
-  error?: string | null; 
-  icon: any 
+function PhaseIcon({
+  code,
+  status,
+  error,
+  icon: Icon,
+}: {
+  code: string
+  status?: string
+  error?: string | null
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>
 }) {
   const color = useMemo(() => phaseStatusColor(status), [status])
 
@@ -47,8 +53,8 @@ function PhaseIcon({
   }, [code, status, error])
 
   return (
-    <div 
-      className="p-1 rounded-sm transition-colors hover:bg-[#3c3c3c]" 
+    <div
+      className="p-1 rounded-sm transition-colors hover:bg-[var(--color-bg-elevated)]"
       title={title}
       style={{ color }}
     >
@@ -58,7 +64,7 @@ function PhaseIcon({
 }
 
 function ImagePhases({ phases }: { phases?: Record<string, ImagePhaseStatusRow | string> | null }) {
-  if (!phases) return <span className="text-[#6d6d6d]">—</span>
+  if (!phases) return <span className="text-[var(--color-text-muted)]">—</span>
 
   const getStatus = (code: string) => {
     const p = phases[code]
@@ -87,7 +93,7 @@ function EmbeddingIcon({
 }: {
   code: string
   present: boolean
-  icon: any
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>
   color: string
   label: string
 }) {
@@ -96,51 +102,51 @@ function EmbeddingIcon({
     <div
       data-code={code}
       className={clsx(
-        'p-1 rounded-sm transition-colors hover:bg-[#3c3c3c]',
-        present ? 'opacity-100' : 'opacity-30',
+        'p-1 rounded-sm transition-colors hover:bg-[var(--color-bg-elevated)]',
+        present ? 'opacity-100' : 'opacity-30 text-[var(--color-text-muted)]',
       )}
       title={title}
-      style={{ color: present ? color : '#6d6d6d' }}
+      style={present ? { color } : undefined}
     >
       <Icon size={14} strokeWidth={2.5} />
     </div>
   )
 }
 
+const EMBEDDING_ICON_CONFIG = [
+  { code: 'mobilenet_v2_imagenet_gap', icon: Fingerprint },
+  { code: 'clip_vit_b32_image', icon: Compass },
+  { code: 'bioclip_2_image', icon: Dna },
+  { code: 'blip_vit_b16_image', icon: MessageSquare },
+] as const
+
 function ImageEmbeddings({ embeddings }: { embeddings?: Record<string, boolean> | null }) {
   const present = embeddings || {}
-  
+
   return (
     <div className="flex items-center gap-0.5 justify-start">
-      <EmbeddingIcon 
-        code="mobilenet_v2_imagenet_gap" 
-        label="MobileNetV2 (1280d)" 
-        icon={Fingerprint} 
-        present={!!present['mobilenet_v2_imagenet_gap']} 
-        color="#4fc1ff" 
-      />
-      <EmbeddingIcon 
-        code="clip_vit_b32_image" 
-        label="CLIP (512d)" 
-        icon={Compass} 
-        present={!!present['clip_vit_b32_image']} 
-        color="#4ec9b0" 
-      />
-      <EmbeddingIcon 
-        code="bioclip_2_image" 
-        label="BioCLIP (512d)" 
-        icon={Dna} 
-        present={!!present['bioclip_2_image']} 
-        color="#ce9178" 
-      />
-      <EmbeddingIcon 
-        code="blip_vit_b16_image" 
-        label="BLIP (768d)" 
-        icon={MessageSquare} 
-        present={!!present['blip_vit_b16_image']} 
-        color="#c586c0" 
-      />
+      {EMBEDDING_ICON_CONFIG.map(({ code, icon }) => (
+        <EmbeddingIcon
+          key={code}
+          code={code}
+          label={EMBEDDING_SPACE_LABELS[code] ?? code}
+          icon={icon}
+          present={!!present[code]}
+          color={EMBEDDING_SPACE_COLORS[code] ?? 'var(--color-text-muted)'}
+        />
+      ))}
     </div>
+  )
+}
+
+function QualityCell({ scoreGeneral }: { scoreGeneral?: number | null }) {
+  if (scoreGeneral != null && scoreGeneral > 0) {
+    return <span>{(scoreGeneral * 100).toFixed(1)}%</span>
+  }
+  return (
+    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)]">
+      unscored
+    </span>
   )
 }
 
@@ -194,16 +200,16 @@ export function ImagesPage() {
   }, [selectedScopePath])
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-[#1e1e1e]">
-      <div className="shrink-0 border-b border-[#3c3c3c] px-4 py-3 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 text-[#cccccc]">
-          <Database size={16} className="text-[#4fc1ff]" />
+    <div className="flex flex-col h-full min-h-0 bg-[var(--color-bg-primary)]">
+      <div className="shrink-0 border-b border-[var(--color-border-muted)] px-4 py-3 flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 text-[var(--color-text-primary)]">
+          <Database size={16} className="text-[var(--color-accent-bright)]" />
           <span className="text-sm font-semibold">Images</span>
         </div>
-        <div className="text-xs text-[#6d6d6d] max-w-[min(100%,42rem)] truncate" title={scopeLabel}>
-          Scope: <span className="text-[#9d9d9d]">{scopeLabel}</span>
+        <div className="text-xs text-[var(--color-text-muted)] max-w-[min(100%,42rem)] truncate" title={scopeLabel}>
+          Scope: <span className="text-[var(--color-text-secondary)]">{scopeLabel}</span>
         </div>
-        <div className="ml-auto flex items-center gap-2 text-xs text-[#6d6d6d]">
+        <div className="ml-auto flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
           <span>
             {total.toLocaleString()} row{total !== 1 ? 's' : ''}
             {isFetching && !isLoading ? ' · …' : ''}
@@ -213,7 +219,7 @@ export function ImagesPage() {
             <select
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])}
-              className="bg-[#252526] border border-[#474747] rounded px-1.5 py-0.5 text-[#cccccc] outline-none focus:border-[#4fc1ff]"
+              className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-1.5 py-0.5 text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
             >
               {PAGE_SIZES.map((n) => (
                 <option key={n} value={n}>
@@ -227,10 +233,10 @@ export function ImagesPage() {
 
       <div className="flex-1 min-h-0 overflow-auto">
         {isLoading && !isPlaceholderData && (
-          <div className="p-4 text-sm text-[#6d6d6d]">Loading…</div>
+          <div className="p-4 text-sm text-[var(--color-text-muted)]">Loading…</div>
         )}
         {!isLoading && images.length === 0 && (
-          <div className="p-4 text-sm text-[#6d6d6d]">No images in this scope.</div>
+          <div className="p-4 text-sm text-[var(--color-text-muted)]">No images in this scope.</div>
         )}
         {images.length > 0 && (
           <table
@@ -239,18 +245,23 @@ export function ImagesPage() {
               isPlaceholderData && 'opacity-70',
             )}
           >
-            <thead className="sticky top-0 z-[1] bg-[#252526] border-b border-[#3c3c3c]">
+            <thead className="sticky top-0 z-[1] bg-[var(--color-bg-secondary)] border-b border-[var(--color-border-muted)]">
               <tr>
                 {SORT_COLUMNS.map((col) => (
-                  <th key={col.key} className="text-left font-semibold text-[#9d9d9d] px-3 py-2">
+                  <th
+                    key={col.key}
+                    className="text-left font-semibold text-[var(--color-text-secondary)] px-3 py-2"
+                    title={col.headerHint}
+                  >
                     {col.sortable !== false ? (
                       <button
                         type="button"
                         onClick={() => onHeaderClick(col.key)}
                         className={clsx(
-                          'inline-flex items-center gap-1 hover:text-[#4fc1ff] transition-colors',
-                          sortBy === col.key && 'text-[#4fc1ff]',
+                          'inline-flex items-center gap-1 hover:text-[var(--color-accent-bright)] transition-colors',
+                          sortBy === col.key && 'text-[var(--color-accent-bright)]',
                         )}
+                        title={col.headerHint}
                       >
                         {col.label}
                         {sortBy === col.key && (
@@ -258,7 +269,9 @@ export function ImagesPage() {
                         )}
                       </button>
                     ) : (
-                      <span className="text-[#9d9d9d]">{col.label}</span>
+                      <span className="text-[var(--color-text-secondary)] cursor-help" title={col.headerHint}>
+                        {col.label}
+                      </span>
                     )}
                   </th>
                 ))}
@@ -269,26 +282,30 @@ export function ImagesPage() {
                 <tr
                   key={row.id}
                   onClick={() => navigate(imageInspectorPath(row.id))}
-                  className="border-b border-[#2d2d2d] hover:bg-[#2a2d2e] cursor-pointer"
+                  className="border-b border-[var(--color-border-muted)] hover:bg-[var(--color-bg-tertiary)] cursor-pointer"
                 >
-                  <td className="px-3 py-1.5 font-mono text-[#4fc1ff]">
-                    <Link to={imageInspectorPath(row.id)} className="hover:underline">
+                  <td className="px-3 py-1.5 font-mono text-[var(--color-accent-bright)]">
+                    <Link to={imageInspectorPath(row.id)} className="hover:underline" onClick={(e) => e.stopPropagation()}>
                       {row.id}
                     </Link>
                   </td>
-                  <td className="px-3 py-1.5 text-[#cccccc] max-w-[14rem] truncate" title={row.file_name}>
-                    <Link to={imageInspectorPath(row.id)} className="hover:text-[#4fc1ff] hover:underline">
+                  <td className="px-3 py-1.5 text-[var(--color-text-primary)] max-w-[14rem] truncate" title={row.file_name}>
+                    <Link
+                      to={imageInspectorPath(row.id)}
+                      className="hover:text-[var(--color-accent-bright)] hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {row.file_name}
                     </Link>
                   </td>
                   <td
-                    className="px-3 py-1.5 text-[#9d9d9d] max-w-[min(40vw,28rem)] truncate font-mono"
+                    className="px-3 py-1.5 text-[var(--color-text-secondary)] max-w-[min(32vw,22rem)] truncate font-mono"
                     title={row.file_path}
                   >
-                    {truncatePath(row.file_path, 72)}
+                    {truncatePath(row.file_path, 56)}
                   </td>
-                  <td className="px-3 py-1.5 text-[#cccccc]">
-                    {row.score_general != null ? (row.score_general * 100).toFixed(1) : '—'}
+                  <td className="px-3 py-1.5 text-[var(--color-text-primary)]">
+                    <QualityCell scoreGeneral={row.score_general} />
                   </td>
                   <td className="px-3 py-1.5 text-center">
                     <ImagePhases phases={row.phase_statuses} />
@@ -296,7 +313,7 @@ export function ImagesPage() {
                   <td className="px-3 py-1.5 text-center">
                     <ImageEmbeddings embeddings={row.embeddings_present} />
                   </td>
-                  <td className="px-3 py-1.5 text-[#6d6d6d] font-mono">
+                  <td className="px-3 py-1.5 text-[var(--color-text-muted)] font-mono">
                     {row.created_at ? String(row.created_at).slice(0, 19) : '—'}
                   </td>
                 </tr>
@@ -306,7 +323,7 @@ export function ImagesPage() {
         )}
       </div>
 
-      <div className="shrink-0 border-t border-[#3c3c3c] px-4 py-2 flex items-center gap-2 bg-[#252526]">
+      <div className="shrink-0 border-t border-[var(--color-border-muted)] px-4 py-2 flex items-center gap-2 bg-[var(--color-bg-secondary)]">
         <Button
           variant="secondary"
           size="sm"
@@ -316,7 +333,7 @@ export function ImagesPage() {
           <ChevronLeft size={12} />
           Prev
         </Button>
-        <span className="text-xs text-[#9d9d9d]">
+        <span className="text-xs text-[var(--color-text-secondary)]">
           Page {page}
           {totalPages > 0 ? ` / ${totalPages}` : ''}
         </span>

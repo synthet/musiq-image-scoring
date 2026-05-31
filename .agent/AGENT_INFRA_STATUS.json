@@ -1,6 +1,6 @@
 {
   "repo": "image-scoring-backend",
-  "review_date": "2026-05-16",
+  "review_date": "2026-05-31",
   "status": "green",
   "active_files": [
     "AGENTS.md",
@@ -74,15 +74,15 @@
   "missing_recommended_files": [],
   "validation_commands": [
     "source ~/.venvs/tf/bin/activate && python scripts/doctor.py --no-gpu",
-    "source ~/.venvs/tf/bin/activate && python -m pytest -m \"not gpu and not db and not ml and not firebird\" --ignore=tests/test_probe.py"
+    "source ~/.venvs/tf/bin/activate && python -m pytest -m \"not gpu and not db and not ml\" --ignore=tests/test_probe.py"
   ],
   "known_risks": [
     "MCP high-impact tools (execute_code, set_config_value, run_processing_job, process_newly_imported_folders, rebase_file_paths, prune_missing_files, set_image_metadata, propagate_tags, manage_runners) — disable in user MCP config unless explicitly needed (.agent/workflows/safe_mcp_diagnostics.md).",
     "SSE MCP attaches to a live WebUI; shared-host caution when ENABLE_MCP_EXECUTE_CODE=1.",
-    "Tool count is driven by @mcp.tool in modules/mcp_server.py (53 at review); regenerate AGENTS.md inventory via scripts/generate_mcp_tool_inventory.py after tool changes."
+    "Tool count is driven by @mcp.tool in modules/mcp_server.py (54 at review); regenerate AGENTS.md inventory via scripts/generate_mcp_tool_inventory.py after tool changes."
   ],
   "next_actions": [
-    "Optional: trim duplicate facts in .cursorrules now superseded by agent-canonical-sources.mdc.",
-    "Prune or archive third-party-only .agent/skills if unused (separate issue)."
+    "Archive or delete stale files under .cursor/plans/ when work ships.",
+    "Optional: trim duplicate facts in .cursorrules now superseded by agent-canonical-sources.mdc."
   ]
 }

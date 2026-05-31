@@ -120,6 +120,7 @@
     "api_db_query_max_rows": 5000,
     "write_legacy_keywords_column": true,
     "write_legacy_image_embedding_column": false,
+    "write_legacy_scores_json_column": false,
     "postgres": {
       "host": "127.0.0.1",
       "port": 5432,

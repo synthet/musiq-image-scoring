@@ -331,7 +331,7 @@ export function GeoMapPage() {
                 className={clsx(
                   'px-3 py-1 rounded-md text-xs font-medium transition-all duration-200',
                   'disabled:opacity-40 disabled:cursor-not-allowed',
-                  'bg-[#007acc] text-white hover:bg-[#1e8ad6] cursor-pointer',
+                  'bg-[var(--color-accent)] text-[var(--color-text-on-accent)] hover:bg-[var(--color-accent-hover)] cursor-pointer',
                 )}
                 id="geo-search-btn"
               >

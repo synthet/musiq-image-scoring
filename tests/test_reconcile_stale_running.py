@@ -130,8 +130,8 @@ def test_no_heartbeat_salvages_scoring_rows_with_outputs(monkeypatch):
     assert "SET status = 'done'" in salvage_sql
     assert "code = 'scoring'" in salvage_sql
     assert "no_heartbeat:outputs_present" in salvage_sql
-    assert "score IS NOT NULL" in salvage_sql
-    assert "scores_json IS NOT NULL" in salvage_sql
+    assert "image_model_scores" in salvage_sql
+    assert "scores_json IS NOT NULL" not in salvage_sql
 
     fail_sql, _ = update_calls[2]
     assert "SET status = 'failed'" in fail_sql

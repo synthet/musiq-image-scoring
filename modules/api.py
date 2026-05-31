@@ -332,6 +332,24 @@ def _merge_model_scores_into(data: dict, ims: dict) -> None:
             data[key] = val
 
 
+def _parse_json_object_column(value) -> Optional[dict]:
+    """Parse a TEXT/JSON column into a dict for image detail enrichments."""
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            parsed = json.loads(text)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
 def _image_detail_payload(image_id: int) -> dict:
     """Full JSON for GET /api/images/{id} and uuid/hash lookups."""
     conn = db.get_db()
@@ -349,6 +367,18 @@ def _image_detail_payload(image_id: int) -> dict:
         tf_det = db.get_image_technical_failure(image_id)
         if tf_det is not None:
             data["technical_failure_detection"] = tf_det
+        try:
+            emb_map = db.get_batch_image_embedding_presence([image_id])
+            data["embeddings_present"] = emb_map.get(image_id, {})
+        except Exception as exc:
+            logger.debug("embeddings_present merge failed for image %s: %s", image_id, exc)
+            data["embeddings_present"] = {}
+        indexing_meta = _parse_json_object_column(data.get("metadata"))
+        if indexing_meta is not None:
+            data["indexing_metadata"] = indexing_meta
+        scores_parsed = _parse_json_object_column(data.get("scores_json"))
+        if scores_parsed is not None:
+            data["scores_json_parsed"] = scores_parsed
         try:
             _merge_model_scores_into(data, db.get_image_model_scores(image_id, include_shadow=True))
         except Exception as exc:

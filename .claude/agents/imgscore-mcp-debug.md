@@ -59,6 +59,6 @@ Use this structure every time:
 
 ## References
 
-- **`AGENTS.md`** — workflows, full 53-tool inventory, troubleshooting.
+- **`AGENTS.md`** — workflows, full MCP tool inventory, troubleshooting.
 - **`.cursor/rules/image-scoring-mcp.mdc`**, **`.cursor/rules/mcp-schema-check.mdc`**.
 - **`.agent/mcp_tools_reference.md`**, **`docs/technical/PIPELINE_TERMINOLOGY.md`**.

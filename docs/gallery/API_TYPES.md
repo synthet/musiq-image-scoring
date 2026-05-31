@@ -1,28 +1,35 @@
 # Gallery API Types Regeneration
 
+This page describes how **image-scoring-gallery** syncs OpenAPI and generates TypeScript types. The gallery repo is the execution context for these commands.
+
 ## Source of truth
 
-The canonical API contract source is the backend-generated `openapi.json` at the repository root.
+The canonical REST contract is backend-generated [openapi.json](../../openapi.json) at the **image-scoring-backend** repository root. Gallery keeps a synced copy at `api-contract/openapi.json`.
 
-- Input schema: `./openapi.json`
-- Generated output: `./electron/apiTypes.ts`
+Cross-project overview: [technical/OPENAPI_CROSS_PROJECT.md](../technical/OPENAPI_CROSS_PROJECT.md).
 
-## Deterministic generation path
+## Gallery commands
 
-Use the same command locally and in CI:
-
-```bash
-npm run api:types:generate
-```
-
-This command executes `scripts/generate-api-types.mjs`, which reads `openapi.json` and rewrites `electron/apiTypes.ts` using pinned `openapi-typescript` output.
-
-## Validation command
-
-To verify committed output is current:
+Run from **image-scoring-gallery** (sibling backend at `../image-scoring-backend`):
 
 ```bash
-npm run api:types:check
+npm run contract:diff          # copy sibling openapi.json → api-contract/
+npm run contract:update        # fetch live /openapi.json (fallback to sibling)
+npm run contract:check         # verify snapshot is current
+npm run generate:api-types     # write electron/api.generated.ts
+npm run contract:validate      # coverage vs apiTypes.ts / apiService.ts
 ```
 
-If validation fails, it prints a diff and asks you to re-run `npm run api:types:generate`.
+`generate:api-types` runs `scripts/generate-api-types.mjs`, which invokes `openapi-typescript` on the sibling `openapi.json` and writes **`electron/api.generated.ts`** (not `apiTypes.ts`).
+
+Hand-written types remain in `electron/apiTypes.ts`; migrate consumers incrementally to generated types when touching call sites.
+
+## Backend regeneration
+
+When changing REST routes or models in `modules/api.py`:
+
+```bash
+python scripts/export_openapi.py   # backend repo → openapi.json
+```
+
+Then re-sync gallery per the commands above.

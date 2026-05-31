@@ -1,6 +1,6 @@
 # Agent infrastructure inventory — image-scoring-backend
 
-**Last reviewed:** 2026-05-16. **Maintainer:** repo maintainers; schema authority in `docs/CANONICAL_SOURCES.md`. Machine-readable mirror: [`AGENT_INFRA_STATUS.json`](AGENT_INFRA_STATUS.json).
+**Last reviewed:** 2026-05-31. **Maintainer:** repo maintainers; schema authority in `docs/CANONICAL_SOURCES.md`. Machine-readable mirror: [`AGENT_INFRA_STATUS.json`](AGENT_INFRA_STATUS.json).
 
 | Path | Purpose | Scope | Status | Upstream authority | Recommended action |
 |------|---------|--------|--------|--------------------|--------------------|
@@ -18,16 +18,19 @@
 | [.agent/subagents/README.md](subagents/README.md) | Logical roles ↔ `.cursor/agents` | coding | active | .cursor/agents | None |
 | [.cursor/rules/agent-canonical-sources.mdc](../.cursor/rules/agent-canonical-sources.mdc) | Authority stack, Postgres primary, doctor/pytest | backend, cross-repo | active | docs/CANONICAL_SOURCES.md | Mirror `.claude/rules/` |
 | [.cursor/rules/*.mdc](../.cursor/rules/) | Other Cursor rules (MCP, WSL, pytest E2E, backlog, …) | backend, MCP, testing | active | CANONICAL_SOURCES, AGENTS.md | Edits in same PR as `.claude` mirrors when mirrored |
-| [.cursor/commands/*.md](../.cursor/commands/) | Slash commands | workflow | active | agent-sdlc | Mirror wiki commands into .claude if missing |
+| [.cursor/README.md](../.cursor/README.md) | Cursor layout hub (rules, commands, skills, agents, MCP) | workflow | active | AGENTS.md | Keep command table in sync |
+| [.cursor/plans/README.md](../.cursor/plans/README.md) | Ephemeral plan file policy | docs-only | active | — | Archive shipped plans to docs/ |
+| [.cursor/commands/*.md](../.cursor/commands/) | Slash commands (incl. wiki-ingest/lint/query) | workflow | active | agent-sdlc | Keep paired with `.claude/commands/` |
+| [.cursor/mcp.json](../.cursor/mcp.json) | Workspace MCP (`scoring`, `webui`, `gallery`, optional `cli-review`) | MCP | active | AGENTS.md | Reload Cursor after key renames |
 | [.cursor/skills/*/SKILL.md](../.cursor/skills/) | Canonical skills (AST10) | coding, MCP | active | SKILL_INVENTORY | Mirror to `.claude/skills/` |
 | [.cursor/agents/*.md](../.cursor/agents/) | Subagent role YAML | coding | active | AGENTS.md | Keep synced to `.claude/agents/` |
 | [.cursor/rules/external-cli-subagents.mdc](../.cursor/rules/external-cli-subagents.mdc) | External Codex/Gemini review safety | governance | active | subagent-orchestrator | Mirror `.claude/rules/` |
 | [.cursor/skills/subagent-review/](../.cursor/skills/subagent-review/) | MCP external review workflow | workflow | active | `../subagent-orchestrator` | Mirror `.claude/skills/` |
 | [docs/technical/EXTERNAL_CLI_REVIEWS.md](../docs/technical/EXTERNAL_CLI_REVIEWS.md) | Setup for imgscore-subagent-orchestrator MCP | cross-repo | active | sibling orchestrator | None |
 | [.claude/skills/*/SKILL.md](../.claude/skills/) | Claude mirror of skills | coding | duplicate-of | `.cursor/skills/` | Same-PR sync |
-| [.claude/commands/*.md](../.claude/commands/) | Claude slash commands | workflow | partial-mirror | `.cursor/commands/` | Align sets (wiki commands may differ) |
+| [.claude/commands/*.md](../.claude/commands/) | Claude slash commands | workflow | partial-mirror | `.cursor/commands/` | Same paired commands; backend-only `/release`, `/backup-db` |
 | [.claude/agents/*.md](../.claude/agents/) | Claude mirror of agents | coding | duplicate-of | `.cursor/agents/` | Same-PR sync |
-| [.claude/rules/*.mdc](../.claude/rules/) | Claude rules (`documentation`, `agent-canonical-sources`, `image-scoring-mcp`) | governance | active | .cursor/rules | Same-PR sync with Cursor rules |
+| [.claude/rules/*.mdc](../.claude/rules/) | Claude rules (always-on + governance mirrors) | governance | active | .cursor/rules | Same-PR sync: agent-canonical-sources, documentation, image-scoring-mcp, external-cli-subagents, python-wsl-webapp-env, backlog-queue, pytest-e2e-vocabulary, sdlc-core |
 | [.agent/skills/*/SKILL.md](skills/) | Agent-loader-only skills | MCP, docs | active | .cursor/skills for overlap | Mark deprecated skills in-table |
 | [.agent/workflows/*.md](workflows/) | Reusable workflows | workflow | mixed | INFRA_QUICKSTART | Fix stale `verify_system.md`, add debug/*.md |
 | [docs/CANONICAL_SOURCES.md](../docs/CANONICAL_SOURCES.md) | Authority map | cross-repo | active | code | None |

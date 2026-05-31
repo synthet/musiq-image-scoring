@@ -11,11 +11,13 @@ Usage:
 
 import asyncio
 import io
+import ipaddress
 import json
 import logging
 import os
 import re
 import sys
+from functools import lru_cache
 from typing import Any, Optional
 
 # MCP SDK imports
@@ -308,6 +310,13 @@ def get_database_stats() -> dict:
                 WHERE CAST(created_at AS DATE) = CURRENT_DATE
             """)
             stats["images_today"] = c.fetchone()[0]
+
+            try:
+                parity = db.get_scores_json_parity_report()
+                if parity and "error" not in parity:
+                    stats["scores_json_parity"] = parity
+            except Exception:
+                pass
 
         except Exception as e:
             stats["error"] = str(e)
@@ -2857,6 +2866,125 @@ def prepare_mcp_embedded(force=False) -> bool:
         return False
 
 
+# Loopback + typical Docker/WSL private ranges (Windows host ↔ Docker Desktop ↔ WSL2).
+_DEFAULT_MCP_CLIENT_CIDRS = (
+    "127.0.0.0/8",
+    "::1/128",
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "169.254.0.0/16",
+)
+
+
+@lru_cache(maxsize=1)
+def _mcp_allowed_networks() -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
+    cidrs = list(_DEFAULT_MCP_CLIENT_CIDRS)
+    extra = (os.environ.get("MCP_ALLOWED_CIDRS") or "").strip()
+    if extra:
+        cidrs.extend(part.strip() for part in extra.split(",") if part.strip())
+    networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for cidr in cidrs:
+        try:
+            networks.append(ipaddress.ip_network(cidr, strict=False))
+        except ValueError:
+            logger.warning("Ignoring invalid MCP_ALLOWED_CIDRS entry: %s", cidr)
+    return tuple(networks)
+
+
+def get_mcp_client_allowlist_cidrs() -> list[str]:
+    """Human-readable CIDR list applied to /mcp HTTP clients (for /mcp-status)."""
+    return [str(net) for net in _mcp_allowed_networks()]
+
+
+def _client_host_from_scope(scope: dict) -> str | None:
+    client = scope.get("client")
+    if not client:
+        return None
+    host = (client[0] or "").strip()
+    if host.startswith("::ffff:"):
+        host = host[7:]
+    return host or None
+
+
+def is_mcp_client_ip_allowed(host: str | None) -> bool:
+    """True when host is loopback or a private/Docker/WSL-style address."""
+    if not host:
+        return False
+    if (os.environ.get("MCP_DISABLE_CLIENT_ALLOWLIST") or "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }:
+        return True
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    if addr.is_loopback:
+        return True
+    return any(addr in net for net in _mcp_allowed_networks())
+
+
+def _expected_mcp_token() -> str | None:
+    """Optional bearer token for /mcp SSE (set IMGSCORE_MCP_TOKEN or MCP_TOKEN on the WebUI process)."""
+    for key in ("IMGSCORE_MCP_TOKEN", "MCP_TOKEN"):
+        val = (os.environ.get(key) or "").strip()
+        if val:
+            return val
+    return None
+
+
+def _mcp_token_from_scope(scope: dict) -> str | None:
+    raw_headers = scope.get("headers") or []
+    headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in raw_headers}
+    auth = (headers.get("authorization") or "").strip()
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip() or None
+    alt = (headers.get("x-imgscore-mcp-token") or "").strip()
+    return alt or None
+
+
+def wrap_mcp_app_with_security(app):
+    """Restrict /mcp HTTP to loopback + private/Docker nets; optional bearer token."""
+    expected_token = _expected_mcp_token()
+    enforce_token = expected_token is not None
+    enforce_allowlist = (os.environ.get("MCP_DISABLE_CLIENT_ALLOWLIST") or "").strip().lower() not in {
+        "1", "true", "yes", "on",
+    }
+
+    if not enforce_token and not enforce_allowlist:
+        return app
+
+    class _MCPSecurityMiddleware:
+        def __init__(self, inner):
+            self.inner = inner
+
+        async def __call__(self, scope, receive, send):
+            if scope.get("type") != "http":
+                await self.inner(scope, receive, send)
+                return
+
+            from starlette.responses import JSONResponse
+
+            client_host = _client_host_from_scope(scope)
+            if enforce_allowlist and not is_mcp_client_ip_allowed(client_host):
+                logger.warning("MCP request rejected (client not allowlisted): %s", client_host)
+                resp = JSONResponse(
+                    {"error": "Forbidden", "detail": "MCP is only available from localhost or private Docker/WSL networks"},
+                    status_code=403,
+                )
+                await resp(scope, receive, send)
+                return
+
+            if enforce_token and _mcp_token_from_scope(scope) != expected_token:
+                resp = JSONResponse({"error": "Unauthorized"}, status_code=401)
+                await resp(scope, receive, send)
+                return
+
+            await self.inner(scope, receive, send)
+
+    return _MCPSecurityMiddleware(app)
+
+
 def create_mcp_sse_app(mount_path: str = "/mcp"):
     """
     Create a Starlette ASGI app that exposes MCP over SSE, to be mounted in FastAPI.
@@ -2866,7 +2994,7 @@ def create_mcp_sse_app(mount_path: str = "/mcp"):
         raise RuntimeError("MCP SDK required. Install: pip install mcp")
 
     prepare_mcp_embedded()
-    app = mcp.sse_app(mount_path=mount_path)
+    app = wrap_mcp_app_with_security(mcp.sse_app(mount_path=mount_path))
     try:
         from starlette.responses import Response
         from starlette.routing import Mount, Route

@@ -9,9 +9,9 @@ The project includes a Model Context Protocol (MCP) server whose tools are regis
 
 ## Configuration
 
-- **`imgscore-py-stdio`**: **Python** Cursor workspace — stdio; `cwd` + `PYTHONPATH` = this repo root.
-- **`imgscore-el-stdio`**: **Electron** Cursor workspace — stdio; `cwd` + `PYTHONPATH` = sibling **image-scoring** path.
-- **`imgscore-py-sse`** / **`imgscore-el-sse`**: WebUI SSE (same URL); `execute_code` when `ENABLE_MCP_EXECUTE_CODE=1`.
+- **`scoring`**: stdio MCP; backend or gallery workspace (gallery points at sibling backend).
+- **`webui`**: WebUI SSE (same URL in both repos); `execute_code` when `ENABLE_MCP_EXECUTE_CODE=1`.
+- **`gallery`**: Gallery repo only — local Node MCP.
 - **`execute_code`**: SSE only; set **`ENABLE_MCP_EXECUTE_CODE=1`** on the WebUI process.
 
 ## MCP Schema Checks

@@ -36,4 +36,4 @@ The WebUI interacts with the database via `modules/db.py`.
 
 - **Console Logs**: Check the terminal running `webui.py` for errors.
 - **Gradio Debug**: Use `debug=True` in `launch()` for detailed traceback.
-- **MCP Tools**: **Python** workspace → `imgscore-py-stdio` (stdio); **Electron** → `imgscore-el-stdio` (stdio). WebUI / `execute_code` → `imgscore-py-sse` or `imgscore-el-sse`. Firebird / Playwright / Chrome use `imgscore-py-*` or `imgscore-el-*` prefixes so names stay unique when configs merge.
+- **MCP Tools**: **`scoring`** (stdio), **`webui`** (SSE / `execute_code`). Gallery adds **`gallery`**. Optional backend-only: **`postgres`**, **`playwright`**, **`chrome`**.

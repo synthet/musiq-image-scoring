@@ -14,7 +14,7 @@
     "design:check": "node ../scripts/check_design_tokens.mjs"
   },
   "dependencies": {
-    "@synthet/image-scoring-design": "github:synthet/image-scoring-ui#v1.0.0",
+    "@synthet/image-scoring-design": "file:../../image-scoring-ui",
     "@cosmograph/cosmos": "^1.6.1",
     "@cosmograph/react": "^2.3.1",
     "@radix-ui/react-dialog": "^1.1.15",

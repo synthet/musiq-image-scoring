@@ -9,7 +9,21 @@ import { imageInspectorPath, embeddingsPathFor } from '@/utils/routes'
 import { useUiStore } from '@/stores/uiStore'
 import { useConfig } from '@/hooks/useConfig'
 import { Button } from '@/components/ui/button'
-import { CollapsibleInspectorSection, KeyValueTable, formatInspectorValue } from '@/components/images/InspectorPrimitives'
+import {
+  CollapsibleInspectorSection,
+  KeyValueTable,
+  formatInspectorValue,
+  formatScoreValue,
+} from '@/components/images/InspectorPrimitives'
+import { partitionScalars } from '@/components/images/imageInspectorPartition'
+import {
+  CullingInspectorSection,
+  ProvenanceInspectorSection,
+  IndexingInspectorSection,
+  EmbeddingsInspectorSection,
+  TechnicalFailureInspectorSection,
+  PathsInspectorSection,
+} from '@/components/images/inspectorSections'
 import { statusLabel } from '@/components/ui/badge'
 import { PhaseStatusIcon, normalizeLegacyPhaseStatus } from '@/components/status/PhaseStatusIcon'
 import type { ImageDetail, ImagePhaseStatusRow, ModelScoreEntry } from '@/types/api'
@@ -22,17 +36,6 @@ function detailPreviewSrc(image: ImageDetail): string | null {
     return `/source-image?path=${encodeURIComponent(image.thumbnail_path)}&thumb=1`
   }
   return null
-}
-
-function isScoreKey(k: string): boolean {
-  return (
-    k === 'score' ||
-    k.startsWith('score_') ||
-    k === 'musiq_score' ||
-    k === 'topiq_score' ||
-    k === 'qalign_score' ||
-    k === 'composite_score'
-  )
 }
 
 // Friendly display names for score keys / model names. Keyed by the bare model
@@ -48,6 +51,7 @@ const SCORE_LABELS: Record<string, string> = {
   ava: 'AVA',
   paq2piq: 'PAQ2PIQ',
   koniq: 'KonIQ',
+  arniqa: 'ARNIQA',
   composite: 'Composite',
   general: 'General',
   technical: 'Technical',
@@ -65,7 +69,61 @@ function scoreLabel(key: string): string {
 // value); otherwise it is grayed out as "off". Values resolve from
 // image_model_scores, then a legacy `score_{name}` column, then a flat
 // `{name}_score` field.
-const KNOWN_MODELS = ['spaq', 'ava', 'liqe', 'paq2piq', 'koniq', 'musiq', 'topiq', 'qalign', 'cursor', 'claude']
+const KNOWN_MODELS = ['spaq', 'ava', 'liqe', 'paq2piq', 'koniq', 'musiq', 'topiq', 'arniqa', 'qalign', 'cursor', 'claude']
+
+const INSPECTOR_NAV: { id: string; label: string }[] = [
+  { id: 'identity', label: 'Identity' },
+  { id: 'paths', label: 'Paths' },
+  { id: 'scores', label: 'Scores' },
+  { id: 'user', label: 'Metadata' },
+  { id: 'culling', label: 'Culling' },
+  { id: 'dates', label: 'Dates' },
+  { id: 'phases', label: 'Phases' },
+  { id: 'provenance', label: 'Provenance' },
+  { id: 'indexing', label: 'Indexing' },
+  { id: 'embeddings', label: 'Embeddings' },
+  { id: 'exif', label: 'EXIF' },
+  { id: 'xmp', label: 'XMP' },
+]
+
+function InspectorSectionNav({
+  extra,
+  onCollapseAll,
+}: {
+  extra?: { id: string; label: string }[]
+  onCollapseAll: () => void
+}) {
+  const items = [...INSPECTOR_NAV, ...(extra ?? [])]
+  return (
+    <nav
+      className="flex flex-wrap items-center gap-1 mb-2 pb-2 border-b border-[var(--color-border-muted)] sticky top-0 z-[2] bg-[var(--color-bg-primary)]"
+      aria-label="Inspector sections"
+    >
+      {items.map((s) => (
+        <button
+          key={s.id}
+          type="button"
+          onClick={() =>
+            document.getElementById(`inspector-section-${s.id}`)?.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start',
+            })
+          }
+          className="text-[10px] px-2 py-0.5 rounded border border-[var(--color-border-muted)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent-bright)] hover:border-[var(--color-accent)] transition-colors"
+        >
+          {s.label}
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={onCollapseAll}
+        className="ml-auto text-[10px] px-2 py-0.5 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
+      >
+        Collapse all
+      </button>
+    </nav>
+  )
+}
 
 function resolveModelValue(
   raw: Record<string, unknown>,
@@ -92,7 +150,7 @@ function ModelScoresTable({
 }) {
   const raw = data as unknown as Record<string, unknown>
   return (
-    <div className="border border-[#3c3c3c] rounded overflow-hidden mt-2 text-[11px]">
+    <div className="border border-[var(--color-border-muted)] rounded overflow-hidden mt-2 text-[11px]">
       <table className="w-full border-collapse">
         <tbody>
           {KNOWN_MODELS.map((name) => {
@@ -106,23 +164,32 @@ function ModelScoresTable({
               <tr
                 key={name}
                 className={clsx(
-                  'border-b border-[#3c3c3c] last:border-b-0 hover:bg-[#2a2a2a]',
+                  'border-b border-[var(--color-border-muted)] last:border-b-0 hover:bg-[var(--color-bg-tertiary)]',
                   !isActive && 'opacity-45',
                 )}
               >
-                <td className="align-top text-[#9d9d9d] px-2 py-1 w-[38%] border-r border-[#3c3c3c] font-mono shrink-0">
-                  {scoreLabel(name)}
-                  {isShadow && (
-                    <span className="ml-1 text-[9px] px-1 rounded bg-[#3c3c3c] text-[#9d9d9d]">shadow</span>
-                  )}
-                  {!isActive && (
-                    <span className="ml-1 text-[9px] px-1 rounded bg-[#2a2a2a] text-[#6d6d6d]">off</span>
-                  )}
+                <td className="align-top text-[var(--color-text-secondary)] px-2 py-1 w-[38%] border-r border-[var(--color-border-muted)] font-mono shrink-0">
+                  <span className="inline-flex items-center gap-1 flex-wrap">
+                    <span>{scoreLabel(name)}</span>
+                    {isShadow && (
+                      <span className="text-[9px] px-1 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)]">
+                        shadow
+                      </span>
+                    )}
+                    {!isActive && (
+                      <span
+                        className="text-[9px] px-1 rounded bg-[var(--color-bg-tertiary)] text-[var(--color-text-muted)]"
+                        aria-label="model off"
+                      >
+                        off
+                      </span>
+                    )}
+                  </span>
                 </td>
-                <td className="align-top text-[#cccccc] px-2 py-1 font-mono whitespace-pre-wrap break-all">
-                  {value != null ? formatInspectorValue(value) : '—'}
+                <td className="align-top text-[var(--color-text-primary)] px-2 py-1 font-mono whitespace-pre-wrap break-all">
+                  {value != null ? formatScoreValue(value) : '—'}
                   {entry?.status && entry.status !== 'success' && (
-                    <span className="ml-1 text-[#f44747]">({entry.status})</span>
+                    <span className="ml-1 text-[var(--color-danger)]">({entry.status})</span>
                   )}
                 </td>
               </tr>
@@ -134,79 +201,16 @@ function ModelScoresTable({
   )
 }
 
-function partitionScalars(data: ImageDetail): {
-  identity: [string, unknown][]
-  paths: [string, unknown][]
-  scores: [string, unknown][]
-  user: [string, unknown][]
-  dates: [string, unknown][]
-  other: [string, unknown][]
-} {
-  const skip = new Set(['file_paths', 'resolved_path', 'phase_statuses', 'model_scores'])
-  const identityKeys = new Set([
-    'id',
-    'image_uuid',
-    'image_hash',
-    'hash_version',
-    'burst_uuid',
-    'stack_id',
-    'folder_id',
-    'file_name',
-    'file_type',
-    'file_size',
-    'model_version',
-  ])
-  const pathKeys = new Set(['file_path', 'thumbnail_path', 'win_path'])
-  const userKeys = new Set(['rating', 'label', 'title', 'description', 'keywords', 'caption'])
-  const dateKeys = new Set(['created_at', 'updated_at'])
-
-  const identity: [string, unknown][] = []
-  const paths: [string, unknown][] = []
-  const scores: [string, unknown][] = []
-  const user: [string, unknown][] = []
-  const dates: [string, unknown][] = []
-  const other: [string, unknown][] = []
-
-  const raw = data as unknown as Record<string, unknown>
-  for (const k of Object.keys(raw)) {
-    if (skip.has(k)) continue
-    const v = raw[k]
-    if (isScoreKey(k)) {
-      scores.push([k, v])
-      continue
-    }
-    if (identityKeys.has(k)) {
-      identity.push([k, v])
-      continue
-    }
-    if (pathKeys.has(k)) {
-      paths.push([k, v])
-      continue
-    }
-    if (userKeys.has(k)) {
-      user.push([k, v])
-      continue
-    }
-    if (dateKeys.has(k)) {
-      dates.push([k, v])
-      continue
-    }
-    other.push([k, v])
-  }
-
-  return { identity, paths, scores, user, dates, other }
-}
-
 function PhaseStatusTable({ phases }: { phases: NonNullable<ImageDetail['phase_statuses']> }) {
   const rows = Object.entries(phases)
   if (rows.length === 0) {
-    return <div className="text-xs text-[#6d6d6d]">No phase rows.</div>
+    return <div className="text-xs text-[var(--color-text-muted)]">No phase rows.</div>
   }
   return (
-    <div className="border border-[#3c3c3c] rounded overflow-auto max-h-64">
+    <div className="border border-[var(--color-border-muted)] rounded overflow-auto max-h-64">
       <table className="w-full text-[11px] border-collapse min-w-[36rem]">
-        <thead className="bg-[#1e1e1e] sticky top-0">
-          <tr className="text-left text-[#9d9d9d] border-b border-[#3c3c3c]">
+        <thead className="bg-[var(--color-bg-primary)] sticky top-0">
+          <tr className="text-left text-[var(--color-text-secondary)] border-b border-[var(--color-border-muted)]">
             <th className="px-2 py-1 font-semibold">Phase</th>
             <th className="px-2 py-1 font-semibold">Data Status</th>
             <th className="px-2 py-1 font-semibold">Last Run Activity</th>
@@ -274,10 +278,12 @@ function LazyMetadataSection({
   imageId,
   kind,
   title,
+  collapseAllToken,
 }: {
   imageId: number
   kind: 'exif' | 'xmp'
   title: string
+  collapseAllToken?: number
 }) {
   const [loaded, setLoaded] = useState(false)
   const q = useQuery({
@@ -290,17 +296,19 @@ function LazyMetadataSection({
     <CollapsibleInspectorSection
       title={title}
       defaultOpen={false}
+      sectionId={kind}
+      collapseAllToken={collapseAllToken}
       badge={loaded && q.data ? `${Object.keys(q.data).length} fields` : undefined}
     >
       {!loaded && (
         <ButtonLoad onClick={() => setLoaded(true)} label={`Load ${kind.toUpperCase()}…`} />
       )}
-      {loaded && q.isLoading && <div className="text-xs text-[#6d6d6d]">Loading…</div>}
+      {loaded && q.isLoading && <div className="text-xs text-[var(--color-text-muted)]">Loading…</div>}
       {loaded && q.isError && (
-        <div className="text-xs text-[#f44747]">{(q.error as Error)?.message ?? 'Request failed'}</div>
+        <div className="text-xs text-[var(--color-danger)]">{(q.error as Error)?.message ?? 'Request failed'}</div>
       )}
       {loaded && q.data && Object.keys(q.data).length === 0 && (
-        <div className="text-xs text-[#6d6d6d]">No cached row in the database.</div>
+        <div className="text-xs text-[var(--color-text-muted)]">No cached row in the database.</div>
       )}
       {loaded && q.data && Object.keys(q.data).length > 0 && (
         <KeyValueTable entries={Object.entries(q.data)} dense />
@@ -314,7 +322,7 @@ function ButtonLoad({ onClick, label }: { onClick: () => void; label: string }) 
     <button
       type="button"
       onClick={onClick}
-      className="text-xs px-2 py-1 rounded border border-[#474747] text-[#4fc1ff] hover:bg-[#3c3c3c] transition-colors"
+      className="text-xs px-2 py-1 rounded border border-[var(--color-border)] text-[var(--color-accent-bright)] hover:bg-[var(--color-bg-elevated)] transition-colors"
     >
       {label}
     </button>
@@ -325,6 +333,7 @@ export function ImageInspectorPage() {
   const { imageId: rawId } = useParams<{ imageId: string }>()
   const id = rawId ? parseInt(rawId, 10) : NaN
   const navigate = useNavigate()
+  const [collapseAllToken, setCollapseAllToken] = useState(0)
 
   const sortBy = useUiStore((s) => s.sortBy)
   const order = useUiStore((s) => s.sortOrder)
@@ -389,18 +398,18 @@ export function ImageInspectorPage() {
   })
 
   if (!Number.isFinite(id) || id <= 0) {
-    return <div className="p-4 text-sm text-[#6d6d6d]">Invalid image id.</div>
+    return <div className="p-4 text-sm text-[var(--color-text-muted)]">Invalid image id.</div>
   }
 
   if (isLoading) {
-    return <div className="p-4 text-sm text-[#6d6d6d]">Loading image…</div>
+    return <div className="p-4 text-sm text-[var(--color-text-muted)]">Loading image…</div>
   }
 
   if (error || !data) {
     return (
       <div className="p-4 space-y-2">
-        <div className="text-sm text-[#f44747]">Could not load image.</div>
-        <Link to="/images" className="text-xs text-[#4fc1ff] hover:underline inline-flex items-center gap-1">
+        <div className="text-sm text-[var(--color-danger)]">Could not load image.</div>
+        <Link to="/images" className="text-xs text-[var(--color-accent-bright)] hover:underline inline-flex items-center gap-1">
           <ArrowLeft size={12} /> Back to Images
         </Link>
       </div>
@@ -409,8 +418,6 @@ export function ImageInspectorPage() {
 
   const src = detailPreviewSrc(data)
   const parts = partitionScalars(data)
-  const filePaths = data.file_paths
-  const resolved = data.resolved_path
   const scoringModels = config?.scoring_models ?? {}
   const knownModelSet = new Set(KNOWN_MODELS)
   // Per-model keys are rendered by the roster; keep only aggregates here.
@@ -418,16 +425,21 @@ export function ImageInspectorPage() {
     ([k]) => !knownModelSet.has(k.replace(/^score_/, '').replace(/_score$/, '')),
   )
 
+  const extraNav = [
+    ...(data.technical_failure_detection ? [{ id: 'technical', label: 'Technical' }] : []),
+    ...(parts.unmapped.length > 0 ? [{ id: 'unmapped', label: 'Unmapped' }] : []),
+  ]
+
   return (
-    <div className="flex flex-col h-full min-h-0 bg-[#1e1e1e] overflow-hidden">
-      <div className="shrink-0 flex items-center gap-3 px-4 py-2 border-b border-[#3c3c3c] bg-[#252526]">
+    <div className="flex flex-col h-full min-h-0 bg-[var(--color-bg-primary)] overflow-hidden">
+      <div className="shrink-0 flex items-center gap-3 px-4 py-2 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-secondary)]">
         <Link
           to="/images"
-          className="text-xs text-[#4fc1ff] hover:underline inline-flex items-center gap-1 shrink-0"
+          className="text-xs text-[var(--color-accent-bright)] hover:underline inline-flex items-center gap-1 shrink-0"
         >
           <ArrowLeft size={12} /> Images
         </Link>
-        <span className="text-sm font-medium text-[#cccccc] truncate">{data.file_name}</span>
+        <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">{data.file_name}</span>
         <div className="ml-auto shrink-0 flex items-center gap-3">
           <Button
             size="xs"
@@ -439,23 +451,23 @@ export function ImageInspectorPage() {
             <Play size={12} />
             Run Job
           </Button>
-          <div className="flex items-center gap-2 border-l border-[#3c3c3c] pl-3">
+          <div className="flex items-center gap-2 border-l border-[var(--color-border-muted)] pl-3 text-xs">
             <Link
               to={embeddingsPathFor(data.id)}
-              className="text-[10px] text-[#9d9d9d] hover:text-[#4fc1ff] transition-colors"
+              className="text-[var(--color-text-secondary)] hover:text-[var(--color-accent-bright)] transition-colors"
               title="Open this image in Vector DB"
             >
               Vector DB
             </Link>
-          <span className="text-[10px] text-[#6d6d6d] font-mono">
-            id{' '}
-            <Link
-              to={imageInspectorPath(data.id)}
-              className="text-[#4fc1ff] hover:underline cursor-pointer"
-            >
-              {data.id}
-            </Link>
-          </span>
+            <span className="text-[var(--color-text-muted)] font-mono">
+              id{' '}
+              <Link
+                to={imageInspectorPath(data.id)}
+                className="text-[var(--color-accent-bright)] hover:underline cursor-pointer"
+              >
+                {data.id}
+              </Link>
+            </span>
           </div>
         </div>
       </div>
@@ -463,7 +475,7 @@ export function ImageInspectorPage() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="flex flex-col lg:flex-row gap-4 p-4 max-w-[120rem] mx-auto">
           <div className="w-full lg:w-[min(42%,520px)] shrink-0 lg:sticky lg:top-0 lg:self-start">
-            <div className="rounded border border-[#3c3c3c] bg-[#141414] min-h-[200px] max-h-[50vh] lg:max-h-[calc(100vh-8rem)] flex items-center justify-center p-2">
+            <div className="rounded border border-[var(--color-border-muted)] bg-[var(--color-bg-preview)] min-h-[200px] max-h-[50vh] lg:max-h-[calc(100vh-8rem)] flex items-center justify-center p-2">
               {src ? (
                 <img
                   src={src}
@@ -471,13 +483,23 @@ export function ImageInspectorPage() {
                   className="max-w-full max-h-[min(50vh,480px)] object-contain"
                 />
               ) : (
-                <span className="text-sm text-[#6d6d6d]">No preview path</span>
+                <span className="text-sm text-[var(--color-text-muted)]">No preview path</span>
               )}
             </div>
           </div>
 
           <div className="flex-1 min-w-0 space-y-3">
-            <CollapsibleInspectorSection title="Identity & storage" defaultOpen>
+            <InspectorSectionNav
+              extra={extraNav}
+              onCollapseAll={() => setCollapseAllToken((t) => t + 1)}
+            />
+
+            <CollapsibleInspectorSection
+              title="Identity & storage"
+              defaultOpen
+              sectionId="identity"
+              collapseAllToken={collapseAllToken}
+            >
               <KeyValueTable
                 entries={parts.identity}
                 dense
@@ -486,7 +508,7 @@ export function ImageInspectorPage() {
                     return (
                       <Link
                         to={imageInspectorPath(v)}
-                        className="text-[#4fc1ff] hover:underline cursor-pointer"
+                        className="text-[var(--color-accent-bright)] hover:underline cursor-pointer"
                       >
                         {v}
                       </Link>
@@ -497,31 +519,26 @@ export function ImageInspectorPage() {
               />
             </CollapsibleInspectorSection>
 
-            <CollapsibleInspectorSection title="Paths" subtitle={resolved ? 'resolved_path' : undefined} defaultOpen>
-              <div className="space-y-2">
-                {parts.paths.length > 0 && <KeyValueTable entries={parts.paths} dense />}
-                {resolved && (
-                  <div className="text-[11px]">
-                    <div className="text-[#6d6d6d] mb-0.5">resolved_path</div>
-                    <div className="font-mono text-[#cccccc] break-all">{resolved}</div>
-                  </div>
-                )}
-                {filePaths && filePaths.length > 0 && (
-                  <div className="text-[11px]">
-                    <div className="text-[#6d6d6d] mb-0.5">file_paths ({filePaths.length})</div>
-                    <ul className="list-none space-y-1 font-mono text-[#9d9d9d] break-all">
-                      {filePaths.map((p, i) => (
-                        <li key={i}>{p}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </CollapsibleInspectorSection>
+            <PathsInspectorSection
+              data={data}
+              pathEntries={parts.paths}
+              collapseAllToken={collapseAllToken}
+            />
 
-            <CollapsibleInspectorSection title="Scores" badge={`${KNOWN_MODELS.length}`} defaultOpen>
+            <CollapsibleInspectorSection
+              title="Scores"
+              badge={`${KNOWN_MODELS.length}`}
+              defaultOpen
+              sectionId="scores"
+              collapseAllToken={collapseAllToken}
+            >
               {aggregateScores.length > 0 && (
-                <KeyValueTable entries={aggregateScores} dense labelFor={scoreLabel} />
+                <KeyValueTable
+                  entries={aggregateScores}
+                  dense
+                  labelFor={scoreLabel}
+                  renderValue={(_, v) => formatScoreValue(v)}
+                />
               )}
               <ModelScoresTable
                 data={data}
@@ -530,15 +547,31 @@ export function ImageInspectorPage() {
               />
             </CollapsibleInspectorSection>
 
-            <CollapsibleInspectorSection title="User metadata" defaultOpen>
+            <CollapsibleInspectorSection
+              title="User metadata"
+              defaultOpen
+              sectionId="user"
+              collapseAllToken={collapseAllToken}
+            >
               {parts.user.length === 0 ? (
-                <div className="text-xs text-[#6d6d6d]">—</div>
+                <div className="text-xs text-[var(--color-text-muted)]">—</div>
               ) : (
                 <KeyValueTable entries={parts.user} dense />
               )}
             </CollapsibleInspectorSection>
 
-            <CollapsibleInspectorSection title="Dates" defaultOpen={false}>
+            <CullingInspectorSection
+              data={data}
+              entries={parts.culling}
+              collapseAllToken={collapseAllToken}
+            />
+
+            <CollapsibleInspectorSection
+              title="Dates"
+              defaultOpen={false}
+              sectionId="dates"
+              collapseAllToken={collapseAllToken}
+            >
               <KeyValueTable entries={parts.dates} dense />
             </CollapsibleInspectorSection>
 
@@ -546,20 +579,41 @@ export function ImageInspectorPage() {
               title="Pipeline phases"
               badge={data.phase_statuses ? `${Object.keys(data.phase_statuses).length}` : '0'}
               defaultOpen
+              sectionId="phases"
+              collapseAllToken={collapseAllToken}
             >
               {data.phase_statuses && Object.keys(data.phase_statuses).length > 0 ? (
                 <PhaseStatusTable phases={data.phase_statuses} />
               ) : (
-                <div className="text-xs text-[#6d6d6d]">No phase status rows.</div>
+                <div className="text-xs text-[var(--color-text-muted)]">No phase status rows.</div>
               )}
             </CollapsibleInspectorSection>
 
-            <LazyMetadataSection imageId={id} kind="exif" title="EXIF (cached)" />
-            <LazyMetadataSection imageId={id} kind="xmp" title="XMP (cached)" />
+            <ProvenanceInspectorSection entries={parts.provenance} collapseAllToken={collapseAllToken} />
+            <IndexingInspectorSection data={data} collapseAllToken={collapseAllToken} />
+            <EmbeddingsInspectorSection
+              embeddings={data.embeddings_present}
+              collapseAllToken={collapseAllToken}
+            />
+            {data.technical_failure_detection && (
+              <TechnicalFailureInspectorSection
+                detection={data.technical_failure_detection}
+                collapseAllToken={collapseAllToken}
+              />
+            )}
 
-            {parts.other.length > 0 && (
-              <CollapsibleInspectorSection title="Other columns" badge={`${parts.other.length}`} defaultOpen={false}>
-                <KeyValueTable entries={parts.other} dense />
+            <LazyMetadataSection imageId={id} kind="exif" title="EXIF (cached)" collapseAllToken={collapseAllToken} />
+            <LazyMetadataSection imageId={id} kind="xmp" title="XMP (cached)" collapseAllToken={collapseAllToken} />
+
+            {parts.unmapped.length > 0 && (
+              <CollapsibleInspectorSection
+                title="Unmapped fields"
+                badge={`${parts.unmapped.length}`}
+                defaultOpen={false}
+                sectionId="unmapped"
+                collapseAllToken={collapseAllToken}
+              >
+                <KeyValueTable entries={parts.unmapped} dense />
               </CollapsibleInspectorSection>
             )}
           </div>

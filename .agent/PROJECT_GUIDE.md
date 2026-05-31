@@ -8,7 +8,7 @@ The canonical task queue is the **GitHub Project board** — not `TODO.md`:
 
 **→ https://github.com/users/synthet/projects/1**
 
-It spans `image-scoring-backend` and `image-scoring-gallery`. Every agent must follow the **five-step contract** in [`skills/backlog-queue/SKILL.md`](skills/backlog-queue/SKILL.md): pick from `Stage = Ready` → `/task-claim <N>` → `In Progress` on first commit → `Blocked` (with comment) if stuck → PR with `Closes #<N>` → `Review` → `Done`.
+It spans `image-scoring-backend` and `image-scoring-gallery`. Every agent must follow the **five-step contract** in [`.cursor/skills/backlog-queue/SKILL.md`](../.cursor/skills/backlog-queue/SKILL.md): pick from `Stage = Ready` → `/task-claim <N>` → `In Progress` on first commit → `Blocked` (with comment) if stuck → PR with `Closes #<N>` → `Review` → `Done`.
 
 `TODO.md` is a pointer only — never add tasks there.
 
@@ -21,15 +21,16 @@ Before changing API contracts, phase names, or schema: read **[`docs/CANONICAL_S
 ## Project Context
 `image-scoring` is a multi-model quality assessment tool with a hybrid architecture (Windows + WSL 2). It uses TensorFlow and PyTorch for scoring, and PostgreSQL for storage.
 
-## Core Agentic Skills (Commands)
+## Core agent workflows
 
-| Command | Purpose | Workflow Path |
-|---------|---------|---------------|
-| `/run_webui` | Start the Gradio Web interface | `.agent/workflows/run_webui.md` |
-| `/run_docker` | Start the app in a container | `.agent/workflows/run_docker.md` |
-| `/run_scoring` | Run batch scoring via CLI | `.agent/workflows/run_scoring.md` |
-| `/run_tests` | Execute pytest suite | `.agent/workflows/run_tests.md` |
-| `/verify_system` | Check system health/models | `.agent/workflows/verify_system.md` |
+| Entry | Purpose | Path |
+|-------|---------|------|
+| Cursor slash commands | SDLC (`/spec`, `/plan`, `/implement`, `/pr-ready`, …) | [`.cursor/commands/`](../.cursor/commands/) — see [`.cursor/README.md`](../.cursor/README.md) |
+| `/run_webui` (workflow) | Start the Web UI | `.agent/workflows/run_webui.md` |
+| `/run_docker` (workflow) | Start the app in a container | `.agent/workflows/run_docker.md` |
+| `/run_scoring` (workflow) | Run batch scoring via CLI | `.agent/workflows/run_scoring.md` |
+| `/run_tests` (workflow) | Execute pytest suite | `.agent/workflows/run_tests.md` |
+| `/verify_system` (workflow) | Check system health/models | `.agent/workflows/verify_system.md` |
 
 ## Technical Knowledge for Agents
 

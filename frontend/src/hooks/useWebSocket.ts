@@ -5,21 +5,47 @@ import type { WsEvent } from '@/types/api'
 
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/updates`
 const RECONNECT_DELAY_MS = 2000
+/** First visit: stay on Connecting until live or this elapses. */
+const INITIAL_OFFLINE_MS = 12_000
+/** After a live session drops: show Reconnecting until this elapses without live. */
+const RECONNECT_OFFLINE_MS = 15_000
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const offlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
+    function clearOfflineTimer() {
+      if (offlineTimer.current) {
+        clearTimeout(offlineTimer.current)
+        offlineTimer.current = null
+      }
+    }
+
+    function scheduleOfflineAfterDelay() {
+      clearOfflineTimer()
+      const wasEverLive = useWsStore.getState().wasEverLive
+      const delay = wasEverLive ? RECONNECT_OFFLINE_MS : INITIAL_OFFLINE_MS
+      offlineTimer.current = setTimeout(() => {
+        if (cancelled) return
+        if (useWsStore.getState().connectionStatus === 'live') return
+        useWsStore.getState().setConnectionOffline()
+      }, delay)
+    }
+
     function connect() {
       if (cancelled) return
+      useWsStore.getState().setConnectionConnecting()
       const ws = new WebSocket(WS_URL)
       wsRef.current = ws
 
       ws.onopen = () => {
-        if (!cancelled) useWsStore.getState().setConnected(true)
+        if (cancelled) return
+        clearOfflineTimer()
+        useWsStore.getState().setConnectionLive()
       }
 
       ws.onmessage = (ev) => {
@@ -38,7 +64,8 @@ export function useWebSocket() {
 
       ws.onclose = () => {
         if (cancelled) return
-        useWsStore.getState().setConnected(false)
+        useWsStore.getState().setConnectionConnecting()
+        scheduleOfflineAfterDelay()
         reconnectTimer.current = setTimeout(connect, RECONNECT_DELAY_MS)
       }
 
@@ -65,8 +92,6 @@ export function useWebSocket() {
           store.bumpRunsVersion()
           break
         case 'work_item_done':
-          // Do not bump runsVersion — fires per item and causes infinite update loops.
-          // Live progress comes from run_progress; stage_transition/queue_update handle invalidation.
           break
       }
     }
@@ -75,6 +100,7 @@ export function useWebSocket() {
 
     return () => {
       cancelled = true
+      clearOfflineTimer()
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
       wsRef.current?.close()
     }

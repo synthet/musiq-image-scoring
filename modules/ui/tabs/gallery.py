@@ -361,28 +361,15 @@ def display_details(raw_paths, evt: gr.SelectData = None, forced_index=None):
             empty[0] = f"**DEBUG ERROR:**\nDetails not found for path:\n`{file_path}`\n\nRaw Paths Len: {len(raw_paths)}\nIndex: {index}"
             return empty
 
-        # Parse scores_json safely
-        scores_data = details.get('scores_json', {})
-        if isinstance(scores_data, str):
-            try: scores_data = json.loads(scores_data)
-            except (json.JSONDecodeError, ValueError): scores_data = {}
-        
+        # Legacy inference timing (blob-only until dedicated storage exists)
+        model_times = common.legacy_model_times_from_details(details)
+
         # Logic for Delete Button (NEF only + specific ratings/labels)
         show_delete = False
         is_nef = os.path.splitext(file_path)[1].lower() in ['.nef', '.nrw']
         if is_nef:
-            nef_meta = scores_data.get('nef_metadata')
-            if not nef_meta and 'summary' in scores_data:
-                nef_meta = scores_data['summary'].get('nef_metadata')
-            if not nef_meta and 'full_results' in scores_data:
-                 # Use safe get
-                 full_res = scores_data.get('full_results', {})
-                 summary = full_res.get('summary', {}) if isinstance(full_res, dict) else {}
-                 nef_meta = summary.get('nef_metadata') if isinstance(summary, dict) else None
-            
-            rating = int(nef_meta.get('rating', 0)) if nef_meta and isinstance(nef_meta, dict) else 0
-            label = nef_meta.get('label', '') if nef_meta and isinstance(nef_meta, dict) else ""
-            
+            rating = int(details.get('rating') or 0)
+            label = details.get('label') or ''
             if (rating > 0 and rating <= 2) or label in ["Red", "Yellow"]:
                 show_delete = True
 
@@ -407,9 +394,6 @@ def display_details(raw_paths, evt: gr.SelectData = None, forced_index=None):
         weighted_label = {"Technical": tech, "Aesthetic": aes}
         
         models_label = {}
-        perform_data = scores_data.get('summary', {}) if isinstance(scores_data, dict) else {}
-        performance = perform_data.get('performance', {}) if isinstance(perform_data, dict) else {}
-        model_times = performance.get('model_times', {}) if isinstance(performance, dict) else {}
         
         ims_scores: dict[str, float | None] = {}
         try:

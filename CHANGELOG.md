@@ -13,6 +13,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.0.0] - 2026-05-31
+
+### Added
+
+- **Image inspector (React `/ui`)**: Domain sections (Culling & picks, Provenance, Indexing, Embeddings, Technical flags) replace catch-all “Other” columns; `GET /api/images/{id}` adds `embeddings_present` and `indexing_metadata`.
+- **scores_json migration tooling**: `scripts/maintenance/verify_scores_json_parity.py`, `get_scores_json_parity_report()`, IMS backfill from legacy blob, and MCP `scores_json_parity` in `get_database_stats`.
+- **Connection status**: WebSocket-backed `ConnectionStatus` in the React shell; `wsStore` reconnect handling improvements.
+- **Docs**: [SCORES_JSON_COLUMN_DEPRECATION.md](docs/planning/database/SCORES_JSON_COLUMN_DEPRECATION.md), [OPENAPI_CROSS_PROJECT.md](docs/technical/OPENAPI_CROSS_PROJECT.md).
+- **Tests**: scores_json deprecation/parity, image detail payload, clustering score_general, embedding embed paths, MCP client allowlist.
+
+### Changed
+
+- **scores_json deprecation (Phases 1–3)**: Config `database.write_legacy_scores_json_column` (default `true`); upserts and Gradio gallery reads prefer `image_model_scores` + aggregate columns.
+- **React `/ui`**: Gallery filter chips and geo map search use shared design-token contrast; inspector layout refactor.
+- **OpenAPI** and [API_CONTRACT.md](docs/technical/API_CONTRACT.md) aligned with gallery type generation.
+
+### Removed
+
+- **Breaking**: `images.scores_json` column (Alembic **0030**). Run `verify_scores_json_parity.py --backfill` before upgrade. Image detail API no longer returns `scores_json` / `scores_json_parsed`.
+
+### Fixed
+
+- **Scoring runner**: Expanded unit coverage for incomplete-image SQL and rescoring paths.
+- **Phase reconcile tests**: Align expectations with current reconcile behavior.
+
 ## [7.28.0] - 2026-05-31
 
 ### Added

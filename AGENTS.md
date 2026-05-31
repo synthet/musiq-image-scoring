@@ -33,51 +33,32 @@ For [OWASP Agentic Skills Top 10](https://github.com/kenhuangus/agentic-skills-t
 
 **Inventory and PR review:** [.agent/SKILL_INVENTORY.md](.agent/SKILL_INVENTORY.md) · [.agent/SKILL_CHANGE_AST10_REVIEW.md](.agent/SKILL_CHANGE_AST10_REVIEW.md)
 
-**Cursor slash commands** (type `/` in chat): **`/spec`**, **`/plan`**, **`/implement`**, **`/test-and-fix`**, **`/pr-ready`**, **`/release-notes`**, **`/backup-db`**, **`/critical-commit-audit`**, **`/check-subagents`**, **`/run-codex-review`**, **`/run-gemini-review`**, **`/run-subagent-review`**. This repo also defines **`/release`** (semver release for this backend). **Claude Code** mirrors the agent-sdlc and external-review commands under `.claude/commands/`.
+**Cursor slash commands** (type `/` in chat): **`/spec`**, **`/plan`**, **`/implement`**, **`/test-and-fix`**, **`/pr-ready`**, **`/task-claim`**, **`/release-notes`**, **`/release`**, **`/backup-db`**, **`/critical-commit-audit`**, **`/wiki-ingest`**, **`/wiki-lint`**, **`/wiki-query`**, **`/check-subagents`**, **`/run-codex-review`**, **`/run-gemini-review`**, **`/run-subagent-review`**. Index: [`.cursor/README.md`](.cursor/README.md). **Claude Code** mirrors paired commands under `.claude/commands/`.
 
 **External CLI reviews:** sibling [`subagent-orchestrator`](../subagent-orchestrator) via MCP **`imgscore-subagent-orchestrator`** — see [docs/technical/EXTERNAL_CLI_REVIEWS.md](docs/technical/EXTERNAL_CLI_REVIEWS.md).
 
 ## MCP servers (Vexlum Scoring)
 
-The same FastMCP app exposes **53** tools; Cursor can attach it in two ways (separate `mcpServers` entries).
+The same FastMCP app exposes **54** tools; Cursor attaches via **two project servers** (stdio + live SSE).
 
-**Unique server names:** Each repo’s `.cursor/mcp.json` uses a workspace prefix so keys do not collide when Cursor merges configs: **`imgscore-py-*`** (Python / `image-scoring` workspace), **`imgscore-el-*`** (`electron-image-scoring` workspace), **`imgscore-subagent-orchestrator`** (external Codex/Gemini review-only CLI; sibling `../subagent-orchestrator`). Shared tools such as Playwright or Chrome use the same prefix (`imgscore-py-playwright`, `imgscore-el-playwright`, …).
+**Naming:** all project MCP keys use prefix **`image-scoring-`**. User `~/.cursor/mcp.json` holds cross-repo tools only (`github`, `subagent-orchestrator`, …) — **not** `image-scoring-*`.
 
-### Configuration
+| Cursor server key | Transport | Repo | Requires running app? |
+|-------------------|-----------|------|------------------------|
+| **`image-scoring-backend-stdio`** | stdio | backend [`.cursor/mcp.json`](.cursor/mcp.json) | No |
+| **`image-scoring-backend-webui`** | SSE | backend `.cursor/mcp.json` | Yes — `run_webui.bat` |
+| **`image-scoring-backend-postgres`** | stdio | backend `.cursor/mcp.json` (disabled) | No |
+| **`image-scoring-gallery-stdio`** | stdio | gallery `.cursor/mcp.json` | No |
+| **`image-scoring-gallery-live`** | SSE | gallery `.cursor/mcp.json` | Yes — Electron dev / `ENABLE_GALLERY_MCP_SSE` |
 
-Server key meanings:
+Example templates: [`.cursor/mcp.pair.example.json`](.cursor/mcp.pair.example.json) (backend), gallery [`.cursor/mcp.pair.example.json`](https://github.com/synthet/image-scoring-gallery/blob/main/.cursor/mcp.pair.example.json).
 
-- **`imgscore-py-stdio`**: **Python** workspace — **stdio** with `cwd` / `PYTHONPATH` = `${workspaceFolder}`.
-- **`imgscore-py-postgres`**: **PostgreSQL** administration — use `toolbox.exe --prebuilt postgres` to manage the DB.
-- **`imgscore-el-stdio`**: **Electron** workspace — **stdio** with `cwd` / `PYTHONPATH` = sibling **image-scoring** (fixed path).
-- **`imgscore-py-sse`** / **`imgscore-el-sse`**: same WebUI **SSE** URL (`/mcp/sse`); use the key from the workspace you have open. Enables **`execute_code`** when `ENABLE_MCP_EXECUTE_CODE=1`.
-
-**Example — Python workspace** (`.cursor/mcp.json` in `image-scoring`):
-
-```json
-{
-  "mcpServers": {
-    "imgscore-py-stdio": {
-      "command": "python",
-      "args": ["-m", "modules.mcp_server"],
-      "cwd": "${workspaceFolder}",
-      "env": { "PYTHONPATH": "${workspaceFolder}" }
-    },
-    "imgscore-py-sse": {
-      "url": "http://127.0.0.1:7860/mcp/sse"
-    }
-  }
-}
-```
-
-**Example — Electron workspace** (`.cursor/mcp.json` in `electron-image-scoring`): **`imgscore-el-stdio`** for stdio (same `command`/`args` as `imgscore-py-stdio`, but `cwd` / `PYTHONPATH` = absolute path to **image-scoring**), plus **`imgscore-el-sse`** for the same SSE URL when the WebUI is running.
-
-For SSE, start the WebUI first (`run_webui.bat` or `python webui.py`). Confirm the URL with **`GET /mcp-status`** → `expected_sse_url` if the port is not 7860. For **`execute_code`**, set **`ENABLE_MCP_EXECUTE_CODE=1`** on the WebUI process.
+For backend WebUI SSE, start the WebUI first (`run_webui.bat`). Confirm URL with **`GET /mcp-status`** → `expected_sse_url`. For **`execute_code`**, set **`ENABLE_MCP_EXECUTE_CODE=1`**. Gallery live port: **`gallery-mcp.lock`** in gallery repo root (default `9373`).
 
 ### Setup for Cursor IDE
 
 1. **Copy configuration** to Cursor's MCP settings:
-   - Windows: `%APPDATA%\Cursor\User\globalStorage\cursor.mcp\mcp.json`
+   - Windows: `%USERPROFILE%\.cursor\mcp.json`
    - Or merge `mcp_config.json` contents into your existing MCP configuration
 
 2. **Install MCP SDK** (if not already installed):
@@ -212,7 +193,7 @@ The MCP server registers **53** tools (see [`modules/mcp_server.py`](modules/mcp
 
 | Tool | Description |
 |------|-------------|
-| `execute_code` | `exec` in WebUI process (`gr`, `demo`, `components`, runners, `db`, `config`). Requires Cursor server **`imgscore-py-sse`** or **`imgscore-el-sse`** (same endpoint), WebUI running, and **`ENABLE_MCP_EXECUTE_CODE=1`**. Assign to `result` to return a value. |
+| `execute_code` | `exec` in WebUI process. Requires **`image-scoring-backend-webui`**, WebUI running, and **`ENABLE_MCP_EXECUTE_CODE=1`**. Assign to `result` to return a value. |
 
 ## Common Workflows
 
@@ -284,7 +265,7 @@ The MCP server registers **53** tools (see [`modules/mcp_server.py`](modules/mcp
 - **Safety**: `execute_sql` only allows SELECT queries. Dangerous operations are blocked.
 - **Performance**: Some tools (like `validate_file_paths`) can be slow on large datasets. Use `limit` parameter.
 - **Real-time**: `get_runner_status` and `get_pipeline_stats` show current state, others query historical data.
-- **execute_code**: Only works when Cursor uses **`imgscore-py-sse`** or **`imgscore-el-sse`**, Gradio context is present, and **`ENABLE_MCP_EXECUTE_CODE=1`**. Assign to `result` in your code to return a value. Dev/debug use only.
+- **execute_code**: Only works when Cursor uses **`image-scoring-backend-webui`**, Gradio context is present, and **`ENABLE_MCP_EXECUTE_CODE=1`**. Assign to `result` in your code to return a value. Dev/debug use only.
 
 ## Tool Availability
 
@@ -352,7 +333,7 @@ Agent: "How fast is the system processing images?"
 
 ### Duplicate MCP servers in Cursor (same name twice)
 
-If you still see two **`playwright`**, two **`image-scoring-mcp-sse`**, etc., your **user-level** MCP config is probably merging with **project** `.cursor/mcp.json` and reusing old keys. Open `%APPDATA%\Cursor\User\globalStorage\cursor.mcp\mcp.json` (or Cursor Settings → MCP) and **remove or rename** duplicates, or align them with the **`imgscore-py-*` / `imgscore-el-*`** keys from this repo.
+If you still see duplicate or legacy keys (`scoring`, `webui`, `imgscore-py-*`), remove them from **`%USERPROFILE%\.cursor\mcp.json`**. Project keys belong only in each repo’s `.cursor/mcp.json`.
 
 ## Pytest E2E vocabulary (agents)
 

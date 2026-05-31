@@ -128,6 +128,79 @@ def test_fix_image_metadata_returns_false_for_missing_file(monkeypatch):
     assert "File not found" in message
 
 
+def test_fix_image_metadata_uses_ims_when_legacy_columns_empty(monkeypatch):
+    """Regression: koniq/paq2piq from image_model_scores when legacy columns are zero."""
+    runner = ScoringRunner()
+    canonical = "/mnt/d/photos/img.jpg"
+    details = {
+        "id": 42,
+        "file_path": canonical,
+        "title": "",
+        "description": "",
+        "keywords": "",
+        "score_spaq": 0,
+        "score_ava": 0,
+        "score_liqe": 0,
+        "score_koniq": 0,
+        "score_paq2piq": 0,
+        "scores_json": None,
+    }
+    ims = {
+        "spaq": {"normalized": 0.81, "status": "success"},
+        "ava": {"normalized": 0.72, "status": "success"},
+        "liqe": {"normalized": 0.65, "status": "success"},
+        "koniq": {"normalized": 0.77, "status": "success"},
+        "paq2piq": {"normalized": 0.66, "status": "success"},
+    }
+    compute_input: dict = {}
+
+    class _FakeCursor:
+        def execute(self, *args, **kwargs):
+            pass
+
+    class _FakeConn:
+        def cursor(self):
+            return _FakeCursor()
+
+        def commit(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(db, "resolve_canonical_file_path_for_lookup", lambda _p: canonical)
+    monkeypatch.setattr(db, "get_image_details", lambda _p: details)
+    monkeypatch.setattr(db, "get_image_model_scores", lambda image_id, **kw: ims if image_id == 42 else {})
+    monkeypatch.setattr(db, "connection", lambda: _FakeConn())
+    monkeypatch.setattr("modules.utils.resolve_file_path", lambda *_a, **_k: canonical)
+    monkeypatch.setattr("os.path.exists", lambda _p: True)
+
+    def _fake_compute_all(scores):
+        compute_input.update(scores)
+        return {
+            "technical": 0.5,
+            "aesthetic": 0.6,
+            "general": 0.55,
+            "rating": 3,
+            "label": "Blue",
+        }
+
+    monkeypatch.setattr(scoring.snorm, "compute_all", _fake_compute_all)
+    monkeypatch.setattr(
+        "modules.xmp.write_metadata_unified",
+        lambda **_kw: True,
+    )
+
+    success, message = runner.fix_image_metadata(canonical)
+    assert success is True
+    assert compute_input.get("koniq") == 0.77
+    assert compute_input.get("paq2piq") == 0.66
+    assert "spaq" in compute_input
+
+
 # ---------------------------------------------------------------------------
 # start_fix_db guard: already running
 # ---------------------------------------------------------------------------

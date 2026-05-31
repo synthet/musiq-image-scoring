@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { dispatchDbExplorerToggleTables } from '@/pages/DbPage'
 import { Sidebar } from './Sidebar'
+import { ConnectionStatus } from './ConnectionStatus'
 import { useUiStore } from '@/stores/uiStore'
 import { useWsStore } from '@/stores/wsStore'
 import { useWebSocket } from '@/hooks/useWebSocket'
@@ -27,7 +28,6 @@ export function Shell() {
   useWebSocket()
 
   const { sidebarOpen, toggleSidebar } = useUiStore()
-  const connected = useWsStore((s) => s.connected)
   const runsVersion = useWsStore((s) => s.runsVersion)
   const qc = useQueryClient()
   const { isEmbeddingMapEnabled, isDbExplorerEnabled } = useConfig()
@@ -65,21 +65,20 @@ export function Shell() {
   const queuedCount = runs?.filter((r) => r.status === 'queued' || r.status === 'pending').length ?? 0
 
   return (
-    <div className="flex h-full flex-col bg-[#1e1e1e]">
-      {/* Top nav */}
-      <header className="flex h-12 items-center gap-3 border-b border-[#3c3c3c] bg-[#252526] px-4 shrink-0">
+    <div className="flex h-full flex-col bg-[var(--color-bg-primary)]">
+      <header className="flex h-12 items-center gap-3 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-secondary)] px-4 shrink-0">
         <button
           type="button"
           onClick={handlePanelLeft}
           title={isDbPage ? 'Toggle table list' : 'Toggle folder sidebar'}
-          className="p-1 rounded text-[#9d9d9d] hover:text-[#cccccc] hover:bg-[#3c3c3c] transition-colors"
+          className="p-1 rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
         >
           <PanelLeft size={16} />
         </button>
 
         <div className="flex items-center gap-2 mr-4">
-          <Zap size={16} className="text-[#4fc1ff]" />
-          <span className="text-sm font-semibold text-[#cccccc]">Vexlum Scoring</span>
+          <Zap size={16} className="text-[var(--color-accent-bright)]" />
+          <span className="text-sm font-semibold text-[var(--color-text-primary)]">Vexlum Scoring</span>
         </div>
 
         <nav className="flex items-center gap-1">
@@ -99,17 +98,17 @@ export function Shell() {
 
         <div className="ml-auto flex items-center gap-3">
           {(driving || activeCount > 0 || queuedCount > 0) && (
-            <div className="flex items-center gap-2 text-xs text-[#9d9d9d]">
+            <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
               {driving && (
-                <NavLink to="/dashboard" className="font-medium text-[#4fc1ff] hover:underline">
+                <NavLink to="/dashboard" className="font-medium text-[var(--color-accent-bright)] hover:underline">
                   Driving
                 </NavLink>
               )}
               {(activeCount > 0 || queuedCount > 0) && (
-                <NavLink to="/runs" className="hover:text-[#4fc1ff] transition-colors">
+                <NavLink to="/runs" className="hover:text-[var(--color-accent-bright)] transition-colors">
                   {driving && <span className="mr-1">·</span>}
                   {activeCount > 0 && (
-                    <span className="text-[#4fc1ff] font-medium">{activeCount} active</span>
+                    <span className="text-[var(--color-accent-bright)] font-medium">{activeCount} active</span>
                   )}
                   {activeCount > 0 && queuedCount > 0 && <span className="mx-1">·</span>}
                   {queuedCount > 0 && <span>{queuedCount} queued</span>}
@@ -118,20 +117,10 @@ export function Shell() {
             </div>
           )}
 
-          <div className="flex items-center gap-1.5">
-            <div
-              className={clsx(
-                'w-2 h-2 rounded-full',
-                connected ? 'bg-[#89d185]' : 'bg-[#6d6d6d]',
-              )}
-              title={connected ? 'Live updates active' : 'Disconnected'}
-            />
-            <span className="text-xs text-[#6d6d6d]">{connected ? 'Live' : 'Offline'}</span>
-          </div>
+          <ConnectionStatus />
         </div>
       </header>
 
-      {/* Body */}
       <div className="flex flex-1 min-h-0">
         {sidebarOpen && !isDbPage && <Sidebar />}
         <main className={clsx('flex-1 min-h-0 min-w-0', isDbPage ? 'overflow-hidden' : 'overflow-y-auto')}>
@@ -161,8 +150,8 @@ function NavItem({
         clsx(
           'flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors',
           isActive
-            ? 'text-[#cccccc] bg-[#3c3c3c]'
-            : 'text-[#9d9d9d] hover:text-[#cccccc] hover:bg-[#3c3c3c]',
+            ? 'text-[var(--color-text-primary)] bg-[var(--color-bg-elevated)]'
+            : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]',
         )
       }
     >

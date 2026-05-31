@@ -6,6 +6,14 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-05-31] docs | OpenAPI contract across projects
+
+Added [technical/OPENAPI_CROSS_PROJECT.md](technical/OPENAPI_CROSS_PROJECT.md) (backend/gallery/UI ownership, sync workflow). Updated [gallery/API_TYPES.md](gallery/API_TYPES.md) to match `generate:api-types` → `api.generated.ts`. Gallery re-synced `api-contract/openapi.json` and `electron/api.generated.ts`.
+
+## [2026-05-31] database | Drop images.scores_json column (Phase 4)
+
+Alembic 0030; greenfield DDL and upsert/read paths gate on `_postgres_images_has_scores_json_column()`. Removed React legacy inspector section and API type fields.
+
 ## [2026-05-31] database | scores_json Phase 2–3 parity audit
 
 Gradio gallery reads IMS for model scores (blob only for legacy timing). Added `verify_scores_json_parity.py`, `get_scores_json_parity_report()`, IMS backfill from blob, MCP `scores_json_parity` in `get_database_stats`.

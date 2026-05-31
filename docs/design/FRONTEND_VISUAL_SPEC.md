@@ -3,7 +3,7 @@
 ## 1. Design Philosophy & Theme
 The frontend adopts a **VS Code Dark+ color system**, deliberately aligned with `electron-image-scoring`. This creates a cohesive, professional, developer-centric, or "pro-tool" aesthetic. The design relies heavily on modern dark mode principles with subtle contrast between surfaces, vibrant interactive accents, and clear semantic feedback colors.
 
-*(For the canonical palette and icon contract, see [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md))*
+*(For the canonical palette, icon contract, and UI patterns — live connection indicator, score formatting, images table, inspector — see the package doc [image-scoring-ui/docs/DESIGN_SYSTEM.md](https://github.com/synthet/image-scoring-ui/blob/main/docs/DESIGN_SYSTEM.md) and the local mirror [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md).)*
 
 ## 2. Technology Stack
 - **Framework:** React 19 + TypeScript + Vite

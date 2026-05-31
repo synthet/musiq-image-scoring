@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "mcp__imgscore-py-stdio__check_database_health",
+      "mcp__image-scoring-backend-stdio__check_database_health",
       "Read(//d/Projects/image-scoring-backend/modules/*.py)",
       "Read(<ELECTRON_IMAGE_SCORING_PATH>/**)",
       "Read(<ELECTRON_IMAGE_SCORING_PATH>/mcp-server/**)",
@@ -48,10 +48,9 @@
     ]
   },
   "enabledMcpjsonServers": [
-    "imgscore-py-stdio",
-    "imgscore-py-postgres"
+    "image-scoring-backend-stdio",
+    "image-scoring-backend-webui",
+    "image-scoring-backend-postgres"
   ],
-  "disabledMcpjsonServers": [
-    "imgscore-py-firebird"
-  ]
+  "disabledMcpjsonServers": []
 }

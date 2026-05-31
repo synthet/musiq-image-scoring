@@ -955,6 +955,146 @@ def _write_legacy_image_embedding_column() -> bool:
     return bool(config.get_config_value("database.write_legacy_image_embedding_column", True))
 
 
+_pg_images_scores_json_column_exists: bool | None = None
+
+
+def reset_postgres_scores_json_column_cache() -> None:
+    """Clear cached ``images.scores_json`` presence (e.g. after column drop migration)."""
+    global _pg_images_scores_json_column_exists
+    _pg_images_scores_json_column_exists = None
+
+
+def _postgres_images_has_scores_json_column() -> bool:
+    """True when ``images.scores_json`` still exists on Postgres."""
+    global _pg_images_scores_json_column_exists
+    if _get_db_engine() != "postgres":
+        return True
+    if _pg_images_scores_json_column_exists is not None:
+        return _pg_images_scores_json_column_exists
+    try:
+        row = db_postgres.execute_select_one(
+            """
+            SELECT 1 AS ok FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'images'
+              AND column_name = 'scores_json'
+            LIMIT 1
+            """
+        )
+        _pg_images_scores_json_column_exists = row is not None
+    except Exception:
+        _pg_images_scores_json_column_exists = False
+    return _pg_images_scores_json_column_exists
+
+
+def _write_legacy_scores_json_column() -> bool:
+    """Whether to persist the full scoring result blob into ``images.scores_json``.
+
+    For PostgreSQL, set ``database.write_legacy_scores_json_column`` to ``false``
+    in ``config.json`` once ``image_model_scores`` and aggregate columns are
+    authoritative (see ``docs/planning/database/SCORES_JSON_COLUMN_DEPRECATION.md``).
+
+    Returns ``False`` automatically after migration 0030 drops the column.
+
+    Firebird / legacy engines always return ``True`` (column remains the canonical
+    store there until migrated).
+    """
+    try:
+        eng = config.get_database_engine()
+    except Exception:
+        eng = "postgres"
+    if eng != "postgres":
+        return True
+    if not _postgres_images_has_scores_json_column():
+        return False
+    return bool(config.get_config_value("database.write_legacy_scores_json_column", True))
+
+
+def _scores_json_column_value(result) -> str | None:
+    """Value for ``images.scores_json`` on upsert, or ``None`` when dual-write is off."""
+    if not _write_legacy_scores_json_column():
+        return None
+    return json.dumps(result)
+
+
+def get_scores_json_parity_report() -> dict:
+    """Audit legacy ``images.scores_json`` vs ``image_model_scores`` (Postgres only)."""
+    if _get_db_engine() != "postgres":
+        return {}
+    if not _postgres_images_has_scores_json_column():
+        return {
+            "legacy_scores_json_rows": 0,
+            "column_only": 0,
+            "ims_only": 0,
+            "both_present": 0,
+            "legacy_column_dropped": True,
+        }
+    present = _scoring_outputs_present_sql("i")
+    conn = get_connector()
+    try:
+        legacy_row = conn.query_one(
+            "SELECT COUNT(*) AS c FROM images WHERE scores_json IS NOT NULL AND TRIM(scores_json) <> ''",
+            (),
+        )
+        column_only_row = conn.query_one(
+            f"SELECT COUNT(*) AS c FROM images i "
+            f"WHERE i.scores_json IS NOT NULL AND TRIM(i.scores_json) <> '' "
+            f"AND NOT {present}",
+            (),
+        )
+        ims_only_row = conn.query_one(
+            f"SELECT COUNT(*) AS c FROM images i "
+            f"WHERE (i.scores_json IS NULL OR TRIM(i.scores_json) = '') "
+            f"AND {present}",
+            (),
+        )
+        both_row = conn.query_one(
+            f"SELECT COUNT(*) AS c FROM images i "
+            f"WHERE i.scores_json IS NOT NULL AND TRIM(i.scores_json) <> '' "
+            f"AND {present}",
+            (),
+        )
+    except Exception as exc:
+        return {"error": str(exc)}
+    return {
+        "legacy_scores_json_rows": int((legacy_row or {}).get("c") or 0),
+        "column_only": int((column_only_row or {}).get("c") or 0),
+        "ims_only": int((ims_only_row or {}).get("c") or 0),
+        "both_present": int((both_row or {}).get("c") or 0),
+        "legacy_column_dropped": False,
+    }
+
+
+def backfill_image_model_scores_from_scores_json(limit: int = 0) -> int:
+    """Parse legacy ``scores_json`` into ``image_model_scores`` when IMS outputs are absent."""
+    if _get_db_engine() != "postgres":
+        return 0
+    present = _scoring_outputs_present_sql("i")
+    sql = (
+        f"SELECT i.id, i.scores_json, i.model_version FROM images i "
+        f"WHERE i.scores_json IS NOT NULL AND TRIM(i.scores_json) <> '' "
+        f"AND NOT {present} ORDER BY i.id"
+    )
+    if limit and int(limit) > 0:
+        sql += f" LIMIT {int(limit)}"
+    rows = get_connector().query(sql) or []
+    backfilled = 0
+    for row in rows:
+        raw = row.get("scores_json")
+        try:
+            parsed = json.loads(raw) if isinstance(raw, str) else raw
+        except (json.JSONDecodeError, TypeError, ValueError):
+            continue
+        if not isinstance(parsed, dict):
+            continue
+        image_id = row.get("id")
+        version = row.get("model_version") or "0.0.0"
+        if not _extract_image_model_score_rows(image_id, parsed, version):
+            continue
+        _write_image_model_scores(image_id, parsed, version)
+        backfilled += 1
+    return backfilled
+
+
 def _postgres_default_embedding_select_expr(image_alias="i", ie_alias="ie"):
     """SQL expression for the default-space embedding vector on Postgres."""
     if (
@@ -5827,7 +5967,7 @@ def reconcile_stale_running_image_phases(threshold_seconds: int | None = None, l
               AND status = 'running'
               AND phase_id = (SELECT id FROM pipeline_phases WHERE code = 'scoring')
               AND image_id IN (
-                  SELECT id FROM images WHERE score IS NOT NULL AND scores_json IS NOT NULL
+                  {_salvage_scoring_outputs_image_ids_subquery()}
               )
             """,
             (now, now, *chunk),
@@ -7185,7 +7325,7 @@ def reconcile_stale_running_phases_for_jobs(job_ids, error_message=None, in_flig
               AND status = 'running'
               AND phase_id = (SELECT id FROM pipeline_phases WHERE code = 'scoring')
               AND image_id IN (
-                  SELECT id FROM images WHERE score IS NOT NULL AND scores_json IS NOT NULL
+                  {_salvage_scoring_outputs_image_ids_subquery()}
               )
             """,
             salvage_params,
@@ -7628,7 +7768,14 @@ def sync_folder_to_db(folder_path, job_id=None):
 
             file_name = Path(image_path).name
 
-            upserts.append((job_id, str(image_path), file_name, score, json.dumps(data), utils.get_image_creation_time(str(image_path))))
+            upserts.append((
+                job_id,
+                str(image_path),
+                file_name,
+                score,
+                _scores_json_column_value(data),
+                utils.get_image_creation_time(str(image_path)),
+            ))
 
             meta_dict = data.get("metadata") if isinstance(data.get("metadata"), dict) else None
             image_uuid = generate_image_uuid(meta_dict)
@@ -7645,13 +7792,22 @@ def sync_folder_to_db(folder_path, job_id=None):
     if upserts:
         def _batch(tx):
             for row in upserts:
-                tx.execute(
-                    '''UPDATE OR INSERT INTO images
-                       (job_id, file_path, file_name, score, scores_json, created_at)
-                       VALUES (?, ?, ?, ?, ?, ?)
-                       MATCHING (file_path)''',
-                    row,
-                )
+                if _write_legacy_scores_json_column():
+                    tx.execute(
+                        '''UPDATE OR INSERT INTO images
+                           (job_id, file_path, file_name, score, scores_json, created_at)
+                           VALUES (?, ?, ?, ?, ?, ?)
+                           MATCHING (file_path)''',
+                        row,
+                    )
+                else:
+                    tx.execute(
+                        '''UPDATE OR INSERT INTO images
+                           (job_id, file_path, file_name, score, created_at)
+                           VALUES (?, ?, ?, ?, ?)
+                           MATCHING (file_path)''',
+                        (row[0], row[1], row[2], row[3], row[5]),
+                    )
             for image_uuid, image_path in uuid_updates:
                 tx.execute(
                     "UPDATE images SET image_uuid = ? WHERE file_path = ? AND (image_uuid IS NULL OR image_uuid = '')",
@@ -8059,6 +8215,8 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
         metadata = json.dumps(metadata)
 
     _legacy_kw_write = _write_legacy_keywords_column()
+    _legacy_sj_write = _write_legacy_scores_json_column()
+    _scores_json_blob = _scores_json_column_value(result)
 
     image_hash = result.get("image_hash", None)
     try:
@@ -8111,36 +8269,54 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
             if existing_path != image_path:
                 logger.info("Duplicate by UUID %s: updating existing id=%s path %s -> %s",
                             image_uuid_val[:16], existing_id, existing_path, image_path)
-                dup_params = (
+                dup_core = (
                     job_id, image_path, file_name, file_type,
                     score,
                     score_technical, score_aesthetic, score_general, model_version,
-                    rating, label, keywords, title, description, metadata, json.dumps(result),
+                    rating, label,
+                )
+                dup_meta = (title, description, metadata)
+                dup_tail = (
                     thumbnail_path, thumbnail_path_win, image_hash, hash_version, folder_id,
                     existing_id,
                 )
-                if _legacy_kw_write:
-                    get_connector().execute(
-                        '''UPDATE images SET
+                if _legacy_kw_write and _legacy_sj_write:
+                    dup_params = dup_core + (keywords,) + dup_meta + (_scores_json_blob,) + dup_tail
+                    dup_sql = '''UPDATE images SET
                            job_id=?, file_path=?, file_name=?, file_type=?,
                            score=?,
                            score_technical=?, score_aesthetic=?, score_general=?, model_version=?,
                            rating=?, label=?, keywords=?, title=?, description=?, metadata=?, scores_json=?,
                            thumbnail_path=?, thumbnail_path_win=?, image_hash=?, hash_version=?, folder_id=?
-                           WHERE id=?''',
-                        dup_params,
-                    )
-                else:
-                    get_connector().execute(
-                        '''UPDATE images SET
+                           WHERE id=?'''
+                elif _legacy_kw_write:
+                    dup_params = dup_core + (keywords,) + dup_meta + dup_tail
+                    dup_sql = '''UPDATE images SET
+                           job_id=?, file_path=?, file_name=?, file_type=?,
+                           score=?,
+                           score_technical=?, score_aesthetic=?, score_general=?, model_version=?,
+                           rating=?, label=?, keywords=?, title=?, description=?, metadata=?,
+                           thumbnail_path=?, thumbnail_path_win=?, image_hash=?, hash_version=?, folder_id=?
+                           WHERE id=?'''
+                elif _legacy_sj_write:
+                    dup_params = dup_core + dup_meta + (_scores_json_blob,) + dup_tail
+                    dup_sql = '''UPDATE images SET
                            job_id=?, file_path=?, file_name=?, file_type=?,
                            score=?,
                            score_technical=?, score_aesthetic=?, score_general=?, model_version=?,
                            rating=?, label=?, title=?, description=?, metadata=?, scores_json=?,
                            thumbnail_path=?, thumbnail_path_win=?, image_hash=?, hash_version=?, folder_id=?
-                           WHERE id=?''',
-                        dup_params[:11] + dup_params[12:],
-                    )
+                           WHERE id=?'''
+                else:
+                    dup_params = dup_core + dup_meta + dup_tail
+                    dup_sql = '''UPDATE images SET
+                           job_id=?, file_path=?, file_name=?, file_type=?,
+                           score=?,
+                           score_technical=?, score_aesthetic=?, score_general=?, model_version=?,
+                           rating=?, label=?, title=?, description=?, metadata=?,
+                           thumbnail_path=?, thumbnail_path_win=?, image_hash=?, hash_version=?, folder_id=?
+                           WHERE id=?'''
+                get_connector().execute(dup_sql, dup_params)
                 _sync_image_keywords(existing_id, keywords)
                 _write_image_model_scores(existing_id, result, model_version)
                 _write_image_technical_failures(existing_id, result)
@@ -8165,27 +8341,28 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                 })
                 return existing_id
 
-    _upsert_params = (
+    _upsert_head = (
         job_id, image_path, file_name, file_type,
         score,
         score_technical, score_aesthetic, score_general, model_version,
         rating, label,
-        keywords, title, description, metadata, json.dumps(result),
+    )
+    _upsert_meta = (title, description, metadata)
+    _upsert_tail = (
         thumbnail_path, thumbnail_path_win,
         image_hash, hash_version, folder_id, utils.get_image_creation_time(image_path)
     )
-    _upsert_params_no_legacy_kw = (
-        job_id, image_path, file_name, file_type,
-        score,
-        score_technical, score_aesthetic, score_general, model_version,
-        rating, label,
-        title, description, metadata, json.dumps(result),
-        thumbnail_path, thumbnail_path_win,
-        image_hash, hash_version, folder_id, utils.get_image_creation_time(image_path)
-    )
+    if _legacy_kw_write and _legacy_sj_write:
+        _upsert_params = _upsert_head + (keywords,) + _upsert_meta + (_scores_json_blob,) + _upsert_tail
+    elif _legacy_kw_write:
+        _upsert_params = _upsert_head + (keywords,) + _upsert_meta + _upsert_tail
+    elif _legacy_sj_write:
+        _upsert_params = _upsert_head + _upsert_meta + (_scores_json_blob,) + _upsert_tail
+    else:
+        _upsert_params = _upsert_head + _upsert_meta + _upsert_tail
 
     def _tx(tx):
-        if _legacy_kw_write:
+        if _legacy_kw_write and _legacy_sj_write:
             ret = tx.execute_returning(
                 '''UPDATE OR INSERT INTO images
                       (job_id, file_path, file_name, file_type,
@@ -8199,7 +8376,21 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                       MATCHING (file_path) RETURNING id''',
                 _upsert_params,
             )
-        else:
+        elif _legacy_kw_write:
+            ret = tx.execute_returning(
+                '''UPDATE OR INSERT INTO images
+                      (job_id, file_path, file_name, file_type,
+                       score,
+                       score_technical, score_aesthetic, score_general, model_version,
+                       rating, label,
+                       keywords, title, description, metadata,
+                       thumbnail_path, thumbnail_path_win,
+                       image_hash, hash_version, folder_id, created_at)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      MATCHING (file_path) RETURNING id''',
+                _upsert_params,
+            )
+        elif _legacy_sj_write:
             ret = tx.execute_returning(
                 '''UPDATE OR INSERT INTO images
                       (job_id, file_path, file_name, file_type,
@@ -8211,7 +8402,21 @@ def upsert_image(job_id, result, *, invalidate_agg=True, dirty_folder_ids=None):
                        image_hash, hash_version, folder_id, created_at)
                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                       MATCHING (file_path) RETURNING id''',
-                _upsert_params_no_legacy_kw,
+                _upsert_params,
+            )
+        else:
+            ret = tx.execute_returning(
+                '''UPDATE OR INSERT INTO images
+                      (job_id, file_path, file_name, file_type,
+                       score,
+                       score_technical, score_aesthetic, score_general, model_version,
+                       rating, label,
+                       title, description, metadata,
+                       thumbnail_path, thumbnail_path_win,
+                       image_hash, hash_version, folder_id, created_at)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      MATCHING (file_path) RETURNING id''',
+                _upsert_params,
             )
         img_id = ret[0]["id"] if ret else None
         if img_id:
@@ -8364,11 +8569,16 @@ def get_image_details(file_path):
             if _postgres_images_has_image_embedding_column()
             else ""
         )
+        scores_json_col = (
+            "i.scores_json,"
+            if _postgres_images_has_scores_json_column()
+            else ""
+        )
         sql = f"""
             SELECT
                 i.id, i.file_path, i.file_name, i.folder_id, i.stack_id,
                 {embedding_col} i.rating, i.label, i.title, i.description,
-                i.metadata, i.scores_json, i.created_at, i.updated_at,
+                i.metadata, {scores_json_col} i.created_at, i.updated_at,
                 i.thumbnail_path, i.thumbnail_path_win, i.score_general, i.burst_uuid,
                 i.image_hash, i.hash_version,
                 COALESCE(
@@ -8984,6 +9194,34 @@ def update_image_pick_status(image_id: int, pick_status: int) -> bool:
     except Exception as e:
         logging.error(f"Failed to update pick_status for image {image_id}: {e}")
         return False
+
+
+def _scoring_outputs_present_sql(table_alias: str = "i") -> str:
+    """SQL fragment: image has persisted scoring outputs (inverse of incomplete check)."""
+    ialias = (table_alias or "i").strip()
+    if _get_db_engine() != "postgres":
+        prefix = f"{ialias}." if ialias else ""
+        models_any_positive = " OR ".join(
+            f"({prefix}score_{m} IS NOT NULL AND {prefix}score_{m} > 0)"
+            for m in ("spaq", "ava", "liqe", "paq2piq", "koniq")
+        )
+        return f"({models_any_positive})"
+    image_ref = f"{ialias}.id" if ialias else "id"
+    return (
+        "(EXISTS ("
+        "SELECT 1 FROM image_model_scores ims WHERE "
+        f"ims.image_id = {image_ref} "
+        "AND ims.model_name IN ('spaq', 'ava', 'liqe', 'paq2piq', 'koniq') "
+        "AND ims.status = 'success' "
+        "AND ims.is_shadow = FALSE "
+        "AND COALESCE(ims.normalized, ims.raw_score) > 0"
+        "))"
+    )
+
+
+def _salvage_scoring_outputs_image_ids_subquery() -> str:
+    """Subquery listing image ids that already have persisted scoring outputs."""
+    return f"SELECT i.id FROM images i WHERE {_scoring_outputs_present_sql('i')}"
 
 
 def _incomplete_images_where_sql(table_alias: str = "") -> str:

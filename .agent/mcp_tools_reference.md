@@ -4,10 +4,9 @@ This document tracks the tools registered in [`modules/mcp_server.py`](../module
 
 ## Connection modes
 
-- **`imgscore-py-stdio`**: **Python workspace** — stdio; `cwd` / `PYTHONPATH` = `${workspaceFolder}` (this repo).
-- **`imgscore-el-stdio`**: **Electron workspace** — stdio; `cwd` / `PYTHONPATH` = path to sibling **image-scoring** checkout.
-- **`imgscore-py-sse`** / **`imgscore-el-sse`**: SSE to WebUI (same URL; pick the key for your workspace). Default `http://127.0.0.1:7860/mcp/sse` (confirm with `GET /mcp-status` → `expected_sse_url`).
-- **`execute_code`**: requires SSE **and** `ENABLE_MCP_EXECUTE_CODE=1` on the WebUI process.
+- **`image-scoring-backend-stdio`**, **`image-scoring-backend-webui`**, **`image-scoring-backend-postgres`**: backend [`.cursor/mcp.json`](../.cursor/mcp.json)
+- **`image-scoring-gallery-stdio`**, **`image-scoring-gallery-live`**: gallery `.cursor/mcp.json`
+- **`execute_code`**: requires **`image-scoring-backend-webui`** and `ENABLE_MCP_EXECUTE_CODE=1` on the WebUI process.
 
 ## Postgres query patterns (operators)
 

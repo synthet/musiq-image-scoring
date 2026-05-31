@@ -555,7 +555,6 @@ def _init_db_transaction():
                 metadata            TEXT,
                 thumbnail_path      VARCHAR(4000),
                 thumbnail_path_win  VARCHAR(4000),
-                scores_json         TEXT,
                 model_version       VARCHAR(50),
                 rating              SMALLINT,
                 label               VARCHAR(50),

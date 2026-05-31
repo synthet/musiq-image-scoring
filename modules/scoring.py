@@ -648,14 +648,28 @@ class ScoringRunner:
             
             # Helper to retrieve score from various places
             scores = {}
-            # Try DB columns first
-            for m in ['spaq', 'ava', 'liqe']:
+            for m in ['spaq', 'ava', 'liqe', 'koniq', 'paq2piq']:
                 key = f'score_{m}'
                 val = details.get(key)
                 if val is not None and val > 0:
                     scores[m] = float(val)
-            
-            # Fallback to JSON if missing in cols
+
+            image_id = details.get('id')
+            if image_id and len(scores) < 5:
+                try:
+                    ims = db.get_image_model_scores(image_id, include_shadow=False)
+                    for m, info in ims.items():
+                        if m in scores or info.get('status') != 'success':
+                            continue
+                        val = info.get('normalized')
+                        if val is None:
+                            val = info.get('raw_score')
+                        if val is not None and float(val) > 0:
+                            scores[m] = float(val)
+                except Exception:
+                    pass
+
+            # Legacy fallback when dual-write was on and IMS is empty
             if len(scores) < 5:
                 try:
                     scores_json = details.get('scores_json')
