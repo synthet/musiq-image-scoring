@@ -155,6 +155,20 @@ leaf for audit (`level2_semantic_space` is retained but written NULL).
 - Unit: `tests/test_two_level_culling.py`, extend `tests/test_sub_clustering.py`.
 - Postgres E2E: sub_stack persistence, `sum(picks) <= N` per stack.
 
+## Backfill existing stacks
+
+New runs write sub-stacks automatically when `enabled=true`, but stacks created
+before that flip have none. To recompute sub-stacks + picks for the existing
+library **without** re-clustering, run `scripts/backfill_sub_stacks.py` (idempotent,
+clears+rebuilds per stack, policy `2.0`, manual-override guard on). It does not
+need `enabled=true`. Full runbook + verification SQL:
+[Step 8 in CULLING_EMBEDDING_BACKFILL.md](../../../guides/CULLING_EMBEDDING_BACKFILL.md#step-8--backfill-sub_stacks-for-existing-stacks).
+
+```bash
+python -m scripts.backfill_sub_stacks --dry-run --limit 10   # smoke
+python -u -m scripts.backfill_sub_stacks                     # whole library
+```
+
 ## Gallery (cross-repo)
 
 Backend is additive. Gallery should read `sub_stack_id` and group under root stacks — see sibling `image-scoring-gallery` `electron/db.ts`.

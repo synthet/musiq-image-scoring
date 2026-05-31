@@ -77,7 +77,9 @@ def test_selection_service_with_diversity_mocked():
         diversity_enabled=True,
         diversity_lambda=0.5,
         pick_fraction=0.5,
-        reject_fraction=0.0
+        reject_fraction=0.0,
+        two_level_enabled=False,
+        sub_cluster_distance_threshold=None,
     )
     
     import numpy as np

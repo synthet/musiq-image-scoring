@@ -10,8 +10,11 @@ pytest.importorskip("sklearn")
 from modules.selection_policy import classify_best_m
 from modules.two_level_culling import (
     SubStackSlotInfo,
+    TwoLevelConfig,
+    TwoLevelLevelConfig,
     allocate_picks_uniform,
     compute_leaf_substacks,
+    process_stack_two_level,
 )
 
 
@@ -87,3 +90,52 @@ def test_compute_leaf_substacks_single_image():
     images = [{"id": 1}]
     out = compute_leaf_substacks(images, {}, 0.05)
     assert len(out) == 1 and out[0][0]["id"] == 1
+
+
+def _tl_cfg(threshold=0.05):
+    return TwoLevelConfig(
+        picks_per_substack=1,
+        max_picks_per_stack=20,
+        level1=TwoLevelLevelConfig("mobilenet_v2_imagenet_gap", 0.15),
+        level2=TwoLevelLevelConfig("openclip_l14_laion2b_image", threshold),
+        diversity_enabled=False,
+        score_field="score_general",
+    )
+
+
+def _sort_key(img):
+    return (-float(img.get("score_general") or 0), int(img.get("id") or 0))
+
+
+def test_process_stack_two_level_shapes_and_pick_cap():
+    # Two visually distinct leaves; picks_per_substack=1 -> one pick per leaf.
+    images = [{"id": i, "score_general": 0.5 + i / 100.0, "file_path": f"/p/{i}.nef"} for i in range(1, 7)]
+    emb = {
+        1: _emb([1.0, 0.0]), 2: _emb([0.99, 0.01]), 3: _emb([0.98, 0.02]),
+        4: _emb([0.0, 1.0]), 5: _emb([0.01, 0.99]), 6: _emb([0.02, 0.98]),
+    }
+    tl_cfg = _tl_cfg()
+    rows, decisions, leaf_count = process_stack_two_level(42, images, emb, tl_cfg, _sort_key)
+
+    assert leaf_count == 2
+    assert len(rows) == 2
+    for r in rows:
+        assert r["stack_id"] == 42
+        assert r["level2_visual_space"] == "openclip_l14_laion2b_image"
+        assert r["level2_semantic_space"] is None
+        assert r["policy_version"] == "2.0"
+        assert r["best_image_id"] in {img["id"] for img in images}
+
+    picks = sum(1 for _, d, _ in decisions if d == "pick")
+    assert picks == 2  # one per leaf
+    assert picks <= tl_cfg.max_picks_per_stack
+    assert {img_id for img_id, _, _ in decisions} == {img["id"] for img in images}
+
+
+def test_process_stack_two_level_missing_embeddings_single_leaf():
+    # No vectors -> single fallback leaf -> capped picks, still well-formed.
+    images = [{"id": i, "score_general": float(i), "file_path": ""} for i in range(1, 5)]
+    rows, decisions, leaf_count = process_stack_two_level(7, images, {}, _tl_cfg(), _sort_key)
+    assert leaf_count == 1
+    assert len(rows) == 1
+    assert sum(1 for _, d, _ in decisions if d == "pick") <= _tl_cfg().max_picks_per_stack

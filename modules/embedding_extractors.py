@@ -263,7 +263,13 @@ class CullingEmbedder:
             out.append(feats.float().cpu().numpy())
         return np.concatenate(out, axis=0)
 
-    def embed_paths(self, paths: Sequence[str], batch_size: int = 32, load_workers: int = 8):
+    def embed_paths(
+        self,
+        paths: Sequence[str],
+        batch_size: int = 32,
+        load_workers: int = 8,
+        max_load_px: int = 1024,
+    ):
         """Load images from ``paths`` and embed. Returns ``(vectors, ok_paths)``.
 
         Uses :func:`modules.thumbnails.open_image_for_ml` so RAW files (NEF/CR2/…)
@@ -272,14 +278,25 @@ class CullingEmbedder:
         across ``load_workers`` threads — decode/subprocess work releases the GIL.
         Paths that fail to open are skipped (logged at WARNING); the returned
         vectors align row-for-row with ``ok_paths``.
+
+        Decoded images are downscaled so the longest side is ``max_load_px`` before
+        being held in memory. For NEF the "thumbnail" is often a full-resolution
+        embedded preview (~70 MB decoded); a chunk of 128 such images would exhaust
+        host RAM (OOM). All current culling towers preprocess to ≤ 518 px, so a
+        1024-px cap is loss-free for inference while cutting per-image memory ~30×.
         """
         from concurrent.futures import ThreadPoolExecutor
 
         from modules.thumbnails import open_image_for_ml
 
+        cap = max(0, int(max_load_px))
+
         def _load(p):
             try:
-                return p, open_image_for_ml(p).convert("RGB")
+                im = open_image_for_ml(p).convert("RGB")
+                if cap and (im.width > cap or im.height > cap):
+                    im.thumbnail((cap, cap))  # in-place, preserves aspect, shrink-only
+                return p, im
             except Exception as exc:  # noqa: BLE001 — skip unreadable file
                 logger.warning("embed_paths: cannot open %s: %s", p, exc)
                 return p, None

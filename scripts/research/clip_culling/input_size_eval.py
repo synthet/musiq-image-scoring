@@ -2,12 +2,14 @@
 """Evaluate input-size NPZ caches: grouping ARI, pick/reject gap, pair margin, IQA mishot.
 
     python -m scripts.research.clip_culling.input_size_eval --all
+    python -m scripts.research.clip_culling.input_size_eval --tagging --caption
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+import re
 from pathlib import Path
 
 import numpy as np
@@ -50,6 +52,29 @@ def load_npz_scores(path: Path) -> dict[int, float]:
     ids = z["image_ids"]
     sc = z["embeddings"].reshape(-1)
     return {int(ids[i]): float(sc[i]) for i in range(len(ids))}
+
+
+def load_npz_captions(path: Path) -> dict[int, str]:
+    if not path.exists():
+        return {}
+    z = np.load(path, allow_pickle=True)
+    out: dict[int, str] = {}
+    for i, iid in enumerate(z["image_ids"]):
+        cap = z["captions"][i]
+        out[int(iid)] = str(cap) if cap is not None else ""
+    return out
+
+
+def _tokenize_caption(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", (text or "").lower()))
+
+
+def _jaccard_sets(a: set, b: set) -> float:
+    if not a and not b:
+        return 1.0
+    if not (a | b):
+        return 0.0
+    return len(a & b) / len(a | b)
 
 
 def pair_margin(emb_map: dict[int, np.ndarray], burst_gt: dict[int, int], max_pairs: int = 5000) -> dict:
@@ -225,6 +250,84 @@ def eval_iqa_rating_corr(scores: dict[int, float], meta: dict[int, dict]) -> dic
     return {"spearman": round(float(sp), 4), "pearson": round(float(pe), 4), "n": len(a)}
 
 
+def eval_iqa_burst_spread(
+    scores: dict[int, float],
+    burst_gt: dict[int, int],
+    min_burst_size: int = 3,
+) -> dict:
+    """Mean within-burst std dev of scores (higher → better pick discrimination)."""
+    by_burst: dict[int, list[float]] = {}
+    for iid, sc in scores.items():
+        if iid not in burst_gt or not np.isfinite(sc):
+            continue
+        by_burst.setdefault(burst_gt[iid], []).append(float(sc))
+    stds = [float(np.std(v)) for v in by_burst.values() if len(v) >= min_burst_size]
+    return {
+        "mean_within_burst_std": round(float(np.mean(stds)), 4) if stds else None,
+        "n_bursts": len(stds),
+    }
+
+
+def eval_iqa_production_stability(
+    scores: dict[int, float],
+    model_key: str,
+    model_scores: dict[int, dict[str, float]],
+) -> dict:
+    """Spearman between swept score and production normalized score for same model."""
+    prod_key = {
+        "liqe": "liqe",
+        "topiq": "topiq",
+        "arniqa": "arniqa",
+        "spaq": "spaq",
+        "ava": "ava",
+        "koniq": "koniq",
+    }.get(model_key, model_key)
+    a, b = [], []
+    for iid, sc in scores.items():
+        prod = (model_scores.get(iid) or {}).get(prod_key)
+        if prod is not None and np.isfinite(sc):
+            a.append(sc)
+            b.append(float(prod))
+    if len(a) < 5:
+        return {"spearman_vs_production": None, "n": len(a)}
+    sp = spearmanr(a, b).correlation
+    return {"spearman_vs_production": round(float(sp), 4), "n": len(a)}
+
+
+def eval_caption_run(
+    captions: dict[int, str],
+    burst_gt: dict[int, int],
+    db_keywords: dict[int, set[str]],
+) -> dict:
+    """Caption diversity within bursts and overlap with DB auto keywords."""
+    by_burst: dict[int, list[int]] = {}
+    for iid in captions:
+        if iid in burst_gt:
+            by_burst.setdefault(burst_gt[iid], []).append(iid)
+
+    uniq_fracs = []
+    for members in by_burst.values():
+        if len(members) < 2:
+            continue
+        caps = [captions[i] for i in members]
+        uniq_fracs.append(len(set(caps)) / len(caps))
+    burst_uniqueness = round(float(np.mean(uniq_fracs)), 4) if uniq_fracs else None
+
+    overlaps = []
+    lengths = []
+    for iid, cap in captions.items():
+        lengths.append(len(cap.split()))
+        kw = db_keywords.get(iid, set())
+        if kw:
+            overlaps.append(_jaccard_sets(_tokenize_caption(cap), {k.lower() for k in kw}))
+    return {
+        "burst_caption_uniqueness": burst_uniqueness,
+        "mean_keyword_token_jaccard": round(float(np.mean(overlaps)), 4) if overlaps else None,
+        "mean_caption_words": round(float(np.mean(lengths)), 2) if lengths else None,
+        "n_captions": len(captions),
+    }
+
+
 def discover_npz_runs(track: str = "embedding") -> list[tuple[str, str, int, Path]]:
     """List (model_key, source, long_edge, path) from NPZ dir."""
     d = common.INPUT_SIZE_NPZ_DIR
@@ -340,6 +443,15 @@ def run_embedding_eval() -> dict:
 
 def run_iqa_eval() -> dict:
     meta = data.load_meta()
+    model_scores = data.load_model_scores()
+    capture = data.capture_times()
+    by_folder = data.images_by_folder()
+    all_burst_gt: dict[int, int] = {}
+    for _fid, img_ids in by_folder.items():
+        ids = [i for i in img_ids if i in capture]
+        if len(ids) >= 2:
+            all_burst_gt.update(_exif_burst_groups(ids, capture))
+
     results = []
     for model_key, source, long_edge, path in discover_npz_runs("iqa"):
         scores = load_npz_scores(path)
@@ -352,17 +464,51 @@ def run_iqa_eval() -> dict:
             "n_scores": len(scores),
             "mishot": eval_iqa_mishot(scores, meta),
             "rating_corr": eval_iqa_rating_corr(scores, meta),
+            "burst_spread": eval_iqa_burst_spread(scores, all_burst_gt),
+            "production_stability": eval_iqa_production_stability(scores, model_key, model_scores),
         })
     return {"runs": results}
 
 
+def run_caption_eval() -> dict:
+    capture = data.capture_times()
+    by_folder = data.images_by_folder()
+    all_burst_gt: dict[int, int] = {}
+    for _fid, img_ids in by_folder.items():
+        ids = [i for i in img_ids if i in capture]
+        if len(ids) >= 2:
+            all_burst_gt.update(_exif_burst_groups(ids, capture))
+    db_kw = data.load_keywords(source="auto")
+
+    results = []
+    for model_key, source, long_edge, path in discover_npz_runs("caption"):
+        caps = load_npz_captions(path)
+        if not caps:
+            continue
+        results.append({
+            "model": model_key,
+            "source": source,
+            "long_edge": long_edge,
+            "metrics": eval_caption_run(caps, all_burst_gt, db_kw),
+        })
+    return {"runs": results}
+
+
+def run_tagging_eval() -> dict:
+    from scripts.research.clip_culling.input_size_tagging_eval import run_tagging_eval as _tag_eval
+
+    return _tag_eval()
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--all", action="store_true", help="embedding + iqa eval")
+    ap.add_argument("--all", action="store_true", help="embedding + iqa + tagging + caption eval")
     ap.add_argument("--embedding", action="store_true")
     ap.add_argument("--iqa", action="store_true")
+    ap.add_argument("--tagging", action="store_true")
+    ap.add_argument("--caption", action="store_true")
     args = ap.parse_args()
-    if not (args.all or args.embedding or args.iqa):
+    if not (args.all or args.embedding or args.iqa or args.tagging or args.caption):
         args.all = True
 
     common.assert_e2e()
@@ -371,8 +517,18 @@ def main():
         payload["embedding"] = run_embedding_eval()
     if args.all or args.iqa:
         payload["iqa"] = run_iqa_eval()
+    if args.all or args.tagging:
+        payload["tagging"] = run_tagging_eval()
+    if args.all or args.caption:
+        payload["caption"] = run_caption_eval()
     common.write_input_size_json("eval_summary.json", payload)
-    logger.info("Wrote eval_summary.json (%d embedding runs)", len(payload.get("embedding", {}).get("runs", [])))
+    logger.info(
+        "Wrote eval_summary.json (%d embedding, %d iqa, %d tagging, %d caption runs)",
+        len(payload.get("embedding", {}).get("runs", [])),
+        len(payload.get("iqa", {}).get("runs", [])),
+        len(payload.get("tagging", {}).get("runs", [])),
+        len(payload.get("caption", {}).get("runs", [])),
+    )
 
 
 if __name__ == "__main__":

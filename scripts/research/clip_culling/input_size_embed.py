@@ -6,6 +6,8 @@
         --long-edges 128,224,384,512,768 --source thumb,file --models all
     python -m scripts.research.clip_culling.input_size_embed --track iqa \\
         --long-edges 224,384,512,768 --source thumb --subset 500 --models liqe,topiq,arniqa
+    python -m scripts.research.clip_culling.input_size_embed --track caption \\
+        --long-edges 224,384,512,768 --source thumb,file
 """
 
 from __future__ import annotations
@@ -31,6 +33,18 @@ EMBEDDING_MODELS = {
 }
 
 IQA_MODELS = ("liqe", "topiq", "arniqa", "spaq", "ava", "koniq")
+
+# Per-model long-edge grids (Phase 2).
+IQA_LONG_EDGES_BY_MODEL: dict[str, tuple[int, ...]] = {
+    "liqe": common.IQA_LONG_EDGES_STANDARD,
+    "topiq": common.IQA_LONG_EDGES_STANDARD + common.IQA_LONG_EDGES_HIGH,
+    "arniqa": common.IQA_LONG_EDGES_STANDARD + common.IQA_LONG_EDGES_HIGH,
+    "spaq": common.MUSIQ_LONG_EDGES,
+    "ava": common.MUSIQ_LONG_EDGES,
+    "koniq": common.MUSIQ_LONG_EDGES,
+}
+
+BLIP_MODEL = "Salesforce/blip-image-captioning-base"
 
 
 def _seeded_rows(folders: list[int]) -> list[dict]:
@@ -78,6 +92,17 @@ def _save_npz(path: Path, ids: list[int], vectors: np.ndarray, meta: dict) -> No
         meta=np.array([meta], dtype=object),
     )
     logger.info("Wrote %s (%d vectors)", path, len(ids))
+
+
+def _save_caption_npz(path: Path, ids: list[int], captions: list[str], meta: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        path,
+        image_ids=np.asarray(ids, dtype=np.int32),
+        captions=np.asarray(captions, dtype=object),
+        meta=np.array([meta], dtype=object),
+    )
+    logger.info("Wrote %s (%d captions)", path, len(ids))
 
 
 class _MobileNetEmbedder:
@@ -178,6 +203,10 @@ def run_embedding_sweep(
                     logger.info("Skip existing %s", path.name)
                     stats.append({"model": model_key, "source": source, "long_edge": long_edge, "skipped": True})
                     continue
+                logger.info(
+                    "[%s/%s long_edge=%d] embedding %d images (chunk=%d)",
+                    model_key, source, long_edge, len(rows), chunk,
+                )
                 all_ids: list[int] = []
                 all_emb: list[np.ndarray] = []
                 for i in range(0, len(rows), chunk):
@@ -188,6 +217,11 @@ def run_embedding_sweep(
                     emb = embed_fn(pils)
                     all_ids.extend(ids)
                     all_emb.append(emb)
+                    if (i // chunk) % 10 == 0 or i + chunk >= len(rows):
+                        logger.info(
+                            "[%s/%s le=%d] progress %d/%d images",
+                            model_key, source, long_edge, len(all_ids), len(rows),
+                        )
                 if not all_emb:
                     logger.warning("No embeddings for %s %s %d", model_key, source, long_edge)
                     continue
@@ -269,6 +303,14 @@ def _get_iqa_scorer(model_name: str):
     raise ValueError(model_name)
 
 
+def _long_edges_for_iqa_model(model_name: str, cli_edges: list[int]) -> list[int]:
+    """Merge CLI long-edges with model-specific defaults when CLI uses 'all' grid."""
+    model_edges = IQA_LONG_EDGES_BY_MODEL.get(model_name)
+    if not model_edges:
+        return cli_edges
+    return sorted(set(cli_edges) | set(model_edges))
+
+
 def run_iqa_sweep(
     models: list[str],
     long_edges: list[int],
@@ -288,7 +330,8 @@ def run_iqa_sweep(
             logger.warning("IQA scorer %s unavailable: %s", model_name, e)
             stats.append({"model": model_name, "error": str(e)})
             continue
-        for long_edge in long_edges:
+        model_edges = _long_edges_for_iqa_model(model_name, long_edges)
+        for long_edge in model_edges:
             path = common.npz_cache_path(model_name, source, long_edge, track="iqa")
             if path.exists() and not force:
                 stats.append({"model": model_name, "long_edge": long_edge, "skipped": True})
@@ -318,9 +361,94 @@ def run_iqa_sweep(
     return stats
 
 
+class _BlipCaptioner:
+    """BLIP base captioning at resized PIL inputs (matches tagging CaptionGenerator)."""
+
+    def __init__(self):
+        self.model = None
+        self.processor = None
+        self.device = "cuda" if __import__("torch").cuda.is_available() else "cpu"
+
+    def load(self) -> None:
+        if self.model is not None:
+            return
+        from transformers import BlipForConditionalGeneration, BlipProcessor
+
+        self.processor = BlipProcessor.from_pretrained(BLIP_MODEL)
+        self.model = BlipForConditionalGeneration.from_pretrained(BLIP_MODEL).to(self.device).eval()
+
+    def unload(self) -> None:
+        import torch
+
+        self.model = None
+        self.processor = None
+        if self.device == "cuda":
+            torch.cuda.empty_cache()
+
+    def caption_batch(self, pils: list, max_new_tokens: int = 30) -> list[str]:
+        import torch
+
+        self.load()
+        inputs = self.processor(images=pils, return_tensors="pt").to(self.device)
+        with torch.no_grad():
+            out = self.model.generate(**inputs, max_new_tokens=max_new_tokens)
+        return self.processor.batch_decode(out, skip_special_tokens=True)
+
+
+def run_caption_sweep(
+    long_edges: list[int],
+    sources: list[str],
+    folders: list[int],
+    chunk: int = 32,
+    subset: int = 0,
+    force: bool = False,
+) -> list[dict]:
+    rows = _seeded_rows(folders)
+    if subset > 0:
+        rows = _subset_rows(rows, subset)
+    captioner = _BlipCaptioner()
+    stats = []
+    model_key = "blip"
+    try:
+        for source in sources:
+            for long_edge in long_edges:
+                path = common.npz_cache_path(model_key, source, long_edge, track="caption")
+                if path.exists() and not force:
+                    stats.append({"model": model_key, "source": source, "long_edge": long_edge, "skipped": True})
+                    continue
+                all_ids: list[int] = []
+                all_caps: list[str] = []
+                for i in range(0, len(rows), chunk):
+                    batch = rows[i : i + chunk]
+                    pils, ids = _load_batch_pils(batch, source, long_edge)
+                    if not pils:
+                        continue
+                    try:
+                        caps = captioner.caption_batch(pils)
+                    except Exception as e:  # noqa: BLE001
+                        logger.warning("BLIP batch failed: %s", e)
+                        continue
+                    all_ids.extend(ids)
+                    all_caps.extend(caps)
+                    if (i // chunk) % 10 == 0:
+                        logger.info("[blip/%s le=%d] progress %d/%d", source, long_edge, len(all_ids), len(rows))
+                if not all_ids:
+                    continue
+                _save_caption_npz(
+                    path,
+                    all_ids,
+                    all_caps,
+                    {"model": model_key, "source": source, "long_edge": long_edge, "track": "caption", "n": len(all_ids)},
+                )
+                stats.append({"model": model_key, "source": source, "long_edge": long_edge, "n": len(all_ids), "path": str(path)})
+    finally:
+        captioner.unload()
+    return stats
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--track", choices=("embedding", "iqa", "native"), default="embedding")
+    ap.add_argument("--track", choices=("embedding", "iqa", "caption", "native"), default="embedding")
     ap.add_argument("--models", default="all", help="comma list or 'all'")
     ap.add_argument("--long-edges", default=",".join(str(x) for x in common.DEFAULT_LONG_EDGES))
     ap.add_argument("--source", default="thumb,file", help="thumb, file, or thumb,file")
@@ -354,6 +482,13 @@ def main():
         out = run_embedding_sweep(
             models, long_edges, sources, folders,
             chunk=args.chunk, preprocess_size=preprocess_size, force=args.force,
+        )
+    elif args.track == "caption":
+        sources = [s.strip() for s in args.source.split(",") if s.strip()]
+        if not long_edges:
+            long_edges = list(common.CAPTION_LONG_EDGES)
+        out = run_caption_sweep(
+            long_edges, sources, folders, chunk=args.chunk, subset=args.subset, force=args.force,
         )
     else:
         if args.models == "all":

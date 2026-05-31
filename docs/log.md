@@ -6,6 +6,42 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-05-31] database | scores_json Phase 2–3 parity audit
+
+Gradio gallery reads IMS for model scores (blob only for legacy timing). Added `verify_scores_json_parity.py`, `get_scores_json_parity_report()`, IMS backfill from blob, MCP `scores_json_parity` in `get_database_stats`.
+
+## [2026-05-31] database | Deprecate images.scores_json dual-write (Phase 1)
+
+Config `database.write_legacy_scores_json_column` (default `true`); when `false`, upserts leave `scores_json` NULL and use `image_model_scores` + aggregate columns. Salvage SQL and recalc paths retargeted off the blob. See [SCORES_JSON_COLUMN_DEPRECATION.md](planning/database/SCORES_JSON_COLUMN_DEPRECATION.md).
+
+## [2026-05-31] feature | Image Inspector sections replace Other columns
+
+React `/images/:id` inspector: domain sections (Culling & picks, Provenance, Indexing, Embeddings, Technical flags, Legacy & debug) instead of catch-all Other columns; `GET /api/images/{id}` adds `embeddings_present`, `indexing_metadata`, `scores_json_parsed`. See [API_CONTRACT.md](technical/API_CONTRACT.md).
+
+## [2026-05-31] infra | Cursor follow-ups complete
+
+Enabled `imgscore-subagent-orchestrator` in `.cursor/mcp.json`; mirrored always-on rules to `.claude/rules/` (python-wsl-webapp-env, backlog-queue, pytest-e2e-vocabulary, sdlc-core). Archived docs-restructure plan to [planning/docs-review-restructure-reindex.md](planning/docs-review-restructure-reindex.md).
+
+## [2026-05-31] planning | Docs review restructure spec archived
+
+Promoted Cursor plan to [planning/docs-review-restructure-reindex.md](planning/docs-review-restructure-reindex.md); removed `.cursor/plans/docs_review_restructure_reindex_a6011e62.plan.md`.
+
+## [2026-05-31] archive | Clustering stacks ephemeral plan removed
+
+Shipped clustering data-path fixes (`get_images_by_folder` column coverage, safe `score_general` in `clustering.py`, zero-stack logging). Deleted `.cursor/plans/fix_clustering_stacks_no_stacks.plan.md`; note added to [features/implemented/04-clustering-culling-stacks.md](features/implemented/04-clustering-culling-stacks.md).
+
+## [2026-05-31] extended | Pipeline-wide input-size study
+
+Extended harness to scoring (SPAQ/AVA, TOPIQ/ARNIQA @1024), keywords (`input_size_tagging_eval.py`), BLIP captions (`--track caption`), multi-track eval, and tiered policy draft [UNIFIED_INPUT_POLICY_2026-05-31.md](reports/UNIFIED_INPUT_POLICY_2026-05-31.md). Updated runbook and preliminary memo.
+
+## [2026-05-31] infra | Cursor agent setup review
+
+Added `.cursor/README.md`, wiki slash commands (`wiki-ingest`, `wiki-lint`, `wiki-query`), `.cursor/skills/docs-wiki`, plans policy, `imgscore-subagent-orchestrator` in `mcp.json` (disabled until sibling build). Updated `.agent/AGENT_INFRA_*`, `COMMANDS.md`, `PROJECT_GUIDE.md`.
+
+## [2026-05-30] created | Input-size study preliminary results
+
+Documented Phase 0 native sizes, run blockers (MobileNet embed died at 64/2126, 0 NPZ), prod/E2E DB health, and phased future plan: [reports/INPUT_SIZE_CULLING_PRELIMINARY_2026-05-30.md](reports/INPUT_SIZE_CULLING_PRELIMINARY_2026-05-30.md); artifact copy [reports/clip-culling/input-size/PRELIMINARY_RESULTS.md](../reports/clip-culling/input-size/PRELIMINARY_RESULTS.md).
+
 ## [2026-05-29] created | Input-size culling + IQA research harness
 
 Added `scripts/research/clip_culling/input_size_{native,embed,eval}.py`, `report_input_size.py`, `common.load_pil_resized`, optional `--preprocess-size` on OpenCLIP/timm towers. NPZ caches under `reports/clip-culling/input-size/`. Doc: [reports/INPUT_SIZE_CULLING_2026-05-29.md](reports/INPUT_SIZE_CULLING_2026-05-29.md). Tests: `tests/test_clip_culling_input_size.py`.

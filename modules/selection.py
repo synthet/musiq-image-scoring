@@ -23,11 +23,7 @@ from modules.two_level_culling import (
     TWO_LEVEL_POLICY_VERSION,
     TwoLevelConfig,
     TwoLevelLevelConfig,
-    SubStackSlotInfo,
-    allocate_picks_uniform,
-    assign_decisions_for_stack,
-    build_substack_persist_rows,
-    compute_leaf_substacks,
+    process_stack_two_level,
 )
 
 logger = logging.getLogger(__name__)
@@ -300,54 +296,16 @@ class SelectionService:
                         emb_level2 = db.get_image_embeddings_batch_for_space(
                             tl_cfg.level2.embedding_space, ids_for_emb
                         )
-                        leaf_groups = compute_leaf_substacks(
+                        persist_rows, stack_decisions, leaf_count = process_stack_two_level(
+                            stack_id,
                             group,
                             emb_level2,
-                            tl_cfg.level2.distance_threshold,
+                            tl_cfg,
+                            sort_key,
                         )
-                        if not leaf_groups:
-                            leaf_groups = [list(group)]
-                        folder_subcluster_count += len(leaf_groups)
-
-                        slot_infos: list[SubStackSlotInfo] = []
-                        for lg in leaf_groups:
-                            top_score = 0.0
-                            for img in lg:
-                                try:
-                                    top_score = max(
-                                        top_score,
-                                        float(img.get(tl_cfg.score_field) or 0),
-                                    )
-                                except (TypeError, ValueError):
-                                    pass
-                            slot_infos.append(SubStackSlotInfo(size=len(lg), top_score=top_score))
-
-                        slot_counts = allocate_picks_uniform(
-                            slot_infos,
-                            tl_cfg.picks_per_substack,
-                            tl_cfg.max_picks_per_stack,
-                        )
-
-                        persist_rows = build_substack_persist_rows(
-                            stack_id,
-                            leaf_groups,
-                            level1_space=tl_cfg.level1.embedding_space,
-                            level2_space=tl_cfg.level2.embedding_space,
-                            sort_key=sort_key,
-                        )
+                        folder_subcluster_count += leaf_count
                         if persist_rows:
                             db.create_sub_stacks_batch(persist_rows)
-
-                        stack_decisions = assign_decisions_for_stack(
-                            leaf_groups,
-                            slot_counts,
-                            sort_key=sort_key,
-                            reject_non_picks=tl_cfg.reject_non_picks,
-                            diversity_enabled=tl_cfg.diversity_enabled,
-                            diversity_lambda=tl_cfg.diversity_lambda,
-                            score_field=tl_cfg.score_field,
-                            embeddings_for_mmr=emb_level2,
-                        )
                         folder_decisions.extend(stack_decisions)
                         continue
 

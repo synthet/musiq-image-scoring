@@ -96,6 +96,21 @@ INPUT_SIZE_EMBEDDING_KEYS = [
 # Default long-edge grid (Phase 1).
 DEFAULT_LONG_EDGES = (128, 224, 384, 512, 768)
 
+# Extended IQA grids (Phase 2).
+IQA_LONG_EDGES_STANDARD = (224, 384, 512, 768)
+IQA_LONG_EDGES_HIGH = (768, 1024)  # TOPIQ / ARNIQA native cap
+MUSIQ_LONG_EDGES = (224, 384, 512, 768)  # square pad via resolution_override
+CAPTION_LONG_EDGES = (224, 384, 512, 768)
+
+# Closed taxonomy for keyword eval (matches experiments.exp7_keywords).
+KEYWORD_TAXONOMY = (
+    "landscape", "portrait", "urban", "cityscape", "nature", "wildlife",
+    "architecture", "macro", "street", "night", "black and white",
+    "sunset", "sunrise", "beach", "forest", "mountain", "water",
+    "flowers", "animals", "birds", "insect", "people", "abstract", "minimal",
+    "aerial", "transportation",
+)
+
 
 # ---------------------------------------------------------------------------
 # Safety guards
@@ -252,7 +267,7 @@ def npz_cache_path(
     preprocess_size: int | None = None,
     track: str = "embedding",
 ) -> Path:
-    """Path for cached vectors or IQA scores (``track`` = ``embedding`` | ``iqa``)."""
+    """Path for cached artifacts (``track`` = embedding | iqa | caption | tagging)."""
     INPUT_SIZE_NPZ_DIR.mkdir(parents=True, exist_ok=True)
     suffix = f"_preprocess{preprocess_size}" if preprocess_size else ""
     return INPUT_SIZE_NPZ_DIR / f"{track}_{model_key}_{source}_{long_edge}{suffix}.npz"

@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [7.28.0] - 2026-05-31
+
+### Added
+
+- **Sub-stack backfill**: `scripts/backfill_sub_stacks.py` — recompute leaf sub-stacks and two-level pick/reject on existing root stacks without re-clustering (idempotent; honors `TWO_LEVEL_POLICY_VERSION` 2.0).
+- **Two-level culling core**: `compute_leaf_substacks` (single-pass sub-clustering) and shared `process_stack_two_level` used by `SelectionService` and the backfill script.
+- **CLIP culling research**: extended input-size harness (native resize, tagging/caption eval tracks, tiered policy reports) and `scripts/research/clip_culling/two_level_thresholds_prod.py`.
+- **Docs**: [docs/guides/CULLING_EMBEDDING_BACKFILL.md](docs/guides/CULLING_EMBEDDING_BACKFILL.md), [UNIFIED_INPUT_POLICY_2026-05-31](docs/reports/UNIFIED_INPUT_POLICY_2026-05-31.md), and related report indexes.
+
+### Changed
+
+- **Selection / two-level**: `SelectionService` delegates stack processing to `process_stack_two_level`; code default for level2 embedding space is MobileNet (OpenCLIP remains opt-in via config + backfill).
+- **Culling docs**: clustering/culling stack pages and input-size study memos updated for single-pass sub-stacks and unified resize policy.
+
+### Fixed
+
+- **Culling embedder OOM**: `CullingEmbedder.embed_paths` downscales decoded previews to `max_load_px` (default 1024) before batching — avoids RAM exhaustion on large NEF embedded previews.
+- **Tests**: `test_selection_service_with_diversity_mocked` pins `two_level_enabled=False` so legacy diversity + `pick_fraction` behavior does not depend on local `config.json`.
+
 ## [7.27.0] - 2026-05-30
 
 ### Added

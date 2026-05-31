@@ -33,3 +33,7 @@ API / job payloads mirror these as `threshold` / `time_gap` on clustering start 
 - the folder’s **capture-time span** (min→max of EXIF date or `created_at`) is **≤ `(n-1) * default_time_gap`**.
 
 That matches “these frames could have been one clustering time batch but never formed stacks” (e.g. tune `default_threshold` / re-run). Disable via `clustering.heal_folder_cohesion_candidates: false` in `config.json`.
+
+## Troubleshooting / history
+
+**2026 data-path fix (shipped):** Clustering reads folder images via `get_images_by_folder()` (Postgres: `SELECT i.*`; Firebird: explicit columns including `thumbnail_path`, `score_general`, `burst_uuid`). `modules/clustering.py` uses safe `r.get('score_general')` access and logs when zero new stacks are created after processing images — avoids KeyError aborts that left culling "done" with no stacks.

@@ -225,3 +225,72 @@ def assign_decisions_for_stack(
             decisions.append((img_id, decision, path_by_id.get(img_id, "")))
 
     return decisions
+
+
+def process_stack_two_level(
+    stack_id: int,
+    images: Sequence[Mapping],
+    embeddings: Mapping[int, object],
+    tl_cfg: "TwoLevelConfig",
+    sort_key: Callable[[Mapping], tuple],
+    *,
+    id_key: str = "id",
+) -> tuple[List[dict], List[tuple], int]:
+    """Compute one root stack's sub-stacks + pick/reject decisions (pure).
+
+    Single source of truth shared by ``SelectionService`` and the
+    ``backfill_sub_stacks`` script so the two never drift. Does **no** DB I/O:
+    ``embeddings`` is the caller-fetched level2 vector map and the caller owns
+    persistence of the returned rows/decisions.
+
+    Returns ``(persist_rows, decisions, leaf_count)`` where ``persist_rows`` feed
+    ``db.create_sub_stacks_batch`` and ``decisions`` feed
+    ``db.batch_update_cull_decisions`` (policy ``TWO_LEVEL_POLICY_VERSION``).
+    """
+    leaf_groups = compute_leaf_substacks(
+        images,
+        embeddings,
+        tl_cfg.level2.distance_threshold,
+        id_key=id_key,
+    )
+    if not leaf_groups:
+        leaf_groups = [list(images)]
+
+    slot_infos: List[SubStackSlotInfo] = []
+    for lg in leaf_groups:
+        top_score = 0.0
+        for img in lg:
+            try:
+                top_score = max(top_score, float(img.get(tl_cfg.score_field) or 0))
+            except (TypeError, ValueError):
+                pass
+        slot_infos.append(SubStackSlotInfo(size=len(lg), top_score=top_score))
+
+    slot_counts = allocate_picks_uniform(
+        slot_infos,
+        tl_cfg.picks_per_substack,
+        tl_cfg.max_picks_per_stack,
+    )
+
+    persist_rows = build_substack_persist_rows(
+        stack_id,
+        leaf_groups,
+        level1_space=tl_cfg.level1.embedding_space,
+        level2_space=tl_cfg.level2.embedding_space,
+        sort_key=sort_key,
+        id_key=id_key,
+    )
+
+    decisions = assign_decisions_for_stack(
+        leaf_groups,
+        slot_counts,
+        sort_key=sort_key,
+        reject_non_picks=tl_cfg.reject_non_picks,
+        diversity_enabled=tl_cfg.diversity_enabled,
+        diversity_lambda=tl_cfg.diversity_lambda,
+        score_field=tl_cfg.score_field,
+        embeddings_for_mmr=embeddings,
+        id_key=id_key,
+    )
+
+    return persist_rows, decisions, len(leaf_groups)

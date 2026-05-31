@@ -130,6 +130,35 @@ def collect_native_sizes() -> dict:
     except Exception as e:  # noqa: BLE001
         out["iqa_scorers"]["musiq_raw_conversion"] = {"error": str(e)}
 
+    out["tagging_models"] = {}
+    for label, hf_id, kind in (
+        ("blip_caption", "Salesforce/blip-image-captioning-base", "blip"),
+        ("siglip2", "google/siglip2-base-patch16-224", "siglip2"),
+    ):
+        try:
+            out["tagging_models"][label] = _hf_input_size(hf_id, kind)
+        except Exception as e:  # noqa: BLE001
+            out["tagging_models"][label] = {"error": str(e)}
+
+    try:
+        import open_clip
+
+        model, _, preprocess = open_clip.create_model_and_transforms(
+            "hf-hub:imageomics/bioclip-2"
+        )
+        del model
+        transforms = getattr(preprocess, "transforms", preprocess)
+        out["tagging_models"]["bioclip2"] = {"model_id": "hf-hub:imageomics/bioclip-2"}
+        if isinstance(transforms, (list, tuple)):
+            for t in transforms:
+                name = type(t).__name__
+                if name == "Resize" and hasattr(t, "size"):
+                    out["tagging_models"]["bioclip2"]["resize"] = t.size
+                if name == "CenterCrop" and hasattr(t, "size"):
+                    out["tagging_models"]["bioclip2"]["center_crop"] = t.size
+    except Exception as e:  # noqa: BLE001
+        out["tagging_models"]["bioclip2"] = {"error": str(e), "expected_native": 224}
+
     return out
 
 
