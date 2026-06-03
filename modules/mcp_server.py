@@ -2322,6 +2322,24 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
     if not os.path.exists(input_path) and not (job_type == "clustering" and (not input_path or not input_path.strip())):
         return {"error": f"Input path not found: {input_path}"}
 
+    from modules.run_manifest import REASON_SOURCE_MCP, attach_run_reason, build_legacy_api_summary
+
+    def _mcp_queue_payload(job_kind: str, path: str, extra: Optional[dict] = None) -> dict:
+        base = dict(extra or {})
+        if path:
+            base.setdefault("input_path", path)
+        return attach_run_reason(
+            base,
+            source=REASON_SOURCE_MCP,
+            summary=build_legacy_api_summary(
+                job_kind=job_kind,
+                input_path=path,
+                extra="Triggered via MCP run_processing_job.",
+            ),
+            trigger="mcp",
+            tool_id="run_processing_job",
+        )
+
     def _ok_payload(res: str, jid: int) -> dict:
         return {"status": res, "job_id": jid, "jobs_id": jid}
 
@@ -2330,7 +2348,11 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
             return {"error": "Scoring runner not available"}
         if _scoring_runner.is_running:
             return {"error": "Scoring job already running"}
-        jid = db.create_job(input_path, phase_code="scoring")
+        jid = db.create_job(
+            input_path,
+            phase_code="scoring",
+            queue_payload=_mcp_queue_payload("scoring", input_path),
+        )
         db.create_job_phases(jid, ["scoring"])
         res = _scoring_runner.start_batch(
             input_path,
@@ -2344,7 +2366,11 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
             return {"error": "Tagging runner not available"}
         if _tagging_runner.is_running:
             return {"error": "Tagging job already running"}
-        jid = db.create_job(input_path, phase_code="keywords")
+        jid = db.create_job(
+            input_path,
+            phase_code="keywords",
+            queue_payload=_mcp_queue_payload("tagging", input_path),
+        )
         db.create_job_phases(jid, ["keywords"])
         custom_keywords = args.get("custom_keywords")
         generate_captions = config.get_config_section("tagging").get("captions_default", True)
@@ -2365,7 +2391,11 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
             return {"error": "Clustering job already running"}
         cluster_path = input_path.strip() if input_path and input_path.strip() else None
         store_path = cluster_path or "CLUSTERING"
-        jid = db.create_job(store_path, phase_code="culling")
+        jid = db.create_job(
+            store_path,
+            phase_code="culling",
+            queue_payload=_mcp_queue_payload("clustering", cluster_path or store_path),
+        )
         db.create_job_phases(jid, ["culling"])
         if _selection_runner and culling_runner is _selection_runner:
             res = _selection_runner.start_batch(
@@ -2388,7 +2418,11 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
             return {"error": "Bird species runner not available"}
         if _bird_species_runner.is_running:
             return {"error": "Bird species job already running"}
-        jid = db.create_job(input_path or "BIRD_SPECIES", phase_code="bird_species")
+        jid = db.create_job(
+            input_path or "BIRD_SPECIES",
+            phase_code="bird_species",
+            queue_payload=_mcp_queue_payload("bird species", input_path or "BIRD_SPECIES"),
+        )
         db.create_job_phases(jid, ["bird_species"])
         res = _bird_species_runner.start_batch(
             input_path,

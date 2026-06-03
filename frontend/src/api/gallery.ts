@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { Image, ImageDetail } from '@/types/api'
+import type { Image, ImageAuditlogResponse, ImageDetail } from '@/types/api'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -19,6 +19,11 @@ export interface ImageFilters {
   order?: 'asc' | 'desc'
   page?: number
   page_size?: number
+  /** phase_code:status e.g. keywords:not_started */
+  phase_status?: string
+  unscored_only?: boolean
+  /** Phase done/skipped but stored data missing (e.g. keywords) */
+  data_gap?: string
 }
 
 export interface ImageListResponse {
@@ -59,6 +64,8 @@ export const galleryApi = {
     return api.get<NeighborResponse>(`/images/${id}/neighbors?${q.toString()}`)
   },
   get: (id: number) => api.get<ImageDetail>(`/images/${id}`),
+  getAuditlog: (id: number, limit = 50) =>
+    api.get<ImageAuditlogResponse>(`/images/${id}/auditlog?limit=${limit}`),
   getByUuid: (uuid: string) =>
     api.get<ImageDetail>(`/images/by-uuid/${encodeURIComponent(uuid.trim())}`),
   getByHash: (hash: string, hashVersion?: number | null) => {

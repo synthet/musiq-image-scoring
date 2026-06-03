@@ -159,8 +159,22 @@ class CommandDispatcher:
             "command_source": "websocket",
         }
         from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
+        from modules.run_manifest import REASON_SOURCE_WEBSOCKET, attach_run_reason
 
         payload = augment_queue_payload_for_audit(payload, trigger="websocket", tool_id="command_dispatcher")
+        payload = attach_run_reason(
+            payload,
+            source=REASON_SOURCE_WEBSOCKET,
+            summary=f"WebSocket command queued {job_type_in} for {primary_path}.",
+            trigger="websocket",
+            tool_id="command_dispatcher",
+            criteria={
+                "job_type": job_type_in,
+                "enqueued_phases": phases,
+                "scope_paths": target_paths,
+                "run_mode": CANONICAL_RUN_MODE,
+            },
+        )
         wf_desc = build_run_submit_description(
             scope_type=str(payload.get("scope_type") or "folder_recursive"),
             scope_paths=list(target_paths or []),

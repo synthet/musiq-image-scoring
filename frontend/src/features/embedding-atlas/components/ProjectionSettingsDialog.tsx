@@ -5,18 +5,13 @@ import {
   FALLBACK_DEFAULT_SPACE_CODE,
   resolveDefaultSpaceCode,
   useEmbeddingSpaces,
-  type EmbeddingSpace,
 } from '../hooks/useEmbeddingSpaces';
+import { EmbeddingSpaceSelect } from './EmbeddingSpaceSelect';
 
 interface ProjectionSettingsDialogProps {
   params: FetchEmbeddingMapParams;
   setParams: (params: FetchEmbeddingMapParams) => void;
   onRefresh: () => void;
-}
-
-function formatSpaceLabel(space: EmbeddingSpace): string {
-  const base = space.description?.trim() || space.code;
-  return `${base} (${space.dim}d)`;
 }
 
 export function ProjectionSettingsDialog({ params, setParams, onRefresh }: ProjectionSettingsDialogProps) {
@@ -54,29 +49,18 @@ export function ProjectionSettingsDialog({ params, setParams, onRefresh }: Proje
 
           <div className="space-y-4">
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-slate-300" htmlFor="spaceCode">
+              <label className="text-sm font-medium text-slate-300">
                 Embedding Space
               </label>
-              <select
-                id="spaceCode"
-                className="rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-200 disabled:opacity-60"
-                value={selectedCode}
+              <EmbeddingSpaceSelect
+                spaces={spaces}
+                selectedCode={selectedCode}
                 disabled={spacesLoading}
-                onChange={(e) => setParams({ ...params, space_code: e.target.value })}
-              >
-                {spacesLoading && spaces.length === 0 ? (
-                  <option value={selectedCode}>Loading…</option>
-                ) : null}
-                {spaces.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {formatSpaceLabel(s)}
-                    {s.is_default ? ' — default' : ''}
-                  </option>
-                ))}
-                {!hasSelected && !spacesLoading ? (
-                  <option value={selectedCode}>{selectedCode} (unknown)</option>
-                ) : null}
-              </select>
+                onChange={(code) => setParams({ ...params, space_code: code })}
+                unknownSelectedLabel={
+                  !hasSelected && !spacesLoading ? `${selectedCode} (unknown)` : undefined
+                }
+              />
               {spacesError ? (
                 <p className="text-xs text-amber-400">
                   Could not load embedding spaces — using fallback default.

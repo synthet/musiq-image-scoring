@@ -21,6 +21,32 @@ from modules.test_db_constants import (
 _log = logging.getLogger(__name__)
 
 
+@pytest.fixture(autouse=True)
+def _isolate_config_cache():
+    """Reset the module-global config cache around every test.
+
+    ``modules.config.load_config()`` caches the merged config keyed on file mtime.
+    Tests that monkeypatch ``CONFIG_FILE``/``ENVIRONMENT_FILE`` to a tmp_path and
+    write fresh files rely on a clean read; on coarse-mtime filesystems (WSL
+    /mnt/d) successive tmp writes can share an mtime, so without an explicit
+    invalidate a test could read a previous test's cached config. Production is
+    unaffected — every ``save_config_*`` already invalidates on write.
+    """
+    try:
+        from modules import config as _cfg
+
+        _cfg.invalidate_config_cache()
+    except Exception:
+        pass
+    yield
+    try:
+        from modules import config as _cfg
+
+        _cfg.invalidate_config_cache()
+    except Exception:
+        pass
+
+
 def _postgres_tests_enabled(_config):
     """Return whether Postgres test setup should be active (explicit opt-in only)."""
     if os.environ.get("SKIP_POSTGRES_TESTS", "").strip().lower() in ("1", "true", "yes"):

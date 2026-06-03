@@ -26,6 +26,11 @@ from modules import db, utils
 from modules.phases import PhaseCode, sort_phase_value_strings
 from modules.phases_policy import get_phase_executor_version
 from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
+from modules.run_manifest import (
+    REASON_SOURCE_WORKFLOW_HEALING,
+    attach_run_reason,
+    build_manual_submit_summary,
+)
 from modules.pipeline_tool_folder_touch import upsert_pipeline_tool_folder_touch
 from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
 
@@ -600,6 +605,23 @@ def _enqueue_heal_run(folder_path: str, phase_code: str):
     payload["skip_existing"] = False
 
     payload = augment_queue_payload_for_audit(payload, trigger="api", tool_id=f"heal_workflow_{phase_code}")
+
+    reason_summary, reason_criteria = build_manual_submit_summary(
+        scope_paths=[folder_path],
+        enqueued_phases=phase_values,
+        requested_phases=phase_values,
+        repair_plan=repair_plan,
+    )
+    reason_criteria["heal_phase"] = phase_code
+    reason_criteria["run_mode"] = CANONICAL_RUN_MODE
+    payload = attach_run_reason(
+        payload,
+        source=REASON_SOURCE_WORKFLOW_HEALING,
+        summary=f"Workflow healing: {reason_summary}",
+        criteria=reason_criteria,
+        trigger="api",
+        tool_id=f"heal_workflow_{phase_code}",
+    )
 
     description = build_run_submit_description(
         scope_type="folder_recursive",

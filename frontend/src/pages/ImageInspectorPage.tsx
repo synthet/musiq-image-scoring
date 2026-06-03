@@ -79,6 +79,7 @@ const INSPECTOR_NAV: { id: string; label: string }[] = [
   { id: 'culling', label: 'Culling' },
   { id: 'dates', label: 'Dates' },
   { id: 'phases', label: 'Phases' },
+  { id: 'audit', label: 'Audit' },
   { id: 'provenance', label: 'Provenance' },
   { id: 'indexing', label: 'Indexing' },
   { id: 'embeddings', label: 'Embeddings' },
@@ -198,6 +199,61 @@ function ModelScoresTable({
         </tbody>
       </table>
     </div>
+  )
+}
+
+function ImageAuditlogSection({
+  imageId,
+  collapseAllToken,
+}: {
+  imageId: number
+  collapseAllToken: number
+}) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['images', imageId, 'auditlog'],
+    queryFn: () => galleryApi.getAuditlog(imageId, 40),
+    staleTime: 30_000,
+  })
+  const items = data?.items ?? []
+  return (
+    <CollapsibleInspectorSection
+      title="Phase audit log"
+      badge={items.length ? String(items.length) : undefined}
+      defaultOpen={false}
+      sectionId="audit"
+      collapseAllToken={collapseAllToken}
+    >
+      {isLoading && <div className="text-xs text-[var(--color-text-muted)]">Loading audit trail…</div>}
+      {isError && <div className="text-xs text-red-400/90">Could not load auditlog.</div>}
+      {!isLoading && !isError && items.length === 0 && (
+        <div className="text-xs text-[var(--color-text-muted)]">No audit entries.</div>
+      )}
+      {!isLoading && items.length > 0 && (
+        <ul className="text-[11px] font-mono space-y-1 max-h-48 overflow-auto">
+          {items.map((entry, idx) => {
+            const patch = entry.patch as { op?: string; path?: string; value?: string; oldValue?: string }[] | undefined
+            const change = Array.isArray(patch) ? patch[0] : null
+            const runLink =
+              entry.run_id != null ? (
+                <Link to={`/runs/${entry.run_id}`} className="text-[var(--color-accent-bright)] hover:underline">
+                  #{entry.run_id}
+                </Link>
+              ) : (
+                '—'
+              )
+            return (
+              <li key={`${entry.created_at}-${idx}`} className="text-[var(--color-text-secondary)]">
+                <span className="text-[var(--color-text-muted)]">{String(entry.created_at ?? '').slice(0, 19)}</span>
+                {' '}
+                {entry.phase_code ?? '—'} {change?.oldValue ?? '?'}→{change?.value ?? '?'}
+                {' '}
+                run {runLink}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </CollapsibleInspectorSection>
   )
 }
 
@@ -588,6 +644,27 @@ export function ImageInspectorPage() {
                 <div className="text-xs text-[var(--color-text-muted)]">No phase status rows.</div>
               )}
             </CollapsibleInspectorSection>
+
+            {data.data_quality_flags && Object.values(data.data_quality_flags).some(Boolean) && (
+              <CollapsibleInspectorSection
+                title="Data quality"
+                badge="gap"
+                defaultOpen
+                sectionId="data-quality"
+                collapseAllToken={collapseAllToken}
+              >
+                <ul className="text-xs text-amber-200/90 list-disc pl-4 space-y-1">
+                  {data.data_quality_flags.keywords_data_gap && (
+                    <li>Keywords phase is terminal but keywords/captions are incomplete in the database.</li>
+                  )}
+                  {data.data_quality_flags.scoring_data_gap && (
+                    <li>Scoring phase is done but score_general is missing or zero.</li>
+                  )}
+                </ul>
+              </CollapsibleInspectorSection>
+            )}
+
+            <ImageAuditlogSection imageId={id} collapseAllToken={collapseAllToken} />
 
             <ProvenanceInspectorSection entries={parts.provenance} collapseAllToken={collapseAllToken} />
             <IndexingInspectorSection data={data} collapseAllToken={collapseAllToken} />

@@ -21,6 +21,18 @@ REST API for the Vexlum Scoring Scoring WebUI. Base path: `/api`.
 
 **Runs submit mode:** [RUN_OPTIONS_MODE_MATRIX.md](RUN_OPTIONS_MODE_MATRIX.md) documents the single canonical `run_mode` (`process_stale_or_missing`) for `POST /api/runs/submit`, JIT planner behavior, and removed legacy options.
 
+**Run/job manifest (`jobs.queue_payload`):** Parsed on `GET /api/runs/{id}` and related job endpoints. New enqueues include a structured **`reason`** object explaining why the run was queued:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `source` | string | Enqueue origin: `manual_submit`, `auto_drive`, `workflow_healing`, `phase_followup`, `retry`, `force_run`, `legacy_api`, `maintenance`, `websocket`, `mcp`, `pipeline_submit`, … |
+| `trigger` | string? | Audit channel (mirrors top-level `queue_payload.trigger`, e.g. `api`, `gradio`, `mcp`) |
+| `tool_id` | string? | Stable UI/control id (mirrors `queue_payload.tool_id`) |
+| `summary` | string | One-sentence human explanation |
+| `criteria` | object? | Machine-readable context: `enqueued_phases`, `requested_phases`, `planner_reason_counts`, `auto_drive_bucket`, `run_mode`, `retried_from_run_id`, maintenance `action`, … |
+
+Older jobs may omit `reason`; clients must tolerate absence. Implementation: `modules/run_manifest.py`.
+
 ---
 
 ## WebSocket Events

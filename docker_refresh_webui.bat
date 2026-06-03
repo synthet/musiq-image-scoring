@@ -22,6 +22,8 @@ echo     SKIP_FRONTEND_BUILD=1   skip npm (Python/static unchanged)
 echo     DOCKER_BUILD_NO_CACHE=1   full rebuild layers (avoid unless needed)
 echo     FRONTEND_CI=1             run npm ci before npm run build
 echo     WEBUI_READY_TIMEOUT_SEC=N  max seconds to wait for http://localhost:7860 (default 360)
+echo     DOCKER_READY_TIMEOUT_SEC=N max seconds to wait for Docker daemon (default 180)
+echo     SKIP_DOCKER_START=1        fail if Docker is down; do not auto-start Desktop
 echo   Docker: Dockerfile uses BuildKit cache mounts for apt and pip — normal
 echo   builds reuse downloaded packages. Ensure DOCKER_BUILDKIT=1 (Docker Desktop default).
 echo ========================================================
@@ -29,9 +31,14 @@ echo.
 
 docker info >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Docker Desktop is not running. Please start it first.
-    pause
-    exit /b 1
+    if not defined DOCKER_READY_TIMEOUT_SEC set "DOCKER_READY_TIMEOUT_SEC=180"
+    echo [INFO] Docker is not running. Attempting to start Docker Desktop...
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\powershell\Ensure-DockerDesktop.ps1" -TimeoutSec %DOCKER_READY_TIMEOUT_SEC%
+    if errorlevel 1 (
+        echo [ERROR] Could not start Docker Desktop or the daemon did not become ready in time.
+        pause
+        exit /b 1
+    )
 )
 
 if /I "!SKIP_FRONTEND_BUILD!"=="1" (

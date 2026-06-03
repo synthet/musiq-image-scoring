@@ -174,7 +174,11 @@ WSL/Windows host project roots for thumbnail path rebasing.
 
 ### `auto_drive`
 
-`server_loop_enabled` — runs autodrive loop.
+| Key | Default | Notes |
+|-----|---------|--------|
+| `server_loop_enabled` | `true` | Runs the server-side drive loop (`drive_tick` on idle). |
+| `prioritize_new_folders` | `true` | When true, folders with `folders.created_at` within `new_folder_days` sort before older backlog (even across pipeline phases). |
+| `new_folder_days` | `7` | Window for “newly imported” folder boost; aligned with MCP `get_newly_imported_folders`. |
 
 ### Top-level misc
 

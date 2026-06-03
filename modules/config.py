@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-import sys
+import time
 from pathlib import Path
 import platform
 import string
@@ -10,17 +10,32 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_FILE = BASE_DIR / "config.json"
 ENVIRONMENT_FILE = BASE_DIR / "environment.json"
 
+_config_cache: dict | None = None
+_config_cache_mtime: tuple[float, float] | None = None
+
 
 def _read_json_file(path: Path) -> dict:
     if not path.exists():
         return {}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, dict) else {}
-    except Exception as e:
-        logging.error("Failed to load JSON from %s: %s", path, e)
-        return {}
+    last_err = None
+    for attempt in range(3):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+        except OSError as exc:
+            last_err = exc
+            if getattr(exc, "errno", None) == 5 and attempt < 2:
+                time.sleep(0.05 * (attempt + 1))
+                continue
+            logging.error("Failed to load JSON from %s: %s", path, exc)
+            return {}
+        except Exception as e:
+            logging.error("Failed to load JSON from %s: %s", path, e)
+            return {}
+    if last_err is not None:
+        logging.error("Failed to load JSON from %s after retries: %s", path, last_err)
+    return {}
 
 
 def _deep_merge_dict(base: dict, override: dict) -> dict:
@@ -48,8 +63,30 @@ def load_config():
     Loads configuration from config.json merged with environment.json (when present).
     environment.json overrides overlapping keys.
     """
+    global _config_cache, _config_cache_mtime
+
+    def _mtime(path: Path) -> float:
+        try:
+            return path.stat().st_mtime if path.exists() else 0.0
+        except OSError:
+            return 0.0
+
+    # Key on BOTH files: environment.json is merged in, so an edit there must
+    # invalidate the cache even when config.json is untouched.
+    key = (_mtime(CONFIG_FILE), _mtime(ENVIRONMENT_FILE))
+    if _config_cache is not None and _config_cache_mtime == key:
+        return _config_cache
     merged = _deep_merge_dict(_load_config_file_only(), _load_environment_file_only())
+    _config_cache = merged
+    _config_cache_mtime = key
     return merged
+
+
+def invalidate_config_cache() -> None:
+    """Clear in-process config cache (e.g. after save_config_value)."""
+    global _config_cache, _config_cache_mtime
+    _config_cache = None
+    _config_cache_mtime = None
 
 def save_config_value(key, value):
     """
@@ -71,6 +108,7 @@ def save_config_value(key, value):
     try:
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4)
+        invalidate_config_cache()
     except Exception as e:
         logging.error(f"Failed to save config: {e}")
 
@@ -149,6 +187,7 @@ def save_config_section(section, section_data):
     try:
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4)
+        invalidate_config_cache()
     except Exception as e:
         logging.error(f"Failed to save config section: {e}")
 

@@ -37,6 +37,15 @@ export interface Run {
   description?: string | null
 }
 
+/** Structured ``queue_payload.reason`` set at enqueue time. */
+export interface RunQueueReason {
+  source: string
+  trigger?: string
+  tool_id?: string
+  summary: string
+  criteria?: Record<string, unknown>
+}
+
 // ─── Stage (maps to job_phases) ──────────────────────────────────────────
 
 export type StageState =
@@ -167,6 +176,10 @@ export interface RunFolderBucket {
   overall_percent: number
   phase_statuses: RunFolderBucketPhase[]
   plan_key: string | null
+  /** folders.created_at when the row was built (ISO string). */
+  folder_created_at?: string | null
+  /** True when created_at is within auto_drive.new_folder_days (boost tier). */
+  is_newly_imported?: boolean
 }
 
 export interface RunFolderBucketsResponse {
@@ -421,6 +434,24 @@ export interface Image {
 
   /** Presence flags for embedding spaces (mobilenet, clip, bioclip, blip) */
   embeddings_present?: Record<string, boolean> | null
+
+  /** IPS terminal state disagrees with stored scores/keywords (list + detail). */
+  data_quality_flags?: Record<string, boolean> | null
+}
+
+export interface ImageAuditlogEntry {
+  created_at?: string | null
+  table_name?: string | null
+  record_id?: number | null
+  operation?: string | null
+  run_id?: number | null
+  phase_code?: string | null
+  patch?: unknown
+}
+
+export interface ImageAuditlogResponse {
+  image_id: number
+  items: ImageAuditlogEntry[]
 }
 
 /** From `image_technical_failures` via GET /api/images/{id}. */

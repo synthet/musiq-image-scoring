@@ -14,6 +14,8 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
       'gl-bench': path.resolve(__dirname, './src/mocks/gl-bench.ts'),
     },
+    // @synthet/image-scoring-design links with its own react@18 devDependency — dedupe to app React 19.
+    dedupe: ['react', 'react-dom', 'react/jsx-runtime'],
   },
   optimizeDeps: {
     include: ['gl-bench', '@cosmograph/react'],

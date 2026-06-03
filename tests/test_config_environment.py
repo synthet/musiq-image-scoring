@@ -2,9 +2,42 @@
 
 import json
 
-import pytest
-
 import modules.config as cfg
+
+
+def test_load_config_caches_until_mtime_changes(monkeypatch, tmp_path):
+    monkeypatch.setattr(cfg, "CONFIG_FILE", tmp_path / "config.json")
+    monkeypatch.setattr(cfg, "ENVIRONMENT_FILE", tmp_path / "environment.json")
+    cfg.invalidate_config_cache()
+    (tmp_path / "config.json").write_text(json.dumps({"a": 1}), encoding="utf-8")
+    first = cfg.load_config()
+    second = cfg.load_config()
+    assert first is second
+    (tmp_path / "config.json").write_text(json.dumps({"a": 2}), encoding="utf-8")
+    cfg.invalidate_config_cache()
+    third = cfg.load_config()
+    assert third["a"] == 2
+
+
+def test_environment_json_mtime_invalidates_cache(monkeypatch, tmp_path):
+    """An environment.json edit must bust the cache even if config.json is untouched."""
+    import os
+
+    monkeypatch.setattr(cfg, "CONFIG_FILE", tmp_path / "config.json")
+    monkeypatch.setattr(cfg, "ENVIRONMENT_FILE", tmp_path / "environment.json")
+    cfg.invalidate_config_cache()
+    (tmp_path / "config.json").write_text(json.dumps({"a": 1}), encoding="utf-8")
+    (tmp_path / "environment.json").write_text(json.dumps({"a": 2}), encoding="utf-8")
+    os.utime(tmp_path / "config.json", (1000, 1000))
+    os.utime(tmp_path / "environment.json", (1000, 1000))
+    first = cfg.load_config()
+    assert first["a"] == 2  # environment overrides config
+
+    # Change environment.json only (new mtime); no explicit invalidate.
+    (tmp_path / "environment.json").write_text(json.dumps({"a": 3}), encoding="utf-8")
+    os.utime(tmp_path / "environment.json", (2000, 2000))
+    second = cfg.load_config()
+    assert second["a"] == 3
 
 
 def test_deep_merge_nested_and_scalar_override(monkeypatch, tmp_path):

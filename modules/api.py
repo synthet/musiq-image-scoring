@@ -111,6 +111,19 @@ from modules.job_description import (
     build_bird_species_job_description,
     build_workflow_run_description,
 )
+from modules.run_manifest import (
+    REASON_SOURCE_FORCE_RUN,
+    REASON_SOURCE_LEGACY_API,
+    REASON_SOURCE_MAINTENANCE,
+    REASON_SOURCE_MANUAL_SUBMIT,
+    REASON_SOURCE_PIPELINE_SUBMIT,
+    REASON_SOURCE_RETRY,
+    attach_run_reason,
+    build_legacy_api_summary,
+    build_maintenance_summary,
+    build_manual_submit_summary,
+    build_retry_summary,
+)
 from modules import db, config
 
 logger = logging.getLogger(__name__)
@@ -364,6 +377,10 @@ def _image_detail_payload(image_id: int) -> dict:
         data["file_paths"] = db.get_all_paths(image_id)
         data["resolved_path"] = db.get_resolved_path(image_id, verified_only=False)
         data["phase_statuses"] = db.get_image_phase_statuses(image_id)
+        try:
+            data["data_quality_flags"] = db.compute_image_data_quality_flags(image_id)
+        except Exception:
+            data["data_quality_flags"] = {}
         tf_det = db.get_image_technical_failure(image_id)
         if tf_det is not None:
             data["technical_failure_detection"] = tf_det
@@ -458,6 +475,9 @@ def _images_list_payload(
     min_score_technical: float,
     folder_path: Optional[str],
     stack_id: Optional[int],
+    phase_status_filter: Optional[str] = None,
+    unscored_only: bool = False,
+    data_gap: Optional[str] = None,
 ) -> dict:
     """Paginated image rows as JSON (embeddings excluded). Used by /api/images and /public/api/images."""
     rating_filter = _parse_rating_filter(rating)
@@ -476,6 +496,9 @@ def _images_list_payload(
             min_score_technical=min_score_technical,
             folder_path=folder_path,
             stack_id=stack_id,
+            phase_status_filter=phase_status_filter,
+            unscored_only=unscored_only,
+            data_gap=data_gap,
         )
         
         payload_images = []
@@ -498,6 +521,20 @@ def _images_list_payload(
             d["embeddings_present"] = emb_map.get(img_id_int, {}) if img_id_int else {}
             if img_id_int:
                 _merge_model_scores_into(d, ims_map.get(img_id_int, {}))
+
+        # Data-quality flags in one set-based query for the whole page (avoid N+1).
+        try:
+            dq_ids = [int(i) for i in img_ids if i is not None]
+            dq_map = db.compute_image_data_quality_flags_batch(dq_ids) if dq_ids else {}
+        except Exception as exc:
+            logger.debug("batch data_quality_flags failed: %s", exc)
+            dq_map = {}
+        for d in payload_images:
+            img_id = d.get("id") or d.get("ID")
+            try:
+                d["data_quality_flags"] = dq_map.get(int(img_id), {}) if img_id is not None else {}
+            except (TypeError, ValueError):
+                d["data_quality_flags"] = {}
 
         return {
             "images": payload_images,
@@ -2271,6 +2308,17 @@ def create_api_router() -> APIRouter:
             "resolved_image_ids": selector_result.get("resolved_image_ids"),
         }
         queue_payload = augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id="scoring_start")
+        extra = f"{resolved_count} resolved images." if resolved_count is not None else None
+        queue_payload = attach_run_reason(
+            queue_payload,
+            source=REASON_SOURCE_LEGACY_API,
+            summary=build_legacy_api_summary(
+                job_kind="scoring", input_path=request.input_path, extra=extra
+            ),
+            trigger="api",
+            tool_id="scoring_start",
+            criteria={"resolved_count": resolved_count} if resolved_count is not None else None,
+        )
         job_id, queue_position = db.enqueue_job(
             job_source,
             phase_code="scoring",
@@ -2524,6 +2572,17 @@ def create_api_router() -> APIRouter:
             trigger="api",
             tool_id="tagging_start",
         )
+        t_extra = f"{resolved_count} resolved images." if resolved_count is not None else None
+        t_payload = attach_run_reason(
+            t_payload,
+            source=REASON_SOURCE_LEGACY_API,
+            summary=build_legacy_api_summary(
+                job_kind="tagging", input_path=request.input_path, extra=t_extra
+            ),
+            trigger="api",
+            tool_id="tagging_start",
+            criteria={"resolved_count": resolved_count} if resolved_count is not None else None,
+        )
         job_id, queue_position = db.enqueue_job(
             job_source,
             phase_code="keywords",
@@ -2731,6 +2790,17 @@ def create_api_router() -> APIRouter:
             },
             trigger="api",
             tool_id="bird_species_start",
+        )
+        bs_extra = f"{resolved_count} resolved images." if resolved_count is not None else None
+        bs_payload = attach_run_reason(
+            bs_payload,
+            source=REASON_SOURCE_LEGACY_API,
+            summary=build_legacy_api_summary(
+                job_kind="bird species", input_path=request.input_path, extra=bs_extra
+            ),
+            trigger="api",
+            tool_id="bird_species_start",
+            criteria={"resolved_count": resolved_count} if resolved_count is not None else None,
         )
         job_id, queue_position = db.enqueue_job(
             job_source,
@@ -4381,6 +4451,24 @@ def create_api_router() -> APIRouter:
             trigger="api",
             tool_id="clustering_start",
         )
+        cl_extra = f"{resolved_count} resolved images." if resolved_count is not None else None
+        if request.force_rescan:
+            cl_extra = (cl_extra or "") + " force_rescan=True."
+        cl_payload = attach_run_reason(
+            cl_payload,
+            source=REASON_SOURCE_LEGACY_API,
+            summary=build_legacy_api_summary(
+                job_kind="clustering", input_path=request.input_path, extra=cl_extra
+            ),
+            trigger="api",
+            tool_id="clustering_start",
+            criteria={
+                "resolved_count": resolved_count,
+                "force_rescan": bool(request.force_rescan),
+            }
+            if resolved_count is not None or request.force_rescan
+            else None,
+        )
         job_id, queue_position = db.enqueue_job(
             job_source,
             phase_code="culling",
@@ -4475,6 +4563,18 @@ def create_api_router() -> APIRouter:
         min_score_technical: float = Query(0, ge=0, le=1, description="Minimum technical score"),
         folder_path: Optional[str] = Query(None, description="Filter by folder path"),
         stack_id: Optional[int] = Query(None, description="Filter by stack ID"),
+        phase_status: Optional[str] = Query(
+            None,
+            description="Filter by image_phase_status as phase_code:status (e.g. keywords:not_started)",
+        ),
+        unscored_only: bool = Query(
+            False,
+            description="When true, only images with score_general null or <= 0",
+        ),
+        data_gap: Optional[str] = Query(
+            None,
+            description="Phase marked done/skipped but data missing (e.g. keywords)",
+        ),
     ):
         """Query images with filtering, sorting, and pagination."""
         return _images_list_payload(
@@ -4490,7 +4590,23 @@ def create_api_router() -> APIRouter:
             min_score_technical=min_score_technical,
             folder_path=folder_path,
             stack_id=stack_id,
+            phase_status_filter=phase_status,
+            unscored_only=unscored_only,
+            data_gap=data_gap,
         )
+
+    @router.get(
+        "/images/{image_id}/auditlog",
+        summary="Audit trail for image phase status changes",
+        description="Recent auditlog rows for image_phase_status (record_id = image_id).",
+    )
+    async def get_image_auditlog(
+        image_id: int,
+        limit: int = Query(50, ge=1, le=200),
+    ):
+        if not db.image_exists(image_id):
+            raise HTTPException(status_code=404, detail=f"Image {image_id} not found")
+        return {"image_id": image_id, "items": db.get_image_auditlog(image_id, limit=limit)}
 
     @router.get(
         "/images/by-uuid/{image_uuid}",
@@ -5263,10 +5379,25 @@ def create_api_router() -> APIRouter:
         wf_desc = build_workflow_run_description(first_op, wt or queue_input_path, list(request.stage_codes))
 
         def _pipeline_queue_payload(base: dict) -> dict:
-            return augment_queue_payload_for_audit(
+            payload = augment_queue_payload_for_audit(
                 serialize_queue_payload(base, preview),
                 trigger="api",
                 tool_id="pipeline_submit",
+            )
+            return attach_run_reason(
+                payload,
+                source=REASON_SOURCE_PIPELINE_SUBMIT,
+                summary=(
+                    f"Workflow pipeline queued starting at {first_op!r} "
+                    f"for {queue_input_path or wt or 'workspace'}."
+                ),
+                trigger="api",
+                tool_id="pipeline_submit",
+                criteria={
+                    "stage_codes": list(base.get("stage_codes") or request.stage_codes or []),
+                    "first_op": first_op,
+                    "workspace_target": wt or None,
+                },
             )
 
         if first_op == "indexing":
@@ -5602,10 +5733,19 @@ def create_api_router() -> APIRouter:
         for phase in ("indexing", "metadata", "scoring", "culling", "keywords"):
             _stop_runner_for_phase(phase)
 
-        rp = augment_queue_payload_for_audit(
-            {"input_path": input_path, "skip_existing": False},
+        rp = attach_run_reason(
+            augment_queue_payload_for_audit(
+                {"input_path": input_path, "skip_existing": False},
+                trigger="api",
+                tool_id="pipeline_run_restart",
+            ),
+            source=REASON_SOURCE_LEGACY_API,
+            summary=(
+                f"Pipeline restart queued full Discovery→Inspection→Quality for {input_path}."
+            ),
             trigger="api",
             tool_id="pipeline_run_restart",
+            criteria={"enqueued_phases": ["indexing", "metadata", "scoring"], "input_path": input_path},
         )
         job_id, queue_position = db.enqueue_job(
             input_path,
@@ -6419,10 +6559,11 @@ def create_api_router() -> APIRouter:
                 detail={"code": "missing_prerequisites", "missing": prereq_miss},
             )
 
+        requested_phases = list(phase_values) if phase_values else None
+
         if phase_values and not request.plan_dry_run:
             from modules.runs_autodrive import phases_with_work_from_repair_plan
 
-            requested_phases = list(phase_values)
             try:
                 narrowed = await asyncio.to_thread(
                     phases_with_work_from_repair_plan,
@@ -6514,6 +6655,21 @@ def create_api_router() -> APIRouter:
             if isinstance(first_ids, list):
                 payload["resolved_image_ids"] = first_ids
         payload["skip_existing"] = False
+        reason_summary, reason_criteria = build_manual_submit_summary(
+            scope_paths=scope_paths,
+            enqueued_phases=phase_values or [],
+            requested_phases=requested_phases,
+            repair_plan=repair_plan,
+        )
+        reason_criteria["run_mode"] = CANONICAL_RUN_MODE
+        payload = attach_run_reason(
+            payload,
+            source=REASON_SOURCE_MANUAL_SUBMIT,
+            summary=reason_summary,
+            criteria=reason_criteria,
+            trigger="api",
+            tool_id="run_submit",
+        )
         try:
             job_id, position = await asyncio.wait_for(
                 asyncio.to_thread(
@@ -6873,6 +7029,25 @@ def create_api_router() -> APIRouter:
         else:
             _defaults = {"tagging": ["keywords"], "selection": ["culling", "metadata"], "clustering": ["culling"]}
             phase_codes = sort_phase_value_strings(_defaults.get(orig_job_type, ["indexing", "metadata", "scoring"]))
+
+        reason_source = REASON_SOURCE_FORCE_RUN if source == "force_run" else REASON_SOURCE_RETRY
+        payload = attach_run_reason(
+            payload,
+            source=reason_source,
+            summary=build_retry_summary(
+                source=reason_source,
+                original_run_id=int(original_job.get("id") or 0),
+                job_type=str(orig_job_type),
+                input_path=original_job.get("input_path"),
+            ),
+            criteria={
+                "retried_from_run_id": original_job.get("id"),
+                "enqueued_phases": phase_codes,
+                "original_job_type": orig_job_type,
+            },
+            trigger=str(payload.get("trigger") or "api"),
+            tool_id=str(payload.get("tool_id") or source),
+        )
 
         new_job_id, position = db.enqueue_job_with_phases(
             input_path=original_job.get("input_path", ""),
@@ -7663,14 +7838,27 @@ def create_api_router() -> APIRouter:
         # Durable audit row (sync endpoint): appears in Runs/history with full summary in jobs.log.
         audit_run_id = None
         try:
-            audit_payload = augment_queue_payload_for_audit(
-                {
-                    "action": "recalculate_status_from_data",
-                    "scope": selected_scope,
-                    "scope_path": target_scope_path,
-                },
+            audit_payload = attach_run_reason(
+                augment_queue_payload_for_audit(
+                    {
+                        "action": "recalculate_status_from_data",
+                        "scope": selected_scope,
+                        "scope_path": target_scope_path,
+                    },
+                    trigger="api",
+                    tool_id="recalculate_status_from_data",
+                ),
+                source=REASON_SOURCE_MAINTENANCE,
+                summary=build_maintenance_summary(
+                    action="recalculate_status_from_data",
+                    input_path=target_scope_path,
+                ),
                 trigger="api",
                 tool_id="recalculate_status_from_data",
+                criteria={
+                    "action": "recalculate_status_from_data",
+                    "scope": selected_scope,
+                },
             )
             audit_desc = (
                 "Sync tool: recalculate derivable per-image phase statuses and folder aggregates. "
@@ -7748,7 +7936,14 @@ def create_api_router() -> APIRouter:
             "action": "backfill_exif",
             "limit": limit,
         }
-        queue_payload = augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id="backfill_exif_dates")
+        queue_payload = attach_run_reason(
+            augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id="backfill_exif_dates"),
+            source=REASON_SOURCE_MAINTENANCE,
+            summary=build_maintenance_summary(action="backfill_exif"),
+            trigger="api",
+            tool_id="backfill_exif_dates",
+            criteria={"action": "backfill_exif", "limit": limit},
+        )
         job_id, _ = db.enqueue_job(
             maintenance_job_input_path("backfill_exif", queue_payload),
             None,
@@ -7782,7 +7977,14 @@ def create_api_router() -> APIRouter:
             "action": "heal_thumbnails",
             "limit": 500,
         }
-        queue_payload = augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id="regenerate_thumbnails")
+        queue_payload = attach_run_reason(
+            augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id="regenerate_thumbnails"),
+            source=REASON_SOURCE_MAINTENANCE,
+            summary=build_maintenance_summary(action="heal_thumbnails"),
+            trigger="api",
+            tool_id="regenerate_thumbnails",
+            criteria={"action": "heal_thumbnails", "limit": 500},
+        )
         job_id, _ = db.enqueue_job(
             maintenance_job_input_path("heal_thumbnails", queue_payload),
             None,
@@ -7967,6 +8169,21 @@ def create_api_router() -> APIRouter:
             trigger=(request.trigger or "api").strip() or "api",
             tool_id=tid or None,
             ui_selected_scope_path=request.ui_selected_scope_path,
+        )
+        payload_dict = attach_run_reason(
+            payload_dict,
+            source=REASON_SOURCE_MAINTENANCE,
+            summary=build_maintenance_summary(
+                action=str(request.action),
+                input_path=request.input_path,
+            ),
+            trigger=(request.trigger or "api").strip() or "api",
+            tool_id=tid or None,
+            criteria={
+                "action": request.action,
+                "limit": payload_dict.get("limit"),
+                "dry_run": payload_dict.get("dry_run"),
+            },
         )
         maint_desc = (request.description or "").strip() or build_default_maintenance_description(
             request.action,

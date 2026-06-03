@@ -1,6 +1,7 @@
 import { useEmbeddingAtlasStore } from '../stores/embeddingAtlasStore';
 import type { ColorMode } from '../stores/embeddingAtlasStore';
 import { ProjectionSettingsDialog } from './ProjectionSettingsDialog';
+import { EmbeddingSpaceLegend } from './EmbeddingSpaceSelect';
 import type { FetchEmbeddingMapParams } from '../hooks/useEmbeddingMap';
 import { MousePointer2, Lasso, PanelRight } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -73,6 +74,10 @@ export function EmbeddingToolbar({ params, setParams, onRefresh }: EmbeddingTool
             <Lasso className="h-4 w-4" />
           </button>
         </div>
+
+        {params.space_code ? (
+          <EmbeddingSpaceLegend code={params.space_code} />
+        ) : null}
       </div>
 
       <div className="flex items-center gap-2">

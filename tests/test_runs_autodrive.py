@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import json
 import os
 
@@ -313,6 +314,7 @@ def test_enqueue_auto_bucket_uses_only_repair_plan_phases_with_work(monkeypatch)
     def fake_enqueue(path, first_phase, job_type, payload, description, phase_codes=None, **_kw):
         enqueued["phase_codes"] = list(phase_codes or [])
         enqueued["payload_phases"] = payload.get("target_phases")
+        enqueued["reason"] = payload.get("reason")
         return 9001, 1
 
     monkeypatch.setattr(runs_autodrive.db, "enqueue_job_with_phases", fake_enqueue)
@@ -333,6 +335,9 @@ def test_enqueue_auto_bucket_uses_only_repair_plan_phases_with_work(monkeypatch)
     assert plan_calls[1][1] == ["scoring", "keywords"]
     assert plan_calls[0][3] is False
     assert plan_calls[1][3] is False
+    assert enqueued["reason"]["source"] == "auto_drive"
+    assert enqueued["reason"]["criteria"]["enqueued_phases"] == ["scoring", "keywords"]
+    assert enqueued["reason"]["criteria"]["planner_reason_counts"]["stale_executor"] == 2
 
 
 def test_build_folder_buckets_refreshes_dirty_folder(monkeypatch):
@@ -439,6 +444,78 @@ def test_auto_drive_dry_run_returns_candidates(monkeypatch):
     assert result["dry_run"] is True
     assert len(result["scheduled"]) == 1
     assert result["scheduled"][0]["phases"] == ["metadata", "scoring"]
+
+
+def test_auto_drive_plan_key_matches_enqueue_when_phases_narrowed(monkeypatch):
+    """Loop guard must count prior jobs under the SAME key used at enqueue.
+
+    Regression for RCA root cause #2: ``_enqueue_auto_bucket`` stores the
+    JIT-narrowed ``_plan_key(resolved, phase_values)`` on the job payload, so the
+    guard must look prior jobs up by that narrowed key — not the wider structural
+    ``next_phases`` bucket key. This exercises the REAL ``_recent_auto_attempt_counts``
+    (only ``db.get_jobs`` is faked); keying it on the bucket key (the prior bug)
+    leaves the narrowed jobs uncounted and the guard never fires.
+    """
+    folder = "/mnt/d/Photos/Z8/28-400mm/2026/2026-05-28"
+    enqueue_key = runs_autodrive._plan_key(folder, ["keywords"])
+    structural_key = runs_autodrive._plan_key(folder, ["keywords", "bird_species"])
+    assert enqueue_key != structural_key
+
+    monkeypatch.setattr(runs_autodrive, "_reconcile_stale_ips_for_drive", lambda: None)
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_direct_image_counts_by_local_path_norm",
+        lambda: {},
+    )
+    monkeypatch.setattr(
+        runs_autodrive,
+        "build_folder_buckets",
+        lambda **_kwargs: {
+            "items": [
+                {
+                    "path": folder,
+                    "bucket": "awaiting_keywords",
+                    "next_phases": ["keywords", "bird_species"],
+                    "plan_key": structural_key,
+                }
+            ],
+            "total": 1,
+            "bucket_counts": {"awaiting_keywords": 1},
+            "phase_counts": {"keywords": 1},
+        },
+    )
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda _path: (folder, [folder]),
+    )
+    monkeypatch.setattr(
+        runs_autodrive,
+        "phases_with_work_from_repair_plan",
+        lambda _paths, _stages, dry_run=True, **kwargs: ["keywords"],
+    )
+    # Two prior auto-drive jobs stored under the NARROWED enqueue key.
+    job_payload = json.dumps({"tool_id": "runs_auto_drive", "auto_drive_plan_key": enqueue_key})
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_jobs",
+        lambda **_k: [
+            {"id": 99, "status": "completed", "queue_payload": job_payload},
+            {"id": 98, "status": "completed", "queue_payload": job_payload},
+        ],
+    )
+
+    def _boom(*_a, **_k):
+        raise AssertionError("loop guard should have skipped enqueue")
+
+    monkeypatch.setattr(runs_autodrive, "_enqueue_auto_bucket", _boom)
+
+    result = runs_autodrive.auto_drive_runs(dry_run=False, max_repeats=2)
+
+    assert result["loop_detected"] == 1
+    assert result["scheduled"] == []
+    assert result["skipped"]
+    assert result["skipped"][0]["reason"] == "loop_detected"
 
 
 def test_auto_drive_loop_guard_skips_repeated_plan(monkeypatch):
@@ -771,3 +848,152 @@ def test_drive_tick_respects_cooldown(monkeypatch):
     _force_next_tick()
     runs_autodrive.drive_tick()  # cooldown bypassed -> runs
     assert len(calls) == 2
+
+
+def _bucket_folder_meta(
+    *,
+    folder_id: int,
+    direct_count: int,
+    created_at: datetime.datetime,
+) -> dict:
+    return {
+        "folder_id": folder_id,
+        "direct_count": direct_count,
+        "created_at": created_at,
+    }
+
+
+def _patch_folder_buckets_db(monkeypatch, folder_map: dict, summaries: dict):
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_direct_image_counts_by_local_path_norm",
+        lambda: folder_map,
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_all_folder_phase_summaries_bulk",
+        lambda **_kwargs: summaries,
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_phase_agg_dirty_local_paths",
+        lambda: set(),
+    )
+    monkeypatch.setattr(runs_autodrive.db, "folder_has_bird_species_work", lambda _p: False)
+    monkeypatch.setattr(runs_autodrive, "_active_job_path_keys", lambda: set())
+    monkeypatch.setattr(runs_autodrive, "_autodrive_prioritize_new_folders", lambda: True)
+    monkeypatch.setattr(runs_autodrive, "_autodrive_new_folder_days", lambda: 7)
+
+
+def test_build_folder_buckets_prioritizes_new_folder_across_phases(monkeypatch):
+    now = datetime.datetime.now()
+    old_path = "/mnt/d/Photos/2025/old-shoot"
+    new_path = "/mnt/d/Photos/2026/new-shoot"
+    folder_map = {
+        old_path: _bucket_folder_meta(folder_id=1, direct_count=500, created_at=now - datetime.timedelta(days=30)),
+        new_path: _bucket_folder_meta(folder_id=2, direct_count=50, created_at=now),
+    }
+    summaries = {
+        old_path: [
+            _phase("indexing", "done", done=10),
+            _phase("metadata", "not_started"),
+            _phase("scoring", "not_started"),
+        ],
+        new_path: [
+            _phase("indexing", "done", done=10),
+            _phase("metadata", "done", done=10),
+            _phase("scoring", "not_started"),
+        ],
+    }
+    _patch_folder_buckets_db(monkeypatch, folder_map, summaries)
+
+    result = runs_autodrive.build_folder_buckets(limit=10)
+
+    assert result["items"][0]["path"] == new_path
+    assert result["items"][0]["is_newly_imported"] is True
+    assert result["items"][1]["path"] == old_path
+    assert result["items"][1]["is_newly_imported"] is False
+
+
+def test_build_folder_buckets_new_folder_tiebreak_prefers_newer_created_at(monkeypatch):
+    now = datetime.datetime.now()
+    older_new = "/mnt/d/Photos/2026/older-new"
+    newer_new = "/mnt/d/Photos/2026/newer-new"
+    folder_map = {
+        older_new: _bucket_folder_meta(folder_id=1, direct_count=200, created_at=now - datetime.timedelta(hours=2)),
+        newer_new: _bucket_folder_meta(folder_id=2, direct_count=20, created_at=now),
+    }
+    summary = [
+        _phase("indexing", "done", done=5),
+        _phase("metadata", "not_started"),
+        _phase("scoring", "not_started"),
+    ]
+    summaries = {older_new: summary, newer_new: summary}
+    _patch_folder_buckets_db(monkeypatch, folder_map, summaries)
+
+    result = runs_autodrive.build_folder_buckets(limit=10)
+
+    assert result["items"][0]["path"] == newer_new
+    assert result["items"][1]["path"] == older_new
+
+
+def test_build_folder_buckets_legacy_sort_when_prioritize_disabled(monkeypatch):
+    now = datetime.datetime.now()
+    old_path = "/mnt/d/Photos/2025/old-shoot"
+    new_path = "/mnt/d/Photos/2026/new-shoot"
+    folder_map = {
+        old_path: _bucket_folder_meta(folder_id=1, direct_count=10, created_at=now - datetime.timedelta(days=30)),
+        new_path: _bucket_folder_meta(folder_id=2, direct_count=10, created_at=now),
+    }
+    summaries = {
+        old_path: [
+            _phase("indexing", "done", done=10),
+            _phase("metadata", "not_started"),
+        ],
+        new_path: [
+            _phase("indexing", "done", done=10),
+            _phase("metadata", "done", done=10),
+            _phase("scoring", "not_started"),
+        ],
+    }
+    _patch_folder_buckets_db(monkeypatch, folder_map, summaries)
+    monkeypatch.setattr(runs_autodrive, "_autodrive_prioritize_new_folders", lambda: False)
+
+    result = runs_autodrive.build_folder_buckets(limit=10)
+
+    assert result["items"][0]["path"] == old_path
+    assert result["items"][0]["is_newly_imported"] is False
+    assert result["items"][1]["path"] == new_path
+
+
+def test_auto_drive_runs_dry_run_schedules_new_folder_first(monkeypatch):
+    now = datetime.datetime.now()
+    old_path = "/mnt/d/Photos/2025/old-shoot"
+    new_path = "/mnt/d/Photos/2026/new-shoot"
+    folder_map = {
+        old_path: _bucket_folder_meta(folder_id=1, direct_count=100, created_at=now - datetime.timedelta(days=30)),
+        new_path: _bucket_folder_meta(folder_id=2, direct_count=30, created_at=now),
+    }
+    summaries = {
+        old_path: [
+            _phase("indexing", "done", done=5),
+            _phase("metadata", "not_started"),
+        ],
+        new_path: [
+            _phase("indexing", "done", done=5),
+            _phase("metadata", "done", done=5),
+            _phase("scoring", "not_started"),
+        ],
+    }
+    _patch_folder_buckets_db(monkeypatch, folder_map, summaries)
+    monkeypatch.setattr(runs_autodrive, "_reconcile_stale_ips_for_drive", lambda: None)
+    monkeypatch.setattr(
+        runs_autodrive,
+        "phases_with_work_from_repair_plan",
+        lambda paths, stages, **kw: list(stages),
+    )
+
+    result = runs_autodrive.auto_drive_runs(limit=5, dry_run=True)
+
+    assert result["scheduled"]
+    assert result["scheduled"][0]["folder_path"] == new_path

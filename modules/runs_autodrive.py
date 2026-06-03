@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import hashlib
 import json
 import logging
@@ -10,6 +11,11 @@ from typing import Any, Dict, Iterable, Optional, Sequence
 
 from modules import db, utils
 from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
+from modules.run_manifest import (
+    REASON_SOURCE_AUTO_DRIVE,
+    attach_run_reason,
+    build_auto_drive_summary,
+)
 from modules.phases import (
     PHASE_PREREQUISITES,
     PhaseCode,
@@ -102,6 +108,106 @@ def _reconcile_stale_ips_for_drive() -> None:
 AUTODRIVE_DIRTY_REFRESH_LIMIT = 100
 # Default for GET /runs/folder-buckets so dirty aggregates refresh instead of synthetic not_started.
 FOLDER_BUCKETS_DIRTY_REFRESH_DEFAULT = AUTODRIVE_DIRTY_REFRESH_LIMIT
+
+_DEFAULT_NEW_FOLDER_DAYS = 7
+
+
+def _autodrive_prioritize_new_folders() -> bool:
+    try:
+        from modules.config import get_config_value
+
+        return bool(get_config_value("auto_drive.prioritize_new_folders", default=True))
+    except Exception:
+        return True
+
+
+def _autodrive_new_folder_days() -> int:
+    try:
+        from modules.config import get_config_value
+
+        return max(1, _as_int(get_config_value("auto_drive.new_folder_days", default=_DEFAULT_NEW_FOLDER_DAYS), _DEFAULT_NEW_FOLDER_DAYS))
+    except Exception:
+        return _DEFAULT_NEW_FOLDER_DAYS
+
+
+def _new_folder_cutoff_ts(*, days: Optional[int] = None) -> float:
+    window = _autodrive_new_folder_days() if days is None else max(1, int(days))
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=window)
+    return cutoff.timestamp()
+
+
+def _folder_created_at_sort_ts(created_at: Any) -> float:
+    if created_at is None:
+        return 0.0
+    if isinstance(created_at, (int, float)):
+        return float(created_at)
+    if isinstance(created_at, datetime.datetime):
+        dt = created_at
+        if dt.tzinfo is None:
+            return dt.timestamp()
+        return dt.timestamp()
+    raw = str(created_at).strip()
+    if not raw:
+        return 0.0
+    try:
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        dt = datetime.datetime.fromisoformat(raw)
+        return dt.timestamp()
+    except ValueError:
+        return 0.0
+
+
+def _format_folder_created_at(created_at: Any) -> Optional[str]:
+    if created_at is None:
+        return None
+    if isinstance(created_at, datetime.datetime):
+        return created_at.isoformat()
+    raw = str(created_at).strip()
+    return raw or None
+
+
+def _is_newly_imported_folder(created_at: Any, *, cutoff_ts: float) -> bool:
+    ts = _folder_created_at_sort_ts(created_at)
+    if ts <= 0:
+        return False
+    return ts >= cutoff_ts
+
+
+def _folder_bucket_sort_key(
+    item: dict[str, Any],
+    *,
+    phase_order: dict[str, int],
+    bucket_order: dict[str, int],
+    prioritize_new: bool,
+    new_cutoff_ts: float,
+) -> tuple:
+    b = str(item.get("bucket") or "")
+    path_key = item.get("path_key") or ""
+    if b == "blocked":
+        return (-1, 0, 0, 0, 0, path_key)
+    if b in bucket_order:
+        return (bucket_order[b], 0, 0, 0, 0, path_key)
+
+    phase = item.get("current_phase") or (item.get("next_phases") or [""])[0]
+    if prioritize_new and item.get("is_newly_imported"):
+        ts = _folder_created_at_sort_ts(item.get("folder_created_at"))
+        return (
+            0,
+            -ts,
+            float(item.get("overall_percent") or 0),
+            _as_int(item.get("image_count")),
+            0,
+            path_key,
+        )
+    return (
+        1,
+        phase_order.get(phase, 50),
+        -_as_int(item.get("image_count")),
+        0,
+        0,
+        path_key,
+    )
 
 # ``clustering`` is a legacy alias queue key; culling is canonical in target_phases.
 _REPAIR_PLAN_QUEUE_SKIP = frozenset({"clustering"})
@@ -564,6 +670,8 @@ def build_folder_buckets(
     dirty_paths = db.get_folder_phase_agg_dirty_local_paths()
     active_keys = _active_job_path_keys()
     dirty_refreshed = [0]
+    prioritize_new = _autodrive_prioritize_new_folders()
+    new_cutoff_ts = _new_folder_cutoff_ts() if prioritize_new else 0.0
 
     rows: list[dict[str, Any]] = []
     for raw_path, meta in direct_counts.items():
@@ -599,6 +707,13 @@ def build_folder_buckets(
             target_phases=target,
             active_path_keys=active_keys,
         )
+        raw_created = (meta or {}).get("created_at")
+        item["folder_created_at"] = _format_folder_created_at(raw_created)
+        item["is_newly_imported"] = (
+            _is_newly_imported_folder(raw_created, cutoff_ts=new_cutoff_ts)
+            if prioritize_new
+            else False
+        )
         if not include_complete and item["bucket"] == "complete":
             continue
         if bucket_filter and bucket_filter != "all" and item["bucket"] != bucket_filter:
@@ -608,16 +723,15 @@ def build_folder_buckets(
     phase_order = {code: i for i, code in enumerate(target)}
     bucket_order = {"blocked": -1, "in_flight": 99, "complete": 100}
 
-    def _sort_key(item: dict[str, Any]):
-        b = item["bucket"]
-        phase = item.get("current_phase") or (item.get("next_phases") or [""])[0]
-        return (
-            bucket_order.get(b, phase_order.get(phase, 50)),
-            -_as_int(item.get("image_count")),
-            item.get("path_key") or "",
+    rows.sort(
+        key=lambda item: _folder_bucket_sort_key(
+            item,
+            phase_order=phase_order,
+            bucket_order=bucket_order,
+            prioritize_new=prioritize_new,
+            new_cutoff_ts=new_cutoff_ts,
         )
-
-    rows.sort(key=_sort_key)
+    )
 
     bucket_counts: dict[str, int] = {}
     phase_counts: dict[str, int] = {}
@@ -652,16 +766,25 @@ def _enqueue_auto_bucket(
     bucket: dict[str, Any],
     *,
     generate_captions: bool,
+    resolved: Optional[str] = None,
+    phase_values: Optional[Sequence[str]] = None,
 ) -> tuple[Optional[int], Optional[int], Optional[dict[str, Any]]]:
     raw_path = str(bucket.get("path") or "")
-    resolved, _candidates = utils.resolve_scope_input_path(raw_path)
+    # ``resolved`` / ``phase_values`` are passed by the drive loop, which already
+    # computed them to derive the loop-guard plan_key; reuse them so we don't build
+    # the dry-run repair plan a second time per enqueued folder.
+    if not resolved:
+        resolved, _candidates = utils.resolve_scope_input_path(raw_path)
     if not resolved or not os.path.isdir(resolved):
         return None, None, {"reason": "missing_on_disk", "folder_path": raw_path}
 
     phase_candidates = sort_phase_value_strings(
         [str(p) for p in bucket.get("next_phases") or list(DEFAULT_TARGET_PHASES)]
     )
-    phase_values = phases_with_work_from_repair_plan([resolved], phase_candidates, dry_run=True)
+    if phase_values is None:
+        phase_values = phases_with_work_from_repair_plan([resolved], phase_candidates, dry_run=True)
+    else:
+        phase_values = list(phase_values)
     if not phase_values:
         return None, None, {"reason": "nothing_to_queue", "folder_path": raw_path}
 
@@ -703,6 +826,27 @@ def _enqueue_auto_bucket(
         payload["resolved_image_ids"] = first_ids
     payload["skip_existing"] = False
     payload["post_run_audit"] = True
+
+    reason_summary, reason_criteria = build_auto_drive_summary(
+        scope_paths=[resolved],
+        enqueued_phases=phase_values,
+        requested_phases=phase_candidates,
+        auto_drive_bucket=str(bucket.get("bucket") or ""),
+        auto_drive_overall_percent=bucket.get("overall_percent"),
+        auto_drive_plan_key=str(payload.get("auto_drive_plan_key") or ""),
+        repair_plan=repair_plan,
+        run_mode=CANONICAL_RUN_MODE,
+        folder_created_at=bucket.get("folder_created_at"),
+        is_newly_imported=bucket.get("is_newly_imported"),
+    )
+    payload = attach_run_reason(
+        payload,
+        source=REASON_SOURCE_AUTO_DRIVE,
+        summary=reason_summary,
+        criteria=reason_criteria,
+        trigger="api",
+        tool_id="runs_auto_drive",
+    )
 
     first_phase, job_type = _first_job_type(phase_values)
     description = build_run_submit_description(
@@ -758,14 +902,46 @@ def auto_drive_runs(
         if item.get("next_phases") and item.get("bucket") not in {"blocked", "in_flight", "complete"}
         and _is_leaf_folder_for_autodrive(_path_key(str(item.get("path") or "")), all_path_keys)
     ][:limit]
-    attempts = _recent_auto_attempt_counts([str(c.get("plan_key") or "") for c in candidates])
+    # Resolve each candidate's enqueue-time identity ONCE, then build the attempt
+    # counts from those exact (narrowed) plan keys. ``_enqueue_auto_bucket`` stores
+    # ``_plan_key(resolved, phase_values)`` on the job payload; counting against the
+    # wider bucket key (``next_phases``) here would never match the stored job keys,
+    # so the loop guard (max_repeats) would never fire. See RCA root cause #2.
+    prepared: list[dict[str, Any]] = []
+    for item in candidates:
+        raw_path = str(item.get("path") or "")
+        resolved, _candidates = utils.resolve_scope_input_path(raw_path)
+        phase_candidates = sort_phase_value_strings(
+            [str(p) for p in item.get("next_phases") or list(DEFAULT_TARGET_PHASES)]
+        )
+        phase_values = (
+            phases_with_work_from_repair_plan([resolved], phase_candidates, dry_run=True)
+            if resolved
+            else []
+        )
+        plan_key = (
+            _plan_key(resolved, phase_values)
+            if resolved and phase_values
+            else str(item.get("plan_key") or "")
+        )
+        prepared.append(
+            {
+                "item": item,
+                "resolved": resolved,
+                "phase_values": phase_values,
+                "plan_key": plan_key,
+            }
+        )
+
+    attempts = _recent_auto_attempt_counts([p["plan_key"] for p in prepared])
 
     scheduled: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     loop_detected = 0
 
-    for item in candidates:
-        plan_key = str(item.get("plan_key") or "")
+    for prep in prepared:
+        item = prep["item"]
+        plan_key = str(prep["plan_key"] or "")
         attempt_meta = attempts.get(plan_key) or {}
         if _as_int(attempt_meta.get("attempts")) >= max_repeats:
             loop_detected += 1
@@ -791,6 +967,8 @@ def auto_drive_runs(
             job_id, position, skip = _enqueue_auto_bucket(
                 item,
                 generate_captions=generate_captions,
+                resolved=prep["resolved"] or None,
+                phase_values=prep["phase_values"],
             )
             if skip:
                 skipped.append({**skip, "phases": item.get("next_phases") or []})

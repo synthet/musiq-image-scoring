@@ -16,6 +16,7 @@ from modules.phases import PhaseCode, PhaseStatus
 from modules.phases_policy import explain_phase_run_decision
 from modules.version import APP_VERSION
 from modules.job_description import augment_queue_payload_for_audit
+from modules.run_manifest import REASON_SOURCE_PHASE_FOLLOWUP, attach_run_reason
 
 logger = logging.getLogger(__name__)
 
@@ -355,10 +356,21 @@ class SelectionRunner:
                     if _k in parent_payload:
                         followup_body[_k] = parent_payload[_k]
 
-                fq_payload = augment_queue_payload_for_audit(
-                    followup_body,
+                fq_payload = attach_run_reason(
+                    augment_queue_payload_for_audit(
+                        followup_body,
+                        trigger="runner",
+                        tool_id="phase_followup",
+                    ),
+                    source=REASON_SOURCE_PHASE_FOLLOWUP,
+                    summary=f"Follow-up stage {next_code!r} after parent job #{job_id}.",
                     trigger="runner",
                     tool_id="phase_followup",
+                    criteria={
+                        "parent_job_id": job_id,
+                        "enqueued_phases": [next_code],
+                        "input_path": input_path,
+                    },
                 )
                 follow_job_id, _ = db.enqueue_job(
                     input_path,

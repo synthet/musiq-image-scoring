@@ -6,6 +6,7 @@ from modules import db
 from modules import ui_tree
 from modules.phases import PhaseRegistry
 from modules.pipeline_selector_composer import compose_selector_request, validate_and_preview, save_preset, load_presets
+from modules.run_manifest import REASON_SOURCE_LEGACY_API, attach_run_reason, build_legacy_api_summary
 
 # Cache for timer-based status updates to avoid unnecessary SSE pushes
 _last_status_cache = {"state": None}
@@ -384,6 +385,15 @@ def create_tab(app_config, scoring_runner, tagging_runner, selection_runner, orc
     # --- Run button handlers ---
     # All runners use start_batch(input_path, job_id, **kwargs)
 
+    def _gradio_queue_payload(payload: dict, *, job_kind: str, path: str) -> dict:
+        return attach_run_reason(
+            payload,
+            source=REASON_SOURCE_LEGACY_API,
+            summary=build_legacy_api_summary(job_kind=job_kind, input_path=path),
+            trigger="gradio",
+            tool_id="pipeline_tab",
+        )
+
     def _run_scoring(path, force):
         if not path:
             return
@@ -391,7 +401,11 @@ def create_tab(app_config, scoring_runner, tagging_runner, selection_runner, orc
             path,
             phase_code="scoring",
             job_type="scoring",
-            queue_payload={"input_path": path, "skip_existing": not force},
+            queue_payload=_gradio_queue_payload(
+                {"input_path": path, "skip_existing": not force},
+                job_kind="scoring",
+                path=path,
+            ),
         )
 
     def _run_metadata(path):
@@ -402,11 +416,15 @@ def create_tab(app_config, scoring_runner, tagging_runner, selection_runner, orc
             path,
             phase_code="scoring",
             job_type="scoring",
-            queue_payload={
-                "input_path": path,
-                "skip_existing": False,
-                "target_phases": ["indexing", "metadata"],
-            },
+            queue_payload=_gradio_queue_payload(
+                {
+                    "input_path": path,
+                    "skip_existing": False,
+                    "target_phases": ["indexing", "metadata"],
+                },
+                job_kind="indexing and metadata",
+                path=path,
+            ),
         )
 
     def _run_culling(path, force):
@@ -416,7 +434,11 @@ def create_tab(app_config, scoring_runner, tagging_runner, selection_runner, orc
             path,
             phase_code="culling",
             job_type="selection",
-            queue_payload={"input_path": path, "force_rescan": force},
+            queue_payload=_gradio_queue_payload(
+                {"input_path": path, "force_rescan": force},
+                job_kind="culling",
+                path=path,
+            ),
         )
 
     def _run_tagging(path, overwrite, captions):
@@ -426,7 +448,11 @@ def create_tab(app_config, scoring_runner, tagging_runner, selection_runner, orc
             path,
             phase_code="keywords",
             job_type="tagging",
-            queue_payload={"input_path": path, "overwrite": overwrite, "generate_captions": captions},
+            queue_payload=_gradio_queue_payload(
+                {"input_path": path, "overwrite": overwrite, "generate_captions": captions},
+                job_kind="tagging",
+                path=path,
+            ),
         )
 
 

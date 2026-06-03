@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.1.0] - 2026-06-03
+
+### Added
+
+- **Auto-drive new-folder prioritization**: "Drive to Complete" now surfaces recently-imported, untouched folders first. `build_folder_buckets` sorts unprocessed folders (0% done, imported within the recency window) newest-first, affecting both the Runs UI ordering and auto-drive scheduling.
+- **Data-quality batch helper**: `db.compute_image_data_quality_flags_batch()` computes keyword/scoring completeness flags for many images in a single set-based query, plus a cheap `db.image_exists()` probe.
+- **Tests**: data-quality batch flags, config-cache mtime isolation, auto-drive new-folder ordering, heal debounce, and run manifest coverage.
+
+### Changed
+
+- **Image list payload**: `_images_list_payload` batches data-quality flags after row assembly instead of issuing a per-row query (removes an N+1).
+- **Auditlog endpoint**: uses `db.image_exists()` for the 404 check and `FETCH FIRST ? ROWS ONLY` for the row limit.
+- **Broad maintenance**: updates across culling analytics, technical-failure detection, QPT v2 / engine wrappers, two-level culling, embedding-atlas React views, agent infra (`.agent/`, `.claude/`), and documentation; static `/app` UI bundle rebuilt.
+
+### Fixed
+
+- **Auto-drive loop guard**: recent-attempt counts are now keyed on the same JIT-narrowed plan keys used at enqueue time, so the repeat guard actually fires (previously it compared wide structural keys against narrow enqueue keys and never matched).
+- **Config cache invalidation**: `load_config()` keys its cache on the mtimes of both `config.json` and `environment.json`, so an `environment.json`-only edit busts the cache; test isolation resets the cache around every test for coarse-mtime filesystems.
+
 ## [8.0.0] - 2026-05-31
 
 ### Added

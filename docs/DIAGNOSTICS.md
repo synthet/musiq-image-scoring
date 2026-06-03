@@ -83,6 +83,15 @@ For a diagnostics-only MCP profile, disable write/code tools such as `execute_co
 
 Full MCP catalog: [AGENTS.md](../AGENTS.md) and [.agent/mcp_tools_reference.md](../.agent/mcp_tools_reference.md).
 
+## Images: phase icon vs stored data
+
+If `/ui/images` shows keywords (or other phases) as incomplete after **completed** auto-drive runs:
+
+1. Open the image inspector **Phase audit log** (or `GET /api/images/{id}/auditlog`).
+2. Look for `done` → `not_started` or `done` → `failed` on `keywords` shortly after a run — usually `_heal_stale_phase_flags` or caption-only tagging (no normalized `image_keywords` rows).
+3. Use list filters `phase_status=keywords:not_started`, `data_gap=keywords`, or `unscored_only=true` on `GET /api/images`.
+4. Stop the durable drive loop while fixing data: `POST /api/runs/drive/stop`.
+
 ## Related
 
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md)

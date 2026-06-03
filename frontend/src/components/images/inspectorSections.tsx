@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { Check, X, Fingerprint, Compass, Dna, MessageSquare } from 'lucide-react'
-import { EMBEDDING_SPACE_COLORS, EMBEDDING_SPACE_LABELS } from '@synthet/image-scoring-design'
 import { CollapsibleInspectorSection, KeyValueTable, formatInspectorValue } from '@/components/images/InspectorPrimitives'
+import {
+  EmbeddingsInspectorChips,
+  PRIMARY_EMBEDDING_SPACE_CODES,
+} from '@/components/images/EmbeddingSpaceChip'
 import { describePick, pickStatusOf } from '@/features/culling/utils/pickStatus'
 import {
   buildPathsTableEntries,
@@ -190,32 +192,7 @@ export function IndexingInspectorSection({
   )
 }
 
-const EMBEDDING_SPACES: { code: string; label: string; icon: typeof Fingerprint; color: string }[] = [
-  {
-    code: 'mobilenet_v2_imagenet_gap',
-    label: EMBEDDING_SPACE_LABELS.mobilenet_v2_imagenet_gap,
-    icon: Fingerprint,
-    color: EMBEDDING_SPACE_COLORS.mobilenet_v2_imagenet_gap,
-  },
-  {
-    code: 'clip_vit_b32_image',
-    label: EMBEDDING_SPACE_LABELS.clip_vit_b32_image,
-    icon: Compass,
-    color: EMBEDDING_SPACE_COLORS.clip_vit_b32_image,
-  },
-  {
-    code: 'bioclip_2_image',
-    label: EMBEDDING_SPACE_LABELS.bioclip_2_image,
-    icon: Dna,
-    color: EMBEDDING_SPACE_COLORS.bioclip_2_image,
-  },
-  {
-    code: 'blip_vit_b16_image',
-    label: EMBEDDING_SPACE_LABELS.blip_vit_b16_image,
-    icon: MessageSquare,
-    color: EMBEDDING_SPACE_COLORS.blip_vit_b16_image,
-  },
-]
+const EMBEDDING_SPACES = PRIMARY_EMBEDDING_SPACE_CODES
 
 export function EmbeddingsInspectorSection({
   embeddings,
@@ -225,7 +202,7 @@ export function EmbeddingsInspectorSection({
   embeddings?: Record<string, boolean> | null
 } & InspectorSectionAnchors) {
   const present = embeddings ?? {}
-  const count = EMBEDDING_SPACES.filter((s) => present[s.code]).length
+  const count = EMBEDDING_SPACES.filter((code) => present[code]).length
   return (
     <CollapsibleInspectorSection
       title="Embeddings"
@@ -234,34 +211,7 @@ export function EmbeddingsInspectorSection({
       sectionId={sectionId}
       collapseAllToken={collapseAllToken}
     >
-      <div className="flex flex-wrap gap-2">
-        {EMBEDDING_SPACES.map(({ code, label, icon: Icon, color }) => {
-          const ok = !!present[code]
-          return (
-            <div
-              key={code}
-              className={clsx(
-                'flex items-center gap-1.5 px-2 py-1 rounded border text-[11px]',
-                ok
-                  ? 'border-[var(--color-border)] bg-[var(--color-bg-secondary)]'
-                  : 'border-[var(--color-border-muted)] opacity-50',
-              )}
-              title={code}
-            >
-              <Icon
-                size={14}
-                style={{ color: ok ? color : 'var(--color-text-muted)' }}
-              />
-              <span className="text-[var(--color-text-primary)]">{label}</span>
-              {ok ? (
-                <Check size={12} className="text-[var(--color-success)]" />
-              ) : (
-                <X size={12} className="text-[var(--color-text-muted)]" />
-              )}
-            </div>
-          )
-        })}
-      </div>
+      <EmbeddingsInspectorChips embeddings={embeddings} />
     </CollapsibleInspectorSection>
   )
 }

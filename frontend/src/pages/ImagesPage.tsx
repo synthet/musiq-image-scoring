@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate, Link } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { ChevronLeft, ChevronRight, Database, Scan, FileText, Zap, Layers, Tag, Bird, Fingerprint, Compass, Dna, MessageSquare } from 'lucide-react'
-import { EMBEDDING_SPACE_COLORS, EMBEDDING_SPACE_LABELS } from '@synthet/image-scoring-design'
+import { ChevronLeft, ChevronRight, Database, Scan, FileText, Zap, Layers, Tag, Bird } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
 import { useUiStore } from '@/stores/uiStore'
 import { Button } from '@/components/ui/button'
 import { phaseStatusColor } from '@/constants/labelColors'
+import { ImageEmbeddingsRow } from '@/components/images/EmbeddingSpaceChip'
 import { imageInspectorPath } from '@/utils/routes'
 import type { Image, ImagePhaseStatusRow } from '@/types/api'
 
@@ -84,58 +84,22 @@ function ImagePhases({ phases }: { phases?: Record<string, ImagePhaseStatusRow |
   )
 }
 
-function EmbeddingIcon({
-  code,
-  present,
-  icon: Icon,
-  color,
-  label,
-}: {
-  code: string
-  present: boolean
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>
-  color: string
-  label: string
-}) {
-  const title = `${label}: ${present ? 'Present' : 'Missing'}`
-  return (
-    <div
-      data-code={code}
-      className={clsx(
-        'p-1 rounded-sm transition-colors hover:bg-[var(--color-bg-elevated)]',
-        present ? 'opacity-100' : 'opacity-30 text-[var(--color-text-muted)]',
-      )}
-      title={title}
-      style={present ? { color } : undefined}
-    >
-      <Icon size={14} strokeWidth={2.5} />
-    </div>
-  )
+function ImageEmbeddings({ embeddings }: { embeddings?: Record<string, boolean> | null }) {
+  return <ImageEmbeddingsRow embeddings={embeddings} />
 }
 
-const EMBEDDING_ICON_CONFIG = [
-  { code: 'mobilenet_v2_imagenet_gap', icon: Fingerprint },
-  { code: 'clip_vit_b32_image', icon: Compass },
-  { code: 'bioclip_2_image', icon: Dna },
-  { code: 'blip_vit_b16_image', icon: MessageSquare },
-] as const
-
-function ImageEmbeddings({ embeddings }: { embeddings?: Record<string, boolean> | null }) {
-  const present = embeddings || {}
-
+function DataQualityBadge({ flags }: { flags?: Record<string, boolean> | null }) {
+  if (!flags || !Object.values(flags).some(Boolean)) return null
+  const labels: string[] = []
+  if (flags.keywords_data_gap) labels.push('keywords')
+  if (flags.scoring_data_gap) labels.push('scoring')
   return (
-    <div className="flex items-center gap-0.5 justify-start">
-      {EMBEDDING_ICON_CONFIG.map(({ code, icon }) => (
-        <EmbeddingIcon
-          key={code}
-          code={code}
-          label={EMBEDDING_SPACE_LABELS[code] ?? code}
-          icon={icon}
-          present={!!present[code]}
-          color={EMBEDDING_SPACE_COLORS[code] ?? 'var(--color-text-muted)'}
-        />
-      ))}
-    </div>
+    <span
+      className="ml-1 text-[10px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-200"
+      title={`Phase/data mismatch: ${labels.join(', ')}`}
+    >
+      gap
+    </span>
   )
 }
 
@@ -160,13 +124,27 @@ export function ImagesPage() {
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(50)
+  const [phaseStatusFilter, setPhaseStatusFilter] = useState('')
+  const [unscoredOnly, setUnscoredOnly] = useState(false)
+  const [dataGapFilter, setDataGapFilter] = useState('')
 
   useEffect(() => {
     setPage(1)
-  }, [selectedScopePath, pageSize, sortBy, order])
+  }, [selectedScopePath, pageSize, sortBy, order, phaseStatusFilter, unscoredOnly, dataGapFilter])
 
   const { data, isLoading, isFetching, isPlaceholderData } = useQuery({
-    queryKey: ['images', 'browse', selectedScopePath, page, pageSize, sortBy, order],
+    queryKey: [
+      'images',
+      'browse',
+      selectedScopePath,
+      page,
+      pageSize,
+      sortBy,
+      order,
+      phaseStatusFilter,
+      unscoredOnly,
+      dataGapFilter,
+    ],
     queryFn: () =>
       galleryApi.list({
         folder_path: selectedScopePath ?? undefined,
@@ -174,6 +152,9 @@ export function ImagesPage() {
         page_size: pageSize,
         sort_by: sortBy,
         order,
+        phase_status: phaseStatusFilter || undefined,
+        unscored_only: unscoredOnly || undefined,
+        data_gap: dataGapFilter || undefined,
       }),
     placeholderData: keepPreviousData,
   })
@@ -208,6 +189,41 @@ export function ImagesPage() {
         </div>
         <div className="text-xs text-[var(--color-text-muted)] max-w-[min(100%,42rem)] truncate" title={scopeLabel}>
           Scope: <span className="text-[var(--color-text-secondary)]">{scopeLabel}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-muted)]">
+          <label className="flex items-center gap-1">
+            <span>Phase</span>
+            <select
+              value={phaseStatusFilter}
+              onChange={(e) => setPhaseStatusFilter(e.target.value)}
+              className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-1.5 py-0.5 text-[var(--color-text-primary)]"
+            >
+              <option value="">Any</option>
+              <option value="keywords:not_started">Keywords not started</option>
+              <option value="scoring:not_started">Scoring not started</option>
+              <option value="indexing:not_started">Indexing not started</option>
+              <option value="keywords:failed">Keywords failed</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={unscoredOnly}
+              onChange={(e) => setUnscoredOnly(e.target.checked)}
+            />
+            <span>Unscored</span>
+          </label>
+          <label className="flex items-center gap-1">
+            <span>Data gap</span>
+            <select
+              value={dataGapFilter}
+              onChange={(e) => setDataGapFilter(e.target.value)}
+              className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-1.5 py-0.5 text-[var(--color-text-primary)]"
+            >
+              <option value="">Off</option>
+              <option value="keywords">Keywords</option>
+            </select>
+          </label>
         </div>
         <div className="ml-auto flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
           <span>
@@ -288,6 +304,7 @@ export function ImagesPage() {
                     <Link to={imageInspectorPath(row.id)} className="hover:underline" onClick={(e) => e.stopPropagation()}>
                       {row.id}
                     </Link>
+                    <DataQualityBadge flags={row.data_quality_flags} />
                   </td>
                   <td className="px-3 py-1.5 text-[var(--color-text-primary)] max-w-[14rem] truncate" title={row.file_name}>
                     <Link

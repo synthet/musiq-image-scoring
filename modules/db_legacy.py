@@ -1659,6 +1659,218 @@ def get_images_paginated(page=1, page_size=None, sort_by="score", order="desc", 
 
     return list(get_connector().query(query, tuple(params)))
 
+def _parse_phase_status_filter(raw: str | None) -> tuple[str, str] | None:
+    """Parse ``phase_code:status`` (e.g. ``keywords:not_started``)."""
+    text = str(raw or "").strip().lower()
+    if not text or ":" not in text:
+        return None
+    phase_code, status = text.split(":", 1)
+    phase_code = phase_code.strip()
+    status = status.strip()
+    if not phase_code or not status:
+        return None
+    return phase_code, status
+
+
+def _add_image_quality_filters(
+    conditions: list,
+    params: list,
+    *,
+    tbl_prefix: str,
+    phase_status_filter: str | None = None,
+    unscored_only: bool = False,
+    data_gap: str | None = None,
+) -> None:
+    """Optional IPS / data-quality predicates for image list queries."""
+    parsed = _parse_phase_status_filter(phase_status_filter)
+    if parsed:
+        phase_code, status = parsed
+        conditions.append(
+            f"EXISTS (SELECT 1 FROM image_phase_status ips "
+            f"JOIN pipeline_phases pp ON pp.id = ips.phase_id "
+            f"WHERE ips.image_id = {tbl_prefix}id "
+            f"AND LOWER(TRIM(pp.code)) = ? "
+            f"AND LOWER(TRIM(ips.status)) = ?)"
+        )
+        params.extend([phase_code, status])
+
+    if unscored_only:
+        conditions.append(
+            f"({tbl_prefix}score_general IS NULL OR {tbl_prefix}score_general <= 0)"
+        )
+
+    gap = str(data_gap or "").strip().lower()
+    if gap == "keywords":
+        conditions.append(
+            f"EXISTS (SELECT 1 FROM image_phase_status ips "
+            f"JOIN pipeline_phases pp ON pp.id = ips.phase_id "
+            f"WHERE ips.image_id = {tbl_prefix}id "
+            f"AND LOWER(TRIM(pp.code)) = 'keywords' "
+            f"AND LOWER(TRIM(ips.status)) IN ('done', 'skipped'))"
+        )
+        conditions.append(
+            "NOT EXISTS (SELECT 1 FROM image_keywords ik WHERE ik.image_id = "
+            f"{tbl_prefix}id)"
+        )
+
+
+def get_image_auditlog(image_id: int, *, limit: int = 50) -> list[dict]:
+    """Recent auditlog rows for an image (IPS uses record_id = image_id)."""
+    lim = max(1, min(int(limit or 50), 200))
+    rows = get_connector().query(
+        "SELECT created_at, table_name, record_id, operation, run_id, phase_code, patch "
+        "FROM auditlog WHERE table_name = 'image_phase_status' AND record_id = ? "
+        "ORDER BY created_at DESC FETCH FIRST ? ROWS ONLY",
+        (int(image_id), lim),
+    )
+    out = []
+    for row in rows or []:
+        patch = row.get("patch")
+        if isinstance(patch, str):
+            try:
+                import json as _json
+                patch = _json.loads(patch)
+            except Exception:
+                pass
+        out.append({
+            "created_at": row.get("created_at"),
+            "table_name": row.get("table_name"),
+            "record_id": row.get("record_id"),
+            "operation": row.get("operation"),
+            "run_id": row.get("run_id"),
+            "phase_code": row.get("phase_code"),
+            "patch": patch,
+        })
+    return out
+
+
+def compute_image_data_quality_flags(image_id: int) -> dict[str, bool]:
+    """Lightweight flags for UI when IPS and stored data disagree."""
+    flags: dict[str, bool] = {}
+    if not image_id:
+        return flags
+    try:
+        row = get_connector().query_one(
+            "SELECT score_general FROM images WHERE id = ?",
+            (int(image_id),),
+        )
+        ips_kw = get_connector().query_one(
+            "SELECT ips.status FROM image_phase_status ips "
+            "JOIN pipeline_phases pp ON pp.id = ips.phase_id "
+            "WHERE ips.image_id = ? AND LOWER(TRIM(pp.code)) = 'keywords'",
+            (int(image_id),),
+        )
+        kw_status = (ips_kw.get("status") or "").strip().lower() if ips_kw else ""
+        if kw_status in ("done", "skipped") and not is_image_keywords_complete(int(image_id)):
+            flags["keywords_data_gap"] = True
+        score = row.get("score_general") if row else None
+        ips_sc = get_connector().query_one(
+            "SELECT ips.status FROM image_phase_status ips "
+            "JOIN pipeline_phases pp ON pp.id = ips.phase_id "
+            "WHERE ips.image_id = ? AND LOWER(TRIM(pp.code)) = 'scoring'",
+            (int(image_id),),
+        )
+        sc_status = (ips_sc.get("status") or "").strip().lower() if ips_sc else ""
+        if sc_status == "done" and (score is None or float(score or 0) <= 0):
+            flags["scoring_data_gap"] = True
+    except Exception as exc:
+        logger.debug("compute_image_data_quality_flags failed for %s: %s", image_id, exc)
+    return flags
+
+
+def compute_image_data_quality_flags_batch(image_ids) -> dict[int, dict[str, bool]]:
+    """Batch variant of :func:`compute_image_data_quality_flags` for list pages.
+
+    One set-based query instead of 3-4 round trips per image. Mirrors
+    :func:`is_image_keywords_complete` semantics (keywords via the legacy column or
+    ``image_keywords`` rows; title/description required when captions are enabled)
+    so list badges and the per-image inspector agree. Returns ``{image_id: flags}``
+    only for images that have at least one gap.
+    """
+    out: dict[int, dict[str, bool]] = {}
+    ids: list[int] = []
+    for raw in image_ids or []:
+        try:
+            ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    if not ids:
+        return out
+
+    from modules import config
+    require_captions = bool((config.get_config_section("tagging") or {}).get("captions_default", True))
+    placeholders = ",".join(["?"] * len(ids))
+    try:
+        rows = get_connector().query(
+            f"""
+            SELECT i.id AS id,
+                   i.keywords AS keywords,
+                   i.title AS title,
+                   i.description AS description,
+                   i.score_general AS score_general,
+                   (SELECT COUNT(*) FROM image_keywords ik WHERE ik.image_id = i.id) AS kw_count,
+                   kwps.status AS kw_status,
+                   scps.status AS sc_status
+            FROM images i
+            LEFT JOIN image_phase_status kwps
+              ON kwps.image_id = i.id
+             AND kwps.phase_id = (SELECT id FROM pipeline_phases WHERE LOWER(TRIM(code)) = 'keywords')
+            LEFT JOIN image_phase_status scps
+              ON scps.image_id = i.id
+             AND scps.phase_id = (SELECT id FROM pipeline_phases WHERE LOWER(TRIM(code)) = 'scoring')
+            WHERE i.id IN ({placeholders})
+            """,
+            tuple(ids),
+        )
+    except Exception as exc:
+        logger.debug("compute_image_data_quality_flags_batch failed: %s", exc)
+        return out
+
+    for row in rows or []:
+        try:
+            iid = int(row.get("id"))
+        except (TypeError, ValueError):
+            continue
+        flags: dict[str, bool] = {}
+
+        kw_status = str(row.get("kw_status") or "").strip().lower()
+        if kw_status in ("done", "skipped"):
+            has_keywords = bool(str(row.get("keywords") or "").strip()) or int(row.get("kw_count") or 0) > 0
+            complete = has_keywords
+            if complete and require_captions:
+                title = str(row.get("title") or "").strip()
+                desc = str(row.get("description") or "").strip()
+                complete = bool(title) and bool(desc)
+            if not complete:
+                flags["keywords_data_gap"] = True
+
+        sc_status = str(row.get("sc_status") or "").strip().lower()
+        if sc_status == "done":
+            score = row.get("score_general")
+            try:
+                score_val = float(score) if score is not None else None
+            except (TypeError, ValueError):
+                score_val = None
+            if score_val is None or score_val <= 0:
+                flags["scoring_data_gap"] = True
+
+        if flags:
+            out[iid] = flags
+    return out
+
+
+def image_exists(image_id) -> bool:
+    """Cheap existence check (one indexed lookup) for endpoint 404s."""
+    try:
+        row = get_connector().query_one("SELECT 1 AS x FROM images WHERE id = ?", (int(image_id),))
+        return row is not None
+    except (TypeError, ValueError):
+        return False
+    except Exception as exc:
+        logger.debug("image_exists failed for %s: %s", image_id, exc)
+        return False
+
+
 def _build_image_query_components(
     sort_by="score",
     order="desc",
@@ -1677,6 +1889,9 @@ def _build_image_query_components(
     lens_filter=None,
     iso_min=None,
     iso_max=None,
+    phase_status_filter=None,
+    unscored_only=False,
+    data_gap=None,
 ):
     """
     Internal helper to build shared query components (joins, conditions, params, order_by).
@@ -1788,6 +2003,15 @@ def _build_image_query_components(
     if stack_id:
         conditions.append(f"{tbl_prefix}stack_id = ?")
         params.append(stack_id)
+
+    _add_image_quality_filters(
+        conditions,
+        params,
+        tbl_prefix=tbl_prefix,
+        phase_status_filter=phase_status_filter,
+        unscored_only=bool(unscored_only),
+        data_gap=data_gap,
+    )
 
     # Build WHERE clause
     where_clause = ""
@@ -4873,7 +5097,7 @@ def delete_folder_cache_entry(folder_path: str, delete_descendants: bool = True)
 
 
 def get_folder_direct_image_counts_by_local_path_norm():
-    """Map ``os.path.normpath(local_folder_path)`` -> ``{folder_id, direct_count}``.
+    """Map ``os.path.normpath(local_folder_path)`` -> ``{folder_id, direct_count, created_at}``.
 
     Used by the Scope Navigator (React) folder tree rollup; keys match folder tree paths
     after ``convert_path_to_local`` (same normalization as `/api/scope/tree` payload).
@@ -4887,10 +5111,11 @@ def get_folder_direct_image_counts_by_local_path_norm():
             SELECT
                 f.id AS id,
                 f.path AS path,
+                f.created_at AS created_at,
                 COUNT(i.id) AS direct_count
             FROM folders f
             LEFT JOIN images i ON i.folder_id = f.id
-            GROUP BY f.id, f.path
+            GROUP BY f.id, f.path, f.created_at
             """
         )
     except Exception as e:
@@ -4908,6 +5133,7 @@ def get_folder_direct_image_counts_by_local_path_norm():
             out[key] = {
                 "folder_id": int(r["id"]),
                 "direct_count": int(r.get("direct_count") or 0),
+                "created_at": r.get("created_at"),
             }
         except Exception:
             continue
@@ -13305,13 +13531,44 @@ def folder_has_bird_species_work(folder_path: str) -> bool:
     return row is not None
 
 
+# Debounce for _heal_stale_phase_flags: concurrent force_refresh calls (UI scope
+# tree + runs_autodrive + folder-buckets) frequently target the same folder within
+# milliseconds, each re-running the full heal scan. The resets are idempotent, but
+# the duplicate work spams WARNING logs and burns writes. Suppress re-runs for the
+# same folder within a short window; the summary itself is still recomputed live.
+_HEAL_DEBOUNCE_SECONDS = 5.0
+_heal_recent_lock = threading.Lock()
+_heal_recent: dict[str, float] = {}
+
+
+def _should_run_heal(folder_path) -> bool:
+    """Return True at most once per ``_HEAL_DEBOUNCE_SECONDS`` per folder path."""
+    if not folder_path:
+        return False
+    now = time.monotonic()
+    with _heal_recent_lock:
+        last = _heal_recent.get(folder_path)
+        if last is not None and (now - last) < _HEAL_DEBOUNCE_SECONDS:
+            return False
+        _heal_recent[folder_path] = now
+        # Bound memory: drop entries past the debounce window when the map grows.
+        if len(_heal_recent) > 4096:
+            cutoff = now - _HEAL_DEBOUNCE_SECONDS
+            for k in [k for k, v in _heal_recent.items() if v < cutoff]:
+                _heal_recent.pop(k, None)
+        return True
+
+
 def _heal_stale_phase_flags(folder_path):
     """Reset image_phase_status to 'not_started' where status is 'done' but
     actual data is missing.  Called during force-refresh so the UI accurately
     reflects reality and subsequent runs re-process the affected images.
 
-    Phases checked:
-      - scoring: score_general IS NULL or <= 0
+    Each criterion must match the phase's own completeness definition so that a
+    re-run actually clears it (no churn loops). Phases checked:
+      - scoring:  score_general IS NULL or <= 0
+      - metadata: rating IS NULL or out of range (label is intentionally ignored)
+      - indexing: images.image_hash missing (NOT embedding — that is a culling product)
       - keywords: no rows in image_keywords for the image
     """
     from modules import utils
@@ -13350,7 +13607,11 @@ def _heal_stale_phase_flags(folder_path):
             "heal_stale_phase_flags: reset %d scoring flags (done but no scores) under '%s'",
             len(scoring_rows), folder_path)
 
-    # --- Metadata: done flag but no rating/label or out of range ---
+    # --- Metadata: done flag but rating missing/out of range ---
+    # NOTE: label is intentionally NOT checked here. The metadata writer emits an
+    # empty-string label (never NULL) for camera-fresh images, and
+    # is_image_metadata_complete() ignores label entirely; treating NULL label as
+    # incomplete would diverge from that policy. Rating is the reliable signal.
     meta_rows = get_connector().query(
         """
         SELECT i.id
@@ -13363,7 +13624,6 @@ def _heal_stale_phase_flags(folder_path):
           AND LOWER(TRIM(ips.status)) = 'done'
           AND (
               i.rating IS NULL OR i.rating < 0 OR i.rating > 5
-              OR i.label IS NULL
           )
         """,
         (target_path, path_like_unix, path_like_win))
@@ -13377,13 +13637,18 @@ def _heal_stale_phase_flags(folder_path):
             "heal_stale_phase_flags: reset %d metadata flags (done but missing/corrupt) under '%s'",
             len(meta_rows), folder_path)
 
-    # --- Indexing: done flag but no embedding (fact table + optional legacy column on Postgres) ---
-    if _get_db_engine() == "postgres":
-        missing_emb = f"NOT ({_postgres_has_default_embedding_sql('i')})"
-    else:
-        missing_emb = "i.image_embedding IS NULL"
+    # --- Indexing: done flag but no identity hash ---
+    # Indexing completeness == images.image_hash present (see
+    # indexing_runner._image_row_has_identity_hash, which matches
+    # get_phase_incomplete_sql('indexing')). It must NOT be keyed on the default
+    # embedding: that embedding is produced by the *culling* phase
+    # (clustering.update_image_embeddings_batch), so an indexed-but-not-yet-culled
+    # image legitimately has no embedding. Resetting indexing for those is a false
+    # positive AND a churn loop, since re-indexing recomputes the hash but never
+    # writes an embedding. Hash absence is the only true "indexing not done" signal,
+    # and re-indexing actually resolves it.
     indexing_rows = get_connector().query(
-        f"""
+        """
         SELECT i.id
         FROM images i
         JOIN folders f ON f.id = i.folder_id
@@ -13392,7 +13657,7 @@ def _heal_stale_phase_flags(folder_path):
         WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
           AND LOWER(TRIM(pp.code)) = 'indexing'
           AND LOWER(TRIM(ips.status)) = 'done'
-          AND {missing_emb}
+          AND (i.image_hash IS NULL OR TRIM(i.image_hash) = '')
         """,
         (target_path, path_like_unix, path_like_win),
     )
@@ -13403,7 +13668,7 @@ def _heal_stale_phase_flags(folder_path):
 
     if indexing_rows:
         logger.warning(
-            "heal_stale_phase_flags: reset %d indexing flags (done but no embedding) under '%s'",
+            "heal_stale_phase_flags: reset %d indexing flags (done but no identity hash) under '%s'",
             len(indexing_rows), folder_path)
 
     # --- Keywords: done flag but no keyword rows ---
@@ -13435,14 +13700,24 @@ def _heal_stale_phase_flags(folder_path):
         else:
             raise
 
+    kw_reset = 0
     for row in kw_rows or []:
-        set_image_phase_status(row["id"], "keywords", "not_started")
+        image_id = int(row["id"])
+        if is_image_keywords_complete(image_id):
+            continue
+        set_image_phase_status(
+            image_id,
+            "keywords",
+            "failed",
+            error="heal: keywords phase marked done but data incomplete",
+        )
+        kw_reset += 1
         healed += 1
 
-    if kw_rows:
+    if kw_reset:
         logger.warning(
-            "heal_stale_phase_flags: reset %d keywords flags (done but no keywords) under '%s'",
-            len(kw_rows), folder_path)
+            "heal_stale_phase_flags: marked %d keywords flags failed (done but incomplete) under '%s'",
+            kw_reset, folder_path)
 
     return healed
 
@@ -13467,7 +13742,7 @@ def get_folder_phase_summary(folder_path, force_refresh=False):
         return []
 
     try:
-        if force_refresh:
+        if force_refresh and _should_run_heal(folder_path):
             try:
                 _heal_stale_phase_flags(folder_path)
             except Exception as heal_err:

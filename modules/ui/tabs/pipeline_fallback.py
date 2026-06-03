@@ -1,7 +1,18 @@
 import gradio as gr
 
 from modules import config, db
+from modules.run_manifest import REASON_SOURCE_LEGACY_API, attach_run_reason, build_legacy_api_summary
 from modules.ui.tabs import pipeline as pipeline_full
+
+
+def _gradio_queue_payload(payload: dict, *, job_kind: str, path: str) -> dict:
+    return attach_run_reason(
+        payload,
+        source=REASON_SOURCE_LEGACY_API,
+        summary=build_legacy_api_summary(job_kind=job_kind, input_path=path),
+        trigger="gradio",
+        tool_id="pipeline_fallback",
+    )
 
 
 def _folder_view(folder_path: str, force_refresh: bool = False):
@@ -126,19 +137,55 @@ def create_tab(app_config, scoring_runner, tagging_runner, selection_runner, orc
 
     def _run_scoring(path, force):
         if path:
-            db.enqueue_job(path, phase_code="scoring", job_type="scoring", queue_payload={"input_path": path, "skip_existing": not force})
+            db.enqueue_job(
+                path,
+                phase_code="scoring",
+                job_type="scoring",
+                queue_payload=_gradio_queue_payload(
+                    {"input_path": path, "skip_existing": not force},
+                    job_kind="scoring",
+                    path=path,
+                ),
+            )
 
     def _run_metadata(path):
         if path:
-            db.enqueue_job(path, phase_code="scoring", job_type="scoring", queue_payload={"input_path": path, "skip_existing": False, "target_phases": ["indexing", "metadata"]})
+            db.enqueue_job(
+                path,
+                phase_code="scoring",
+                job_type="scoring",
+                queue_payload=_gradio_queue_payload(
+                    {"input_path": path, "skip_existing": False, "target_phases": ["indexing", "metadata"]},
+                    job_kind="indexing and metadata",
+                    path=path,
+                ),
+            )
 
     def _run_culling(path, force):
         if path:
-            db.enqueue_job(path, phase_code="culling", job_type="selection", queue_payload={"input_path": path, "force_rescan": force})
+            db.enqueue_job(
+                path,
+                phase_code="culling",
+                job_type="selection",
+                queue_payload=_gradio_queue_payload(
+                    {"input_path": path, "force_rescan": force},
+                    job_kind="culling",
+                    path=path,
+                ),
+            )
 
     def _run_tagging(path, overwrite, captions):
         if path:
-            db.enqueue_job(path, phase_code="keywords", job_type="tagging", queue_payload={"input_path": path, "overwrite": overwrite, "generate_captions": captions})
+            db.enqueue_job(
+                path,
+                phase_code="keywords",
+                job_type="tagging",
+                queue_payload=_gradio_queue_payload(
+                    {"input_path": path, "overwrite": overwrite, "generate_captions": captions},
+                    job_kind="tagging",
+                    path=path,
+                ),
+            )
 
     def _run_all_pending(path):
         if path:

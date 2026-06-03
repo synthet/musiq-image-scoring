@@ -726,9 +726,10 @@ class TaggingRunner:
                                 image_id=row["id"],
                             )
 
-                produced_output = bool(tags or caption or alt_text or extended_description)
+                keywords_produced = bool(tags)
+                metadata_produced = bool(caption or alt_text or extended_description)
 
-                if produced_output:
+                if keywords_produced or metadata_produced:
                     tags_str = ",".join(tags)
                     db.update_image_fields_batch([(row['id'], {
                         "keywords": tags_str,
@@ -748,26 +749,58 @@ class TaggingRunner:
                         alt_text=alt_text or "",
                         extended_description=extended_description or "",
                     )
-                    processed_count += 1
-                    processed_folders.add(folder)
-                    db.set_image_phase_status(
-                        row['id'],
-                        PhaseCode.KEYWORDS,
-                        PhaseStatus.DONE,
-                        app_version=APP_VERSION,
-                        executor_version=TAGGER_VERSION,
-                        job_id=job_id,
-                    )
-                    # Issue #160: increment job_phases.images_processed via the collector.
-                    if report_collector is not None:
-                        try:
-                            report_collector.record_after(
-                                int(row['id']),
-                                {"keywords": tags_str, "title": title or None, "description": caption or None},
-                                action="processed",
-                            )
-                        except Exception:
-                            logger.debug("tagging: record_after failed for image_id=%s", row.get('id'), exc_info=True)
+                    if keywords_produced:
+                        processed_count += 1
+                        processed_folders.add(folder)
+                        db.set_image_phase_status(
+                            row['id'],
+                            PhaseCode.KEYWORDS,
+                            PhaseStatus.DONE,
+                            app_version=APP_VERSION,
+                            executor_version=TAGGER_VERSION,
+                            job_id=job_id,
+                        )
+                        if report_collector is not None:
+                            try:
+                                report_collector.record_after(
+                                    int(row['id']),
+                                    {
+                                        "keywords": tags_str,
+                                        "title": title or None,
+                                        "description": caption or None,
+                                    },
+                                    action="processed",
+                                )
+                            except Exception:
+                                logger.debug(
+                                    "tagging: record_after failed for image_id=%s",
+                                    row.get('id'),
+                                    exc_info=True,
+                                )
+                    else:
+                        skipped_count += 1
+                        db.set_image_phase_status(
+                            row['id'],
+                            PhaseCode.KEYWORDS,
+                            PhaseStatus.SKIPPED,
+                            app_version=APP_VERSION,
+                            executor_version=TAGGER_VERSION,
+                            job_id=job_id,
+                            skip_reason="caption_only_no_keywords",
+                            skipped_by="tagging",
+                        )
+                        if report_collector is not None:
+                            try:
+                                report_collector.record_skip(
+                                    int(row['id']),
+                                    "caption_only_no_keywords",
+                                )
+                            except Exception:
+                                logger.debug(
+                                    "tagging: record_skip failed for image_id=%s",
+                                    row.get('id'),
+                                    exc_info=True,
+                                )
                 else:
                     skipped_count += 1
                     db.set_image_phase_status(
