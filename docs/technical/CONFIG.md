@@ -179,6 +179,7 @@ WSL/Windows host project roots for thumbnail path rebasing.
 | `server_loop_enabled` | `true` | Runs the server-side drive loop (`drive_tick` on idle). |
 | `prioritize_new_folders` | `true` | When true, folders with `folders.created_at` within `new_folder_days` sort before older backlog (even across pipeline phases). |
 | `new_folder_days` | `7` | Window for “newly imported” folder boost; aligned with MCP `get_newly_imported_folders`. |
+| `bulk_phase_status` | `true` | Run planner (`plan_scope`) phase-status lookups as one bulk fetch per scope instead of per-image (kills the "Scanning folders…" N+1). Set `false` to restore the per-image path if the bulk fetch ever diverges. |
 
 ### Top-level misc
 

@@ -329,14 +329,14 @@ def test_enqueue_auto_bucket_uses_only_repair_plan_phases_with_work(monkeypatch)
 
     assert skip is None
     assert job_id == 9001
-    assert enqueued["phase_codes"] == ["scoring", "keywords"]
+    assert enqueued["phase_codes"] == ["indexing", "metadata", "scoring", "keywords"]
     assert plan_calls[0][2] is True
     assert plan_calls[1][2] is False
-    assert plan_calls[1][1] == ["scoring", "keywords"]
+    assert plan_calls[1][1] == ["indexing", "metadata", "scoring", "keywords"]
     assert plan_calls[0][3] is False
     assert plan_calls[1][3] is False
     assert enqueued["reason"]["source"] == "auto_drive"
-    assert enqueued["reason"]["criteria"]["enqueued_phases"] == ["scoring", "keywords"]
+    assert enqueued["reason"]["criteria"]["enqueued_phases"] == ["indexing", "metadata", "scoring", "keywords"]
     assert enqueued["reason"]["criteria"]["planner_reason_counts"]["stale_executor"] == 2
 
 
@@ -444,6 +444,33 @@ def test_auto_drive_dry_run_returns_candidates(monkeypatch):
     assert result["dry_run"] is True
     assert len(result["scheduled"]) == 1
     assert result["scheduled"][0]["phases"] == ["metadata", "scoring"]
+
+
+def test_auto_drive_skips_throwaway_planner_preview(monkeypatch):
+    """The drive must not pay for the JIT planner preview it never reads."""
+    captured: dict = {}
+
+    def _fake_buckets(**kwargs):
+        captured.update(kwargs)
+        return {
+            "items": [],
+            "total": 0,
+            "bucket_counts": {},
+            "phase_counts": {},
+        }
+
+    monkeypatch.setattr(runs_autodrive, "_reconcile_stale_ips_for_drive", lambda: None)
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_direct_image_counts_by_local_path_norm",
+        lambda: {},
+    )
+    monkeypatch.setattr(runs_autodrive, "build_folder_buckets", _fake_buckets)
+    monkeypatch.setattr(runs_autodrive, "_recent_auto_attempt_counts", lambda *_a, **_k: {})
+
+    runs_autodrive.auto_drive_runs(dry_run=True, limit=10)
+
+    assert captured.get("planner_preview_limit") == 0
 
 
 def test_auto_drive_plan_key_matches_enqueue_when_phases_narrowed(monkeypatch):
@@ -997,3 +1024,146 @@ def test_auto_drive_runs_dry_run_schedules_new_folder_first(monkeypatch):
 
     assert result["scheduled"]
     assert result["scheduled"][0]["folder_path"] == new_path
+
+
+def test_build_folder_buckets_explicit_paths_use_scoped_direct_counts(monkeypatch):
+    target = "/mnt/d/Photos/test"
+    scoped_paths: list[list[str]] = []
+
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_direct_image_counts_by_local_path_norm",
+        lambda: (_ for _ in ()).throw(AssertionError("full library scan should not run")),
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_direct_image_counts_for_paths",
+        lambda paths: scoped_paths.append(list(paths))
+        or {target: {"folder_id": 1, "direct_count": 3, "created_at": None}},
+    )
+    monkeypatch.setattr(runs_autodrive, "_active_job_path_keys", lambda: set())
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_phase_summary",
+        lambda path, force_refresh=False: [
+            _phase("indexing", "done", done=3),
+            _phase("metadata", "not_started"),
+        ],
+    )
+    monkeypatch.setattr(runs_autodrive.db, "folder_has_bird_species_work", lambda _p: False)
+
+    result = runs_autodrive.build_folder_buckets(
+        folder_paths=[target],
+        limit=5,
+        refresh_dirty_limit=1,
+    )
+
+    assert scoped_paths == [[target]]
+    assert len(result["items"]) == 1
+    assert result["items"][0]["path"] == target
+
+
+def test_auto_drive_explicit_paths_skip_library_reconcile_and_leaf_filter(monkeypatch):
+    target = "/mnt/d/Photos/parent"
+    reconcile_called = []
+
+    monkeypatch.setattr(
+        runs_autodrive,
+        "_reconcile_stale_ips_for_drive",
+        lambda: reconcile_called.append(True),
+    )
+    monkeypatch.setattr(
+        runs_autodrive,
+        "build_folder_buckets",
+        lambda **kwargs: {
+            "items": [{
+                "path": target,
+                "next_phases": ["metadata"],
+                "bucket": "awaiting_metadata",
+            }],
+            "total": 1,
+            "bucket_counts": {"awaiting_metadata": 1},
+            "phase_counts": {},
+        },
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_direct_image_counts_by_local_path_norm",
+        lambda: (_ for _ in ()).throw(AssertionError("full library scan should not run")),
+    )
+    monkeypatch.setattr(
+        runs_autodrive,
+        "_is_leaf_folder_for_autodrive",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("leaf filter should not run")),
+    )
+    monkeypatch.setattr(runs_autodrive, "_recent_auto_attempt_counts", lambda _keys: {})
+    monkeypatch.setattr(
+        runs_autodrive,
+        "_enqueue_auto_bucket",
+        lambda bucket, **kwargs: (42, 1, None),
+    )
+
+    result = runs_autodrive.auto_drive_runs(
+        folder_paths=[target],
+        limit=1,
+        dry_run=False,
+    )
+
+    assert reconcile_called == []
+    assert result["scheduled"][0]["job_id"] == 42
+
+
+def test_resolve_auto_drive_enqueue_phases_includes_pipeline_prefix(monkeypatch):
+    folder = "/mnt/d/Photos/Z8/180-600mm/2026/2026-05-31"
+
+    def fake_plan(paths, stages, dry_run, include_stale_executor=False):
+        return {
+            "stage_queues": {
+                "metadata": [],
+                "scoring": [1, 2],
+                "culling": [1],
+                "keywords": [1],
+                "bird_species": [1],
+            }
+        }
+
+    monkeypatch.setattr(runs_autodrive.db, "build_validation_repair_plan", fake_plan)
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda p: (p, []),
+    )
+    monkeypatch.setattr(runs_autodrive.os.path, "isdir", lambda _p: True)
+    monkeypatch.setattr(
+        "modules.db.get_folder_phase_summary",
+        lambda path, force_refresh=False: [
+            _phase("indexing", "done", done=10),
+            _phase("metadata", "not_started"),
+            _phase("scoring", "not_started"),
+        ],
+    )
+
+    candidates = ["metadata", "scoring", "culling", "keywords", "bird_species"]
+    phases = runs_autodrive.resolve_auto_drive_enqueue_phases(folder, candidates, dry_run=True)
+    assert phases == candidates
+
+    bucket = {
+        "path": folder,
+        "next_phases": candidates,
+        "bucket": "awaiting_metadata",
+    }
+    enqueued = {}
+
+    def fake_enqueue(path, first_phase, job_type, payload, description, phase_codes=None, **_kw):
+        enqueued["phase_codes"] = list(phase_codes or [])
+        return 77, 1
+
+    monkeypatch.setattr(runs_autodrive.db, "enqueue_job_with_phases", fake_enqueue)
+    monkeypatch.setattr(runs_autodrive, "augment_queue_payload_for_audit", lambda p, **_k: p)
+    monkeypatch.setattr(runs_autodrive, "build_run_submit_description", lambda **_k: "test")
+
+    job_id, pos, skip = runs_autodrive._enqueue_auto_bucket(bucket, generate_captions=False)
+
+    assert skip is None
+    assert job_id == 77
+    assert enqueued["phase_codes"] == candidates

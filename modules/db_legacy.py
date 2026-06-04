@@ -1859,15 +1859,15 @@ def compute_image_data_quality_flags_batch(image_ids) -> dict[int, dict[str, boo
     return out
 
 
-def image_exists(image_id) -> bool:
-    """Cheap existence check (one indexed lookup) for endpoint 404s."""
+def image_exists_by_id(image_id) -> bool:
+    """Cheap existence check by images.id (one indexed lookup) for endpoint 404s."""
     try:
         row = get_connector().query_one("SELECT 1 AS x FROM images WHERE id = ?", (int(image_id),))
         return row is not None
     except (TypeError, ValueError):
         return False
     except Exception as exc:
-        logger.debug("image_exists failed for %s: %s", image_id, exc)
+        logger.debug("image_exists_by_id failed for %s: %s", image_id, exc)
         return False
 
 
@@ -2245,6 +2245,8 @@ def get_filtered_paths(rating_filter=None, label_filter=None, keyword_filter=Non
     rows = get_connector().query(query, tuple(params))
     return [row['file_path'] for row in rows]
 
+
+# Path/score/thumbnail semantics — do not add another ``image_exists`` name below this.
 def image_exists(file_path, current_version=None):
     row = get_connector().query_one(
         "SELECT score, model_version, score_general, thumbnail_path FROM images WHERE file_path = ?",
@@ -5134,6 +5136,70 @@ def get_folder_direct_image_counts_by_local_path_norm():
                 "folder_id": int(r["id"]),
                 "direct_count": int(r.get("direct_count") or 0),
                 "created_at": r.get("created_at"),
+            }
+        except Exception:
+            continue
+    return out
+
+
+def get_folder_direct_image_counts_for_paths(folder_paths):
+    """Direct image counts for explicit folder paths only (Queue / scoped auto-drive).
+
+    Avoids scanning every row in ``folders`` when the caller already knows which
+    folders to enqueue. Keys match ``get_folder_direct_image_counts_by_local_path_norm``.
+    """
+    from modules import utils
+
+    if not folder_paths:
+        return {}
+
+    sql = """
+        SELECT
+            f.id AS id,
+            f.path AS path,
+            f.created_at AS created_at,
+            COUNT(i.id) AS direct_count
+        FROM folders f
+        LEFT JOIN images i ON i.folder_id = f.id
+        WHERE f.path = ?
+        GROUP BY f.id, f.path, f.created_at
+    """
+    out: dict = {}
+    seen_keys: set[str] = set()
+    for folder_path in folder_paths:
+        raw = str(folder_path or "").strip()
+        if not raw:
+            continue
+        local_p = utils.convert_path_to_local(raw) if hasattr(utils, "convert_path_to_local") else raw
+        if not local_p:
+            continue
+        norm_local = os.path.normpath(local_p)
+        path_key = norm_local.replace("\\", "/").rstrip("/").lower()
+        if path_key in seen_keys:
+            continue
+        seen_keys.add(path_key)
+
+        wsl_path = utils.convert_path_to_wsl(local_p) if hasattr(utils, "convert_path_to_wsl") else local_p
+        row = None
+        for candidate in (wsl_path, raw, local_p, norm_local):
+            if not candidate:
+                continue
+            try:
+                row = get_connector().query_one(sql, (candidate,))
+            except Exception as e:
+                logging.debug("get_folder_direct_image_counts_for_paths lookup failed for %s: %s", candidate, e)
+                row = None
+            if row:
+                break
+        if not row:
+            continue
+        try:
+            stored_local = utils.convert_path_to_local(str(row.get("path") or "")) if hasattr(utils, "convert_path_to_local") else str(row.get("path") or "")
+            key = os.path.normpath(stored_local or norm_local)
+            out[key] = {
+                "folder_id": int(row["id"]),
+                "direct_count": int(row.get("direct_count") or 0),
+                "created_at": row.get("created_at"),
             }
         except Exception:
             continue
@@ -13322,6 +13388,122 @@ def get_image_phase_statuses(image_id):
         }
     return result
 
+
+def get_image_phase_statuses_bulk(image_ids):
+    """Bulk equivalent of :func:`get_image_phase_statuses` for many images.
+
+    Returns ``{image_id: {phase_code: {...}}}`` where every requested image maps
+    to a dict containing **every** enabled ``pipeline_phases.code`` (defaults for
+    phases with no ``image_phase_status`` row), exactly like the per-image
+    function. This collapses the run planner's per-image N+1 (two queries per
+    image) into a handful of set-based queries for the whole scope, so
+    ``build_validation_repair_plan`` / auto-drive "scanning folders" no longer
+    issues ``O(images x stages)`` round trips.
+    """
+    ids: list[int] = []
+    seen: set[int] = set()
+    for raw in (image_ids or []):
+        try:
+            iid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if iid in seen:
+            continue
+        seen.add(iid)
+        ids.append(iid)
+    if not ids:
+        return {}
+
+    # Enabled phases (single query); preserves sort_order like the per-image fn.
+    phase_rows = get_connector().query(
+        "SELECT id, code FROM pipeline_phases "
+        "WHERE COALESCE(enabled, 1) = 1 ORDER BY sort_order"
+    )
+    enabled_phases = [
+        (r["id"], (r["code"] or "").strip())
+        for r in phase_rows
+        if (r["code"] or "").strip()
+    ]
+    phase_code_by_id = {pid: code for pid, code in enabled_phases}
+
+    ips_by_image: dict[int, dict] = {iid: {} for iid in ids}
+    actions_by_image: dict[int, dict] = {iid: {} for iid in ids}
+
+    chunk_size = 900
+    for i in range(0, len(ids), chunk_size):
+        chunk = ids[i:i + chunk_size]
+        placeholders = ",".join(["?"] * len(chunk))
+
+        rows = get_connector().query(
+            "SELECT ips.image_id, ips.phase_id, ips.status, ips.executor_version, "
+            "       ips.app_version, ips.updated_at, ips.attempt_count, "
+            "       ips.last_error, ips.skip_reason, ips.skipped_by "
+            "FROM image_phase_status ips "
+            f"WHERE ips.image_id IN ({placeholders})",
+            tuple(chunk),
+        )
+        for r in rows:
+            code = phase_code_by_id.get(r["phase_id"])
+            if not code:
+                continue  # row belongs to a disabled/unknown phase
+            ips_by_image.setdefault(r["image_id"], {})[code] = r
+
+        action_rows = get_connector().query(
+            "SELECT image_id, phase_code, action, reason, created_at, job_id "
+            "FROM ("
+            "  SELECT image_id, phase_code, action, reason, created_at, job_id, "
+            "         ROW_NUMBER() OVER("
+            "             PARTITION BY image_id, phase_code ORDER BY created_at DESC"
+            "         ) as rn "
+            "  FROM job_image_actions "
+            f"  WHERE image_id IN ({placeholders})"
+            ") t WHERE rn = 1",
+            tuple(chunk),
+        )
+        for ar in action_rows:
+            actions_by_image.setdefault(ar["image_id"], {})[ar["phase_code"]] = {
+                "action": ar["action"],
+                "reason": ar["reason"],
+                "created_at": ar["created_at"],
+                "job_id": ar["job_id"],
+            }
+
+    result: dict[int, dict] = {}
+    for iid in ids:
+        ips_rows = ips_by_image.get(iid, {})
+        actions = actions_by_image.get(iid, {})
+        image_result: dict[str, dict] = {}
+        for _pid, code in enabled_phases:
+            r = ips_rows.get(code)
+            if r is not None:
+                image_result[code] = {
+                    "status": (r["status"] or "not_started").strip(),
+                    "executor_version": r["executor_version"],
+                    "app_version": r["app_version"],
+                    "updated_at": r["updated_at"],
+                    "attempt_count": r["attempt_count"],
+                    "last_error": r["last_error"],
+                    "skip_reason": r["skip_reason"],
+                    "skipped_by": r["skipped_by"],
+                    "last_run_action": actions.get(code),
+                }
+            else:
+                # No image_phase_status row: mirror the per-image LEFT JOIN
+                # defaults (status 'not_started', NULL metadata) so callers see
+                # an identical shape regardless of how far the pipeline got.
+                image_result[code] = {
+                    "status": "not_started",
+                    "executor_version": None,
+                    "app_version": None,
+                    "updated_at": None,
+                    "attempt_count": None,
+                    "last_error": None,
+                    "skip_reason": None,
+                    "skipped_by": None,
+                    "last_run_action": actions.get(code),
+                }
+        result[iid] = image_result
+    return result
 
 
 def get_image_phase_status(image_id, phase_code):

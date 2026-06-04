@@ -302,6 +302,38 @@ def test_policy_skips_legacy_null_executor_version_when_data_complete(monkeypatc
     assert decision["reason"] == "already_done_current_executor"
 
 
+def test_explain_uses_prefetched_statuses_without_db_call(monkeypatch):
+    """When prefetched_statuses is supplied, the per-image DB fetch is skipped."""
+    def _boom(_image_id):
+        raise AssertionError("get_image_phase_statuses must not be called when prefetched")
+
+    monkeypatch.setattr(phases_policy.db, "get_image_phase_statuses", _boom)
+    monkeypatch.setattr(phases_policy.db, "is_image_scoring_complete", lambda _i: False)
+
+    decision = phases_policy.explain_phase_run_decision(
+        1,
+        PhaseCode.SCORING,
+        prefetched_statuses={"scoring": {"status": "not_started"}},
+    )
+    assert decision["should_run"] is True
+    assert decision["reason"] == "status_not_started"
+
+
+def test_explain_prefetched_matches_per_image_decision(monkeypatch):
+    """A prefetched slice and the per-image fetch must yield identical decisions."""
+    statuses = {"scoring": {"status": "done", "executor_version": "1.2.3"}}
+    monkeypatch.setattr(phases_policy.db, "get_image_phase_statuses", lambda _i: statuses)
+    monkeypatch.setattr(phases_policy.db, "is_image_scoring_complete", lambda _i: True)
+    PhaseRegistry.register(PhaseExecutor(code=PhaseCode.SCORING, executor_version="1.2.3"))
+
+    per_image = phases_policy.explain_phase_run_decision(1, PhaseCode.SCORING)
+    prefetched = phases_policy.explain_phase_run_decision(
+        1, PhaseCode.SCORING, prefetched_statuses=statuses
+    )
+    assert per_image["should_run"] == prefetched["should_run"] is False
+    assert per_image["reason"] == prefetched["reason"] == "already_done_current_executor"
+
+
 def test_policy_skips_scoring_when_canonical_executor_version_matches(monkeypatch):
     """IPS rows with SCORING_EXECUTOR_VERSION must match registry, not per-model VERSION tags."""
     monkeypatch.setattr(

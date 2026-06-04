@@ -362,6 +362,8 @@ export function RunsBucketsPanel() {
   const outstandingTotal = driveStatusQuery.data?.outstanding.total_outstanding
   const lastDriveResult = drive?.last_result ?? null
   const driveHealth = lastDriveResult?.health ?? driveStatusQuery.data?.outstanding.health
+  const batchInProgress = Boolean(drive?.batch_in_progress)
+  const lastBatchError = drive?.last_batch_error ?? driveStatusQuery.data?.outstanding.last_batch_error
   const visibleRange = useMemo(() => {
     if (total === 0) return '0 of 0'
     const start = page * PAGE_SIZE + 1
@@ -452,6 +454,11 @@ export function RunsBucketsPanel() {
         {(driving || lastDriveResult || drive?.stop_reason) && (
           <div className="mt-4 space-y-2">
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--color-text-secondary)]">
+            {driving && batchInProgress && !lastDriveResult && (
+              <Badge size="sm" variant="running" dot>
+                Scanning folders…
+              </Badge>
+            )}
             {driving && lastDriveResult && (
               <>
                 <Badge size="sm" variant="running">
@@ -469,6 +476,11 @@ export function RunsBucketsPanel() {
                 )}
               </>
             )}
+            {driving && !batchInProgress && !lastDriveResult && (
+              <Badge size="sm" variant="muted">
+                Waiting for first batch…
+              </Badge>
+            )}
             {!driving && drive?.stop_reason && (
               <Badge size="sm" variant={drive.stop_reason === 'complete' ? 'success' : 'warning'}>
                 {DRIVE_STOP_REASON_LABEL[drive.stop_reason] ?? drive.stop_reason}
@@ -480,6 +492,23 @@ export function RunsBucketsPanel() {
                 In flight {driveHealth.in_flight_folders.toLocaleString()} · schedulable{' '}
                 {driveHealth.schedulable_folders.toLocaleString()} · blocked{' '}
                 {driveHealth.blocked_folders.toLocaleString()}
+                {lastDriveResult?.last_tick_reason === 'waiting_in_flight' && (
+                  <span> · waiting for active runs to finish before next batch</span>
+                )}
+                {lastDriveResult?.last_tick_reason === 'no_enqueue_progress' && (
+                  <span> · candidates found but none could be queued (see Logs)</span>
+                )}
+              </p>
+            )}
+            {lastBatchError && (
+              <p className="text-[11px] text-[var(--color-error,#f44747)]">
+                Last batch error ({lastBatchError.type}): {lastBatchError.message}
+              </p>
+            )}
+            {driving && (
+              <p className="text-[11px] text-[var(--color-text-muted)]">
+                Activity is logged to webui.log — open the Logs tab and filter for{' '}
+                <span className="font-mono text-[var(--color-text-secondary)]">runs_autodrive</span>.
               </p>
             )}
             {!driving && drive?.stop_reason && DRIVE_STOP_REASON_HINT[drive.stop_reason] && (

@@ -68,6 +68,11 @@ def test_plan_scope_empty_queues_legacy_null_metadata_and_canonical_scoring(_moc
         }
 
     monkeypatch.setattr(phases_policy.db, "get_image_phase_statuses", _statuses)
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_phase_statuses_bulk",
+        lambda image_ids: {iid: _statuses(iid) for iid in image_ids},
+    )
     monkeypatch.setattr(phases_policy.db, "is_image_metadata_complete", lambda _i: True)
     monkeypatch.setattr(phases_policy.db, "is_image_scoring_complete", lambda _i: True)
 
@@ -76,3 +81,57 @@ def test_plan_scope_empty_queues_legacy_null_metadata_and_canonical_scoring(_moc
     PhaseRegistry._executors.clear()
     assert plan["stage_queues"]["metadata"] == []
     assert plan["stage_queues"]["scoring"] == []
+
+
+@patch("modules.run_phase_planner._images_in_scope", return_value=[1, 2, 3])
+def test_plan_scope_prefetches_statuses_in_bulk(_mock_scope, monkeypatch):
+    """The bulk prefetch must satisfy the planner without per-image status calls."""
+    PhaseRegistry._executors.clear()
+    PhaseRegistry.register(PhaseExecutor(code=PhaseCode.SCORING, executor_version="1.0.0"))
+
+    bulk_calls = []
+
+    def _bulk(image_ids):
+        bulk_calls.append(list(image_ids))
+        # All three images need scoring (no status row -> not_started).
+        return {iid: {"scoring": {"status": "not_started"}} for iid in image_ids}
+
+    def _per_image(_image_id):
+        raise AssertionError("per-image get_image_phase_statuses must not be called")
+
+    monkeypatch.setattr(phases_policy.db, "get_image_phase_statuses_bulk", _bulk)
+    monkeypatch.setattr(phases_policy.db, "get_image_phase_statuses", _per_image)
+    monkeypatch.setattr(phases_policy.db, "is_image_scoring_complete", lambda _i: False)
+
+    plan = plan_scope(["/tmp/folder"], ["scoring"], dry_run=True)
+
+    PhaseRegistry._executors.clear()
+    assert bulk_calls == [[1, 2, 3]]  # exactly one bulk fetch for the whole scope
+    assert plan["stage_queues"]["scoring"] == [1, 2, 3]
+
+
+@patch("modules.run_phase_planner._images_in_scope", return_value=[1])
+def test_plan_scope_kill_switch_uses_per_image_path(_mock_scope, monkeypatch):
+    """auto_drive.bulk_phase_status=False restores the per-image lookup path."""
+    PhaseRegistry._executors.clear()
+    PhaseRegistry.register(PhaseExecutor(code=PhaseCode.SCORING, executor_version="1.0.0"))
+
+    monkeypatch.setattr(
+        "modules.run_phase_planner._bulk_phase_status_enabled", lambda: False
+    )
+
+    def _bulk(_image_ids):
+        raise AssertionError("bulk fetch must not run when the kill switch is off")
+
+    monkeypatch.setattr(phases_policy.db, "get_image_phase_statuses_bulk", _bulk)
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_phase_statuses",
+        lambda _i: {"scoring": {"status": "not_started"}},
+    )
+    monkeypatch.setattr(phases_policy.db, "is_image_scoring_complete", lambda _i: False)
+
+    plan = plan_scope(["/tmp/folder"], ["scoring"], dry_run=True)
+
+    PhaseRegistry._executors.clear()
+    assert plan["stage_queues"]["scoring"] == [1]

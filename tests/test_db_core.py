@@ -106,6 +106,17 @@ def test_image_exists_true_after_insert(test_db):
     assert db.image_exists(path) is True
 
 
+def test_image_exists_by_id_false_before_insert(test_db):
+    assert db.image_exists_by_id(9_999_999) is False
+
+
+def test_image_exists_by_id_true_after_insert(test_db):
+    folder_id = db.get_or_create_folder("/test/exists_by_id")
+    path = "/test/exists_by_id/by_id_check.jpg"
+    image_id = db.register_image_for_import(path, "by_id_check.jpg", "jpg", folder_id)
+    assert db.image_exists_by_id(image_id) is True
+
+
 def test_find_image_id_by_path_returns_none_for_missing(test_db):
     result = db.find_image_id_by_path("/no/such/path_unique_999.jpg")
     assert result is None

@@ -4604,7 +4604,7 @@ def create_api_router() -> APIRouter:
         image_id: int,
         limit: int = Query(50, ge=1, le=200),
     ):
-        if not db.image_exists(image_id):
+        if not db.image_exists_by_id(image_id):
             raise HTTPException(status_code=404, detail=f"Image {image_id} not found")
         return {"image_id": image_id, "items": db.get_image_auditlog(image_id, limit=limit)}
 

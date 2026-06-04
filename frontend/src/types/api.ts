@@ -261,6 +261,8 @@ export interface RunsDriveState {
   started_at: number | null
   last_tick_at: number
   last_result: RunsDriveLastResult | null
+  last_batch_error?: { at: number; type: string; message: string } | null
+  batch_in_progress?: boolean
   stop_reason: string | null
   idle_no_progress_ticks: number
 }
@@ -272,6 +274,8 @@ export interface RunsDriveStatus {
     bucket_counts: Record<string, number>
     phase_counts: Record<string, number>
     health?: RunsDriveHealth
+    last_batch_error?: { at: number; type: string; message: string }
+    source?: string
   }
 }
 

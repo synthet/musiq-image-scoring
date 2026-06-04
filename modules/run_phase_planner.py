@@ -76,9 +76,33 @@ def _apply_preflight(scope_paths: List[str]) -> Dict[str, int]:
     return actions
 
 
-def _needs_work_for_phase(image_id: int, phase_code: str) -> tuple[bool, str]:
-    decision = explain_phase_run_decision(image_id, phase_code, force_run=False)
+def _needs_work_for_phase(
+    image_id: int,
+    phase_code: str,
+    *,
+    prefetched_statuses: Optional[Dict[str, Any]] = None,
+) -> tuple[bool, str]:
+    decision = explain_phase_run_decision(
+        image_id,
+        phase_code,
+        force_run=False,
+        prefetched_statuses=prefetched_statuses,
+    )
     return bool(decision.get("should_run")), str(decision.get("reason") or "")
+
+
+def _bulk_phase_status_enabled() -> bool:
+    """Kill switch: ``auto_drive.bulk_phase_status`` (default True).
+
+    Lets the per-image status fetch be restored without a redeploy if the bulk
+    path ever diverges from :func:`db.get_image_phase_statuses`.
+    """
+    try:
+        from modules.config import get_config_value
+
+        return bool(get_config_value("auto_drive.bulk_phase_status", default=True))
+    except Exception:
+        return True
 
 
 def plan_scope(
@@ -100,6 +124,19 @@ def plan_scope(
         actions.update(_apply_preflight(scope_paths))
 
     image_ids = _images_in_scope(scope_paths)
+    # Prefetch every image's phase-status map once for the whole scope so the
+    # per-(image, stage) decision below is in-memory instead of an N+1 over the
+    # folder. Gated so it can be turned off if the bulk path ever diverges.
+    statuses_by_image: Dict[int, Dict[str, Any]] = {}
+    if image_ids and _bulk_phase_status_enabled():
+        try:
+            statuses_by_image = db.get_image_phase_statuses_bulk(image_ids) or {}
+        except Exception:
+            logger.exception(
+                "run_phase_planner: bulk phase-status prefetch failed; "
+                "falling back to per-image lookups"
+            )
+            statuses_by_image = {}
     issue_counts: Dict[str, int] = defaultdict(int)
     issue_counts_by_reason: Dict[str, int] = defaultdict(int)
     ignored_counts: Dict[str, int] = defaultdict(int)
@@ -109,7 +146,9 @@ def plan_scope(
     for stage in sorted(selected):
         queue: List[int] = []
         for iid in image_ids:
-            needs, reason = _needs_work_for_phase(iid, stage)
+            needs, reason = _needs_work_for_phase(
+                iid, stage, prefetched_statuses=statuses_by_image.get(iid)
+            )
             if not needs:
                 continue
             bucket = _reason_bucket(reason)

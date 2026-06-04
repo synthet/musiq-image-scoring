@@ -7,6 +7,7 @@ import logging
 import os
 import threading
 import time
+from collections import Counter
 from typing import Any, Dict, Iterable, Optional, Sequence
 
 from modules import db, utils
@@ -25,6 +26,61 @@ from modules.phases import (
 from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
 
 logger = logging.getLogger(__name__)
+
+_LOG_SCHEDULED_CAP = 15
+
+
+def _format_skip_summary(skipped: Sequence[dict[str, Any]]) -> str:
+    counts = Counter(str(item.get("reason") or "unknown") for item in skipped)
+    return ", ".join(f"{reason}={count}" for reason, count in sorted(counts.items()))
+
+
+def _log_scheduled_runs(scheduled: Sequence[dict[str, Any]]) -> None:
+    if not scheduled:
+        return
+    logger.info("runs_autodrive: queued %d folder run(s)", len(scheduled))
+    for entry in scheduled[:_LOG_SCHEDULED_CAP]:
+        phases = entry.get("phases") or []
+        phase_label = ",".join(str(p) for p in phases) if phases else "?"
+        logger.info(
+            "runs_autodrive:   job %s — %s [%s] phases=%s",
+            entry.get("job_id"),
+            entry.get("folder_path"),
+            entry.get("bucket"),
+            phase_label,
+        )
+    overflow = len(scheduled) - _LOG_SCHEDULED_CAP
+    if overflow > 0:
+        logger.info("runs_autodrive:   … and %d more queued folder(s)", overflow)
+
+
+def _log_drive_tick_result(
+    *,
+    tick_reason: str,
+    summary: Dict[str, Any],
+    stop_reason: Optional[str] = None,
+) -> None:
+    health = summary.get("health") or {}
+    msg = (
+        "runs_autodrive: drive tick reason=%s outstanding=%s scheduled=%s skipped=%s "
+        "candidates=%s in_flight=%s schedulable=%s blocked=%s idle_no_progress=%s"
+    )
+    args: list[Any] = [
+        tick_reason,
+        summary.get("total_outstanding"),
+        summary.get("scheduled"),
+        summary.get("skipped"),
+        summary.get("candidates"),
+        health.get("in_flight_folders"),
+        health.get("schedulable_folders"),
+        health.get("blocked_folders"),
+        get_drive_state().get("idle_no_progress_ticks"),
+    ]
+    if stop_reason:
+        msg += " stop=%s"
+        args.append(stop_reason)
+    logger.info(msg, *args)
+
 
 DEFAULT_TARGET_PHASES: tuple[str, ...] = tuple(p.value for p in PhaseCode)
 ACTIVE_JOB_STATUSES = {"pending", "queued", "running", "paused"}
@@ -251,6 +307,36 @@ def phases_with_work_from_repair_plan(
         if isinstance(ids, list) and len(ids) > 0:
             out.append(code)
     return out
+
+
+def resolve_auto_drive_enqueue_phases(
+    resolved: str,
+    phase_candidates: Sequence[str],
+    *,
+    dry_run: bool = True,
+) -> list[str]:
+    """Return phases for an auto-drive job: prefix through last stage with repair-plan work.
+
+    ``phases_with_work_from_repair_plan`` lists only stages with non-empty queues.
+    Downstream stages (e.g. scoring) still require earlier stages (metadata) to appear
+    in the same submission for ``assert_prereqs_for_scope`` — include the contiguous
+    pipeline prefix from the bucket's first candidate through the last stage with work.
+    """
+    candidates = sort_phase_value_strings([str(p) for p in phase_candidates if str(p or "").strip()])
+    if not candidates:
+        return []
+    repair_phases = phases_with_work_from_repair_plan(
+        [resolved],
+        candidates,
+        dry_run=dry_run,
+        include_stale_executor=False,
+    )
+    if not repair_phases:
+        return []
+    indices = [candidates.index(p) for p in repair_phases if p in candidates]
+    if not indices:
+        return sort_phase_value_strings(list(repair_phases))
+    return candidates[: max(indices) + 1]
 
 
 PLANNER_PREVIEW_BUDGET_SEC = 5.0
@@ -665,9 +751,17 @@ def build_folder_buckets(
     explicit_path_keys = {_path_key(p) for p in (folder_paths or []) if _path_key(p)}
 
     refresh_dirty_limit = max(0, _as_int(refresh_dirty_limit, 0))
-    direct_counts = db.get_folder_direct_image_counts_by_local_path_norm()
-    summaries = db.get_all_folder_phase_summaries_bulk(include_dirty_cache=False)
-    dirty_paths = db.get_folder_phase_agg_dirty_local_paths()
+    explicit_mode = bool(explicit_path_keys)
+    if explicit_mode:
+        direct_counts = db.get_folder_direct_image_counts_for_paths(folder_paths or [])
+        summaries = {}
+        dirty_paths = set()
+        if refresh_dirty_limit <= 0:
+            refresh_dirty_limit = len(explicit_path_keys)
+    else:
+        direct_counts = db.get_folder_direct_image_counts_by_local_path_norm()
+        summaries = db.get_all_folder_phase_summaries_bulk(include_dirty_cache=False)
+        dirty_paths = db.get_folder_phase_agg_dirty_local_paths()
     active_keys = _active_job_path_keys()
     dirty_refreshed = [0]
     prioritize_new = _autodrive_prioritize_new_folders()
@@ -742,12 +836,13 @@ def build_folder_buckets(
             phase_counts[phase] = phase_counts.get(phase, 0) + 1
 
     page = rows[offset: offset + limit]
-    _attach_planner_preview_to_bucket_items(
-        page,
-        target_phases=target,
-        planner_preview_limit=planner_preview_limit,
-        max_images=planner_preview_max_images,
-    )
+    if not explicit_mode:
+        _attach_planner_preview_to_bucket_items(
+            page,
+            target_phases=target,
+            planner_preview_limit=planner_preview_limit,
+            max_images=planner_preview_max_images,
+        )
     for item in page:
         item.pop("path_key", None)
 
@@ -782,7 +877,7 @@ def _enqueue_auto_bucket(
         [str(p) for p in bucket.get("next_phases") or list(DEFAULT_TARGET_PHASES)]
     )
     if phase_values is None:
-        phase_values = phases_with_work_from_repair_plan([resolved], phase_candidates, dry_run=True)
+        phase_values = resolve_auto_drive_enqueue_phases(resolved, phase_candidates, dry_run=True)
     else:
         phase_values = list(phase_values)
     if not phase_values:
@@ -881,12 +976,25 @@ def auto_drive_runs(
     limit = max(1, min(_as_int(limit, 50), 500))
     max_repeats = max(1, min(_as_int(max_repeats, 2), 20))
     resolve_run_mode_flags(CANONICAL_RUN_MODE)
-    _reconcile_stale_ips_for_drive()
+    explicit_paths = [str(p).strip() for p in (folder_paths or []) if str(p).strip()]
+    scoped_request = bool(explicit_paths)
+    if scoped_request:
+        logger.info(
+            "runs_autodrive: scoped auto-drive for %d explicit folder(s)",
+            len(explicit_paths),
+        )
+    else:
+        _reconcile_stale_ips_for_drive()
 
-    direct_counts = db.get_folder_direct_image_counts_by_local_path_norm()
-    all_path_keys = {
-        pk for p in direct_counts.keys() if (pk := _path_key(_local_path(p)))
-    }
+    if scoped_request:
+        all_path_keys: set[str] = set()
+        require_leaf = False
+    else:
+        direct_counts = db.get_folder_direct_image_counts_by_local_path_norm()
+        all_path_keys = {
+            pk for p in direct_counts.keys() if (pk := _path_key(_local_path(p)))
+        }
+        require_leaf = True
 
     planned = build_folder_buckets(
         root_path=root_path,
@@ -895,13 +1003,23 @@ def auto_drive_runs(
         include_complete=False,
         target_phases=target_phases,
         folder_paths=folder_paths,
-        refresh_dirty_limit=AUTODRIVE_DIRTY_REFRESH_LIMIT,
+        refresh_dirty_limit=len(explicit_paths) if scoped_request else AUTODRIVE_DIRTY_REFRESH_LIMIT,
+        # The drive re-derives enqueue phases per candidate below (resolve_auto_drive_enqueue_phases)
+        # and never reads ``planner_next_phases``, so the JIT planner preview here is pure overhead:
+        # it ran ``build_validation_repair_plan`` on up to 25 folders every "scanning folders" tick.
+        # Only the ``/api/runs/folder-buckets`` UI endpoint needs the preview.
+        planner_preview_limit=0,
     )
     candidates = [
         item for item in planned["items"]
         if item.get("next_phases") and item.get("bucket") not in {"blocked", "in_flight", "complete"}
-        and _is_leaf_folder_for_autodrive(_path_key(str(item.get("path") or "")), all_path_keys)
+        and (not require_leaf or _is_leaf_folder_for_autodrive(_path_key(str(item.get("path") or "")), all_path_keys))
     ][:limit]
+    if scoped_request and not candidates and planned.get("items"):
+        logger.info(
+            "runs_autodrive: explicit folder(s) not queueable (bucket=%s)",
+            [item.get("bucket") for item in planned.get("items", [])],
+        )
     # Resolve each candidate's enqueue-time identity ONCE, then build the attempt
     # counts from those exact (narrowed) plan keys. ``_enqueue_auto_bucket`` stores
     # ``_plan_key(resolved, phase_values)`` on the job payload; counting against the
@@ -915,7 +1033,7 @@ def auto_drive_runs(
             [str(p) for p in item.get("next_phases") or list(DEFAULT_TARGET_PHASES)]
         )
         phase_values = (
-            phases_with_work_from_repair_plan([resolved], phase_candidates, dry_run=True)
+            resolve_auto_drive_enqueue_phases(resolved, phase_candidates, dry_run=True)
             if resolved
             else []
         )
@@ -998,7 +1116,7 @@ def auto_drive_runs(
             })
 
     bucket_counts = planned.get("bucket_counts", {})
-    return {
+    result = {
         "dry_run": bool(dry_run),
         "run_mode": CANONICAL_RUN_MODE,
         "limit": limit,
@@ -1011,6 +1129,27 @@ def auto_drive_runs(
         "phase_counts": planned.get("phase_counts", {}),
         "health": _bucket_health_from_counts(bucket_counts),
     }
+    if dry_run:
+        logger.info(
+            "runs_autodrive: preview — candidates=%d would_queue=%d skipped=%d outstanding=%d",
+            len(candidates),
+            len(scheduled),
+            len(skipped),
+            planned["total"],
+        )
+    else:
+        logger.info(
+            "runs_autodrive: batch scan — candidates=%d queued=%d skipped=%d outstanding=%d loop_detected=%d",
+            len(candidates),
+            len(scheduled),
+            len(skipped),
+            planned["total"],
+            loop_detected,
+        )
+        if skipped:
+            logger.info("runs_autodrive: skip reasons: %s", _format_skip_summary(skipped))
+        _log_scheduled_runs(scheduled)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1056,7 +1195,9 @@ def _config_server_loop_enabled() -> bool:
 
 def get_drive_state() -> Dict[str, Any]:
     with _DRIVE_LOCK:
-        return dict(_DRIVE_STATE)
+        state = dict(_DRIVE_STATE)
+    state["batch_in_progress"] = _DRIVE_BATCH_LOCK.locked()
+    return state
 
 
 def _broadcast_drive(event_type: str, extra: Optional[Dict[str, Any]] = None) -> None:
@@ -1178,9 +1319,16 @@ def arm_drive(
                 "idle_no_progress_ticks": 0,
             }
         )
-    logger.info("runs_autodrive: drive armed (root_path=%s)", get_drive_state().get("root_path"))
+    state = get_drive_state()
+    logger.info(
+        "runs_autodrive: drive armed root=%s limit=%s max_repeats=%s target_phases=%s",
+        state.get("root_path") or "library",
+        state.get("limit"),
+        state.get("max_repeats"),
+        state.get("target_phases") or "full pipeline",
+    )
     _broadcast_drive("drive_started")
-    return get_drive_state()
+    return state
 
 
 def kick_drive_batch_async(*, force: bool = False) -> Dict[str, Any]:
@@ -1191,10 +1339,12 @@ def kick_drive_batch_async(*, force: bool = False) -> Dict[str, Any]:
     queuing fresh work.
     """
     if _DRIVE_BATCH_LOCK.locked():
+        logger.info("runs_autodrive: drive batch already running (start request ignored)")
         return {"started": False, "reason": "busy"}
 
     def _runner():
         try:
+            logger.info("runs_autodrive: drive batch thread started (force=%s)", force)
             _run_drive_batch(force=bool(force))
         except Exception as exc:
             logger.exception("runs_autodrive: async drive batch failed")
@@ -1207,16 +1357,22 @@ def kick_drive_batch_async(*, force: bool = False) -> Dict[str, Any]:
 
     t = threading.Thread(target=_runner, daemon=True, name="runs-autodrive-batch")
     t.start()
+    logger.info("runs_autodrive: drive batch scheduled on background thread")
     return {"started": True}
 
 
 def stop_drive(reason: str = "manual") -> Dict[str, Any]:
     with _DRIVE_LOCK:
         was_enabled = bool(_DRIVE_STATE["enabled"])
+        last_result = _DRIVE_STATE.get("last_result")
         _DRIVE_STATE["enabled"] = False
         _DRIVE_STATE["stop_reason"] = reason
     if was_enabled:
-        logger.info("runs_autodrive: drive stopped (reason=%s)", reason)
+        logger.info(
+            "runs_autodrive: drive stopped reason=%s last_tick=%s",
+            reason,
+            last_result,
+        )
         _broadcast_drive("drive_stopped", {"reason": reason})
     return get_drive_state()
 
@@ -1229,13 +1385,23 @@ def _run_drive_batch(*, force: bool = False) -> Optional[Dict[str, Any]]:
     time across the dispatcher thread and API threads.
     """
     if not _DRIVE_BATCH_LOCK.acquire(blocking=False):
+        logger.debug("runs_autodrive: drive batch skipped (another batch holds the lock)")
         return None
+    summary: Optional[Dict[str, Any]] = None
+    stop_reason: Optional[str] = None
     try:
         with _DRIVE_LOCK:
             if not _DRIVE_STATE["enabled"]:
+                logger.debug("runs_autodrive: drive batch skipped (drive disabled)")
                 return None
             now = time.time()
-            if not force and (now - float(_DRIVE_STATE["last_tick_at"])) < DRIVE_TICK_COOLDOWN_SEC:
+            last_tick = float(_DRIVE_STATE["last_tick_at"])
+            if not force and (now - last_tick) < DRIVE_TICK_COOLDOWN_SEC:
+                remaining = DRIVE_TICK_COOLDOWN_SEC - (now - last_tick)
+                logger.info(
+                    "runs_autodrive: drive tick skipped (cooldown %.0fs remaining)",
+                    remaining,
+                )
                 return None
             _DRIVE_STATE["last_tick_at"] = now
             params = {
@@ -1246,6 +1412,12 @@ def _run_drive_batch(*, force: bool = False) -> Optional[Dict[str, Any]]:
                 "target_phases": _DRIVE_STATE["target_phases"],
             }
 
+        logger.info(
+            "runs_autodrive: drive batch starting root=%s limit=%s force=%s",
+            params["root_path"] or "library",
+            params["limit"],
+            force,
+        )
         try:
             result = auto_drive_runs(dry_run=False, **params)
         except Exception as exc:
@@ -1270,7 +1442,6 @@ def _run_drive_batch(*, force: bool = False) -> Optional[Dict[str, Any]]:
         )
         summary = _summarize_result(result, last_tick_reason=tick_reason)
 
-        stop_reason: Optional[str] = None
         with _DRIVE_LOCK:
             _DRIVE_STATE["last_result"] = summary
             _DRIVE_STATE["last_batch_error"] = None
@@ -1291,24 +1462,17 @@ def _run_drive_batch(*, force: bool = False) -> Optional[Dict[str, Any]]:
                 if _DRIVE_STATE["idle_no_progress_ticks"] >= DRIVE_MAX_NOPROGRESS_TICKS:
                     stop_reason = "stalled"
 
-        logger.debug(
-            "runs_autodrive: drive tick reason=%s outstanding=%s scheduled=%s health=%s",
-            tick_reason,
-            outstanding,
-            scheduled_n,
-            health,
+        _log_drive_tick_result(
+            tick_reason=tick_reason,
+            summary=summary,
+            stop_reason=stop_reason,
         )
     finally:
         _DRIVE_BATCH_LOCK.release()
 
     if stop_reason:
-        logger.info(
-            "runs_autodrive: drive stopping reason=%s summary=%s",
-            stop_reason,
-            summary,
-        )
         stop_drive(stop_reason)
-    else:
+    elif summary is not None:
         _broadcast_drive("drive_progress")
     return summary
 
@@ -1319,6 +1483,7 @@ def drive_tick() -> Optional[Dict[str, Any]]:
         if not _DRIVE_STATE["enabled"]:
             return None
     if not _config_server_loop_enabled():
+        logger.info("runs_autodrive: drive tick skipped (auto_drive.server_loop_enabled=false)")
         return None
     return _run_drive_batch(force=False)
 

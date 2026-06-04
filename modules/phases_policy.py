@@ -50,11 +50,21 @@ def explain_phase_run_decision(
     phase_code,
     current_executor_version=None,
     force_run: bool = False,
+    prefetched_statuses: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
-    """Return structured diagnostics for run/skip decision."""
+    """Return structured diagnostics for run/skip decision.
+
+    ``prefetched_statuses`` is an optional per-image phase-status map (same shape
+    as :func:`db.get_image_phase_statuses`). When provided, it is used instead of
+    issuing a per-image query — set-based callers (e.g. the run planner) pass a
+    bulk-fetched slice to avoid an N+1 over a whole folder.
+    """
     code = phase_code.value if hasattr(phase_code, "value") else str(phase_code)
     active_version = get_phase_executor_version(code, current_executor_version)
-    statuses = db.get_image_phase_statuses(image_id) or {}
+    if prefetched_statuses is not None:
+        statuses = prefetched_statuses
+    else:
+        statuses = db.get_image_phase_statuses(image_id) or {}
     stored = statuses.get(code)
 
     decision = {
