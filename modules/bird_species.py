@@ -512,13 +512,19 @@ class BirdSpeciesRunner:
                     log(f"{os.path.basename(file_path)}: {', '.join(new_species_kws)}")
                     processed += 1
                 else:
-                    db.set_image_phase_status(
-                        row["id"],
-                        phase_code,
-                        "done",
-                        executor_version=BIRD_SPECIES_RUNNER_VERSION,
+                    from modules.bird_species_eligibility import (
+                        BIRDS_SPECIES_EXHAUSTED_KEYWORD,
+                        mark_species_exhausted,
                     )
-                    log(f"{os.path.basename(file_path)}: no species above threshold")
+
+                    mark_species_exhausted(
+                        int(row["id"]),
+                        existing_keywords_csv=(row.get("keywords") or ""),
+                    )
+                    log(
+                        f"{os.path.basename(file_path)}: no species above threshold "
+                        f"(marked {BIRDS_SPECIES_EXHAUSTED_KEYWORD})",
+                    )
                     skipped += 1
 
             except Exception as exc:
