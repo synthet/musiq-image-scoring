@@ -52,7 +52,21 @@ class ImageJob:
     skip_reason: Optional[str] = None  # Reason from policy/runner when status is "skipped"
 
 
-def safe_runner_thread(runner_obj, job_id, run_func, *args, **kwargs):
+def _runner_audit_phase_code(runner_obj) -> Optional[str]:
+    """Map runner job_type to pipeline phase_code for auditlog correlation."""
+    jt = getattr(runner_obj, "job_type", None)
+    if not jt:
+        return None
+    mapping = {
+        "tagging": "keywords",
+        "selection": "culling",
+        "culling": "culling",
+        "clustering": "culling",
+    }
+    return mapping.get(str(jt).strip().lower(), str(jt).strip().lower())
+
+
+def safe_runner_thread(runner_obj, job_id, run_func, *args, phase_code=None, **kwargs):
     """
     Executes a runner's core logic inside a try/finally block that guarantees
     the runner clears its is_running flag.
@@ -66,8 +80,17 @@ def safe_runner_thread(runner_obj, job_id, run_func, *args, **kwargs):
       set to ``"stopped"`` (graceful pause/interrupt) — caller is expected to
       record the resumable terminal state (e.g. ``interrupted``) explicitly.
     """
+    from modules.audit import audit_context
+
+    eff_phase = phase_code if phase_code is not None else _runner_audit_phase_code(runner_obj)
+    source = type(runner_obj).__name__
+
+    def _run_with_audit():
+        with audit_context(run_id=job_id, phase_code=eff_phase, source=source):
+            run_func(*args, **kwargs)
+
     try:
-        run_func(*args, **kwargs)
+        _run_with_audit()
         if job_id:
             try:
                 runner_msg = (getattr(runner_obj, "_status_message", "") or "").strip().lower()

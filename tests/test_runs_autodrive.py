@@ -527,8 +527,8 @@ def test_auto_drive_plan_key_matches_enqueue_when_phases_narrowed(monkeypatch):
         runs_autodrive.db,
         "get_jobs",
         lambda **_k: [
-            {"id": 99, "status": "completed", "queue_payload": job_payload},
-            {"id": 98, "status": "completed", "queue_payload": job_payload},
+            {"id": 99, "status": "failed", "queue_payload": job_payload},
+            {"id": 98, "status": "failed", "queue_payload": job_payload},
         ],
     )
 
@@ -566,7 +566,15 @@ def test_auto_drive_loop_guard_skips_repeated_plan(monkeypatch):
     monkeypatch.setattr(
         runs_autodrive,
         "_recent_auto_attempt_counts",
-        lambda *_a, **_k: {"repeat": {"attempts": 2, "last_run_id": 77, "last_status": "failed"}},
+        lambda *_a, **_k: {
+            "repeat": {
+                "failure_attempts": 2,
+                "completed_attempts": 0,
+                "last_completed_percent": 0.0,
+                "last_run_id": 77,
+                "last_status": "failed",
+            }
+        },
     )
 
     result = runs_autodrive.auto_drive_runs(dry_run=False, max_repeats=2)
@@ -600,7 +608,8 @@ def test_recent_auto_attempt_counts_includes_in_flight_jobs(monkeypatch):
 
     counts = runs_autodrive._recent_auto_attempt_counts(["plan_a"])
 
-    assert counts["plan_a"]["attempts"] == 2
+    assert counts["plan_a"]["failure_attempts"] == 2
+    assert counts["plan_a"]["completed_attempts"] == 0
     assert counts["plan_a"]["last_run_id"] == 101
     assert counts["plan_a"]["last_status"] == "running"
 
@@ -626,7 +635,15 @@ def test_auto_drive_loop_guard_blocks_third_enqueue_when_two_in_flight(monkeypat
     monkeypatch.setattr(
         runs_autodrive,
         "_recent_auto_attempt_counts",
-        lambda *_a, **_k: {"plan_a": {"attempts": 2, "last_run_id": 102, "last_status": "running"}},
+        lambda *_a, **_k: {
+            "plan_a": {
+                "failure_attempts": 2,
+                "completed_attempts": 0,
+                "last_completed_percent": 0.0,
+                "last_run_id": 102,
+                "last_status": "running",
+            }
+        },
     )
 
     result = runs_autodrive.auto_drive_runs(dry_run=False, max_repeats=2)
@@ -647,12 +664,246 @@ def test_auto_drive_passes_limit_to_build_folder_buckets(monkeypatch):
             "phase_counts": {},
         }
 
-    monkeypatch.setattr(runs_autodrive, "build_folder_buckets", fake_build)
+    monkeypatch.setattr(runs_autodrive, "build_folder_buckets_for_autodrive", fake_build)
     monkeypatch.setattr(runs_autodrive, "_recent_auto_attempt_counts", lambda *_a, **_k: {})
 
     runs_autodrive.auto_drive_runs(limit=300)
 
-    assert captured.get("limit") == 300
+    assert "limit" not in captured
+    assert captured.get("planner_preview_limit", 0) == 0 or "refresh_dirty_limit" in captured
+
+
+def test_recent_auto_attempt_counts_separates_completed_from_failures(monkeypatch):
+    rows = [
+        {
+            "id": 1,
+            "status": "completed",
+            "queue_payload": json.dumps({
+                "tool_id": "runs_auto_drive",
+                "auto_drive_plan_key": "plan_a",
+                "auto_drive_overall_percent": 40.0,
+            }),
+        },
+        {
+            "id": 2,
+            "status": "completed",
+            "queue_payload": json.dumps({
+                "tool_id": "runs_auto_drive",
+                "auto_drive_plan_key": "plan_a",
+                "auto_drive_overall_percent": 55.0,
+            }),
+        },
+    ]
+    monkeypatch.setattr(runs_autodrive.db, "get_jobs", lambda **kwargs: rows)
+
+    counts = runs_autodrive._recent_auto_attempt_counts(["plan_a"])
+
+    # Completed runs are tracked separately and never count as failures; they only trip the
+    # guard later if the folder made no progress past the highest recorded percent.
+    assert counts["plan_a"]["failure_attempts"] == 0
+    assert counts["plan_a"]["completed_attempts"] == 2
+    assert counts["plan_a"]["last_completed_percent"] == 55.0
+
+
+def _bird_folder_buckets(overall_percent):
+    return lambda **_kwargs: {
+        "items": [
+            {
+                "path": "/mnt/d/Photos/bird-folder",
+                "bucket": "awaiting_bird_species",
+                "next_phases": ["bird_species"],
+                "plan_key": "bird_plan",
+                "overall_percent": overall_percent,
+            }
+        ],
+        "total": 1,
+        "bucket_counts": {"awaiting_bird_species": 1},
+        "phase_counts": {"bird_species": 1},
+    }
+
+
+def _two_completed_bird_jobs(recorded_percent):
+    job_payload = json.dumps({
+        "tool_id": "runs_auto_drive",
+        "auto_drive_plan_key": runs_autodrive._plan_key(
+            "/mnt/d/Photos/bird-folder",
+            ["bird_species"],
+        ),
+        "auto_drive_overall_percent": recorded_percent,
+    })
+    return [
+        {"id": 10, "status": "completed", "queue_payload": job_payload},
+        {"id": 11, "status": "completed", "queue_payload": job_payload},
+    ]
+
+
+def test_auto_drive_allows_third_enqueue_after_progress(monkeypatch):
+    """Multi-pass bird work: completed runs are forgiven when the folder advanced."""
+    # Live percent (60) > highest recorded completed percent (40) => progress was made.
+    monkeypatch.setattr(
+        runs_autodrive,
+        "build_folder_buckets_for_autodrive",
+        _bird_folder_buckets(60.0),
+    )
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda _path: ("/mnt/d/Photos/bird-folder", ["/mnt/d/Photos/bird-folder"]),
+    )
+    monkeypatch.setattr(
+        runs_autodrive,
+        "phases_with_work_from_repair_plan",
+        lambda *_a, **_k: ["bird_species"],
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db, "get_jobs", lambda **_k: _two_completed_bird_jobs(40.0)
+    )
+    monkeypatch.setattr(
+        runs_autodrive, "_enqueue_auto_bucket", lambda *_a, **_k: (42, 1, None)
+    )
+
+    result = runs_autodrive.auto_drive_runs(dry_run=False, max_repeats=2)
+
+    assert result["loop_detected"] == 0
+    assert len(result["scheduled"]) == 1
+
+
+def test_loop_guard_trips_on_completed_without_progress(monkeypatch):
+    """Two completed runs with no progress since the last pass => bounded, not re-queued forever."""
+    # Live percent (40) == highest recorded completed percent (40) => no progress.
+    monkeypatch.setattr(
+        runs_autodrive,
+        "build_folder_buckets_for_autodrive",
+        _bird_folder_buckets(40.0),
+    )
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda _path: ("/mnt/d/Photos/bird-folder", ["/mnt/d/Photos/bird-folder"]),
+    )
+    monkeypatch.setattr(
+        runs_autodrive,
+        "phases_with_work_from_repair_plan",
+        lambda *_a, **_k: ["bird_species"],
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db, "get_jobs", lambda **_k: _two_completed_bird_jobs(40.0)
+    )
+    # No genuinely un-attempted work -> the bypass does not apply, guard trips.
+    monkeypatch.setattr(
+        runs_autodrive.db, "scope_has_unattempted_phase_work", lambda *_a, **_k: False
+    )
+    monkeypatch.setattr(
+        runs_autodrive, "_enqueue_auto_bucket", lambda *_a, **_k: (42, 1, None)
+    )
+
+    result = runs_autodrive.auto_drive_runs(dry_run=False, max_repeats=2)
+
+    assert result["loop_detected"] == 1
+    assert len(result["scheduled"]) == 0
+
+
+def test_loop_guard_bypassed_when_unattempted_work_exists(monkeypatch):
+    """No-op completions must not block work that was never attempted (attempt_count == 0)."""
+    monkeypatch.setattr(
+        runs_autodrive, "build_folder_buckets_for_autodrive", _bird_folder_buckets(40.0)
+    )
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda _path: ("/mnt/d/Photos/bird-folder", ["/mnt/d/Photos/bird-folder"]),
+    )
+    monkeypatch.setattr(
+        runs_autodrive, "phases_with_work_from_repair_plan", lambda *_a, **_k: ["bird_species"]
+    )
+    # Two completed no-op runs, no progress -> would normally trip the guard...
+    monkeypatch.setattr(
+        runs_autodrive.db, "get_jobs", lambda **_k: _two_completed_bird_jobs(40.0)
+    )
+    # ...but the folder holds genuinely un-attempted work, so the guard is bypassed.
+    monkeypatch.setattr(
+        runs_autodrive.db, "scope_has_unattempted_phase_work", lambda *_a, **_k: True
+    )
+    monkeypatch.setattr(
+        runs_autodrive, "_enqueue_auto_bucket", lambda *_a, **_k: (42, 1, None)
+    )
+
+    result = runs_autodrive.auto_drive_runs(dry_run=False, max_repeats=2)
+
+    assert result["loop_detected"] == 0
+    assert len(result["scheduled"]) == 1
+
+
+def test_loop_guard_not_bypassed_when_failures_present(monkeypatch):
+    """A truly broken runner (failures) must still loop-block, even with un-attempted work."""
+    monkeypatch.setattr(
+        runs_autodrive, "build_folder_buckets_for_autodrive", _bird_folder_buckets(40.0)
+    )
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda _path: ("/mnt/d/Photos/bird-folder", ["/mnt/d/Photos/bird-folder"]),
+    )
+    monkeypatch.setattr(
+        runs_autodrive, "phases_with_work_from_repair_plan", lambda *_a, **_k: ["bird_species"]
+    )
+    plan_key = runs_autodrive._plan_key("/mnt/d/Photos/bird-folder", ["bird_species"])
+    failed_payload = json.dumps({"tool_id": "runs_auto_drive", "auto_drive_plan_key": plan_key})
+    monkeypatch.setattr(
+        runs_autodrive.db, "get_jobs",
+        lambda **_k: [
+            {"id": 20, "status": "failed", "queue_payload": failed_payload},
+            {"id": 21, "status": "failed", "queue_payload": failed_payload},
+        ],
+    )
+    # Un-attempted work exists, but failures must still loop-block (bypass is failure-gated).
+    monkeypatch.setattr(
+        runs_autodrive.db, "scope_has_unattempted_phase_work", lambda *_a, **_k: True
+    )
+    monkeypatch.setattr(
+        runs_autodrive, "_enqueue_auto_bucket", lambda *_a, **_k: (42, 1, None)
+    )
+
+    result = runs_autodrive.auto_drive_runs(dry_run=False, max_repeats=2)
+
+    assert result["loop_detected"] == 1
+    assert len(result["scheduled"]) == 0
+
+
+def test_retry_unattempted_on_loop_config(monkeypatch):
+    monkeypatch.setattr(
+        "modules.config.get_config_value",
+        lambda key, default=None: False if key == "auto_drive.retry_unattempted_on_loop" else default,
+    )
+    assert runs_autodrive._retry_unattempted_on_loop() is False
+
+
+def test_select_autodrive_candidates_reserves_bird_backlog_slots():
+    items = []
+    for i in range(10):
+        items.append({
+            "path": f"/photos/early/{i}",
+            "path_key": f"/photos/early/{i}",
+            "bucket": "awaiting_indexing",
+            "next_phases": ["indexing"],
+        })
+    for i in range(200):
+        items.append({
+            "path": f"/photos/bird/{i}",
+            "path_key": f"/photos/bird/{i}",
+            "bucket": "awaiting_bird_species",
+            "next_phases": ["bird_species"],
+        })
+
+    picked = runs_autodrive._select_autodrive_candidates(
+        items,
+        limit=50,
+        bucket_counts={"awaiting_bird_species": 200, "awaiting_indexing": 10},
+    )
+
+    bird_picked = sum(1 for x in picked if x.get("bucket") == "awaiting_bird_species")
+    assert bird_picked >= 15
+    assert len(picked) == 50
 
 
 def test_get_drive_status_with_outstanding_uses_target_phases(monkeypatch):
@@ -709,8 +960,10 @@ def _reset_drive(monkeypatch):
                 "idle_no_progress_ticks": 0,
             }
         )
+    runs_autodrive.invalidate_autodrive_buckets_cache()
     yield
     runs_autodrive.stop_drive("test_teardown")
+    runs_autodrive.invalidate_autodrive_buckets_cache()
 
 
 def _drive_result(scheduled: int = 0, outstanding: int = 0, **extra):
@@ -811,6 +1064,38 @@ def test_drive_stops_when_stalled(monkeypatch):
 
     state = runs_autodrive.get_drive_state()
     assert state["enabled"] is False
+    assert state["stop_reason"] == "stalled"
+
+
+def test_drive_survives_loop_guard_then_stalls_at_absolute_cap(monkeypatch):
+    monkeypatch.setattr(
+        runs_autodrive,
+        "auto_drive_runs",
+        lambda **k: _drive_result(
+            scheduled=0,
+            outstanding=100,
+            candidates=47,
+            loop_detected=39,
+            skipped=[{"reason": "loop_detected"}] * 39 + [{"reason": "nothing_to_queue"}] * 6,
+            bucket_counts={"awaiting_bird_species": 90, "awaiting_keywords": 10},
+        ),
+    )
+
+    runs_autodrive.start_drive(limit=50)
+
+    # Loop-blocked ticks must NOT trip the normal short stall (multi-pass work may resume)...
+    for _ in range(runs_autodrive.DRIVE_MAX_NOPROGRESS_TICKS + 1):
+        _force_next_tick()
+        runs_autodrive.drive_tick()
+    mid = runs_autodrive.get_drive_state()
+    assert mid["enabled"] is True
+    assert mid.get("stop_reason") is None
+
+    # ...but the absolute cap guarantees the drive eventually stalls instead of spinning forever.
+    for _ in range(runs_autodrive.DRIVE_MAX_LOOPBLOCKED_TICKS + 2):
+        _force_next_tick()
+        runs_autodrive.drive_tick()
+    state = runs_autodrive.get_drive_state()
     assert state["stop_reason"] == "stalled"
 
 
@@ -1167,3 +1452,58 @@ def test_resolve_auto_drive_enqueue_phases_includes_pipeline_prefix(monkeypatch)
     assert skip is None
     assert job_id == 77
     assert enqueued["phase_codes"] == candidates
+
+
+# ---------------------------------------------------------------------------
+# Productivity-aware candidate cooldown (lever #2)
+# ---------------------------------------------------------------------------
+
+def test_cooldown_records_and_blocks_within_window():
+    runs_autodrive._clear_all_folder_cooldowns()
+    now = 1000.0
+    runs_autodrive._record_unproductive_cooldown("/p/a", percent=50.0, now=now, cooldown_sec=600.0)
+    # Still cooled 5 min later at the same percent.
+    assert runs_autodrive._is_folder_cooled("/p/a", current_percent=50.0, now=now + 300) is True
+    # Expired after the window.
+    assert runs_autodrive._is_folder_cooled("/p/a", current_percent=50.0, now=now + 601) is False
+
+
+def test_cooldown_voided_when_folder_advances():
+    runs_autodrive._clear_all_folder_cooldowns()
+    now = 1000.0
+    runs_autodrive._record_unproductive_cooldown("/p/b", percent=50.0, now=now, cooldown_sec=600.0)
+    # Folder advanced since we cooled it -> eligible again even inside the window.
+    assert runs_autodrive._is_folder_cooled("/p/b", current_percent=60.0, now=now + 10) is False
+
+
+def test_cooldown_clear_helpers():
+    runs_autodrive._clear_all_folder_cooldowns()
+    runs_autodrive._record_unproductive_cooldown("/p/c", percent=0.0, now=1000.0, cooldown_sec=600.0)
+    runs_autodrive._clear_folder_cooldown("/p/c")
+    assert runs_autodrive._is_folder_cooled("/p/c", current_percent=0.0, now=1000.0) is False
+
+
+def test_cooldown_empty_path_key_is_noop():
+    runs_autodrive._clear_all_folder_cooldowns()
+    runs_autodrive._record_unproductive_cooldown("", percent=0.0, now=1000.0, cooldown_sec=600.0)
+    assert runs_autodrive._is_folder_cooled("", current_percent=0.0, now=1000.0) is False
+
+
+def test_cooldown_disabled_via_config(monkeypatch):
+    monkeypatch.setattr(
+        "modules.config.get_config_value",
+        lambda key, default=None: False if key == "auto_drive.unproductive_cooldown_enabled" else default,
+    )
+    assert runs_autodrive._unproductive_cooldown_sec() == 0.0
+
+
+def test_cooldown_sec_reads_config_value(monkeypatch):
+    def _cfg(key, default=None):
+        if key == "auto_drive.unproductive_cooldown_enabled":
+            return True
+        if key == "auto_drive.unproductive_cooldown_sec":
+            return 120
+        return default
+
+    monkeypatch.setattr("modules.config.get_config_value", _cfg)
+    assert runs_autodrive._unproductive_cooldown_sec() == 120.0

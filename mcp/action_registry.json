@@ -1,0 +1,714 @@
+{
+  "version": 1,
+  "repo": "backend",
+  "field_weights": {
+    "action_id": 4.0,
+    "title": 3.0,
+    "aliases": 2.5,
+    "tags": 2.0,
+    "intent_examples": 2.5,
+    "description": 1.0,
+    "argument_names": 1.5
+  },
+  "categories": {
+    "config": 1,
+    "data": 1,
+    "diagnostics": 7,
+    "jobs": 2,
+    "logs": 3
+  },
+  "actions": [
+    {
+      "title": "Get configuration",
+      "description": "Redacted config.json merged with environment.json.",
+      "category": "config",
+      "tags": [
+        "config",
+        "settings"
+      ],
+      "aliases": [
+        "read config"
+      ],
+      "intent_examples": [
+        "show config",
+        "get configuration"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/technical/CONFIG.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "get_config"
+      },
+      "legacy_tool_name": "get_config",
+      "action_id": "config.get_config"
+    },
+    {
+      "title": "Embedding coverage stats",
+      "description": "Count images with vs without embeddings; optional folder filter.",
+      "category": "data",
+      "tags": [
+        "embeddings",
+        "vectors",
+        "coverage"
+      ],
+      "aliases": [
+        "embedding stats",
+        "missing embeddings"
+      ],
+      "intent_examples": [
+        "find images without embeddings",
+        "how many embeddings",
+        "embedding coverage"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/EMBEDDINGS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [
+        "requires_db"
+      ],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "folder_path": {
+            "type": "string"
+          },
+          "embedding_space": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "get_embedding_stats"
+      },
+      "legacy_tool_name": "get_embedding_stats",
+      "action_id": "data.get_embedding_stats"
+    },
+    {
+      "title": "Database health check",
+      "description": "Data integrity validation (orphans, duplicates, inconsistencies).",
+      "category": "diagnostics",
+      "tags": [
+        "database",
+        "health",
+        "integrity"
+      ],
+      "aliases": [
+        "db health",
+        "database integrity"
+      ],
+      "intent_examples": [
+        "is database healthy",
+        "check database integrity",
+        "list database health checks"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/DIAGNOSTICS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [
+        "requires_db"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "check_database_health"
+      },
+      "legacy_tool_name": "check_database_health",
+      "action_id": "diagnostics.check_database_health"
+    },
+    {
+      "title": "Database engine info",
+      "description": "Configured engine, connector, safe connection targets, ping.",
+      "category": "diagnostics",
+      "tags": [
+        "database",
+        "engine",
+        "postgres"
+      ],
+      "aliases": [
+        "db engine info"
+      ],
+      "intent_examples": [
+        "which database engine",
+        "is postgres reachable"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/DATABASE.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "get_database_engine_info"
+      },
+      "legacy_tool_name": "get_database_engine_info",
+      "action_id": "diagnostics.get_database_engine_info"
+    },
+    {
+      "title": "Error summary overview",
+      "description": "Failed jobs, missing scores, orphans, stale running phases.",
+      "category": "diagnostics",
+      "tags": [
+        "errors",
+        "triage",
+        "health",
+        "summary"
+      ],
+      "aliases": [
+        "error summary",
+        "failure overview"
+      ],
+      "intent_examples": [
+        "why did scoring fail",
+        "system error overview",
+        "what is broken"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/DIAGNOSTICS.md",
+        "docs/technical/MCP_DEBUGGING_TOOLS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [
+        "requires_db"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "get_error_summary"
+      },
+      "legacy_tool_name": "get_error_summary",
+      "test_refs": [
+        "tests/test_mcp_search.py"
+      ],
+      "action_id": "diagnostics.get_error_summary"
+    },
+    {
+      "title": "Model and GPU status",
+      "description": "GPU, CUDA, PyTorch, TensorFlow, and model load status.",
+      "category": "diagnostics",
+      "tags": [
+        "models",
+        "gpu",
+        "cuda"
+      ],
+      "aliases": [
+        "model status",
+        "gpu status"
+      ],
+      "intent_examples": [
+        "are models loaded",
+        "gpu status"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/DIAGNOSTICS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "get_model_status"
+      },
+      "legacy_tool_name": "get_model_status",
+      "action_id": "diagnostics.get_model_status"
+    },
+    {
+      "title": "Run backend doctor checks",
+      "description": "Local health check (config, DB, pgvector, optional GPU). Same as scripts/doctor.py.",
+      "category": "diagnostics",
+      "tags": [
+        "doctor",
+        "health",
+        "config",
+        "database",
+        "gpu"
+      ],
+      "aliases": [
+        "run doctor",
+        "health check",
+        "sanity check"
+      ],
+      "intent_examples": [
+        "run doctor without GPU",
+        "check backend health",
+        "is the system configured correctly"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/DIAGNOSTICS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "no_gpu": {
+            "type": "boolean",
+            "description": "Skip CUDA/GPU probe"
+          },
+          "json": {
+            "type": "boolean",
+            "description": "Return structured JSON instead of formatted report text"
+          }
+        },
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_callable",
+        "module": "modules.doctor_cli",
+        "function": "run_doctor"
+      },
+      "legacy_tool_name": null,
+      "test_refs": [
+        "tests/test_mcp_dispatch.py::test_dispatch_run_doctor"
+      ],
+      "action_id": "diagnostics.run_doctor"
+    },
+    {
+      "title": "Validate configuration",
+      "description": "Structural config checks and optional database ping.",
+      "category": "diagnostics",
+      "tags": [
+        "config",
+        "validation"
+      ],
+      "aliases": [
+        "validate config",
+        "config sanity"
+      ],
+      "intent_examples": [
+        "is config valid",
+        "validate configuration"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/technical/CONFIG.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "validate_config"
+      },
+      "legacy_tool_name": "validate_config",
+      "action_id": "diagnostics.validate_config"
+    },
+    {
+      "title": "Verify environment",
+      "description": "Host, Python, GPU, DB, and dependency sanity check.",
+      "category": "diagnostics",
+      "tags": [
+        "environment",
+        "gpu",
+        "python"
+      ],
+      "aliases": [
+        "environment check"
+      ],
+      "intent_examples": [
+        "verify environment",
+        "is gpu available"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/DIAGNOSTICS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "verify_environment"
+      },
+      "legacy_tool_name": "verify_environment",
+      "action_id": "diagnostics.verify_environment"
+    },
+    {
+      "title": "Failed images",
+      "description": "Images missing key quality scores.",
+      "category": "jobs",
+      "tags": [
+        "failed",
+        "scoring",
+        "images"
+      ],
+      "aliases": [
+        "missing scores",
+        "failed scoring"
+      ],
+      "intent_examples": [
+        "images that failed scoring",
+        "missing musiq scores",
+        "show failed pipeline phases",
+        "pipeline phase failures"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/technical/MCP_DEBUGGING_TOOLS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [
+        "requires_db"
+      ],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "get_failed_images"
+      },
+      "legacy_tool_name": "get_failed_images",
+      "action_id": "jobs.get_failed_images"
+    },
+    {
+      "title": "Run diagnostics",
+      "description": "Post-run audit and per-phase image_phase_status counts for a run_id.",
+      "category": "jobs",
+      "tags": [
+        "run",
+        "diagnostics",
+        "audit"
+      ],
+      "aliases": [
+        "run audit",
+        "post run diagnostics"
+      ],
+      "intent_examples": [
+        "show failed pipeline phases for run",
+        "audit run 123",
+        "run diagnostics for job"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/technical/MCP_DEBUGGING_TOOLS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [
+        "requires_db"
+      ],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "get_run_diagnostics"
+      },
+      "legacy_tool_name": "get_run_diagnostics",
+      "action_id": "jobs.get_run_diagnostics"
+    },
+    {
+      "title": "Server log tail",
+      "description": "Tail webui.log and/or debug.log.",
+      "category": "logs",
+      "tags": [
+        "logs",
+        "webui"
+      ],
+      "aliases": [
+        "webui log tail",
+        "server logs"
+      ],
+      "intent_examples": [
+        "tail webui log",
+        "recent server logs"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/DIAGNOSTICS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "sources": {
+            "type": "string",
+            "enum": [
+              "all",
+              "webui",
+              "debug"
+            ]
+          },
+          "lines": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000
+          }
+        },
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "get_server_log_tail"
+      },
+      "legacy_tool_name": "get_server_log_tail",
+      "action_id": "logs.get_server_log_tail"
+    },
+    {
+      "title": "Read debug log",
+      "description": "Tail debug.log (JSON lines with raw fallback).",
+      "category": "logs",
+      "tags": [
+        "logs",
+        "debug"
+      ],
+      "aliases": [
+        "debug log tail"
+      ],
+      "intent_examples": [
+        "recent debug log",
+        "read debug log"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/DIAGNOSTICS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "lines": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000
+          }
+        },
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "read_debug_log"
+      },
+      "legacy_tool_name": "read_debug_log",
+      "action_id": "logs.read_debug_log"
+    },
+    {
+      "title": "Search logs",
+      "description": "Regex search over recent webui/debug log tails.",
+      "category": "logs",
+      "tags": [
+        "logs",
+        "grep",
+        "search"
+      ],
+      "aliases": [
+        "grep logs",
+        "find error in log"
+      ],
+      "intent_examples": [
+        "search logs for error",
+        "find exception in log",
+        "explain why ingestion failed",
+        "pipeline failure in logs"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/DIAGNOSTICS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "string"
+          },
+          "context_lines": {
+            "type": "integer"
+          },
+          "max_lines_scan": {
+            "type": "integer"
+          },
+          "max_matches_per_file": {
+            "type": "integer"
+          },
+          "case_insensitive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pattern"
+        ],
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "search_logs"
+      },
+      "legacy_tool_name": "search_logs",
+      "action_id": "logs.search_logs"
+    }
+  ]
+}

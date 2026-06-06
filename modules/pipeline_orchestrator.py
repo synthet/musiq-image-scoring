@@ -447,6 +447,13 @@ class PipelineOrchestrator:
             except Exception:
                 logger.exception("recover_interrupted_jobs: orphan interrupted IPS sweep failed")
                 orphan_summary = {"swept_job_ids": [], "reconciled_rows": 0}
+            try:
+                from modules.phase_work_claims import reconcile_orphan_work_claims_all
+
+                orphan_claims_summary = reconcile_orphan_work_claims_all()
+            except Exception:
+                logger.exception("recover_interrupted_jobs: orphan work-claims sweep failed")
+                orphan_claims_summary = {"released_rows": 0, "job_ids": []}
             interrupted = db.get_interrupted_jobs(job_type="pipeline", limit=1)
 
             auto_resumed = False
@@ -462,6 +469,7 @@ class PipelineOrchestrator:
             info = {
                 "recovered_running_jobs": recovered_job_ids,
                 "orphan_interrupted_sweep": orphan_summary,
+                "orphan_work_claims_sweep": orphan_claims_summary,
                 "interrupted_pipeline_jobs": [j.get("id") for j in interrupted],
                 "auto_resume_enabled": self._resume_policy,
                 "auto_resumed": auto_resumed,

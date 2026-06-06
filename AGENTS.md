@@ -39,21 +39,49 @@ For [OWASP Agentic Skills Top 10](https://github.com/kenhuangus/agentic-skills-t
 
 ## MCP servers (Vexlum Scoring)
 
-The same FastMCP app exposes **54** tools; Cursor attaches via **two project servers** (stdio + live SSE).
+Domain-split MCP with compact **search + dispatch**. **Naming:** `is-` = image scoring; **`is-be-*`** = backend; **`is-ui-*`** = gallery. User `~/.cursor/mcp.json`: cross-repo tools only — **not** `is-be-*` / `is-ui-*`.
 
-**Naming:** all project MCP keys use prefix **`image-scoring-`**. User `~/.cursor/mcp.json` holds cross-repo tools only (`github`, `subagent-orchestrator`, …) — **not** `image-scoring-*`.
+**Canonical contract:** [docs/technical/MCP_SEARCH_DISPATCH.md](docs/technical/MCP_SEARCH_DISPATCH.md)
 
-| Cursor server key | Transport | Repo | Requires running app? |
-|-------------------|-----------|------|------------------------|
-| **`image-scoring-backend-stdio`** | stdio | backend [`.cursor/mcp.json`](.cursor/mcp.json) | No |
-| **`image-scoring-backend-webui`** | SSE | backend `.cursor/mcp.json` | Yes — `run_webui.bat` |
-| **`image-scoring-backend-postgres`** | stdio | backend `.cursor/mcp.json` (disabled) | No |
-| **`image-scoring-gallery-stdio`** | stdio | gallery `.cursor/mcp.json` | No |
-| **`image-scoring-gallery-live`** | SSE | gallery `.cursor/mcp.json` | Yes — Electron dev / `ENABLE_GALLERY_MCP_SSE` |
+### Compact-first (new agents)
+
+1. Attach **`is-be-mcp`** (stdio)
+2. **`search(query)`** → pick `action_id`
+3. **`dispatch(action_id, arguments)`**
+
+Legacy: **`is-be-router`** exposes `search`/`dispatch` plus deprecated **`be_find`** / **`be_card`** / **`be_domains`**. Domain servers (`is-be-diag`, …) remain for compatibility/debug.
+
+### Backend ([`.cursor/mcp.json`](.cursor/mcp.json))
+
+| Cursor server key | Profile | Transport | Tools / notes |
+|-------------------|---------|-----------|---------------|
+| **`is-be-mcp`** | compact | stdio | **`search`**, **`dispatch`** — **preferred** |
+| **`is-be-router`** | router | stdio | `search`, `dispatch`, deprecated `be_*` |
+| **`is-be-diag`** | diagnostics | stdio | Legacy tools (debug) |
+| **`is-be-jobs`** | jobs | stdio | Legacy tools (debug) |
+| **`is-be-data`** | data | stdio | Legacy tools (debug) |
+| **`is-be-maint`** | maintenance | stdio | Disabled in project mcp.json |
+| **`is-be-webui`** | full | SSE | Live WebUI; `execute_code` when enabled |
+| **`is-be-full`** | full | stdio | Legacy; disabled |
+| **`is-be-pg`** | — | stdio | Postgres toolbox; disabled |
+
+### Gallery (sibling repo)
+
+| Cursor server key | Transport | Requires running app? |
+|-------------------|-----------|------------------------|
+| **`is-ui-router`** | stdio | No |
+| **`is-ui-local`** | stdio | No |
+| **`is-ui-api`** | stdio | Backend WebUI for `api_*` |
+| **`is-ui-live`** | SSE | Yes — Electron dev / `ENABLE_GALLERY_MCP_SSE` |
+| **`is-ui-full`** | stdio | Legacy local+api (disabled) |
 
 Example templates: [`.cursor/mcp.pair.example.json`](.cursor/mcp.pair.example.json) (backend), gallery [`.cursor/mcp.pair.example.json`](https://github.com/synthet/image-scoring-gallery/blob/main/.cursor/mcp.pair.example.json).
 
-For backend WebUI SSE, start the WebUI first (`run_webui.bat`). Confirm URL with **`GET /mcp-status`** → `expected_sse_url`. For **`execute_code`**, set **`ENABLE_MCP_EXECUTE_CODE=1`**. Gallery live port: **`gallery-mcp.lock`** in gallery repo root (default `9373`).
+**Legacy keys** (`image-scoring-backend-*`, `imgscore-py-*`, `is-ga-*`): remove from user MCP configs; use **`is-be-*`** / **`is-ui-*`**.
+
+For backend WebUI SSE, start the WebUI first (`run_webui.bat`). Confirm URL with **`GET /mcp-status`** → `expected_sse_url`. For **`execute_code`**, set **`ENABLE_MCP_EXECUTE_CODE=1`** on **`is-be-webui`**. Gallery live port: **`gallery-mcp.lock`** (default `9373`).
+
+Claude Code: [`.claude/settings.json`](.claude/settings.json) — enable **`is-be-mcp`** first; allow `mcp__is-be-mcp__search`, `mcp__is-be-mcp__dispatch`.
 
 ### Setup for Cursor IDE
 
@@ -193,7 +221,7 @@ The MCP server registers **53** tools (see [`modules/mcp_server.py`](modules/mcp
 
 | Tool | Description |
 |------|-------------|
-| `execute_code` | `exec` in WebUI process. Requires **`image-scoring-backend-webui`**, WebUI running, and **`ENABLE_MCP_EXECUTE_CODE=1`**. Assign to `result` to return a value. |
+| `execute_code` | `exec` in WebUI process. Requires **`is-be-webui`**, WebUI running, and **`ENABLE_MCP_EXECUTE_CODE=1`**. Assign to `result` to return a value. |
 
 ## Common Workflows
 
@@ -240,19 +268,19 @@ The MCP server registers **53** tools (see [`modules/mcp_server.py`](modules/mcp
 ## Quick Decision Tree
 
 **"Why did scoring fail?"**
-→ `get_error_summary` → `get_failed_images` → `get_model_status` → `read_debug_log`
+→ **`is-be-mcp`**: `search("scoring failure")` → `dispatch("diagnostics.get_error_summary", {})` → `dispatch("jobs.get_failed_images", {"limit": 20})` → `dispatch("logs.search_logs", {"pattern": "error"})`
 
 **"Is the system healthy?"**
-→ `check_database_health` → `get_model_status` → `validate_config`
+→ `dispatch("diagnostics.check_database_health", {})` → `dispatch("diagnostics.validate_config", {})`
 
 **"How fast is processing?"**
-→ `get_performance_metrics` → `get_runner_status` → `get_pipeline_stats`
+→ Legacy **`is-be-jobs`**: `get_performance_metrics` → `get_runner_status` → `get_pipeline_stats`
 
 **"Find images with X property"**
-→ `query_images` with filters → `get_image_details` for specifics
+→ Legacy **`is-be-data`**: `query_images` with filters → `get_image_details` for specifics
 
 **"What's in the database?"**
-→ `get_database_stats` → `get_folder_tree` → `get_stacks_summary`
+→ Legacy **`is-be-data`**: `get_database_stats` → `get_folder_tree` → `get_stacks_summary`
 
 ## Git Configuration — Do Not Modify
 
@@ -265,7 +293,7 @@ The MCP server registers **53** tools (see [`modules/mcp_server.py`](modules/mcp
 - **Safety**: `execute_sql` only allows SELECT queries. Dangerous operations are blocked.
 - **Performance**: Some tools (like `validate_file_paths`) can be slow on large datasets. Use `limit` parameter.
 - **Real-time**: `get_runner_status` and `get_pipeline_stats` show current state, others query historical data.
-- **execute_code**: Only works when Cursor uses **`image-scoring-backend-webui`**, Gradio context is present, and **`ENABLE_MCP_EXECUTE_CODE=1`**. Assign to `result` in your code to return a value. Dev/debug use only.
+- **execute_code**: Only works when Cursor uses **`is-be-webui`**, Gradio context is present, and **`ENABLE_MCP_EXECUTE_CODE=1`**. Assign to `result` in your code to return a value. Dev/debug use only.
 
 ## Tool Availability
 

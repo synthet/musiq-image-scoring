@@ -86,6 +86,21 @@ DEFAULT_TARGET_PHASES: tuple[str, ...] = tuple(p.value for p in PhaseCode)
 ACTIVE_JOB_STATUSES = {"pending", "queued", "running", "paused"}
 ACTIVE_PHASE_STATUSES = {"queued", "running", "paused", "cancel_requested", "restarting"}
 COMPLETE_PHASE_STATUSES = {"done", "skipped"}
+# Terminal failures count toward loop guard; completed runs are forgiven only when the folder
+# made measurable progress since the last completed run (see _recent_auto_attempt_counts).
+_LOOP_GUARD_TERMINAL_STATUSES = frozenset({
+    "failed",
+    "canceled",
+    "cancelled",
+    "interrupted",
+})
+# Completed auto-drive job statuses — re-queued only when progress advanced, otherwise they
+# count toward max_repeats so a stuck folder cannot be enqueued forever.
+_LOOP_GUARD_COMPLETED_STATUSES = frozenset({"completed", "done", "success", "succeeded"})
+# Minimum overall_percent gain (0–100 scale) that counts as "the folder advanced" between passes.
+_PROGRESS_EPS = 0.0
+AUTODRIVE_CANDIDATE_SCAN_CAP = 500
+BIRD_BACKLOG_QUOTA_THRESHOLD = 50
 
 
 def _as_int(value: Any, default: int = 0) -> int:
@@ -98,6 +113,15 @@ def _as_int(value: Any, default: int = 0) -> int:
             return int(float(value))
         except (TypeError, ValueError):
             return default
+
+
+def _as_float(value: Any, default: float = 0.0) -> float:
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _status(value: Any) -> str:
@@ -159,6 +183,14 @@ def _reconcile_stale_ips_for_drive() -> None:
         db.reconcile_stale_running_image_phases(limit=500)
     except Exception:
         logger.debug("runs_autodrive: reconcile stale running IPS failed", exc_info=True)
+    # Phantom-complete reconcile: images already scored / tagged whose IPS row never
+    # advanced to ``done`` make a folder look ``awaiting_scoring`` / ``awaiting_keywords``
+    # while the planner correctly finds no work → nothing_to_queue / loop_detected churn.
+    # Marking them done lets the drive reach genuinely-incomplete folders.
+    try:
+        db.reconcile_phantom_complete_image_phases(("scoring", "keywords"), limit=5000)
+    except Exception:
+        logger.debug("runs_autodrive: reconcile phantom-complete IPS failed", exc_info=True)
 
 
 AUTODRIVE_DIRTY_REFRESH_LIMIT = 100
@@ -531,6 +563,17 @@ def _active_job_path_keys() -> set[str]:
     return {k for k in keys if k}
 
 
+def _job_counts_toward_loop_guard(status: str) -> bool:
+    """Whether a prior auto-drive job should count against ``max_repeats``."""
+    norm = _status(status)
+    if norm in ACTIVE_JOB_STATUSES:
+        return True
+    if norm in _LOOP_GUARD_TERMINAL_STATUSES:
+        return True
+    # Completed runs that made partial progress (e.g. bird_species) may need another pass.
+    return False
+
+
 def _parse_payload(raw: Any) -> dict[str, Any]:
     if isinstance(raw, dict):
         return raw
@@ -548,11 +591,25 @@ def _parse_payload(raw: Any) -> dict[str, Any]:
 
 
 def _recent_auto_attempt_counts(plan_keys: Iterable[str], *, scan_limit: int = 500) -> dict[str, dict[str, Any]]:
+    """Per ``plan_key`` attempt accounting for the progress-gated loop guard.
+
+    Returns for each key:
+      - ``failure_attempts``     active + terminal-failure jobs (always count toward max_repeats)
+      - ``completed_attempts``   completed jobs (count only when the folder made no progress)
+      - ``last_completed_percent`` max ``auto_drive_overall_percent`` recorded across completed runs
+    """
     wanted = {k for k in plan_keys if k}
     if not wanted:
         return {}
     counts: dict[str, dict[str, Any]] = {
-        key: {"attempts": 0, "last_run_id": None, "last_status": None} for key in wanted
+        key: {
+            "failure_attempts": 0,
+            "completed_attempts": 0,
+            "last_completed_percent": 0.0,
+            "last_run_id": None,
+            "last_status": None,
+        }
+        for key in wanted
     }
     try:
         # Include active jobs so in-flight auto-drive runs count toward max_repeats.
@@ -567,11 +624,291 @@ def _recent_auto_attempt_counts(plan_keys: Iterable[str], *, scan_limit: int = 5
         key = str(payload.get("auto_drive_plan_key") or "")
         if key not in counts:
             continue
-        counts[key]["attempts"] += 1
-        if counts[key]["last_run_id"] is None:
-            counts[key]["last_run_id"] = row.get("id")
-            counts[key]["last_status"] = row.get("status")
+        status = str(row.get("status") or "")
+        norm = _status(status)
+        entry = counts[key]
+        if _job_counts_toward_loop_guard(status):
+            entry["failure_attempts"] += 1
+        elif norm in _LOOP_GUARD_COMPLETED_STATUSES:
+            entry["completed_attempts"] += 1
+            pct = _as_float(payload.get("auto_drive_overall_percent"))
+            if pct > float(entry["last_completed_percent"]):
+                entry["last_completed_percent"] = pct
+        else:
+            continue
+        if entry["last_run_id"] is None:
+            entry["last_run_id"] = row.get("id")
+            entry["last_status"] = status
     return counts
+
+
+def _autodrive_buckets_cache_ttl_sec() -> float:
+    try:
+        from modules.config import get_config_value
+
+        return max(5.0, float(get_config_value("auto_drive.buckets_cache_ttl_sec", default=45)))
+    except Exception:
+        return 45.0
+
+
+def _bird_backlog_quota_threshold() -> int:
+    try:
+        from modules.config import get_config_value
+
+        return max(
+            1,
+            _as_int(
+                get_config_value(
+                    "auto_drive.bird_backlog_quota_threshold",
+                    default=BIRD_BACKLOG_QUOTA_THRESHOLD,
+                ),
+            ),
+        )
+    except Exception:
+        return BIRD_BACKLOG_QUOTA_THRESHOLD
+
+
+def _bird_backlog_reserved_slots(*, batch_limit: int, bird_backlog: int) -> int:
+    try:
+        from modules.config import get_config_value
+
+        ratio = float(get_config_value("auto_drive.bird_backlog_reserve_ratio", default=0.6))
+    except Exception:
+        ratio = 0.6
+    if bird_backlog <= 0:
+        return 0
+    return min(bird_backlog, batch_limit, max(1, int(batch_limit * ratio)))
+
+
+_BUCKETS_CACHE_LOCK = threading.Lock()
+_BUCKETS_CACHE: Dict[str, Any] = {"key": None, "built_at": 0.0, "planned": None}
+
+
+def invalidate_autodrive_buckets_cache() -> None:
+    with _BUCKETS_CACHE_LOCK:
+        _BUCKETS_CACHE["key"] = None
+        _BUCKETS_CACHE["planned"] = None
+
+
+def _copy_planned_buckets(planned: dict[str, Any]) -> dict[str, Any]:
+    """Defensive copy so callers can't mutate the shared cache entry.
+
+    Item dicts are treated as read-only by callers, so copying the ``items`` list and the count
+    dicts (not deep-copying every item) is enough to keep the cached scan immutable.
+    """
+    out = dict(planned)
+    if isinstance(out.get("items"), list):
+        out["items"] = list(out["items"])
+    for k in ("bucket_counts", "phase_counts"):
+        if isinstance(out.get(k), dict):
+            out[k] = dict(out[k])
+    return out
+
+
+def _autodrive_buckets_cache_key(
+    *,
+    root_path: Optional[str],
+    target_phases: Optional[Sequence[Any]],
+    folder_paths: Optional[Sequence[str]],
+) -> str:
+    phases = tuple(normalize_target_phases(target_phases))
+    explicit = tuple(sorted(_path_key(p) for p in (folder_paths or []) if _path_key(p)))
+    root_key = _path_key(root_path or "")
+    return f"{root_key}|{phases}|{explicit}"
+
+
+# ---------------------------------------------------------------------------
+# Productivity-aware candidate cooldown
+# ---------------------------------------------------------------------------
+# Folders that return ``nothing_to_queue`` / ``loop_detected`` are demoted for a
+# short window so the batch fills with plannable work instead of re-evaluating the
+# same empty/stuck folders every tick. The cooldown is voided early if the folder's
+# ``overall_percent`` advances (it likely became plannable again). Library drives
+# only — explicit/scoped requests always honor the user's chosen folders.
+_UNPRODUCTIVE_SKIP_REASONS = frozenset({"nothing_to_queue", "loop_detected", "missing_on_disk"})
+DRIVE_UNPRODUCTIVE_COOLDOWN_SEC = 600.0
+_FOLDER_COOLDOWN_LOCK = threading.Lock()
+_FOLDER_COOLDOWN: Dict[str, tuple[float, float]] = {}  # path_key -> (expiry_ts, percent_at_skip)
+
+
+def _unproductive_cooldown_sec() -> float:
+    """Cooldown window in seconds; 0 disables the feature. Config-tunable."""
+    try:
+        from modules.config import get_config_value
+
+        if not bool(get_config_value("auto_drive.unproductive_cooldown_enabled", default=True)):
+            return 0.0
+        return max(
+            0.0,
+            float(
+                get_config_value(
+                    "auto_drive.unproductive_cooldown_sec",
+                    default=DRIVE_UNPRODUCTIVE_COOLDOWN_SEC,
+                )
+            ),
+        )
+    except Exception:
+        return DRIVE_UNPRODUCTIVE_COOLDOWN_SEC
+
+
+def _is_folder_cooled(path_key: str, current_percent: float, now: float) -> bool:
+    """True if ``path_key`` is in an active cooldown and has not advanced since."""
+    if not path_key:
+        return False
+    with _FOLDER_COOLDOWN_LOCK:
+        entry = _FOLDER_COOLDOWN.get(path_key)
+        if not entry:
+            return False
+        expiry, pct_at_skip = entry
+        if now >= expiry or current_percent > pct_at_skip + _PROGRESS_EPS:
+            _FOLDER_COOLDOWN.pop(path_key, None)
+            return False
+        return True
+
+
+def _record_unproductive_cooldown(path_key: str, percent: float, now: float, cooldown_sec: float) -> None:
+    if not path_key or cooldown_sec <= 0:
+        return
+    with _FOLDER_COOLDOWN_LOCK:
+        _FOLDER_COOLDOWN[path_key] = (now + cooldown_sec, percent)
+
+
+def _clear_folder_cooldown(path_key: str) -> None:
+    if not path_key:
+        return
+    with _FOLDER_COOLDOWN_LOCK:
+        _FOLDER_COOLDOWN.pop(path_key, None)
+
+
+def _clear_all_folder_cooldowns() -> None:
+    with _FOLDER_COOLDOWN_LOCK:
+        _FOLDER_COOLDOWN.clear()
+
+
+def _retry_unattempted_on_loop() -> bool:
+    """Kill switch: ``auto_drive.retry_unattempted_on_loop`` (default True).
+
+    When True, the loop guard bypasses a ``loop_detected`` trip for folders whose
+    blocking attempts were no-op completions and that still hold never-attempted work.
+    """
+    try:
+        from modules.config import get_config_value
+
+        return bool(get_config_value("auto_drive.retry_unattempted_on_loop", default=True))
+    except Exception:
+        return True
+
+
+def build_folder_buckets_for_autodrive(
+    *,
+    root_path: Optional[str] = None,
+    target_phases: Optional[Sequence[Any]] = None,
+    folder_paths: Optional[Sequence[str]] = None,
+    refresh_dirty_limit: int = AUTODRIVE_DIRTY_REFRESH_LIMIT,
+) -> dict[str, Any]:
+    """Full-library bucket scan for auto-drive with a short-lived in-process cache."""
+    explicit_paths = [str(p).strip() for p in (folder_paths or []) if str(p).strip()]
+    cache_key = _autodrive_buckets_cache_key(
+        root_path=root_path,
+        target_phases=target_phases,
+        folder_paths=explicit_paths or None,
+    )
+    now = time.time()
+    ttl = _autodrive_buckets_cache_ttl_sec()
+    if not explicit_paths:
+        with _BUCKETS_CACHE_LOCK:
+            if (
+                _BUCKETS_CACHE.get("key") == cache_key
+                and _BUCKETS_CACHE.get("planned") is not None
+                and (now - float(_BUCKETS_CACHE.get("built_at") or 0.0)) < ttl
+            ):
+                return _copy_planned_buckets(_BUCKETS_CACHE["planned"])
+
+    planned = build_folder_buckets(
+        root_path=root_path,
+        limit=AUTODRIVE_CANDIDATE_SCAN_CAP,
+        offset=0,
+        include_complete=False,
+        target_phases=target_phases,
+        folder_paths=folder_paths,
+        refresh_dirty_limit=refresh_dirty_limit,
+        planner_preview_limit=0,
+    )
+    if not explicit_paths:
+        with _BUCKETS_CACHE_LOCK:
+            _BUCKETS_CACHE["key"] = cache_key
+            _BUCKETS_CACHE["built_at"] = now
+            _BUCKETS_CACHE["planned"] = planned
+        return _copy_planned_buckets(planned)
+    return planned
+
+
+def _select_autodrive_candidates(
+    schedulable: Sequence[dict[str, Any]],
+    *,
+    limit: int,
+    bucket_counts: Dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Pick up to ``limit`` leaf-ready folders with fair share for large bird backlogs."""
+    limit = max(1, min(_as_int(limit, 50), AUTODRIVE_CANDIDATE_SCAN_CAP))
+    items = list(schedulable)
+    if len(items) <= limit:
+        return items
+
+    bird_bucket = "awaiting_bird_species"
+    bird_backlog = _as_int((bucket_counts or {}).get(bird_bucket))
+    threshold = _bird_backlog_quota_threshold()
+    if bird_backlog < threshold:
+        return items[:limit]
+
+    reserved = _bird_backlog_reserved_slots(batch_limit=limit, bird_backlog=bird_backlog)
+    bird_items = [i for i in items if i.get("bucket") == bird_bucket]
+    other_items = [i for i in items if i.get("bucket") != bird_bucket]
+    selected: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
+
+    def _take(pool: list[dict[str, Any]], n: int) -> None:
+        for item in pool:
+            if len(selected) >= limit or n <= 0:
+                break
+            pk = str(item.get("path_key") or _path_key(str(item.get("path") or "")))
+            if pk and pk in seen_paths:
+                continue
+            selected.append(item)
+            if pk:
+                seen_paths.add(pk)
+            n -= 1
+
+    _take(bird_items, min(reserved, len(bird_items)))
+    remaining = limit - len(selected)
+    if remaining > 0:
+        _take(other_items, remaining)
+    if len(selected) < limit:
+        _take(
+            [i for i in items if (str(i.get("path_key") or _path_key(str(i.get("path") or ""))) not in seen_paths)],
+            limit - len(selected),
+        )
+    return selected[:limit]
+
+
+def _resolve_enqueue_phases_with_refresh(
+    raw_path: str,
+    resolved: str,
+    phase_candidates: Sequence[str],
+) -> list[str]:
+    """JIT enqueue phases; refresh folder summary once when the repair plan is empty."""
+    phase_values = resolve_auto_drive_enqueue_phases(resolved, phase_candidates, dry_run=True)
+    if phase_values or not resolved:
+        return phase_values
+    try:
+        db.get_folder_phase_summary(raw_path, force_refresh=True)
+    except Exception:
+        logger.debug(
+            "runs_autodrive: force_refresh before nothing_to_queue failed for %s",
+            raw_path,
+            exc_info=True,
+        )
+    return resolve_auto_drive_enqueue_phases(resolved, phase_candidates, dry_run=True)
 
 
 def _plan_key(folder_path: str, phase_values: Sequence[str]) -> str:
@@ -996,25 +1333,43 @@ def auto_drive_runs(
         }
         require_leaf = True
 
-    planned = build_folder_buckets(
+    planned = build_folder_buckets_for_autodrive(
         root_path=root_path,
-        limit=limit,
-        offset=0,
-        include_complete=False,
         target_phases=target_phases,
         folder_paths=folder_paths,
         refresh_dirty_limit=len(explicit_paths) if scoped_request else AUTODRIVE_DIRTY_REFRESH_LIMIT,
-        # The drive re-derives enqueue phases per candidate below (resolve_auto_drive_enqueue_phases)
-        # and never reads ``planner_next_phases``, so the JIT planner preview here is pure overhead:
-        # it ran ``build_validation_repair_plan`` on up to 25 folders every "scanning folders" tick.
-        # Only the ``/api/runs/folder-buckets`` UI endpoint needs the preview.
-        planner_preview_limit=0,
     )
-    candidates = [
+    schedulable = [
         item for item in planned["items"]
         if item.get("next_phases") and item.get("bucket") not in {"blocked", "in_flight", "complete"}
         and (not require_leaf or _is_leaf_folder_for_autodrive(_path_key(str(item.get("path") or "")), all_path_keys))
-    ][:limit]
+    ]
+    # Productivity-aware cooldown: drop folders that recently planned empty / loop-blocked
+    # so the batch fills with plannable work. Scoped requests honor the user's folders as-is.
+    cooldown_sec = 0.0 if scoped_request else _unproductive_cooldown_sec()
+    cooldown_now = time.time()
+    record_cooldowns = cooldown_sec > 0 and not dry_run
+    if cooldown_sec > 0:
+        eligible = [
+            item for item in schedulable
+            if not _is_folder_cooled(
+                _path_key(str(item.get("path") or "")),
+                _as_float(item.get("overall_percent")),
+                cooldown_now,
+            )
+        ]
+        # Never starve the drive: if every schedulable folder is cooled, ignore the
+        # cooldown this tick rather than reporting a false stall.
+        candidate_pool = eligible if eligible else schedulable
+        cooled_out = len(schedulable) - len(candidate_pool)
+    else:
+        candidate_pool = schedulable
+        cooled_out = 0
+    candidates = _select_autodrive_candidates(
+        candidate_pool,
+        limit=limit,
+        bucket_counts=planned.get("bucket_counts", {}),
+    )
     if scoped_request and not candidates and planned.get("items"):
         logger.info(
             "runs_autodrive: explicit folder(s) not queueable (bucket=%s)",
@@ -1033,7 +1388,7 @@ def auto_drive_runs(
             [str(p) for p in item.get("next_phases") or list(DEFAULT_TARGET_PHASES)]
         )
         phase_values = (
-            resolve_auto_drive_enqueue_phases(resolved, phase_candidates, dry_run=True)
+            _resolve_enqueue_phases_with_refresh(raw_path, resolved, phase_candidates)
             if resolved
             else []
         )
@@ -1061,17 +1416,55 @@ def auto_drive_runs(
         item = prep["item"]
         plan_key = str(prep["plan_key"] or "")
         attempt_meta = attempts.get(plan_key) or {}
-        if _as_int(attempt_meta.get("attempts")) >= max_repeats:
-            loop_detected += 1
-            skipped.append({
-                "folder_path": item.get("path"),
-                "phases": item.get("next_phases") or [],
-                "reason": "loop_detected",
-                "attempts": attempt_meta.get("attempts"),
-                "last_run_id": attempt_meta.get("last_run_id"),
-                "last_status": attempt_meta.get("last_status"),
-            })
-            continue
+        failure_attempts = _as_int(attempt_meta.get("failure_attempts"))
+        completed_attempts = _as_int(attempt_meta.get("completed_attempts"))
+        # Forgive completed runs only when the folder advanced since the last completed pass;
+        # a folder that keeps completing without progress is bounded at max_repeats.
+        current_percent = _as_float(item.get("overall_percent"))
+        last_completed_percent = _as_float(attempt_meta.get("last_completed_percent"))
+        made_progress = current_percent > last_completed_percent + _PROGRESS_EPS
+        effective_attempts = failure_attempts
+        if completed_attempts > 0 and not made_progress:
+            effective_attempts += completed_attempts
+        if effective_attempts >= max_repeats:
+            # Don't loop-block when the blocking attempts were no-op COMPLETIONS (empty
+            # plans, e.g. claims blocked the work at the time) and the folder still has
+            # genuinely un-attempted work (attempt_count == 0). A no-op completion is not
+            # a real attempt at the pending images, so it must not permanently block work
+            # that has never run. Active failures (failure_attempts > 0) still loop-block,
+            # so a truly broken runner stalls instead of spinning.
+            if (
+                _retry_unattempted_on_loop()
+                and failure_attempts == 0
+                and prep["phase_values"]
+                and prep["resolved"]
+                and db.scope_has_unattempted_phase_work(prep["resolved"], prep["phase_values"][0])
+            ):
+                logger.info(
+                    "runs_autodrive: loop-guard bypass — un-attempted work in %s (phase=%s, %d no-op completions)",
+                    item.get("path"), prep["phase_values"][0], completed_attempts,
+                )
+            else:
+                loop_detected += 1
+                skipped.append({
+                    "folder_path": item.get("path"),
+                    "phases": item.get("next_phases") or [],
+                    "reason": "loop_detected",
+                    "attempts": effective_attempts,
+                    "failure_attempts": failure_attempts,
+                    "completed_attempts": completed_attempts,
+                    "made_progress": made_progress,
+                    "last_run_id": attempt_meta.get("last_run_id"),
+                    "last_status": attempt_meta.get("last_status"),
+                })
+                if record_cooldowns:
+                    _record_unproductive_cooldown(
+                        _path_key(str(item.get("path") or "")),
+                        current_percent,
+                        cooldown_now,
+                        cooldown_sec,
+                    )
+                continue
         if dry_run:
             scheduled.append({
                 "folder_path": item.get("path"),
@@ -1089,7 +1482,22 @@ def auto_drive_runs(
                 phase_values=prep["phase_values"],
             )
             if skip:
-                skipped.append({**skip, "phases": item.get("next_phases") or []})
+                entry = {**skip, "phases": item.get("next_phases") or []}
+                skipped.append(entry)
+                if entry.get("reason") == "nothing_to_queue":
+                    logger.info(
+                        "runs_autodrive: nothing_to_queue path=%s bucket=%s current_phase=%s",
+                        item.get("path"),
+                        item.get("bucket"),
+                        item.get("current_phase"),
+                    )
+                if record_cooldowns and str(entry.get("reason") or "") in _UNPRODUCTIVE_SKIP_REASONS:
+                    _record_unproductive_cooldown(
+                        _path_key(str(item.get("path") or "")),
+                        _as_float(item.get("overall_percent")),
+                        cooldown_now,
+                        cooldown_sec,
+                    )
                 continue
             if not job_id:
                 skipped.append({
@@ -1106,6 +1514,8 @@ def auto_drive_runs(
                 "job_id": job_id,
                 "queue_position": position,
             })
+            if record_cooldowns:
+                _clear_folder_cooldown(_path_key(str(item.get("path") or "")))
         except Exception as exc:
             logger.exception("runs_autodrive: failed to queue %s", item.get("path"))
             skipped.append({
@@ -1116,6 +1526,11 @@ def auto_drive_runs(
             })
 
     bucket_counts = planned.get("bucket_counts", {})
+    skip_reason_counts: dict[str, int] = (
+        dict(Counter(str(item.get("reason") or "unknown") for item in skipped))
+        if skipped
+        else {}
+    )
     result = {
         "dry_run": bool(dry_run),
         "run_mode": CANONICAL_RUN_MODE,
@@ -1125,10 +1540,14 @@ def auto_drive_runs(
         "candidates": len(candidates),
         "total_outstanding": planned["total"],
         "loop_detected": loop_detected,
+        "cooldown_skipped": cooled_out,
+        "skip_reason_counts": skip_reason_counts,
         "bucket_counts": bucket_counts,
         "phase_counts": planned.get("phase_counts", {}),
         "health": _bucket_health_from_counts(bucket_counts),
     }
+    if scheduled and not dry_run:
+        invalidate_autodrive_buckets_cache()
     if dry_run:
         logger.info(
             "runs_autodrive: preview — candidates=%d would_queue=%d skipped=%d outstanding=%d",
@@ -1139,12 +1558,14 @@ def auto_drive_runs(
         )
     else:
         logger.info(
-            "runs_autodrive: batch scan — candidates=%d queued=%d skipped=%d outstanding=%d loop_detected=%d",
+            "runs_autodrive: batch scan — candidates=%d queued=%d skipped=%d outstanding=%d "
+            "loop_detected=%d cooldown_skipped=%d",
             len(candidates),
             len(scheduled),
             len(skipped),
             planned["total"],
             loop_detected,
+            cooled_out,
         )
         if skipped:
             logger.info("runs_autodrive: skip reasons: %s", _format_skip_summary(skipped))
@@ -1162,6 +1583,9 @@ def auto_drive_runs(
 
 DRIVE_TICK_COOLDOWN_SEC = 15.0
 DRIVE_MAX_NOPROGRESS_TICKS = 3
+# Absolute cap so a loop-blocked drive (work remains but every candidate trips the loop guard)
+# eventually stalls instead of spinning forever.
+DRIVE_MAX_LOOPBLOCKED_TICKS = 10
 
 _DRIVE_LOCK = threading.RLock()
 # Non-blocking guard so the dispatcher tick and the API "start" call never run
@@ -1180,6 +1604,7 @@ _DRIVE_STATE: Dict[str, Any] = {
     "last_batch_error": None,
     "stop_reason": None,
     "idle_no_progress_ticks": 0,
+    "loopblocked_ticks": 0,
 }
 
 
@@ -1261,6 +1686,7 @@ def _summarize_result(result: Dict[str, Any], *, last_tick_reason: str = "") -> 
         "candidates": _as_int(result.get("candidates")),
         "total_outstanding": _as_int(result.get("total_outstanding")),
         "loop_detected": _as_int(result.get("loop_detected")),
+        "skip_reason_counts": dict(result.get("skip_reason_counts") or {}),
         "bucket_counts": bucket_counts,
         "health": health,
     }
@@ -1317,8 +1743,11 @@ def arm_drive(
                 "last_batch_error": None,
                 "stop_reason": None,
                 "idle_no_progress_ticks": 0,
+                "loopblocked_ticks": 0,
             }
         )
+        invalidate_autodrive_buckets_cache()
+        _clear_all_folder_cooldowns()
     state = get_drive_state()
     logger.info(
         "runs_autodrive: drive armed root=%s limit=%s max_repeats=%s target_phases=%s",
@@ -1367,6 +1796,7 @@ def stop_drive(reason: str = "manual") -> Dict[str, Any]:
         last_result = _DRIVE_STATE.get("last_result")
         _DRIVE_STATE["enabled"] = False
         _DRIVE_STATE["stop_reason"] = reason
+        invalidate_autodrive_buckets_cache()
     if was_enabled:
         logger.info(
             "runs_autodrive: drive stopped reason=%s last_tick=%s",
@@ -1447,16 +1877,37 @@ def _run_drive_batch(*, force: bool = False) -> Optional[Dict[str, Any]]:
             _DRIVE_STATE["last_batch_error"] = None
             if immediate_stop == "complete":
                 _DRIVE_STATE["idle_no_progress_ticks"] = 0
+                _DRIVE_STATE["loopblocked_ticks"] = 0
                 stop_reason = "complete"
             elif immediate_stop == "blocked":
                 _DRIVE_STATE["idle_no_progress_ticks"] = 0
+                _DRIVE_STATE["loopblocked_ticks"] = 0
                 stop_reason = "blocked"
             elif tick_reason in {"waiting_in_flight", "queued"}:
                 _DRIVE_STATE["idle_no_progress_ticks"] = 0
+                _DRIVE_STATE["loopblocked_ticks"] = 0
             elif tick_reason == "no_enqueue_progress":
-                _DRIVE_STATE["idle_no_progress_ticks"] += 1
-                if _DRIVE_STATE["idle_no_progress_ticks"] >= DRIVE_MAX_NOPROGRESS_TICKS:
-                    stop_reason = "stalled"
+                loop_n = _as_int(result.get("loop_detected"))
+                skipped_n = len(result.get("skipped", []) or [])
+                schedulable = _as_int(health.get("schedulable_folders"))
+                mostly_loop_skips = (
+                    loop_n > 0
+                    and skipped_n > 0
+                    and loop_n >= max(1, int(skipped_n * 0.75))
+                )
+                loop_blocked = mostly_loop_skips and schedulable > 0 and scheduled_n == 0
+                if loop_blocked:
+                    # Loop guard is masking the normal idle counter; keep driving so multi-pass
+                    # work can resume, but bound it with an absolute cap so we still stall if the
+                    # backlog is genuinely stuck.
+                    _DRIVE_STATE["idle_no_progress_ticks"] = 0
+                    _DRIVE_STATE["loopblocked_ticks"] += 1
+                    if _DRIVE_STATE["loopblocked_ticks"] >= DRIVE_MAX_LOOPBLOCKED_TICKS:
+                        stop_reason = "stalled"
+                else:
+                    _DRIVE_STATE["idle_no_progress_ticks"] += 1
+                    if _DRIVE_STATE["idle_no_progress_ticks"] >= DRIVE_MAX_NOPROGRESS_TICKS:
+                        stop_reason = "stalled"
             else:
                 _DRIVE_STATE["idle_no_progress_ticks"] += 1
                 if _DRIVE_STATE["idle_no_progress_ticks"] >= DRIVE_MAX_NOPROGRESS_TICKS:

@@ -64,24 +64,26 @@ MCP log tools include `read_debug_log`, `get_server_log_tail`, and `search_logs`
 
 ## MCP Diagnostics
 
-When an MCP client is attached, use read-oriented tools before mutating anything:
+When an MCP client is attached, use **compact search + dispatch** on **`is-be-mcp`**:
 
-- `validate_config`
-- `verify_environment`
-- `get_database_engine_info`
-- `check_database_health`
-- `get_error_summary`
-- `get_failed_images`
-- `get_recent_jobs`
-- `get_job_details`
-- `get_job_phases`
-- `get_run_diagnostics`
-- `get_stale_running_phase_status`
-- `search_logs`
+1. **`search("…")`** → pick `action_id` from results
+2. **`dispatch("diagnostics.get_error_summary", {})`**, **`dispatch("diagnostics.run_doctor", {"no_gpu": true})`**, etc.
 
-For a diagnostics-only MCP profile, disable write/code tools such as `execute_code`, `set_config_value`, `run_processing_job`, `process_newly_imported_folders`, `rebase_file_paths`, `prune_missing_files`, `set_image_metadata`, `propagate_tags`, and `manage_runners`.
+Examples:
 
-Full MCP catalog: [AGENTS.md](../AGENTS.md) and [.agent/mcp_tools_reference.md](../.agent/mcp_tools_reference.md).
+```text
+search("why did scoring fail")
+dispatch("diagnostics.get_error_summary", {})
+
+search("run doctor without gpu")
+dispatch("diagnostics.run_doctor", {"no_gpu": true})
+```
+
+Legacy: domain servers (`is-be-diag`, `is-be-jobs`) and **`is-be-router`** `be_find` remain for compatibility. See [MCP_SEARCH_DISPATCH.md](technical/MCP_SEARCH_DISPATCH.md).
+
+For a diagnostics-only profile, keep **`is-be-maint`** disabled and avoid write/code tools on SSE (`execute_code`, …).
+
+Full catalog: [AGENTS.md](../AGENTS.md) and [.agent/mcp_tools_reference.md](../.agent/mcp_tools_reference.md).
 
 ## Images: phase icon vs stored data
 

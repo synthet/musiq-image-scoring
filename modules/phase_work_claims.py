@@ -116,6 +116,102 @@ def mark_claims_running(job_id: int, phase_code: str, image_ids: Optional[List[i
     )
 
 
+_TERMINAL_JOB_STATUSES = (
+    "interrupted",
+    "failed",
+    "completed",
+    "canceled",
+    "cancelled",
+)
+
+
+def reconcile_orphan_work_claims(*, limit_jobs: int = 500) -> dict:
+    """Release open claims owned by jobs already in a terminal status.
+
+    Closes the gap when ``recover_running_jobs`` or other paths mark jobs
+    interrupted without calling ``release_claims_for_job`` (e.g. crash recovery
+    before the release hook existed). Idempotent: only touches queued/running
+    claims on terminal jobs.
+
+    Returns ``{"released_rows": int, "job_ids": list[int]}``.
+    """
+    try:
+        lim = max(1, int(limit_jobs))
+    except (TypeError, ValueError):
+        lim = 500
+    placeholders = ",".join("?" * len(_TERMINAL_JOB_STATUSES))
+    try:
+        rows = db.get_connector().query(
+            f"""
+            SELECT DISTINCT c.job_id AS job_id
+            FROM image_phase_work_claims c
+            JOIN jobs j ON j.id = c.job_id
+            WHERE c.status IN ('queued', 'running')
+              AND j.status IN ({placeholders})
+            ORDER BY c.job_id DESC
+            FETCH FIRST ? ROWS ONLY
+            """,
+            tuple(_TERMINAL_JOB_STATUSES) + (lim,),
+        )
+    except Exception:
+        logger.exception("reconcile_orphan_work_claims: scan failed")
+        return {"released_rows": 0, "job_ids": []}
+
+    job_ids = [int(r["job_id"]) for r in rows or [] if r and r.get("job_id") is not None]
+    released_total = 0
+    for jid in job_ids:
+        try:
+            released_total += int(release_claims_for_job(jid) or 0)
+        except Exception:
+            logger.debug(
+                "reconcile_orphan_work_claims: release failed for job_id=%s",
+                jid,
+                exc_info=True,
+            )
+    if released_total:
+        logger.info(
+            "reconcile_orphan_work_claims: released %s claim row(s) across %s job(s)",
+            released_total,
+            len(job_ids),
+        )
+    return {"released_rows": released_total, "job_ids": job_ids}
+
+
+def reconcile_orphan_work_claims_all(
+    *,
+    limit_jobs: int = 500,
+    max_passes: int = 20,
+) -> dict:
+    """Run ``reconcile_orphan_work_claims`` until no rows are released or ``max_passes``.
+
+    Handles installations with more than ``limit_jobs`` distinct terminal jobs holding
+    open claims (each single pass is capped). Returns accumulated
+    ``released_rows``, ``job_ids``, and ``passes``.
+    """
+    try:
+        max_p = max(1, int(max_passes))
+    except (TypeError, ValueError):
+        max_p = 20
+    total_released = 0
+    all_job_ids: list[int] = []
+    passes = 0
+    for _ in range(max_p):
+        passes += 1
+        summary = reconcile_orphan_work_claims(limit_jobs=limit_jobs)
+        released = int(summary.get("released_rows") or 0)
+        total_released += released
+        all_job_ids.extend(summary.get("job_ids") or [])
+        if released == 0:
+            break
+    if passes > 1 and total_released:
+        logger.info(
+            "reconcile_orphan_work_claims_all: %s pass(es), %s claim row(s) released",
+            passes,
+            total_released,
+        )
+    return {"released_rows": total_released, "job_ids": all_job_ids, "passes": passes}
+
+
 def release_claims_for_job(job_id: int) -> int:
     """Release open claims for a job. Returns number of rows updated."""
     row = db.get_connector().query_one(

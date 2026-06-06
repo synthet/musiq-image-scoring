@@ -1,0 +1,56 @@
+# MCP search routing evaluation set (PR2).
+# expected_top1: required rank-1 action_id (when expect_low_confidence is false)
+# expected_top3: additional acceptable action_ids within top 3
+# expect_low_confidence: query should not confidently match a PR1 action
+
+- query: run doctor without GPU
+  expected_top1: diagnostics.run_doctor
+
+- query: find images without embeddings
+  expected_top1: data.get_embedding_stats
+
+- query: list database health checks
+  expected_top1: diagnostics.check_database_health
+
+- query: why did scoring fail
+  expected_top1: diagnostics.get_error_summary
+  expected_top3:
+    - jobs.get_failed_images
+
+- query: database health
+  expected_top1: diagnostics.check_database_health
+
+- query: search logs for error
+  expected_top1: logs.search_logs
+
+- query: show config
+  expected_top1: config.get_config
+
+- query: run diagnostics for run 42
+  expected_top3:
+    - jobs.get_run_diagnostics
+    - diagnostics.get_error_summary
+
+- query: show failed pipeline phases
+  expected_top3:
+    - diagnostics.get_error_summary
+    - jobs.get_failed_images
+    - logs.search_logs
+
+- query: explain why ingestion failed
+  expected_top3:
+    - logs.search_logs
+    - jobs.get_failed_images
+    - diagnostics.get_error_summary
+
+- query: rebuild embeddings for this folder
+  expect_low_confidence: true
+
+- query: start thumbnail generation
+  expect_low_confidence: true
+
+- query: export a debug bundle
+  expect_low_confidence: true
+
+- query: xyzzy plugh completely unrelated gibberish
+  expect_low_confidence: true

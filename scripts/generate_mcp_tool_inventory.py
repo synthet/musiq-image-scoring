@@ -17,6 +17,8 @@ from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_FILE = ROOT / "modules" / "mcp_server.py"
+OVERLAY_PATH = ROOT / "mcp" / "actions" / "overlay.yaml"
+ACTION_REGISTRY_PATH = ROOT / "mcp" / "action_registry.json"
 BEGIN = "<!-- BEGIN MCP TOOL INVENTORY -->"
 END = "<!-- END MCP TOOL INVENTORY -->"
 
@@ -162,13 +164,64 @@ def cmd_check_docs(paths: list[Path], tools: list[ToolSig]) -> int:
     return 1 if failed else 0
 
 
+def _build_action_registry() -> dict:
+    # Import after ROOT is on path when run as script from repo root
+    sys.path.insert(0, str(ROOT))
+    from modules.mcp.actions.registry import build_registry_from_overlay, load_overlay
+
+    return build_registry_from_overlay(load_overlay())
+
+
+def _canonical_registry_json(registry: dict) -> str:
+    import json
+
+    return json.dumps(registry, indent=2, ensure_ascii=False) + "\n"
+
+
+def cmd_update_action_registry(path: Path = ACTION_REGISTRY_PATH) -> int:
+    registry = _build_action_registry()
+    path.write_text(_canonical_registry_json(registry), encoding="utf-8")
+    print(f"Updated {path} ({len(registry.get('actions') or [])} actions)")
+    return 0
+
+
+def cmd_check_action_registry(path: Path = ACTION_REGISTRY_PATH) -> int:
+    if not path.exists():
+        print(f"ERROR: action registry missing: {path}")
+        print("Run: python scripts/generate_mcp_tool_inventory.py --update-action-registry")
+        return 1
+    import json
+
+    on_disk = json.loads(path.read_text(encoding="utf-8"))
+    expected = _build_action_registry()
+    if on_disk != expected:
+        print(f"ERROR: {path} is out of sync with {OVERLAY_PATH}")
+        print("Run: python scripts/generate_mcp_tool_inventory.py --update-action-registry")
+        return 1
+    print(f"OK: {path} in sync ({len(expected.get('actions') or [])} actions)")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=SOURCE_FILE)
     parser.add_argument("--format", choices=["markdown", "names"], default="markdown")
     parser.add_argument("--update-docs", nargs="*", type=Path, default=[])
     parser.add_argument("--check-docs", nargs="*", type=Path, default=[])
+    parser.add_argument("--update-action-registry", action="store_true")
+    parser.add_argument("--check-action-registry", action="store_true")
+    parser.add_argument(
+        "--action-registry-path",
+        type=Path,
+        default=ACTION_REGISTRY_PATH,
+        help="Path to mcp/action_registry.json",
+    )
     args = parser.parse_args()
+
+    if args.update_action_registry:
+        return cmd_update_action_registry(args.action_registry_path)
+    if args.check_action_registry:
+        return cmd_check_action_registry(args.action_registry_path)
 
     tools = extract_tools(args.source)
     if args.format == "names":

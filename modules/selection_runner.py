@@ -194,16 +194,11 @@ class SelectionRunner:
                         )
                         if decision['should_run']:
                             images_for_phase.append(img)
-                            db.set_image_phase_status(
-                                img['id'],
-                                PhaseCode.CULLING,
-                                PhaseStatus.RUNNING,
-                                app_version=APP_VERSION,
-                                executor_version="1.0.0",
-                                job_id=job_id,
-                            )
+                            # FIX: Do not set PhaseStatus.RUNNING here. 
+                            # ClusteringEngine.cluster_images must see the images as runnable.
+                            # Prematurely setting RUNNING causes ClusteringEngine to skip them.
         except Exception as pe:
-            log(f"Phase status pre-run update error: {pe}")
+            log(f"Phase status eligibility check error: {pe}")
 
         skipped_by_policy = max(0, len(images) - len(images_for_phase))
         debug_culling(
@@ -243,19 +238,9 @@ class SelectionRunner:
                     self._status_message = "stopped"
                 return
 
-            # Phase D (Culling) — mark attempted images in the processed folder as done
-            try:
-                for img in images_for_phase:
-                    db.set_image_phase_status(
-                        img['id'],
-                        PhaseCode.CULLING,
-                        PhaseStatus.DONE,
-                        app_version=APP_VERSION,
-                        executor_version="1.0.0",
-                        job_id=job_id,
-                    )
-            except Exception as pe:
-                log(f"Phase status update error: {pe}")
+            # FIX: Do not mark images DONE here. ClusteringEngine already marks processed 
+            # images as DONE per-folder. Redundant marking here can clobber more granular 
+            # failures or skip policy decisions made inside the engine.
         except Exception as e:
             debug_culling(f"SelectionService.run failed: {e!r}")
             for img in images_for_phase:

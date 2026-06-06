@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Culling "No Stacks" bug**: Removed premature `RUNNING` and `DONE` phase status updates in `SelectionRunner`. These updates previously caused `ClusteringEngine` to skip images because it saw them as already running, resulting in zero stacks being created for newly processed folders. Life-cycle transitions are now correctly owned by the clustering engine.
+
 ### Roadmap (not yet released)
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):

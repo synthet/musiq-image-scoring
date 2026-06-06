@@ -3084,6 +3084,20 @@ def start_mcp_server_background():
     return thread
 
 
+_mcp_active_profile: str = "full"
+
+
+def get_mcp_active_profile() -> str:
+    """Active MCP_TOOL_PROFILE after domain filtering (diagnostics, jobs, …)."""
+    return _mcp_active_profile
+
+
+if MCP_AVAILABLE:
+    from modules.mcp.profiles import apply_tool_profile
+
+    _mcp_active_profile = apply_tool_profile(mcp)
+
+
 if __name__ == "__main__":
     # Run standalone - NO print statements allowed! MCP uses stdio for JSON protocol.
     # All output must go to stderr, not stdout.

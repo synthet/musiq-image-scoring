@@ -1,0 +1,243 @@
+# Hand-maintained MCP tool metadata for BM25 routing. Domains map to MCP_TOOL_PROFILE values.
+# Regenerate mcp/tool_catalog.json via: python scripts/generate_mcp_tool_inventory.py --update-catalog
+
+version: 1
+repo: backend
+
+field_weights:
+  name: 3.0
+  tags: 2.0
+  description: 1.0
+  examples: 2.0
+  args_summary: 1.5
+
+domains:
+  diagnostics:
+    server: is-be-diag
+  jobs:
+    server: is-be-jobs
+  data:
+    server: is-be-data
+  maintenance:
+    server: is-be-maint
+
+tools:
+  get_database_stats:
+    domain: data
+    tags: [database, stats, counts, scores]
+    examples: [how many images, database overview, score distribution]
+  query_images:
+    domain: data
+    tags: [images, list, filter, scores, rating]
+    examples: [find images with high score, list images in folder, filter by rating]
+  get_image_details:
+    domain: data
+    tags: [image, details, metadata, file_path]
+    examples: [details for one image, image row by path]
+  search_images_by_hash:
+    domain: data
+    tags: [hash, duplicate, content hash, lookup]
+    examples: [find image by sha256, lookup content hash]
+  get_db_schema:
+    domain: data
+    tags: [schema, tables, columns, sql]
+    examples: [list postgres tables, column names for images]
+  execute_sql:
+    domain: data
+    tags: [sql, select, query, postgres]
+    examples: [run select query, custom sql read only]
+  get_folder_tree:
+    domain: data
+    tags: [folders, tree, hierarchy, counts]
+    examples: [folder structure, images per folder]
+  get_newly_imported_folders:
+    domain: data
+    tags: [import, folders, recent, discovery]
+    examples: [recently imported folders, new library paths]
+  get_stacks_summary:
+    domain: data
+    tags: [stacks, clusters, culling, similarity]
+    examples: [stack sizes, cluster summary]
+  validate_file_paths:
+    domain: data
+    tags: [paths, missing files, filesystem, integrity]
+    examples: [missing files on disk, path validation]
+  get_location_stats:
+    domain: data
+    tags: [gps, geocode, exif, location]
+    examples: [gps coverage, geocoded images count]
+  get_embedding_stats:
+    domain: data
+    tags: [embeddings, vectors, pgvector, coverage]
+    examples: [how many embeddings, missing vectors]
+  check_stack_invariants:
+    domain: data
+    tags: [stacks, integrity, orphans, invariants]
+    examples: [orphan stacks, singleton stacks]
+  search_similar_images:
+    domain: data
+    tags: [similarity, embeddings, cosine, neighbors]
+    examples: [images similar to example, visual neighbors]
+  search_images_by_text:
+    domain: data
+    tags: [semantic, clip, text search, captions]
+    examples: [find sunset photos, text to image search]
+  find_near_duplicates:
+    domain: data
+    tags: [duplicates, near duplicate, similarity]
+    examples: [near duplicate pairs in folder]
+  find_outliers:
+    domain: data
+    tags: [outliers, atypical, embeddings, z-score]
+    examples: [unusual images in folder]
+
+  get_incomplete_images:
+    domain: jobs
+    tags: [incomplete, missing scores, quality]
+    examples: [images missing scores or rating]
+  get_failed_images:
+    domain: jobs
+    tags: [failed, missing scores, quality analysis]
+    examples: [images that failed scoring, missing musiq scores]
+  get_recent_jobs:
+    domain: jobs
+    tags: [jobs, runs, history, recent]
+    examples: [recent scoring runs, last jobs]
+  get_job_details:
+    domain: jobs
+    tags: [job, run, status, details]
+    examples: [job 123 details, run status by id]
+  get_job_phases:
+    domain: jobs
+    tags: [phases, pipeline, job stages]
+    examples: [phase plan for run, scoring phase status]
+  get_job_stage_images:
+    domain: jobs
+    tags: [job, images, phase, per-image]
+    examples: [images in scoring phase for job]
+  get_run_diagnostics:
+    domain: jobs
+    tags: [run, diagnostics, audit, post-run]
+    examples: [audit run 456, post run diagnostics]
+  get_drive_diagnostics:
+    domain: jobs
+    tags: [auto-drive, folder health, loop]
+    examples: [auto drive status, drive loop health]
+  get_job_execution_report:
+    domain: jobs
+    tags: [execution, report, actions, processed]
+    examples: [what did run do per image, action counts]
+  get_image_pipeline_failures:
+    domain: jobs
+    tags: [failures, pipeline, per-image, errors]
+    examples: [why image failed in pipeline]
+  get_performance_metrics:
+    domain: jobs
+    tags: [performance, throughput, duration, metrics]
+    examples: [job speed, success rate last week]
+  get_runner_status:
+    domain: jobs
+    tags: [runners, active, progress, scoring]
+    examples: [is scoring running, runner progress]
+  get_pipeline_stats:
+    domain: jobs
+    tags: [pipeline, queue, dispatcher, stats]
+    examples: [queue depth, dispatcher state]
+
+  get_error_summary:
+    domain: diagnostics
+    tags: [errors, health, triage, summary]
+    examples: [why did scoring fail, system error overview]
+  check_database_health:
+    domain: diagnostics
+    tags: [health, integrity, orphans, database]
+    examples: [is database healthy, data integrity check]
+  diagnose_phase_consistency:
+    domain: diagnostics
+    tags: [phases, consistency, mismatch, drift]
+    examples: [phase mismatch folder vs image]
+  get_stale_running_phase_status:
+    domain: diagnostics
+    tags: [stuck, running, stale, phases]
+    examples: [phases stuck in running]
+  export_debug_bundle:
+    domain: diagnostics
+    tags: [debug, bundle, support, export]
+    examples: [redacted support zip, debug bundle]
+  get_database_engine_info:
+    domain: diagnostics
+    tags: [database, engine, postgres, connection]
+    examples: [which db engine, postgres reachable]
+  verify_environment:
+    domain: diagnostics
+    tags: [environment, gpu, python, sanity]
+    examples: [environment check, gpu available]
+  get_system_resources:
+    domain: diagnostics
+    tags: [cpu, ram, gpu, resources]
+    examples: [memory usage, nvidia smi snapshot]
+  get_thread_dump:
+    domain: diagnostics
+    tags: [threads, stall, deadlock, dump]
+    examples: [thread dump, hung server debug]
+  get_model_status:
+    domain: diagnostics
+    tags: [models, gpu, cuda, tensorflow]
+    examples: [are models loaded, gpu status]
+  get_config:
+    domain: diagnostics
+    tags: [config, settings, json]
+    examples: [read config.json redacted]
+  validate_config:
+    domain: diagnostics
+    tags: [config, validation, paths]
+    examples: [is config valid, config sanity]
+  read_debug_log:
+    domain: diagnostics
+    tags: [logs, debug.log, tail]
+    examples: [recent debug log lines]
+  get_server_log_tail:
+    domain: diagnostics
+    tags: [logs, webui.log, tail]
+    examples: [webui log tail, server logs]
+  search_logs:
+    domain: diagnostics
+    tags: [logs, regex, search, grep]
+    examples: [search logs for error, find exception in log]
+
+  process_newly_imported_folders:
+    domain: maintenance
+    tags: [import, enqueue, scoring, write]
+    examples: [start scoring on new folders]
+  rebase_file_paths:
+    domain: maintenance
+    tags: [paths, rebase, move library, write]
+    examples: [update paths after drive letter change]
+  set_image_metadata:
+    domain: maintenance
+    tags: [rating, label, metadata, write]
+    examples: [set star rating, color label]
+  prune_missing_files:
+    domain: maintenance
+    tags: [prune, delete rows, missing files, destructive]
+    examples: [remove db rows for missing files]
+  run_processing_job:
+    domain: maintenance
+    tags: [start job, scoring, tagging, write]
+    examples: [start scoring job on folder]
+  manage_runners:
+    domain: maintenance
+    tags: [runners, stop, status, write]
+    examples: [stop scoring runner]
+  set_config_value:
+    domain: maintenance
+    tags: [config, persist, write]
+    examples: [change config setting]
+  propagate_tags:
+    domain: maintenance
+    tags: [keywords, tags, propagate, write]
+    examples: [propagate keywords to neighbors]
+  execute_code:
+    domain: maintenance
+    tags: [execute, code, gradio, dangerous]
+    examples: [run python in webui process]
