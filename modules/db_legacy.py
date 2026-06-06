@@ -10,7 +10,7 @@ from collections import deque
 from pathlib import Path
 import traceback
 import queue
-from typing import List, Optional, Any, Union, Dict, Tuple
+from typing import List, Optional, Any, Union, Dict, Tuple, Sequence
 
 from modules import config
 from modules import audit
@@ -395,8 +395,8 @@ def _translate_fb_to_pg(query: str) -> str:
     query = re.sub(r'\bLIST\s*\(', 'STRING_AGG(', query, flags=re.IGNORECASE)
 
     # 3f – Function name normalization (Firebird aliases → standard SQL)
-    query = query.replace('substr(', 'substring(')
-    query = query.replace('length(', 'char_length(')
+    query = re.sub(r'\bsubstr\s*\(', 'substring(', query, flags=re.IGNORECASE)
+    query = re.sub(r'\blength\s*\(', 'char_length(', query, flags=re.IGNORECASE)
 
     # 3g – Firebird "expr STARTING WITH ?" → PostgreSQL prefix LIKE
     # Emit single '%'; _escape_pct_in_string_literals() escapes it for psycopg2 at execute time.
@@ -785,6 +785,8 @@ def _add_keyword_filter(conditions, params, keyword_filter, table_ref="images"):
         params.append(f"%{keyword_filter.strip().lower()}%")
 
 
+_legacy_keyword_warned = False
+
 def _log_legacy_keyword_access(image_id, context=""):
     """Log deprecation warning when legacy IMAGES.KEYWORDS column is accessed.
 
@@ -794,6 +796,10 @@ def _log_legacy_keyword_access(image_id, context=""):
         image_id: Image ID that triggered fallback to legacy column
         context: Function/context name (e.g. "get_image_details", "get_images_by_folder")
     """
+    global _legacy_keyword_warned
+    if _legacy_keyword_warned:
+        return
+    _legacy_keyword_warned = True
     logger.warning(
         "⚠️  DEPRECATION: Reading IMAGES.KEYWORDS (legacy column). "
         "Migrate to IMAGE_KEYWORDS + KEYWORDS_DIM normalized schema. "
@@ -5380,7 +5386,7 @@ def invalidate_folder_images_cache(folder_path=None):
 def get_images_by_folder(folder_path):
     """
     Returns all images located immediately in the specified folder using folder_id.
-    Keywords are loaded from normalized schema via COALESCE(IMAGE_KEYWORDS, IMAGES.KEYWORDS, '').
+    Keywords are loaded from normalized IMAGE_KEYWORDS / KEYWORDS_DIM only (no legacy column read).
     Results are cached for up to _FOLDER_CACHE_TTL seconds to avoid redundant
     DB round-trips (e.g. folder tree selection followed by "Open in..." navigation).
     """
@@ -5400,7 +5406,7 @@ def get_images_by_folder(folder_path):
         return []
 
     if _get_db_engine() == "postgres":
-        # Postgres: fetch all columns, replace keywords with COALESCE
+        # Postgres: normalized keywords only (no legacy IMAGES.KEYWORDS fallback)
         sql = f"""
             SELECT
                 i.*,
@@ -5409,7 +5415,7 @@ def get_images_by_folder(folder_path):
                      FROM image_keywords ik
                      JOIN keywords_dim kd ON ik.keyword_id = kd.keyword_id
                      WHERE ik.image_id = i.id),
-                    i.keywords, ''
+                    ''
                 ) AS keywords
             FROM images i
             WHERE i.folder_id = %s
@@ -5428,7 +5434,7 @@ def get_images_by_folder(folder_path):
         if not result:
             logger.info("get_images_by_folder Postgres result is empty")
     else:
-        # Firebird: same COALESCE logic with LIST()
+        # Firebird: normalized keywords only (no legacy IMAGES.KEYWORDS fallback)
         sql = """
             SELECT
                 i.id, i.file_path, i.file_name, i.folder_id, i.stack_id,
@@ -5442,30 +5448,13 @@ def get_images_by_folder(folder_path):
                      FROM image_keywords ik
                      JOIN keywords_dim kd ON ik.keyword_id = kd.keyword_id
                      WHERE ik.image_id = i.id),
-                    i.keywords, ''
+                    ''
                 ) AS keywords
             FROM images i
             WHERE i.folder_id = ?
             ORDER BY i.file_name
         """
         result = list(get_connector().query(sql, (folder_id,)))
-
-    # Phase 4c: Log legacy fallback for any images that returned keywords from legacy column
-    if result:
-        for row in result:
-            image_id = row.get('id') if isinstance(row, dict) else row[0]
-            keywords = (row.get('keywords', '').strip() if isinstance(row, dict)
-                       else row[18] if len(row) > 18 else '')
-            if keywords:
-                # Check if normalized source exists for this image
-                normalized_count_result = get_connector().query_one(
-                    "SELECT COUNT(*) as cnt FROM image_keywords WHERE image_id = ?",
-                    (image_id,)
-                )
-                normalized_count = (normalized_count_result['cnt'] if isinstance(normalized_count_result, dict)
-                                   else normalized_count_result[0])
-                if normalized_count == 0:
-                    _log_legacy_keyword_access(image_id, "get_images_by_folder")
 
     _folder_images_cache[folder_path] = (now, result)
     return result
@@ -7529,6 +7518,20 @@ def recover_running_jobs(mark_as="interrupted"):
                 logger.info("recover_running_jobs: reconciled %s stale image_phase_status rows", n)
         except Exception:
             logger.exception("recover_running_jobs: image_phase_status reconcile failed")
+        try:
+            from modules.phase_work_claims import release_claims_for_job
+
+            released = 0
+            for jid in recovered:
+                released += int(release_claims_for_job(int(jid)) or 0)
+            if released:
+                logger.info(
+                    "recover_running_jobs: released %s phase work claim row(s) for %s job(s)",
+                    released,
+                    len(recovered),
+                )
+        except Exception:
+            logger.exception("recover_running_jobs: release work claims failed")
     return recovered
 
 
@@ -9733,6 +9736,8 @@ def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
         )"""
 
     if code == "bird_species":
+        from modules.bird_species_eligibility import _sql_exhausted_marker
+
         norm_species_check = f"""EXISTS (
             SELECT 1 FROM image_keywords ik_s
             JOIN keywords_dim kd_s ON kd_s.keyword_id = ik_s.keyword_id
@@ -9745,12 +9750,147 @@ def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
                 f"LOWER(CAST({prefix}keywords AS VARCHAR(2048))) LIKE '%species:%'"
             )
             species_present = f"({norm_species_check} OR {legacy_species_check})"
+        # Mirror the alias handling of the birds/species predicates above (unqualified columns
+        # when no alias is given) so the exhausted clause never references a phantom ``i`` table.
+        exhausted = _sql_exhausted_marker(table_alias)
         return f"""(
             ({_sql_image_has_birds_keyword(table_alias or "")})
             AND NOT ({species_present})
+            AND NOT ({exhausted})
         )"""
 
     return "1=0"  # Default to no matches for unknown phase
+
+
+# Phases whose ``get_phase_incomplete_sql`` predicate cleanly inverts to "complete"
+# (work product present == phase done). bird_species is intentionally excluded — its
+# scope is bird-tagged images only and is reconciled by bird_species_eligibility tooling.
+_PHANTOM_RECONCILABLE_PHASES = ("indexing", "metadata", "scoring", "keywords", "culling")
+
+
+def reconcile_phantom_complete_image_phases(
+    phases: Sequence[str] = ("scoring", "keywords"),
+    *,
+    scope_path: Optional[str] = None,
+    limit: int = 5000,
+    dry_run: bool = False,
+) -> Dict[str, int]:
+    """Mark phase status ``done`` for images whose work product already exists but
+    whose ``image_phase_status`` row is missing or not terminal-complete.
+
+    Fixes "phantom incomplete" folders: images that carry quality scores or keywords
+    from an earlier run/import but whose IPS row still reads ``not_started``/``failed``.
+    The folder aggregate then counts them incomplete (``awaiting_scoring`` /
+    ``awaiting_keywords``) while the JIT planner correctly sees no work, so the drive
+    churns ``nothing_to_queue`` / ``loop_detected`` and eventually stalls.
+
+    Completeness is the negation of :func:`get_phase_incomplete_sql`, so this can never
+    diverge from each phase's own definition. ``done`` / ``skipped`` rows are left
+    untouched. Returns ``{phase_code: reconciled_count}``.
+    """
+    try:
+        lim = max(1, int(limit))
+    except (TypeError, ValueError):
+        lim = 5000
+
+    scope_clause = ""
+    scope_params: tuple = ()
+    if scope_path:
+        from modules import utils
+
+        wsl = utils.convert_path_to_wsl(scope_path) if hasattr(utils, "convert_path_to_wsl") else scope_path
+        target = wsl or scope_path
+        scope_clause = " AND (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)"
+        scope_params = (target, target + "/%", target + "\\%")
+
+    result: Dict[str, int] = {}
+    for phase in phases:
+        code = (phase or "").strip().lower()
+        if code not in _PHANTOM_RECONCILABLE_PHASES:
+            logger.warning(
+                "reconcile_phantom_complete_image_phases: skipping unsupported phase '%s'", code
+            )
+            result[code] = 0
+            continue
+        incomplete_sql = get_phase_incomplete_sql(code, "i")
+        sql = f"""
+            SELECT i.id
+            FROM images i
+            JOIN folders f ON f.id = i.folder_id
+            JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
+            LEFT JOIN image_phase_status ips
+                ON ips.image_id = i.id AND ips.phase_id = pp.id
+            WHERE (ips.status IS NULL OR LOWER(TRIM(ips.status)) NOT IN ('done', 'skipped'))
+              AND NOT ({incomplete_sql}){scope_clause}
+            FETCH FIRST ? ROWS ONLY
+        """
+        try:
+            rows = get_connector().query(sql, (code,) + scope_params + (lim,))
+        except Exception:
+            logger.exception(
+                "reconcile_phantom_complete_image_phases: scan failed for phase '%s'", code
+            )
+            result[code] = 0
+            continue
+        ids = [r["id"] for r in rows or [] if r and r.get("id") is not None]
+        if not dry_run:
+            for iid in ids:
+                try:
+                    set_image_phase_status(iid, code, "done")
+                except Exception:
+                    logger.debug(
+                        "reconcile_phantom_complete_image_phases: set done failed image=%s phase=%s",
+                        iid, code, exc_info=True,
+                    )
+        if ids:
+            logger.info(
+                "reconcile_phantom_complete_image_phases: %s %d phantom-complete image(s) for phase '%s'",
+                "would reconcile" if dry_run else "reconciled", len(ids), code,
+            )
+        result[code] = len(ids)
+    return result
+
+
+def scope_has_unattempted_phase_work(scope_path: str, phase_code: str) -> bool:
+    """True if the scope has images that need ``phase_code`` but were never attempted.
+
+    "Never attempted" == ``attempt_count == 0`` and a non-terminal status, while the
+    phase's own incomplete predicate still matches (real missing work). Lets the
+    auto-drive loop guard tell "looping without progress" (every pending image has
+    been tried) apart from "never actually ran" — e.g. a batch-level crash that marked
+    rows ``failed`` with ``attempt_count`` still 0, or prior no-op completions while
+    work claims blocked the images. Such work should run at least once, not be
+    permanently loop-blocked.
+    """
+    code = (phase_code or "").strip().lower()
+    if not code or not scope_path:
+        return False
+    from modules import utils
+
+    wsl = utils.convert_path_to_wsl(scope_path) if hasattr(utils, "convert_path_to_wsl") else scope_path
+    target = wsl or scope_path
+    incomplete_sql = get_phase_incomplete_sql(code, "i")
+    sql = f"""
+        SELECT 1
+        FROM images i
+        JOIN folders f ON f.id = i.folder_id
+        JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
+        LEFT JOIN image_phase_status ips
+            ON ips.image_id = i.id AND ips.phase_id = pp.id
+        WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+          AND COALESCE(ips.attempt_count, 0) = 0
+          AND (ips.status IS NULL OR LOWER(TRIM(ips.status)) NOT IN ('done', 'skipped', 'running'))
+          AND ({incomplete_sql})
+        FETCH FIRST 1 ROWS ONLY
+    """
+    try:
+        row = get_connector().query_one(sql, (code, target, target + "/%", target + "\\%"))
+        return bool(row)
+    except Exception:
+        logger.debug(
+            "scope_has_unattempted_phase_work failed for %s / %s", scope_path, phase_code, exc_info=True
+        )
+        return False
 
 
 def reset_image_phase_status(image_ids: List[int], phase_code: str) -> int:
@@ -9915,6 +10055,79 @@ def is_image_indexing_complete(image_id: int) -> bool:
         (image_id,),
     )
     return row is not None and row.get("image_embedding") is not None
+
+
+def get_resolved_image_keywords(image_id: int, legacy_fallback: str | None = None) -> str:
+    """Return display keywords: normalized ``image_keywords`` first, legacy column fallback."""
+    try:
+        image_id = int(image_id)
+    except (ValueError, TypeError):
+        return str(legacy_fallback or "").strip()
+
+    conn = get_connector()
+    if conn.type == "postgres":
+        agg_sql = """
+            SELECT STRING_AGG(COALESCE(kd.keyword_display, kd.keyword_norm), ', ') AS kw
+            FROM image_keywords ik
+            JOIN keywords_dim kd ON ik.keyword_id = kd.keyword_id
+            WHERE ik.image_id = ?
+        """
+    else:
+        agg_sql = """
+            SELECT LIST(COALESCE(kd.keyword_display, kd.keyword_norm), ', ') AS kw
+            FROM image_keywords ik
+            JOIN keywords_dim kd ON ik.keyword_id = kd.keyword_id
+            WHERE ik.image_id = ?
+        """
+    try:
+        row = conn.query_one(agg_sql, (image_id,))
+    except Exception:
+        row = None
+    normalized = str((row or {}).get("kw") or (row or {}).get("KW") or "").strip()
+    if normalized:
+        return normalized
+    if legacy_fallback is not None:
+        return str(legacy_fallback or "").strip()
+    if _images_table_has_legacy_keywords_column():
+        try:
+            leg_row = conn.query_one(
+                "SELECT keywords FROM images WHERE id = ?", (image_id,)
+            )
+        except Exception:
+            leg_row = None
+        return str((leg_row or {}).get("keywords") or "").strip()
+    return ""
+
+
+def get_batch_resolved_image_keywords(image_ids: list[int]) -> dict[int, str]:
+    """Batch normalized keyword strings keyed by ``image_id`` (empty when none)."""
+    ids = [int(i) for i in (image_ids or []) if i is not None]
+    if not ids:
+        return {}
+    placeholders = ",".join(["?"] * len(ids))
+    conn = get_connector()
+    if conn.type == "postgres":
+        agg_expr = "STRING_AGG(COALESCE(kd.keyword_display, kd.keyword_norm), ', ')"
+    else:
+        agg_expr = "LIST(COALESCE(kd.keyword_display, kd.keyword_norm), ', ')"
+    sql = (
+        f"SELECT ik.image_id, {agg_expr} AS kw "
+        "FROM image_keywords ik "
+        "JOIN keywords_dim kd ON ik.keyword_id = kd.keyword_id "
+        f"WHERE ik.image_id IN ({placeholders}) "
+        "GROUP BY ik.image_id"
+    )
+    try:
+        rows = conn.query(sql, tuple(ids))
+    except Exception:
+        return {}
+    out: dict[int, str] = {}
+    for r in rows or []:
+        iid = r.get("image_id") or r.get("IMAGE_ID")
+        if iid is None:
+            continue
+        out[int(iid)] = str(r.get("kw") or r.get("KW") or "").strip()
+    return out
 
 
 def is_image_keywords_complete(image_id: int) -> bool:
@@ -12912,6 +13125,50 @@ def list_image_incidents(
         return {"items": [], "total": 0}
 
 
+def _apply_done_postcondition_gate(image_id, phase_code, status, error):
+    """Postcondition gate (issue #230, Phase 1): prevent a phantom CULLING ``done``.
+
+    A terminal ``done`` for culling must be backed by real similarity artefacts —
+    a ``stack_id``, or (for a legitimate dissimilar singleton) a persisted visual
+    embedding. When ``phases.enforce_done_postconditions`` is enabled and the
+    culling completeness predicate fails, downgrade the write to ``failed`` with a
+    ``postcondition_failed`` reason instead of recording a false ``done``.
+
+    Reuses :func:`is_image_culling_similarity_artefacts_missing` so that genuine
+    singletons (clustered, no stack, but embeddings present) are treated as
+    complete and are not looped by the gate.
+
+    Returns a possibly-rewritten ``(status, error)`` tuple. No-op for non-culling
+    phases, non-``done`` writes, or when the flag is off.
+    """
+    from modules.phases import PhaseCode, PhaseStatus
+
+    code = phase_code.value if hasattr(phase_code, "value") else str(phase_code)
+    status_val = status.value if hasattr(status, "value") else str(status)
+    if status_val != PhaseStatus.DONE.value or code != PhaseCode.CULLING.value:
+        return status, error
+    try:
+        from modules.config import get_config_value
+        if not bool(get_config_value("phases.enforce_done_postconditions", default=False)):
+            return status, error
+        # Use the facade so the predicates resolve regardless of import order
+        # (``is_image_culling_complete`` is injected by ``modules.db``).
+        from modules import db as _db
+        complete = _db.is_image_culling_complete(image_id) and not _db.is_image_culling_similarity_artefacts_missing(image_id)
+    except Exception:
+        # Fail open: a gate error must never block legitimate progress.
+        logger.exception("postcondition gate: check failed image_id=%s — allowing done", image_id)
+        return status, error
+    if complete:
+        return status, error
+    logger.warning(
+        "postcondition gate: blocking phantom CULLING done for image_id=%s "
+        "(similarity artefacts missing) — recording failed instead",
+        image_id,
+    )
+    return PhaseStatus.FAILED, (error or "postcondition_failed:missing_similarity_artefacts")
+
+
 def set_image_phase_status(image_id, phase_code, status,
                             app_version=None, executor_version=None,
                             job_id=None, error=None, skip_reason=None, skipped_by=None):
@@ -12940,6 +13197,11 @@ def set_image_phase_status(image_id, phase_code, status,
     if phase_id is None:
         logger.warning("set_image_phase_status: unknown phase '%s'", phase_code)
         return
+
+    # Postcondition gate (issue #230): never persist a phantom CULLING ``done``.
+    # Evaluated before opening the write transaction (predicates use their own
+    # connection). No-op unless ``phases.enforce_done_postconditions`` is enabled.
+    status, error = _apply_done_postcondition_gate(image_id, phase_code, status, error)
 
     now = datetime.datetime.now()
     _audit_capture: dict = {}
@@ -13979,6 +14241,21 @@ def get_folder_phase_summary(folder_path, force_refresh=False):
         for attempt in range(2):
             birds_scope = _sql_bird_species_in_scope("i")
             agg_scope = f"(LOWER(TRIM(pp.code)) <> 'bird_species' OR ({birds_scope}))"
+            # Phantom-folder guard: a bird image that already carries a ``species:*``
+            # keyword is classified, but legacy/import tagging may never have written an
+            # ``image_phase_status`` row for it. Without a row it counts as in-scope but
+            # not done, pinning the folder in ``awaiting_bird_species`` (auto-drive then
+            # churns ``nothing_to_queue`` on it). Count such rowless-but-classified images
+            # as done-equivalent. Gated on ``ips.status IS NULL`` so real running/failed/
+            # skipped rows are never overridden, and on bird_species only.
+            bs_classified = """EXISTS (
+                SELECT 1 FROM image_keywords ik_s
+                JOIN keywords_dim kd_s ON kd_s.keyword_id = ik_s.keyword_id
+                WHERE ik_s.image_id = i.id AND LOWER(kd_s.keyword_norm) LIKE 'species:%'
+            )"""
+            bs_done_extra = (
+                f"(LOWER(TRIM(pp.code)) = 'bird_species' AND ips.status IS NULL AND {bs_classified})"
+            )
             try:
                 rows = get_connector().query(
                     f"""
@@ -13987,7 +14264,7 @@ def get_folder_phase_summary(folder_path, force_refresh=False):
                         pp.name,
                         pp.sort_order,
                         COUNT(CASE WHEN {agg_scope} THEN i.id END) as total_images,
-                        COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'done' THEN 1 ELSE 0 END), 0) as done_count,
+                        COALESCE(SUM(CASE WHEN {agg_scope} AND (ips.status = 'done' OR {bs_done_extra}) THEN 1 ELSE 0 END), 0) as done_count,
                         COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'failed' THEN 1 ELSE 0 END), 0) as failed_count,
                         COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'running' THEN 1 ELSE 0 END), 0) as running_count,
                         COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'queued' THEN 1 ELSE 0 END), 0) as queued_count,

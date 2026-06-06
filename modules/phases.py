@@ -183,6 +183,36 @@ def sort_phase_value_strings(codes: List[str]) -> List[str]:
     return sorted(codes, key=lambda s: phase_string_sort_key(s))
 
 
+def pipeline_prefix_through(phase: str) -> List[str]:
+    """Return the canonical contiguous prefix of required phases up to and
+    including ``phase`` (transitive closure over :data:`PHASE_PREREQUISITES`).
+
+    ``keywords`` and ``culling`` are siblings under ``scoring``, so this walks
+    the dependency DAG rather than slicing a linear order::
+
+        pipeline_prefix_through("keywords") -> ["indexing", "metadata", "scoring", "keywords"]
+        pipeline_prefix_through("culling")  -> ["indexing", "metadata", "scoring", "culling"]
+
+    Used by the legacy single-phase ``/start`` endpoints so a downstream phase
+    can never be enqueued ahead of its prerequisites. An unknown phase returns
+    ``[phase]`` unchanged.
+    """
+    target = (str(phase or "")).strip().lower()
+    if not target:
+        return []
+    collected: set[str] = set()
+    stack = [target]
+    while stack:
+        cur = stack.pop()
+        if cur in collected:
+            continue
+        collected.add(cur)
+        for pre in PHASE_PREREQUISITES.get(cur, ()):
+            if pre not in collected:
+                stack.append(pre)
+    return sort_phase_value_strings(list(collected))
+
+
 def sort_job_phase_rows_for_display(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Sort job_phases rows for API/UI; renumbers phase_order to match display order."""
     if not rows:
