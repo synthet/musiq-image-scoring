@@ -32,6 +32,8 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | [planning/database/FIREBIRD_POSTGRES_MIGRATION.md](planning/database/FIREBIRD_POSTGRES_MIGRATION.md) | Historical Firebird to PostgreSQL migration. |
 | [planning/database/DB_VECTORS_REFACTOR.md](planning/database/DB_VECTORS_REFACTOR.md) | Vector schema and embedding storage planning/worklog. |
 | [planning/database/POSTGRES_SCHEMA_OPTIMIZATIONS.md](planning/database/POSTGRES_SCHEMA_OPTIMIZATIONS.md) | PostgreSQL schema optimization notes. |
+| [planning/database/SCORES_JSON_COLUMN_DEPRECATION.md](planning/database/SCORES_JSON_COLUMN_DEPRECATION.md) | `scores_json` column deprecation. |
+| [planning/database/IMAGE_EMBEDDING_COLUMN_DEPRECATION.md](planning/database/IMAGE_EMBEDDING_COLUMN_DEPRECATION.md) | Legacy `image_embedding` column deprecation. |
 | [technical/DB_RECOVERY_FROM_CORRUPTION.md](technical/DB_RECOVERY_FROM_CORRUPTION.md) | Recovery procedures. |
 
 ## Image Pipeline
@@ -39,6 +41,8 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | Page | Purpose |
 |---|---|
 | [IMAGE_PIPELINE.md](IMAGE_PIPELINE.md) | Pipeline hub: ingestion, metadata, scoring, culling, keywords, embeddings, RAW/NEF. |
+| [EXPORT_PIPELINE.md](EXPORT_PIPELINE.md) | Export and output paths hub. |
+| [guides/CULLING_EMBEDDING_BACKFILL.md](guides/CULLING_EMBEDDING_BACKFILL.md) | Backfill embeddings for culling. |
 | [technical/PIPELINE_TERMINOLOGY.md](technical/PIPELINE_TERMINOLOGY.md) | Canonical phase codes, operation tokens, and UI labels. |
 | [technical/PIPELINE_PHASE_RUNNERS.md](technical/PIPELINE_PHASE_RUNNERS.md) | Runner behavior by phase. |
 | [technical/RUN_OPTIONS_MODE_MATRIX.md](technical/RUN_OPTIONS_MODE_MATRIX.md) | Runs submit modes and dispatcher options. |
@@ -58,6 +62,8 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | [technical/MCP_DEBUGGING_TOOLS.md](technical/MCP_DEBUGGING_TOOLS.md) | MCP debugging tools reference. |
 | [../AGENTS.md](../AGENTS.md) | Agent/MCP configuration and tool inventory. |
 | [technical/AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md) | Cross-repo integration protocol. |
+| [technical/AGENT_MEMORY.md](technical/AGENT_MEMORY.md) | Agent memory workflow (log-session, dream, promote). |
+| [technical/EXTERNAL_CLI_REVIEWS.md](technical/EXTERNAL_CLI_REVIEWS.md) | External CLI sub-agent reviews. |
 
 ## Models And Scoring
 
@@ -151,6 +157,7 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | [reports/CODE_DESIGN_REVIEW_2026-04-18.md](reports/CODE_DESIGN_REVIEW_2026-04-18.md) | Code/design review. |
 | [reports/GRADIO_SERVING_DECISION.md](reports/GRADIO_SERVING_DECISION.md) | Gradio/FastAPI product rationale. |
 | [reports/project-reviews/INDEX.md](reports/project-reviews/INDEX.md) | Project review index. |
+| [CODE_QUALITY_AUDIT.md](CODE_QUALITY_AUDIT.md) | Code quality audit (backend) — snapshot. |
 
 ## Planning
 
