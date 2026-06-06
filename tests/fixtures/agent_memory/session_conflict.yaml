@@ -1,0 +1,7 @@
+timestamp: "2026-06-02T12:00:00+00:00"
+task_summary: Conflict session
+final_outcome: done
+memory_candidates:
+  - text: Rule one applies
+    category: recurring_issue
+    confidence: medium
