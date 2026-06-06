@@ -268,3 +268,20 @@ artifacts/brain/
 # Rotated WebUI logs (webui.log.1 already covered above)
 webui.log.*
 
+# Session scratch (housekeeping)
+*_diff.txt
+full_diff.txt
+filtered_diff.txt
+plan.md
+gallery-baseline-a11y-*.yml
+reports/gallery-visual-review/
+
+# Agent memory: share approved memory.md + schema/config/docs; keep raw session
+# logs and unreviewed dream proposals local (may contain personal paths).
+.agent-memory/raw-sessions/*
+!.agent-memory/raw-sessions/.gitkeep
+.agent-memory/dreams/*
+!.agent-memory/dreams/.gitkeep
+# Re-include the shared control file caught by the repo-wide config.json rule above.
+!.agent-memory/config.json
+

@@ -51,7 +51,7 @@ Phase status values: `not_started | running | done | skipped | failed`
 
 | Module | Role |
 |--------|------|
-| `modules/db.py` | Database abstraction layer; engine routing (`_get_db_engine()`) and PostgreSQL connection factory |
+| `modules/db/` | Database abstraction layer (package; `__init__.py` is a facade aliasing `modules/db_legacy.py`); engine routing (`_get_db_engine()`) and PostgreSQL connection factory |
 | `modules/api.py` | FastAPI REST endpoints for scoring, tagging, clustering jobs |
 | `modules/engine.py` | Batch processor; producer-consumer pipeline orchestrator |
 | `modules/pipeline.py` | Low-level pipeline primitives |
@@ -86,7 +86,7 @@ Phase status values: `not_started | running | done | skipped | failed`
 
 ## Key Files
 
-- `modules/db.py` — DB abstraction layer and engine routing
+- `modules/db/` — DB abstraction layer and engine routing (facade in `__init__.py`; monolith in `modules/db_legacy.py`)
 - `modules/db_postgres.py` — PostgreSQL schema, connection pool, DDL init
 - `modules/api.py` — FastAPI REST endpoints (scoring, tagging, clustering jobs)
 - `modules/engine.py` — Scoring pipeline orchestrator
@@ -172,15 +172,15 @@ Helpers: `_table_exists()`, `_column_exists()`, `_index_exists()`, `_constraint_
 - **Keep public API stable** — REST endpoints, config keys, DB column names
 - **Minimal diffs** — prefer targeted edits over rewrites
 - **DB column renames** require updating `electron/db.ts` too
-- **New score columns** require updating `_init_db_impl()` in `modules/db.py`
+- **New score columns** require updating `_init_db_impl()` in `modules/db_legacy.py`
 - **Secrets** (API keys) go in `secrets.json` (git-ignored), never in `config.json`
 - **Never modify `.git/config`** — do not set `extensions.worktreeConfig`, change `core.repositoryformatversion`, or add any git extensions. Third-party tools (Gemini Code Assist / Antigravity) use embedded git libraries that choke on non-standard extensions, breaking workspace resolution. If a worktree is needed, use a temporary one and clean it up immediately — do not leave worktree config persisted in the repo.
 
-### DB.py Refactoring (Future: Post-MVP)
+### DB.py Refactoring (In progress)
 
-**Status:** Planning phase (not yet implemented)
+**Status:** Facade established — the monolith now lives in `modules/db_legacy.py`; `modules/db/__init__.py` is a thin facade aliasing it. Granular submodule extraction is still pending.
 
-The `modules/db.py` file has grown to 414 KB / 10,565 lines (a "god object" with 60+ public methods). This creates high defect risk, merge conflicts, and testing difficulty. A phased decomposition is planned into domain-specific modules:
+The legacy `modules/db_legacy.py` god object (~14.5k lines, 60+ public methods) carries high defect risk, merge conflicts, and testing difficulty. A phased decomposition is planned into domain-specific modules:
 
 **Proposed structure:**
 ```
@@ -196,9 +196,9 @@ modules/db/
 └── backup.py      (backup/restore, disaster recovery)
 ```
 
-Backward compatibility is maintained via a facade layer in `modules/db.py`. See `docs/planning/db-refactor-decomposition.md` for the full 11-week plan.
+Backward compatibility is maintained via the `modules/db/` package (`__init__.py` facade) that aliases `modules/db_legacy.py`. See `docs/planning/db-refactor-decomposition.md` for the full 11-week plan.
 
-**For now:** Use `modules/db.py` as before. New code should follow these patterns for future-proofing:
+**For now:** Use `modules.db` (the package) as before — it re-exports everything from `modules/db_legacy.py`. New code should follow these patterns for future-proofing:
 - Import from domain-specific modules when available (post-refactor)
 - Avoid mixing concerns (e.g., don't add image queries to job functions)
 - Keep functions focused and testable in isolation
