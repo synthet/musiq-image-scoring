@@ -108,9 +108,31 @@ if phase in ("bird_species", "bird-species"):
 
 The dispatcher holds the same guarantee as for all other job types: **only one runner runs at a time**. `_any_runner_busy()` now includes `bird_species_runner`.
 
+### 3.2.1 Eligibility, exhausted markers, and backfill
+
+| State | Meaning | Filter hint |
+|-------|---------|-------------|
+| **Not in scope** | No `birds` keyword | Bird phase N/A |
+| **Pending** | `birds`, no `species:*`, not exhausted | Backlog / autodrive queue |
+| **Complete** | Has `species:…` | Done |
+| **Exhausted** | Run found no species above threshold | Keyword `birds:species-exhausted` — excluded from pending |
+
+When BioCLIP returns no species above threshold, the runner writes `birds:species-exhausted` and sets IPS `skipped` / `no_species_match` so folders do not stay in `awaiting_bird_species` forever.
+
+**Maintenance** (`scripts/maintenance/backfill_bird_species_eligibility.py`):
+
+```bash
+python scripts/maintenance/backfill_bird_species_eligibility.py --report
+python scripts/maintenance/backfill_bird_species_eligibility.py --mark-exhausted --dry-run
+python scripts/maintenance/backfill_bird_species_eligibility.py --mark-exhausted
+python scripts/maintenance/backfill_bird_species_eligibility.py --enqueue
+```
+
+**Gallery:** pending species work ≈ keyword `birds` and exclude `birds:species-exhausted`.
+
 ### 3.3 Image filtering (the key constraint)
 
-`modules/db.py` → `get_images_with_keyword()`:
+`modules/db_legacy.py` → `get_images_with_keyword()`:
 
 ```sql
 SELECT * FROM images
@@ -470,7 +492,7 @@ curl -X POST http://127.0.0.1:7860/api/bird-species/start \
 |------|------|
 | [`modules/bird_species.py`](../../modules/bird_species.py) | `BioCLIPClassifier` + `BirdSpeciesRunner` + module helpers |
 | [`data/bird_species_list.txt`](../../data/bird_species_list.txt) | Default bundled (~360) North American species list |
-| [`modules/db.py`](../../modules/db.py) | `get_images_with_keyword()` — SQL filter; post-filters large ID lists in Python |
+| [`modules/db_legacy.py`](../../modules/db_legacy.py) | `get_images_with_keyword()` — SQL filter; post-filters large ID lists in Python |
 | [`modules/job_dispatcher.py`](../../modules/job_dispatcher.py) | Routes `job_type="bird_species"` to `BirdSpeciesRunner` |
 | [`modules/api.py`](../../modules/api.py) | `BirdSpeciesStartRequest`; `/bird-species/start`, `/stop`, `/status`; `submit_run` routing |
 | [`modules/mcp_server.py`](../../modules/mcp_server.py) | `run_processing_job("bird_species")` + `get_runner_status()["bird_species"]` |

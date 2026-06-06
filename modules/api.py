@@ -205,6 +205,12 @@ def _normalize_jobs_table_row(d: dict) -> dict:
     out["capabilities"] = {
         "execution_report": _job_supports_execution_report(out),
     }
+    qp_obj = out.get("queue_payload")
+    if isinstance(qp_obj, dict):
+        pra = qp_obj.get("post_run_audit")
+        if isinstance(pra, dict):
+            out["post_run_audit_status"] = pra.get("status")
+            out["post_run_audit_severity"] = pra.get("severity")
     return out
 
 
@@ -374,6 +380,9 @@ def _image_detail_payload(image_id: int) -> dict:
             raise HTTPException(status_code=404, detail=f"Image not found: id={image_id}")
 
         data = _row_to_dict(row, exclude_keys={"image_embedding"})
+        legacy_kw = (data.get("keywords") or "").strip()
+        resolved_kw = db.get_resolved_image_keywords(image_id, legacy_fallback=legacy_kw).strip()
+        data["keywords"] = resolved_kw or None
         data["file_paths"] = db.get_all_paths(image_id)
         data["resolved_path"] = db.get_resolved_path(image_id, verified_only=False)
         data["phase_statuses"] = db.get_image_phase_statuses(image_id)
@@ -510,6 +519,12 @@ def _images_list_payload(
         phase_map = db.get_batch_image_phase_statuses(img_ids)
         emb_map = db.get_batch_image_embedding_presence(img_ids)
         try:
+            kw_ids = [int(i) for i in img_ids if i is not None]
+            kw_map = db.get_batch_resolved_image_keywords(kw_ids) if kw_ids else {}
+        except Exception as exc:
+            logger.debug("batch resolved keywords failed: %s", exc)
+            kw_map = {}
+        try:
             ims_map = db.get_batch_image_model_scores(img_ids, include_shadow=True)
         except Exception as exc:
             logger.debug("batch model_scores merge failed: %s", exc)
@@ -521,6 +536,9 @@ def _images_list_payload(
             d["embeddings_present"] = emb_map.get(img_id_int, {}) if img_id_int else {}
             if img_id_int:
                 _merge_model_scores_into(d, ims_map.get(img_id_int, {}))
+                legacy_kw = (d.get("keywords") or "").strip()
+                resolved_kw = (kw_map.get(img_id_int) or "").strip() or legacy_kw
+                d["keywords"] = resolved_kw or None
 
         # Data-quality flags in one set-based query for the whole page (avoid N+1).
         try:
@@ -2592,7 +2610,13 @@ def create_api_router() -> APIRouter:
         )
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue tagging job")
-        db.create_job_phases(job_id, ["keywords"], first_phase_state="queued")
+        # Enqueue the full dependency prefix (indexing→metadata→scoring→keywords)
+        # so tagging can never run ahead of scoring; already-satisfied phases
+        # no-op in the JIT planner. Mirrors start_scoring's prefix expansion.
+        from modules.phases import pipeline_prefix_through
+        db.create_job_phases(
+            job_id, pipeline_prefix_through("keywords"), first_phase_state="queued"
+        )
 
         return ApiResponse(
             success=True,
@@ -2779,15 +2803,22 @@ def create_api_router() -> APIRouter:
         resolved_count = len(resolved_ids) if resolved_ids is not None else None
         job_source = request.input_path or "SELECTOR_BIRD_SPECIES"
 
+        bs_payload_body: dict = {
+            "input_path": request.input_path,
+            "candidate_species": request.candidate_species,
+            "threshold": request.threshold,
+            "top_k": request.top_k,
+            "overwrite": request.overwrite,
+            "resolved_image_ids": resolved_ids,
+        }
+        if resolved_ids is not None:
+            bs_payload_body["resolved_image_ids_by_stage"] = {
+                "bird_species": list(resolved_ids),
+            }
+        if request.folder_paths:
+            bs_payload_body["scope_paths"] = list(request.folder_paths)
         bs_payload = augment_queue_payload_for_audit(
-            {
-                "input_path": request.input_path,
-                "candidate_species": request.candidate_species,
-                "threshold": request.threshold,
-                "top_k": request.top_k,
-                "overwrite": request.overwrite,
-                "resolved_image_ids": resolved_ids,
-            },
+            bs_payload_body,
             trigger="api",
             tool_id="bird_species_start",
         )
@@ -3080,8 +3111,11 @@ def create_api_router() -> APIRouter:
                 detail=f"File not found: {request.file_path}"
             )
         
-        success, message = _scoring_runner.fix_image_metadata(request.file_path)
-        
+        success, message = await asyncio.to_thread(
+            _scoring_runner.fix_image_metadata,
+            request.file_path,
+        )
+
         return ApiResponse(
             success=success,
             message=message,
@@ -4483,7 +4517,13 @@ def create_api_router() -> APIRouter:
         if job_id is None:
             raise HTTPException(status_code=500, detail="Failed to enqueue clustering job")
 
-        db.create_job_phases(job_id, ["culling"], first_phase_state="queued")
+        # Enqueue the full dependency prefix (indexing→metadata→scoring→culling)
+        # so clustering can never run ahead of scoring; already-satisfied phases
+        # no-op in the JIT planner. Mirrors start_scoring's prefix expansion.
+        from modules.phases import pipeline_prefix_through
+        db.create_job_phases(
+            job_id, pipeline_prefix_through("culling"), first_phase_state="queued"
+        )
 
         return ApiResponse(
             success=True,
@@ -6001,7 +6041,9 @@ def create_api_router() -> APIRouter:
             if not row:
                 raise HTTPException(status_code=404, detail=f"Image not found: id={image_id}")
             file_path = row[0]
-            current_keywords = row[1] or ""
+            current_keywords = db.get_resolved_image_keywords(
+                image_id, legacy_fallback=row[1] or ""
+            )
             current_title = row[2] or ""
             current_desc = row[3] or ""
             current_rating = row[4] or 0
