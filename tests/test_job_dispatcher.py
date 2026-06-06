@@ -159,6 +159,38 @@ def test_dispatcher_clustering_respects_queue_payload_force_rescan(monkeypatch):
     assert kwargs["time_gap"] == 120
 
 
+def test_dispatcher_bird_species_explicit_selector_ids_bypass_empty_jit(monkeypatch):
+    """Selector bird-species jobs must dispatch explicit IDs even when JIT returns empty."""
+    bird_runner = DummyRunner()
+    dispatcher = JobDispatcher(bird_species_runner=bird_runner)
+
+    def _empty_stub(self, job_id, payload, queue_key, input_path):
+        return dict(payload), [], True
+
+    monkeypatch.setattr(JobDispatcher, "_jit_replan_phase", _empty_stub)
+
+    queued_job = {
+        "id": 88,
+        "job_type": "bird_species",
+        "input_path": "SELECTOR_BIRD_SPECIES",
+        "queue_payload": json.dumps({
+            "input_path": None,
+            "resolved_image_ids": [101, 102],
+            "resolved_image_ids_by_stage": {"bird_species": [101, 102]},
+        }),
+    }
+
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *args, **kwargs: None)
+
+    dispatcher._tick()
+
+    assert len(bird_runner.calls) == 1
+    _, kwargs = bird_runner.calls[0]
+    assert kwargs["job_id"] == 88
+    assert kwargs["resolved_image_ids"] == [101, 102]
+
+
 def test_dispatcher_scoring_empty_jit_queue_skips_phase(monkeypatch):
     """When JIT replan finds no stale/missing work, scoring is not dispatched."""
     scoring_runner = DummyRunner()

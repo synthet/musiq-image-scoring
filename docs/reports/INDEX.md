@@ -29,6 +29,7 @@ Historical reports, research, reviews, and debugging sessions.
 | [AUTO_DRIVE_FIX_SUMMARY.md](AUTO_DRIVE_FIX_SUMMARY.md) | Operator summary — fixes for planner version gate + runs_autodrive buckets |
 | [AUTODRIVE_REPROCESSING_SUMMARY.md](AUTODRIVE_REPROCESSING_SUMMARY.md) | Short investigation summary (run 3245) — links to fix summary and full RCA |
 | [RUN_ORCHESTRATION_AUDIT_2026-04-17.md](RUN_ORCHESTRATION_AUDIT_2026-04-17.md) | Run orchestration audit — MUSIQ import regression, dispatcher busy-as-fail, stale `running` rows, path-validation gap, MCP SSE event-loop stalls |
+| [UNIFIED_INPUT_POLICY_2026-05-31.md](UNIFIED_INPUT_POLICY_2026-05-31.md) | Unified input pixel policy across the pipeline (resize / long-edge) |
 | [CODE_REVIEW_2026-04-15.md](CODE_REVIEW_2026-04-15.md) | Code review of 2026-04-15 commits — job_type stability, MUSIQ imports, indexing log persistence, conflict-marker guard, `a6fdb34` scratch/junk blocker |
 | [UI_RUNS_CODE_REVIEW_2026-04-18.md](UI_RUNS_CODE_REVIEW_2026-04-18.md) | Deep review of `/ui/runs` — 30 findings across cancel/pause races, enqueue-vs-phases race, limit=120 active drop, status enum drift, WS perf |
 

@@ -249,6 +249,27 @@ class JobDispatcher:
             return None
 
     @staticmethod
+    def _explicit_stage_resolved_ids(payload: Dict[str, Any], queue_key: str) -> Optional[List[int]]:
+        """Return pre-resolved image IDs when the job has no folder scope (selector API)."""
+        stage_queues = payload.get("resolved_image_ids_by_stage")
+        if isinstance(stage_queues, dict):
+            per_stage = stage_queues.get(queue_key)
+            if isinstance(per_stage, list):
+                return [int(i) for i in per_stage if i is not None]
+
+        root = payload.get("resolved_image_ids")
+        if not isinstance(root, list) or not root:
+            return None
+
+        ip = (payload.get("input_path") or "").strip()
+        if ip and not ip.startswith("SELECTOR_"):
+            return None
+        scope_paths = payload.get("scope_paths")
+        if isinstance(scope_paths, list) and any(str(p).strip() for p in scope_paths):
+            return None
+        return [int(i) for i in root if i is not None]
+
+    @staticmethod
     def _compute_phase_scope(payload: Dict[str, Any], resolved: Optional[List[int]]) -> tuple:
         """Return ``(in_scope, targeted)`` derived from ``payload['scope_paths']``
         with a fallback to ``len(resolved)``. Mirrors the scoring dispatch's
@@ -396,10 +417,24 @@ class JobDispatcher:
         except ValueError:
             run_mode = CANONICAL_RUN_MODE
 
-        if run_mode == CANONICAL_RUN_MODE:
+        explicit_ids = self._explicit_stage_resolved_ids(payload, queue_key)
+        if explicit_ids is not None:
+            scoped_resolved = explicit_ids
+            payload = self._persist_stage_queue(job_id, payload, queue_key, explicit_ids)
+            skip_phase = len(explicit_ids) == 0
+            source = "explicit_resolved"
+            if skip_phase:
+                logger.info(
+                    "[DISPATCHER] skip empty phase job_id=%s phase=%s (explicit resolved list empty)",
+                    job_id,
+                    queue_key,
+                )
+                return self._skip_empty_phase(job_id, queue_key)
+        elif run_mode == CANONICAL_RUN_MODE:
             payload, scoped_resolved, skip_phase = self._jit_replan_phase(
                 job_id, payload, queue_key, input_path or "",
             )
+            source = "jit_planner"
             if skip_phase:
                 logger.info(
                     "[DISPATCHER] skip empty phase job_id=%s phase=%s (no stale/missing work)",
@@ -418,8 +453,6 @@ class JobDispatcher:
                     source = "by_stage"
                 else:
                     source = "by_stage_missing"
-
-        source = "jit_planner" if run_mode == CANONICAL_RUN_MODE else source
         # Structured log so multi-stage WorkflowRun handoffs are visible without
         # relying on runner-side log_history (see issue #156).
         logger.info(
