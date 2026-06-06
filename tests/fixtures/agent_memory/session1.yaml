@@ -1,0 +1,15 @@
+timestamp: "2026-06-01T12:00:00+00:00"
+task_summary: Test session one
+files_touched:
+  - scripts/foo.py
+commands_run:
+  - pytest tests/test_agent_memory.py
+test_results: pass
+final_outcome: Added candidate
+memory_candidates:
+  - text: New working rule from session
+    category: working_rule
+    confidence: high
+  - text: Fact A is true
+    category: stable_fact
+    confidence: high

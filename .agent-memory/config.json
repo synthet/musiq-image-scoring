@@ -1,0 +1,8 @@
+{
+  "max_sessions": 20,
+  "max_session_bytes": 65536,
+  "max_items_per_section": 40,
+  "max_context_chars": 12000,
+  "raw_session_retention_days": 90,
+  "dream_filename_format": "YYYY-MM-DD-HHMM"
+}
