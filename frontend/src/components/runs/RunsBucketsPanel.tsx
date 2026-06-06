@@ -14,12 +14,21 @@ import {
   Zap,
 } from 'lucide-react'
 import { runsApi } from '@/api/runs'
-import { FULL_PIPELINE_STAGE_CODES } from '@/constants/pipeline'
+import {
+  BIRD_ONLY_STAGE_CODES,
+  FULL_PIPELINE_STAGE_CODES,
+  THROUGH_TAGGING_STAGE_CODES,
+} from '@/constants/pipeline'
 import { RUNS_DRIVE_STATUS_KEY, RUNS_QUERY_ROOT } from '@/queryKeys/runs'
 import { useUiStore } from '@/stores/uiStore'
 import { useWsStore } from '@/stores/wsStore'
-import type { RunFolderBucket, RunFolderBucketPhase, RunsAutoDriveResult, StageCode } from '@/types/api'
+import type { RunFolderBucket, RunsAutoDriveResult, StageCode } from '@/types/api'
 import { STAGE_DISPLAY } from '@/types/api'
+import {
+  NextChainPhaseIcons,
+  PHASES_HEADER_HINT,
+  PipelinePhaseIconsRow,
+} from '@/components/phases/PipelinePhaseIconsRow'
 import { Badge, statusLabel, statusVariant } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
@@ -90,50 +99,15 @@ function ResultBanner({ result }: { result: RunsAutoDriveResult | null }) {
         {result.loop_detected > 0 && (
           <div className="mt-1 text-[11px]">Loop guard skipped {result.loop_detected} repeated folder plan(s).</div>
         )}
-      </div>
-    </div>
-  )
-}
-
-const PHASE_ABBR: Record<string, string> = {
-  indexing: 'IDX',
-  metadata: 'META',
-  scoring: 'SCORE',
-  culling: 'CULL',
-  keywords: 'TAGS',
-  bird_species: 'BIRD',
-}
-
-function phaseFillClass(phase: RunFolderBucketPhase): string {
-  if (phase.status === 'failed') return 'bg-[var(--color-danger)]'
-  if (phase.status === 'running' || phase.status === 'queued') return 'bg-[var(--color-accent-bright)]'
-  if (Math.round(phase.percent) >= 100 || phase.status === 'done' || phase.status === 'skipped') {
-    return 'bg-[var(--color-success)]'
-  }
-  return 'bg-[var(--color-text-muted)]'
-}
-
-/** Compact, evenly-spaced pipeline strip: one labelled mini-bar per phase. */
-function PhaseStrip({ phases }: { phases: RunFolderBucketPhase[] }) {
-  return (
-    <div className="grid auto-cols-fr grid-flow-col gap-1.5">
-      {phases.map((phase) => {
-        const pct = Math.round(phase.percent)
-        const running = phase.status === 'running' || phase.status === 'queued'
-        return (
-          <div key={phase.code} className="min-w-0" title={`${stageName(phase.code)}: ${pct}% (${phase.status})`}>
-            <div className="truncate text-center text-[9px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-              {PHASE_ABBR[phase.code] ?? stageName(phase.code).slice(0, 4)}
-            </div>
-            <div className="mt-1 h-1.5 rounded-full bg-[var(--color-bg-elevated)] overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-[width] duration-300 ${phaseFillClass(phase)} ${running ? 'animate-pulse' : ''}`}
-                style={{ width: `${pct <= 0 ? 0 : Math.max(6, Math.min(100, pct))}%` }}
-              />
-            </div>
+        {result.skip_reason_counts && Object.keys(result.skip_reason_counts).length > 0 && (
+          <div className="mt-1 text-[11px]">
+            Skips:{' '}
+            {Object.entries(result.skip_reason_counts)
+              .map(([reason, count]) => `${reason.replace(/_/g, ' ')} ${count}`)
+              .join(' · ')}
           </div>
-        )
-      })}
+        )}
+      </div>
     </div>
   )
 }
@@ -179,7 +153,7 @@ function BucketRow({
 
       <div className="flex flex-col gap-1.5 lg:py-0">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] lg:hidden">
-          Queue stages
+          Next chain
         </span>
         {showPlannerSplit ? (
           <>
@@ -187,47 +161,31 @@ function BucketRow({
               <span className="text-[9px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
                 Would queue
               </span>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {plannerPhases!.map((code) => (
-                  <Badge key={`plan-${code}`} size="sm" variant="success">
-                    {stageName(code)}
-                  </Badge>
-                ))}
+              <div className="mt-1">
+                <NextChainPhaseIcons codes={plannerPhases!} tooltipPrefix="Would queue" />
               </div>
             </div>
             <div>
               <span className="text-[9px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
                 Aggregate hint
               </span>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {item.next_phases.map((code) => (
-                  <Badge key={`agg-${code}`} size="sm" variant="muted">
-                    {stageName(code)}
-                  </Badge>
-                ))}
+              <div className="mt-1">
+                <NextChainPhaseIcons codes={item.next_phases} tooltipPrefix="Aggregate hint" />
               </div>
             </div>
           </>
+        ) : queuePhases.length > 0 ? (
+          <NextChainPhaseIcons codes={queuePhases} />
         ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {queuePhases.length > 0 ? (
-              queuePhases.map((code) => (
-                <Badge key={code} size="sm" variant="default">
-                  {stageName(code)}
-                </Badge>
-              ))
-            ) : (
-              <Badge size="sm" variant="muted">{item.bucket === 'complete' ? 'Done' : 'Waiting'}</Badge>
-            )}
-          </div>
+          <Badge size="sm" variant="muted">{item.bucket === 'complete' ? 'Done' : 'Waiting'}</Badge>
         )}
       </div>
 
       <div className="min-w-0">
         <span className="mb-2 block text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] lg:hidden">
-          Phase progress
+          Phases
         </span>
-        <PhaseStrip phases={item.phase_statuses} />
+        <PipelinePhaseIconsRow bucketPhases={item.phase_statuses} showProgressBars />
       </div>
 
       <div className="flex items-center justify-start lg:justify-end">
@@ -259,6 +217,33 @@ const DRIVE_STOP_REASON_HINT: Record<string, string> = {
   stalled: 'Check Preview for loop-guard skips, then retry Drive or queue folders individually.',
 }
 
+type DrivePhasePreset = 'full' | 'through_tagging' | 'bird_only'
+
+const DRIVE_PHASE_PRESETS: Record<
+  DrivePhasePreset,
+  { label: string; phases: StageCode[]; hint: string }
+> = {
+  full: {
+    label: 'Full pipeline',
+    phases: FULL_PIPELINE_STAGE_CODES,
+    hint: 'Discovery through Bird Species ID.',
+  },
+  through_tagging: {
+    label: 'Through tagging',
+    phases: THROUGH_TAGGING_STAGE_CODES,
+    hint: 'Stops before Bird Species ID.',
+  },
+  bird_only: {
+    label: 'Bird backlog',
+    phases: BIRD_ONLY_STAGE_CODES,
+    hint: 'Only Bird Species ID — best for large bird queues.',
+  },
+}
+
+function driveTargetPhases(preset: DrivePhasePreset): StageCode[] {
+  return DRIVE_PHASE_PRESETS[preset].phases
+}
+
 export function RunsBucketsPanel() {
   const queryClient = useQueryClient()
   const runsVersion = useWsStore((s) => s.runsVersion)
@@ -271,6 +256,8 @@ export function RunsBucketsPanel() {
   const [useSelectedScope, setUseSelectedScope] = useState(false)
   const [includeComplete, setIncludeComplete] = useState(false)
   const [driveLimit, setDriveLimit] = useState(50)
+  const [driveMaxRepeats, setDriveMaxRepeats] = useState(2)
+  const [drivePhasePreset, setDrivePhasePreset] = useState<DrivePhasePreset>('full')
   const [lastPreview, setLastPreview] = useState<RunsAutoDriveResult | null>(null)
   const [queueingPath, setQueueingPath] = useState<string | null>(null)
 
@@ -334,11 +321,14 @@ export function RunsBucketsPanel() {
     onSettled: () => setQueueingPath(null),
   })
 
+  const drivePhases = driveTargetPhases(drivePhasePreset)
+
   const onStartDrive = () => {
     startDriveMutation.mutate({
       root_path: rootPath,
       limit: driveLimit,
-      target_phases: FULL_PIPELINE_STAGE_CODES,
+      target_phases: drivePhases,
+      max_repeats: driveMaxRepeats,
       generate_captions: true,
     })
   }
@@ -348,8 +338,8 @@ export function RunsBucketsPanel() {
       root_path: rootPath,
       limit: driveLimit,
       dry_run: true,
-      target_phases: FULL_PIPELINE_STAGE_CODES,
-      max_repeats: 2,
+      target_phases: drivePhases,
+      max_repeats: driveMaxRepeats,
       generate_captions: true,
     })
   }
@@ -377,8 +367,8 @@ export function RunsBucketsPanel() {
       folder_paths: [path],
       limit: 1,
       dry_run: false,
-      target_phases: FULL_PIPELINE_STAGE_CODES,
-      max_repeats: 2,
+      target_phases: drivePhases,
+      max_repeats: driveMaxRepeats,
       generate_captions: true,
     })
   }
@@ -409,8 +399,8 @@ export function RunsBucketsPanel() {
               )}
             </p>
             <p className="mt-2 max-w-2xl text-[11px] leading-relaxed text-[var(--color-text-muted)]">
-              Runs the full pipeline through Bird Species on unfinished folders and schedules the next phase as each run
-              finishes — continues in the background if you leave this page.
+              {DRIVE_PHASE_PRESETS[drivePhasePreset].hint} Schedules the next phase as each run finishes — continues in
+              the background if you leave this page.
             </p>
           </div>
 
@@ -419,6 +409,25 @@ export function RunsBucketsPanel() {
             role="group"
             aria-label="Drive controls"
           >
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                Phases
+              </span>
+              <select
+                value={drivePhasePreset}
+                onChange={(e) => setDrivePhasePreset(e.target.value as DrivePhasePreset)}
+                disabled={driving}
+                aria-label="Drive phase preset"
+                className="h-8 max-w-[9.5rem] rounded border border-[var(--color-border-muted)] bg-[var(--color-bg-secondary)] px-2 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)] disabled:opacity-50"
+              >
+                {(Object.keys(DRIVE_PHASE_PRESETS) as DrivePhasePreset[]).map((key) => (
+                  <option key={key} value={key}>
+                    {DRIVE_PHASE_PRESETS[key].label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <label className="flex flex-col gap-1">
               <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Batch</span>
               <input
@@ -430,6 +439,23 @@ export function RunsBucketsPanel() {
                 disabled={driving}
                 aria-label="Folders per drive batch"
                 className="h-8 w-[4.5rem] rounded border border-[var(--color-border-muted)] bg-[var(--color-bg-secondary)] px-2 text-xs tabular-nums text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)] disabled:opacity-50"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                Max tries
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={driveMaxRepeats}
+                onChange={(e) => setDriveMaxRepeats(Number(e.target.value))}
+                disabled={driving}
+                aria-label="Max repeat attempts per folder plan before loop guard"
+                title="Failed or in-flight attempts count; completed runs with remaining work do not."
+                className="h-8 w-[3.25rem] rounded border border-[var(--color-border-muted)] bg-[var(--color-bg-secondary)] px-2 text-xs tabular-nums text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)] disabled:opacity-50"
               />
             </label>
 
@@ -474,6 +500,12 @@ export function RunsBucketsPanel() {
                     Loop guard: {lastDriveResult.loop_detected} skipped
                   </Badge>
                 )}
+                {lastDriveResult.skip_reason_counts &&
+                  Object.entries(lastDriveResult.skip_reason_counts).map(([reason, count]) => (
+                    <Badge key={reason} size="sm" variant="muted">
+                      {reason.replace(/_/g, ' ')}: {count}
+                    </Badge>
+                  ))}
               </>
             )}
             {driving && !batchInProgress && !lastDriveResult && (
@@ -612,7 +644,7 @@ export function RunsBucketsPanel() {
         <div className="sticky top-0 z-[1] hidden border-b border-[var(--color-border-muted)] bg-[var(--color-bg-tertiary)] px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(120px,0.55fr)_minmax(0,1.5fr)_7.5rem] lg:gap-3">
           <span>Folder</span>
           <span>Next chain</span>
-          <span>Phase progress</span>
+          <span title={PHASES_HEADER_HINT}>Phases</span>
           <span className="text-right">Action</span>
         </div>
 

@@ -10,6 +10,18 @@ export const FULL_PIPELINE_STAGE_CODES: StageCode[] = [
   'bird_species',
 ]
 
+/** Through tagging only (no Bird Species ID). */
+export const THROUGH_TAGGING_STAGE_CODES: StageCode[] = [
+  'indexing',
+  'metadata',
+  'scoring',
+  'culling',
+  'keywords',
+]
+
+/** Bird Species ID only — use when draining a large bird backlog. */
+export const BIRD_ONLY_STAGE_CODES: StageCode[] = ['bird_species']
+
 /** Direct prerequisites per stage (aligned with backend ``modules.phases.PHASE_PREREQUISITES``). */
 export const STAGE_PREREQUISITES: Record<StageCode, StageCode[]> = {
   indexing: [],

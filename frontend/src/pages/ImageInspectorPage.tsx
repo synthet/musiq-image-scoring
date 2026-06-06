@@ -5,7 +5,7 @@ import { ArrowLeft, Play } from 'lucide-react'
 import { clsx } from 'clsx'
 import { galleryApi } from '@/api/gallery'
 import { runsApi } from '@/api/runs'
-import { imageInspectorPath, embeddingsPathFor } from '@/utils/routes'
+import { dbExplorerImagePath, imageInspectorPath } from '@/utils/routes'
 import { useUiStore } from '@/stores/uiStore'
 import { useConfig } from '@/hooks/useConfig'
 import { Button } from '@/components/ui/button'
@@ -394,7 +394,7 @@ export function ImageInspectorPage() {
   const sortBy = useUiStore((s) => s.sortBy)
   const order = useUiStore((s) => s.sortOrder)
   const selectedScopePath = useUiStore((s) => s.selectedScopePath)
-  const { config } = useConfig()
+  const { config, isDbExplorerEnabled } = useConfig()
 
   const { data: neighbors } = useQuery({
     queryKey: ['image', 'neighbors', id, sortBy, order, selectedScopePath],
@@ -508,13 +508,15 @@ export function ImageInspectorPage() {
             Run Job
           </Button>
           <div className="flex items-center gap-2 border-l border-[var(--color-border-muted)] pl-3 text-xs">
-            <Link
-              to={embeddingsPathFor(data.id)}
-              className="text-[var(--color-text-secondary)] hover:text-[var(--color-accent-bright)] transition-colors"
-              title="Open this image in Vector DB"
-            >
-              Vector DB
-            </Link>
+            {isDbExplorerEnabled ? (
+              <Link
+                to={dbExplorerImagePath(data.id)}
+                className="text-[var(--color-text-secondary)] hover:text-[var(--color-accent-bright)] transition-colors"
+                title="Open this row in DB Explorer"
+              >
+                DB
+              </Link>
+            ) : null}
             <span className="text-[var(--color-text-muted)] font-mono">
               id{' '}
               <Link

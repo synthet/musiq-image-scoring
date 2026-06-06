@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import { FolderOpen, XCircle, Pause, Play, RotateCcw, Zap } from 'lucide-react'
+import { FolderOpen, TriangleAlert, XCircle, Pause, Play, RotateCcw, Zap } from 'lucide-react'
 import { runsApi } from '@/api/runs'
 import { RUN_LEVEL_RETRY_TOOLTIP } from '@/constants/runRetry'
 import { RunBadge } from '@/components/ui/badge'
@@ -61,6 +61,23 @@ export function RunCard({ run, compact = false }: RunCardProps) {
   const currentStageDisplay =
     run.current_phase && STAGE_DISPLAY[run.current_phase as keyof typeof STAGE_DISPLAY]?.name
 
+  const auditStatus =
+    run.post_run_audit_status
+    ?? (typeof run.queue_payload?.post_run_audit === 'object'
+      && run.queue_payload.post_run_audit != null
+      ? String((run.queue_payload.post_run_audit as Record<string, unknown>).status ?? '')
+      : '')
+  const auditIssuesRemaining = auditStatus === 'issues_remaining'
+  const auditSeverity =
+    run.post_run_audit_severity
+    ?? (typeof run.queue_payload?.post_run_audit === 'object'
+      && run.queue_payload.post_run_audit != null
+      ? String((run.queue_payload.post_run_audit as Record<string, unknown>).severity ?? '')
+      : '')
+  const auditBadgeTitle = auditIssuesRemaining
+    ? `Post-run audit (${auditSeverity || 'warning'}): data quality issues remain`
+    : undefined
+
   return (
     <div
       className={clsx(
@@ -81,7 +98,23 @@ export function RunCard({ run, compact = false }: RunCardProps) {
             <span className="text-xs text-[var(--color-text-muted)] shrink-0">+{extraPaths} more</span>
           )}
         </div>
-        <RunBadge status={run.status} />
+        <div className="flex items-center gap-1.5 shrink-0">
+          {auditIssuesRemaining && (
+            <span
+              className={clsx(
+                'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
+                auditSeverity === 'error'
+                  ? 'bg-[var(--color-danger)]/15 text-[var(--color-danger)]'
+                  : 'bg-[var(--color-warning)]/15 text-[var(--color-warning)]',
+              )}
+              title={auditBadgeTitle}
+            >
+              <TriangleAlert size={12} />
+              Data gaps
+            </span>
+          )}
+          <RunBadge status={run.status} />
+        </div>
       </div>
       {run.description?.trim() && (
         <p className="text-[11px] text-[var(--color-text-secondary)] mb-2 line-clamp-2" title={run.description.trim()}>

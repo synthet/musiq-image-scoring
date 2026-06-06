@@ -2,19 +2,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate, Link } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { ChevronLeft, ChevronRight, Database, Scan, FileText, Zap, Layers, Tag, Bird } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Database } from 'lucide-react'
 import { galleryApi } from '@/api/gallery'
 import { useUiStore } from '@/stores/uiStore'
 import { Button } from '@/components/ui/button'
-import { phaseStatusColor } from '@/constants/labelColors'
 import { ImageEmbeddingsRow } from '@/components/images/EmbeddingSpaceChip'
+import { PHASES_HEADER_HINT, PipelinePhaseIconsRow } from '@/components/phases/PipelinePhaseIconsRow'
 import { imageInspectorPath } from '@/utils/routes'
-import type { Image, ImagePhaseStatusRow } from '@/types/api'
+import type { Image } from '@/types/api'
 
 const PAGE_SIZES = [25, 50, 100] as const
 
-const PHASES_HEADER_HINT =
-  'Indexing · Metadata · Scoring · Culling · Keywords · Bird species (hover icons for status)'
 const EMBEDDINGS_HEADER_HINT =
   'MobileNetV2 · CLIP · BioCLIP · BLIP (hover icons for present/missing)'
 
@@ -31,57 +29,6 @@ const SORT_COLUMNS: { key: string; label: string; sortable?: boolean; headerHint
 function truncatePath(s: string, max = 64): string {
   if (s.length <= max) return s
   return `…${s.slice(-(max - 1))}`
-}
-
-function PhaseIcon({
-  code,
-  status,
-  error,
-  icon: Icon,
-}: {
-  code: string
-  status?: string
-  error?: string | null
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>
-}) {
-  const color = useMemo(() => phaseStatusColor(status), [status])
-
-  const title = useMemo(() => {
-    let t = `${code.charAt(0).toUpperCase() + code.slice(1)}: ${status || 'not_started'}`
-    if (error) t += `\nError: ${error}`
-    return t
-  }, [code, status, error])
-
-  return (
-    <div
-      className="p-1 rounded-sm transition-colors hover:bg-[var(--color-bg-elevated)]"
-      title={title}
-      style={{ color }}
-    >
-      <Icon size={14} strokeWidth={2.5} />
-    </div>
-  )
-}
-
-function ImagePhases({ phases }: { phases?: Record<string, ImagePhaseStatusRow | string> | null }) {
-  if (!phases) return <span className="text-[var(--color-text-muted)]">—</span>
-
-  const getStatus = (code: string) => {
-    const p = phases[code]
-    if (typeof p === 'string') return { status: p }
-    return p as ImagePhaseStatusRow | undefined
-  }
-
-  return (
-    <div className="flex items-center gap-0.5">
-      <PhaseIcon code="indexing" icon={Scan} status={getStatus('indexing')?.status} error={getStatus('indexing')?.last_error} />
-      <PhaseIcon code="metadata" icon={FileText} status={getStatus('metadata')?.status} error={getStatus('metadata')?.last_error} />
-      <PhaseIcon code="scoring" icon={Zap} status={getStatus('scoring')?.status} error={getStatus('scoring')?.last_error} />
-      <PhaseIcon code="culling" icon={Layers} status={getStatus('culling')?.status} error={getStatus('culling')?.last_error} />
-      <PhaseIcon code="keywords" icon={Tag} status={getStatus('keywords')?.status} error={getStatus('keywords')?.last_error} />
-      <PhaseIcon code="birds" icon={Bird} status={getStatus('bird_species')?.status} error={getStatus('bird_species')?.last_error} />
-    </div>
-  )
 }
 
 function ImageEmbeddings({ embeddings }: { embeddings?: Record<string, boolean> | null }) {
@@ -325,7 +272,7 @@ export function ImagesPage() {
                     <QualityCell scoreGeneral={row.score_general} />
                   </td>
                   <td className="px-3 py-1.5 text-center">
-                    <ImagePhases phases={row.phase_statuses} />
+                    <PipelinePhaseIconsRow phases={row.phase_statuses} />
                   </td>
                   <td className="px-3 py-1.5 text-center">
                     <ImageEmbeddings embeddings={row.embeddings_present} />

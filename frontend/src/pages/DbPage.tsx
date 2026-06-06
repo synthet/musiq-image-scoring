@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { AlertCircle } from 'lucide-react'
 import { ApiError, parseApiErrorDetail } from '@/api/client'
@@ -14,6 +14,7 @@ import { DbResultGrid } from '@/components/db/DbResultGrid'
 import { DbSqlPanel } from '@/components/db/DbSqlPanel'
 import { DbTableSidebar } from '@/components/db/DbTableSidebar'
 import { DbTrustBanner } from '@/components/db/DbTrustBanner'
+import { dbExplorerImageSql } from '@/utils/routes'
 
 type ViewMode = 'table' | 'sql'
 
@@ -29,6 +30,7 @@ function isAbortError(err: unknown): boolean {
 
 export function DbPage() {
   const { tableName: tableNameParam } = useParams<{ tableName?: string }>()
+  const [searchParams] = useSearchParams()
   const selectedTable = tableNameParam ? decodeURIComponent(tableNameParam) : null
 
   const [tableListOpen, setTableListOpen] = useState(true)
@@ -104,9 +106,29 @@ export function DbPage() {
 
   useEffect(() => {
     if (!selectedTable) return
+
+    const imageIdParam = searchParams.get('id')
+    if (selectedTable === 'images' && imageIdParam != null) {
+      const sql = dbExplorerImageSql(imageIdParam)
+      if (sql) {
+        setCustomSql(sql)
+        setSqlInput(sql)
+        setViewMode('sql')
+        return
+      }
+    }
+
+    const sqlParam = searchParams.get('sql')?.trim()
+    if (sqlParam) {
+      setCustomSql(sqlParam)
+      setSqlInput(sqlParam)
+      setViewMode('sql')
+      return
+    }
+
     setViewMode('table')
     setCustomSql(`SELECT * FROM "${selectedTable.replace(/"/g, '""')}" LIMIT ${pageSize}`)
-  }, [selectedTable, pageSize])
+  }, [selectedTable, pageSize, searchParams])
 
   const handleRunSql = () => {
     const trimmed = customSql.trim()

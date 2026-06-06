@@ -129,6 +129,29 @@ export function GalleryPage() {
               placeholder="landscape, portrait…"
               className="w-full bg-[#1e1e1e] border border-[#474747] rounded px-2 py-1 text-xs text-[#cccccc] outline-none focus:border-[#4fc1ff] placeholder:text-[#6d6d6d]"
             />
+            <div className="mt-2 flex flex-wrap gap-1">
+              {(
+                [
+                  { label: 'Birds', value: 'birds' },
+                  { label: 'No species match', value: 'birds:species-exhausted' },
+                  { label: 'Has species', value: 'species:' },
+                ] as const
+              ).map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => updateFilter({ keyword: preset.value })}
+                  className={clsx(
+                    'rounded border px-1.5 py-0.5 text-[10px] transition-colors',
+                    baseFilters.keyword === preset.value
+                      ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent-bright)]'
+                      : 'border-[#474747] text-[#9d9d9d] hover:bg-[#2a2a2a]',
+                  )}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
           </FilterSection>
 
           <Button
