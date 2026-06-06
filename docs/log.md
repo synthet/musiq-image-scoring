@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-06] feature | MCP search + dispatch PR1
+
+Shipped compact backend MCP **`is-be-mcp`** with **`search`** and **`dispatch`** over a curated action registry ([technical/MCP_SEARCH_DISPATCH.md](technical/MCP_SEARCH_DISPATCH.md), [mcp/action_registry.json](../mcp/action_registry.json)). Planning: [planning/mcp-search-dispatch.md](planning/mcp-search-dispatch.md).
+
 ## [2026-05-31] docs | OpenAPI contract across projects
 
 Added [technical/OPENAPI_CROSS_PROJECT.md](technical/OPENAPI_CROSS_PROJECT.md) (backend/gallery/UI ownership, sync workflow). Updated [gallery/API_TYPES.md](gallery/API_TYPES.md) to match `generate:api-types` → `api.generated.ts`. Gallery re-synced `api-contract/openapi.json` and `electron/api.generated.ts`.

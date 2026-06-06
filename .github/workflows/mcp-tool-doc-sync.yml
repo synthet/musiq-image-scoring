@@ -43,3 +43,7 @@ jobs:
       - name: Verify action registry sync
         run: |
           python scripts/generate_mcp_tool_inventory.py --check-action-registry
+
+      - name: Lint MCP doc vocabulary (warn-only)
+        run: |
+          python scripts/lint_mcp_doc_vocabulary.py || true
