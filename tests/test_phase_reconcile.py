@@ -46,10 +46,15 @@ def test_graceful_shutdown_processing_idempotent(monkeypatch):
 
 def test_recover_running_jobs_invokes_phase_reconcile(monkeypatch):
     calls = []
+    release_calls = []
 
     def fake_reconcile(job_ids, error_message=None, in_flight_to="failed"):
         calls.append((list(job_ids), error_message, in_flight_to))
         return 0
+
+    def fake_release(job_id):
+        release_calls.append(int(job_id))
+        return 3
 
     class Tx:
         def execute(self, *a, **kw):
@@ -67,6 +72,7 @@ def test_recover_running_jobs_invokes_phase_reconcile(monkeypatch):
 
     monkeypatch.setattr("modules.db.get_connector", lambda: FakeConn())
     monkeypatch.setattr("modules.db.reconcile_stale_running_phases_for_jobs", fake_reconcile)
+    monkeypatch.setattr("modules.phase_work_claims.release_claims_for_job", fake_release)
 
     recovered = db.recover_running_jobs(mark_as="interrupted")
     assert recovered == [99]
@@ -74,6 +80,7 @@ def test_recover_running_jobs_invokes_phase_reconcile(monkeypatch):
     assert calls[0][0] == [99]
     assert "interrupted" in (calls[0][1] or "")
     assert calls[0][2] == "not_started"
+    assert release_calls == [99]
 
 
 def test_strict_verify_skips_when_disabled(monkeypatch):

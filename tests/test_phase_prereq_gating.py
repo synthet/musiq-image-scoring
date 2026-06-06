@@ -174,3 +174,32 @@ def test_assert_empty_scope_returns_empty(monkeypatch, scope_paths):
     # With empty scope_paths, nothing is satisfied -> any non-root phase reports its prereq.
     miss = phases.assert_prereqs_for_scope(["scoring"], scope_paths or [])
     assert miss == {"scoring": ["metadata"]}
+
+
+# ---------------------------------------------------------------------------
+# pipeline_prefix_through  (used by the legacy single-phase /start endpoints)
+# ---------------------------------------------------------------------------
+
+def test_pipeline_prefix_through_keywords():
+    assert phases.pipeline_prefix_through("keywords") == [
+        "indexing", "metadata", "scoring", "keywords",
+    ]
+
+
+def test_pipeline_prefix_through_culling():
+    # culling and keywords are siblings under scoring: keywords must NOT appear.
+    prefix = phases.pipeline_prefix_through("culling")
+    assert prefix == ["indexing", "metadata", "scoring", "culling"]
+    assert "keywords" not in prefix
+
+
+def test_pipeline_prefix_through_root_phase_is_self():
+    assert phases.pipeline_prefix_through("indexing") == ["indexing"]
+
+
+def test_pipeline_prefix_through_unknown_phase_returns_self():
+    assert phases.pipeline_prefix_through("mystery") == ["mystery"]
+
+
+def test_pipeline_prefix_through_blank_returns_empty():
+    assert phases.pipeline_prefix_through("") == []
