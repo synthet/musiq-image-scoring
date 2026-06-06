@@ -35,6 +35,10 @@ export interface Run {
   } | null
   /** Human-readable reason / scope for troubleshooting (jobs.description). */
   description?: string | null
+  /** From queue_payload.post_run_audit.status when a post-completion audit ran. */
+  post_run_audit_status?: string | null
+  /** From queue_payload.post_run_audit.severity (e.g. warning, info). */
+  post_run_audit_severity?: string | null
 }
 
 /** Structured ``queue_payload.reason`` set at enqueue time. */
@@ -228,6 +232,7 @@ export interface RunsAutoDriveResult {
   candidates: number
   total_outstanding: number
   loop_detected: number
+  skip_reason_counts?: Record<string, number>
   bucket_counts: Record<string, number>
   phase_counts: Record<string, number>
 }
@@ -246,6 +251,7 @@ export interface RunsDriveLastResult {
   candidates: number
   total_outstanding: number
   loop_detected: number
+  skip_reason_counts?: Record<string, number>
   bucket_counts: Record<string, number>
   health?: RunsDriveHealth
   last_tick_reason?: string

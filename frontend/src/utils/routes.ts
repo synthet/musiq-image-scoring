@@ -14,3 +14,20 @@ export function embeddingsPath(): string {
 export function embeddingsPathFor(imageId: string | number): string {
   return `/embeddings?focus=${encodeURIComponent(String(imageId))}`
 }
+
+export function parsePositiveImageId(imageId: string | number): number | null {
+  const id = Math.floor(Number(imageId))
+  return Number.isFinite(id) && id > 0 ? id : null
+}
+
+export function dbExplorerImageSql(imageId: string | number): string | null {
+  const id = parsePositiveImageId(imageId)
+  if (id == null) return null
+  return `SELECT * FROM "images" WHERE id = ${id}`
+}
+
+export function dbExplorerImagePath(imageId: string | number): string {
+  const id = parsePositiveImageId(imageId)
+  if (id == null) return dbExplorerPath('images')
+  return `${dbExplorerPath('images')}?id=${id}`
+}
