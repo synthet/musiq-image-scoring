@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/synthet/image-scoring-backend/mcp/action_registry.schema.json",
+  "title": "MCP action registry",
+  "type": "object",
+  "required": ["version", "repo", "actions"],
+  "additionalProperties": true,
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "repo": { "type": "string", "enum": ["backend", "gallery"] },
+    "field_weights": {
+      "type": "object",
+      "additionalProperties": { "type": "number" }
+    },
+    "categories": {
+      "type": "object",
+      "additionalProperties": { "type": "integer" }
+    },
+    "actions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/action" }
+    }
+  },
+  "$defs": {
+    "action": {
+      "type": "object",
+      "required": [
+        "action_id",
+        "title",
+        "description",
+        "category",
+        "side_effect_level",
+        "dispatch_enabled",
+        "version",
+        "input_schema",
+        "canonical_backend_handler"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "action_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+        },
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "category": { "type": "string", "minLength": 1 },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "intent_examples": { "type": "array", "items": { "type": "string" } },
+        "side_effect_level": {
+          "type": "string",
+          "enum": ["read_only", "write", "destructive", "elevated"]
+        },
+        "confirmation_required": { "type": "boolean" },
+        "dry_run_supported": { "type": "boolean" },
+        "dispatch_enabled": { "type": "boolean" },
+        "review_required": { "type": "boolean" },
+        "compact_profile_exposure": { "type": "boolean" },
+        "version": { "type": "integer", "minimum": 1 },
+        "deprecated": { "type": "boolean" },
+        "canonical_docs": { "type": "array", "items": { "type": "string" } },
+        "api_contract_refs": { "type": "array", "items": { "type": "string" } },
+        "auth_or_policy_requirements": { "type": "array", "items": { "type": "string" } },
+        "input_schema": { "type": "object" },
+        "legacy_tool_name": { "type": "string" },
+        "canonical_backend_handler": {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["python_function", "http", "stub"] },
+            "module": { "type": "string" },
+            "function": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

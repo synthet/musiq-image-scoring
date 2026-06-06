@@ -1,0 +1,1097 @@
+{
+  "version": 1,
+  "repo": "backend",
+  "field_weights": {
+    "name": 3.0,
+    "tags": 2.0,
+    "description": 1.0,
+    "examples": 2.0,
+    "args_summary": 1.5
+  },
+  "domains": {
+    "data": {
+      "server": "is-be-data",
+      "tool_count": 17
+    },
+    "diagnostics": {
+      "server": "is-be-diag",
+      "tool_count": 15
+    },
+    "jobs": {
+      "server": "is-be-jobs",
+      "tool_count": 13
+    },
+    "maintenance": {
+      "server": "is-be-maint",
+      "tool_count": 9
+    }
+  },
+  "profile_tools": {
+    "data": [
+      "check_stack_invariants",
+      "execute_sql",
+      "find_near_duplicates",
+      "find_outliers",
+      "get_database_stats",
+      "get_db_schema",
+      "get_embedding_stats",
+      "get_folder_tree",
+      "get_image_details",
+      "get_location_stats",
+      "get_newly_imported_folders",
+      "get_stacks_summary",
+      "query_images",
+      "search_images_by_hash",
+      "search_images_by_text",
+      "search_similar_images",
+      "validate_file_paths"
+    ],
+    "maintenance": [
+      "execute_code",
+      "manage_runners",
+      "process_newly_imported_folders",
+      "propagate_tags",
+      "prune_missing_files",
+      "rebase_file_paths",
+      "run_processing_job",
+      "set_config_value",
+      "set_image_metadata"
+    ],
+    "jobs": [
+      "get_drive_diagnostics",
+      "get_failed_images",
+      "get_image_pipeline_failures",
+      "get_incomplete_images",
+      "get_job_details",
+      "get_job_execution_report",
+      "get_job_phases",
+      "get_job_stage_images",
+      "get_performance_metrics",
+      "get_pipeline_stats",
+      "get_recent_jobs",
+      "get_run_diagnostics",
+      "get_runner_status"
+    ],
+    "diagnostics": [
+      "check_database_health",
+      "diagnose_phase_consistency",
+      "export_debug_bundle",
+      "get_config",
+      "get_database_engine_info",
+      "get_error_summary",
+      "get_model_status",
+      "get_server_log_tail",
+      "get_stale_running_phase_status",
+      "get_system_resources",
+      "get_thread_dump",
+      "read_debug_log",
+      "search_logs",
+      "validate_config",
+      "verify_environment"
+    ]
+  },
+  "tools": [
+    {
+      "name": "check_database_health",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Check database for inconsistencies, orphaned records, and data integrity issues.",
+      "tags": [
+        "health",
+        "integrity",
+        "orphans",
+        "database"
+      ],
+      "examples": [
+        "is database healthy",
+        "data integrity check"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    },
+    {
+      "name": "check_stack_invariants",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Detect common stack data issues: single-image stacks, images pointing at missing stacks, stacks with no images. Returns counts and small samples.",
+      "tags": [
+        "stacks",
+        "integrity",
+        "orphans",
+        "invariants"
+      ],
+      "examples": [
+        "orphan stacks",
+        "singleton stacks"
+      ],
+      "risk": "read_only",
+      "args_summary": "(limit: int = 20)"
+    },
+    {
+      "name": "diagnose_phase_consistency",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Diagnose folder vs per-image phase status mismatch (e.g. folder shows 69/69 KEYWORDS done but image shows Pending).",
+      "tags": [
+        "phases",
+        "consistency",
+        "mismatch",
+        "drift"
+      ],
+      "examples": [
+        "phase mismatch folder vs image"
+      ],
+      "risk": "read_only",
+      "args_summary": "(image_id: int, folder_path: Optional[str] = None)"
+    },
+    {
+      "name": "execute_code",
+      "repo": "backend",
+      "domain": "maintenance",
+      "server": "is-be-maint",
+      "description": "Execute Python code in the WebUI process with access to gr, demo, and all Gradio components. Requires MCP server **`is-be-webui`** (SSE) and `ENABLE_MCP_EXECUTE_CODE=1`. Globals: gr, demo, components, runner, tagging_runner, orchestrator, db, config.",
+      "tags": [
+        "execute",
+        "code",
+        "gradio",
+        "dangerous"
+      ],
+      "examples": [
+        "run python in webui process"
+      ],
+      "risk": "read_only",
+      "args_summary": "(code: str)"
+    },
+    {
+      "name": "execute_sql",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Execute a read-only SQL SELECT (or WITH … SELECT) query. Uses the same ``?`` placeholder dialect as the app; translated on PostgreSQL. Discover tables/columns with ``get_db_schema`` first.",
+      "tags": [
+        "sql",
+        "select",
+        "query",
+        "postgres"
+      ],
+      "examples": [
+        "run select query",
+        "custom sql read only"
+      ],
+      "risk": "read_only",
+      "args_summary": "(query: str, params: list = None)"
+    },
+    {
+      "name": "export_debug_bundle",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Write a redacted support zip (config, environment, doctor JSON, log tails). Same content as ``scripts/export_debug_bundle.py``.",
+      "tags": [
+        "debug",
+        "bundle",
+        "support",
+        "export"
+      ],
+      "examples": [
+        "redacted support zip",
+        "debug bundle"
+      ],
+      "risk": "read_only",
+      "args_summary": "(output_path: Optional[str] = None)"
+    },
+    {
+      "name": "find_near_duplicates",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Detect visually duplicate or near-duplicate images even when file hashes differ. Returns a list of near-duplicate image pairs.",
+      "tags": [
+        "duplicates",
+        "near duplicate",
+        "similarity"
+      ],
+      "examples": [
+        "near duplicate pairs in folder"
+      ],
+      "risk": "read_only",
+      "args_summary": "(threshold: Optional[float] = None, folder_path: Optional[str] = None, limit: Optional[int] = None)"
+    },
+    {
+      "name": "find_outliers",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Identify visually atypical images in a folder using embedding similarity analysis. Computes top-K mean cosine similarity per image and flags statistical outliers via z-score. Returns flagged images with explainability (nearest neighbors, folder stats).",
+      "tags": [
+        "outliers",
+        "atypical",
+        "embeddings",
+        "z-score"
+      ],
+      "examples": [
+        "unusual images in folder"
+      ],
+      "risk": "read_only",
+      "args_summary": "(folder_path: str = '', z_threshold: Optional[float] = None, k: Optional[int] = None, limit: Optional[int] = None)"
+    },
+    {
+      "name": "get_config",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Get current application configuration (config.json merged with environment.json). Sensitive keys are redacted.",
+      "tags": [
+        "config",
+        "settings",
+        "json"
+      ],
+      "examples": [
+        "read config.json redacted"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    },
+    {
+      "name": "get_database_engine_info",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Summarize database.engine, connector mode, non-secret connection targets, and whether a simple query succeeds. Complements validate_config.",
+      "tags": [
+        "database",
+        "engine",
+        "postgres",
+        "connection"
+      ],
+      "examples": [
+        "which db engine",
+        "postgres reachable"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    },
+    {
+      "name": "get_database_stats",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Get comprehensive database statistics including image counts, score distributions, and job summaries.",
+      "tags": [
+        "database",
+        "stats",
+        "counts",
+        "scores"
+      ],
+      "examples": [
+        "how many images",
+        "database overview",
+        "score distribution"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    },
+    {
+      "name": "get_db_schema",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "List ``public`` tables and columns (data type, nullability) for writing ``execute_sql`` queries. PostgreSQL only.",
+      "tags": [
+        "schema",
+        "tables",
+        "columns",
+        "sql"
+      ],
+      "examples": [
+        "list postgres tables",
+        "column names for images"
+      ],
+      "risk": "read_only",
+      "args_summary": "(table_name_prefix: Optional[str] = None, max_tables: int = 200, max_column_rows: int = 8000)"
+    },
+    {
+      "name": "get_drive_diagnostics",
+      "repo": "backend",
+      "domain": "jobs",
+      "server": "is-be-jobs",
+      "description": "Auto-drive loop status, folder health, recent auto-drive jobs, and anomaly hints.",
+      "tags": [
+        "auto-drive",
+        "folder health",
+        "loop"
+      ],
+      "examples": [
+        "auto drive status",
+        "drive loop health"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    },
+    {
+      "name": "get_embedding_stats",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Counts of images with vs without a stored image embedding.",
+      "tags": [
+        "embeddings",
+        "vectors",
+        "pgvector",
+        "coverage"
+      ],
+      "examples": [
+        "how many embeddings",
+        "missing vectors"
+      ],
+      "risk": "read_only",
+      "args_summary": "(folder_path: Optional[str] = None, embedding_space: Optional[str] = None)"
+    },
+    {
+      "name": "get_error_summary",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Get summary of errors and issues in the database including failed jobs and missing scores.",
+      "tags": [
+        "errors",
+        "health",
+        "triage",
+        "summary"
+      ],
+      "examples": [
+        "why did scoring fail",
+        "system error overview"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    },
+    {
+      "name": "get_failed_images",
+      "repo": "backend",
+      "domain": "jobs",
+      "server": "is-be-jobs",
+      "description": "Images missing key quality scores (NULL or <= 0): general, technical, spaq, koniq, ava, paq2piq, liqe.",
+      "tags": [
+        "failed",
+        "missing scores",
+        "quality analysis"
+      ],
+      "examples": [
+        "images that failed scoring",
+        "missing musiq scores"
+      ],
+      "risk": "read_only",
+      "args_summary": "(limit: int = 50, offset: int = 0)"
+    },
+    {
+      "name": "get_folder_tree",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Get folder tree structure from database with image counts.",
+      "tags": [
+        "folders",
+        "tree",
+        "hierarchy",
+        "counts"
+      ],
+      "examples": [
+        "folder structure",
+        "images per folder"
+      ],
+      "risk": "read_only",
+      "args_summary": "(root_path: Optional[str] = None)"
+    },
+    {
+      "name": "get_image_details",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Get full details for a specific image by file path.",
+      "tags": [
+        "image",
+        "details",
+        "metadata",
+        "file_path"
+      ],
+      "examples": [
+        "details for one image",
+        "image row by path"
+      ],
+      "risk": "read_only",
+      "args_summary": "(file_path: str)"
+    },
+    {
+      "name": "get_image_pipeline_failures",
+      "repo": "backend",
+      "domain": "jobs",
+      "server": "is-be-jobs",
+      "description": "Recent ``job_image_actions`` rows with action ``failed`` for one image (by ``image_id`` or ``file_path``).",
+      "tags": [
+        "failures",
+        "pipeline",
+        "per-image",
+        "errors"
+      ],
+      "examples": [
+        "why image failed in pipeline"
+      ],
+      "risk": "read_only",
+      "args_summary": "(image_id: Optional[int] = None, file_path: Optional[str] = None, limit: int = 50)"
+    },
+    {
+      "name": "get_incomplete_images",
+      "repo": "backend",
+      "domain": "jobs",
+      "server": "is-be-jobs",
+      "description": "Images with missing composite scores, model scores, rating, or label (broader than get_failed_images).",
+      "tags": [
+        "incomplete",
+        "missing scores",
+        "quality"
+      ],
+      "examples": [
+        "images missing scores or rating"
+      ],
+      "risk": "read_only",
+      "args_summary": "(limit: int = 100)"
+    },
+    {
+      "name": "get_job_details",
+      "repo": "backend",
+      "domain": "jobs",
+      "server": "is-be-jobs",
+      "description": "Get one job/run by id (jobs.id): status, paths, timestamps, queue_payload summary, log tail. Same id as workflow run_id in the API.",
+      "tags": [
+        "job",
+        "run",
+        "status",
+        "details"
+      ],
+      "examples": [
+        "job 123 details",
+        "run status by id"
+      ],
+      "risk": "read_only",
+      "args_summary": "(job_id: int)"
+    },
+    {
+      "name": "get_job_execution_report",
+      "repo": "backend",
+      "domain": "jobs",
+      "server": "is-be-jobs",
+      "description": "Structured execution report for a job: what the run did to each image.",
+      "tags": [
+        "execution",
+        "report",
+        "actions",
+        "processed"
+      ],
+      "examples": [
+        "what did run do per image",
+        "action counts"
+      ],
+      "risk": "read_only",
+      "args_summary": "(run_id: int, phase_code: Optional[str] = None, action: Optional[str] = None, offset: int = 0, limit: int = 20)"
+    },
+    {
+      "name": "get_job_phases",
+      "repo": "backend",
+      "domain": "jobs",
+      "server": "is-be-jobs",
+      "description": "List phase rows (order, code, state, timestamps, errors) for a job/run id.",
+      "tags": [
+        "phases",
+        "pipeline",
+        "job stages"
+      ],
+      "examples": [
+        "phase plan for run",
+        "scoring phase status"
+      ],
+      "risk": "read_only",
+      "args_summary": "(job_id: int)"
+    },
+    {
+      "name": "get_job_stage_images",
+      "repo": "backend",
+      "domain": "jobs",
+      "server": "is-be-jobs",
+      "description": "Paginate per-image phase status for a job+phase (image_phase_status). Optional include_steps adds job_steps telemetry for that phase.",
+      "tags": [
+        "job",
+        "images",
+        "phase",
+        "per-image"
+      ],
+      "examples": [
+        "images in scoring phase for job"
+      ],
+      "risk": "read_only",
+      "args_summary": "(job_id: int, phase_code: str, limit: int = 50, offset: int = 0, include_steps: bool = False)"
+    },
+    {
+      "name": "get_location_stats",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Summarize GPS and geocode coverage in ``image_exif`` (PostgreSQL; requires migration 0013 columns).",
+      "tags": [
+        "gps",
+        "geocode",
+        "exif",
+        "location"
+      ],
+      "examples": [
+        "gps coverage",
+        "geocoded images count"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    },
+    {
+      "name": "get_model_status",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Get status of registered scoring models, GPU availability, and CUDA/PyTorch/TensorFlow configuration.",
+      "tags": [
+        "models",
+        "gpu",
+        "cuda",
+        "tensorflow"
+      ],
+      "examples": [
+        "are models loaded",
+        "gpu status"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    },
+    {
+      "name": "get_newly_imported_folders",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Find folders created in the last N days with at least min_images.",
+      "tags": [
+        "import",
+        "folders",
+        "recent",
+        "discovery"
+      ],
+      "examples": [
+        "recently imported folders",
+        "new library paths"
+      ],
+      "risk": "read_only",
+      "args_summary": "(days: int = 7, min_images: int = 1, path_pattern: Optional[str] = None)"
+    },
+    {
+      "name": "get_performance_metrics",
+      "repo": "backend",
+      "domain": "jobs",
+      "server": "is-be-jobs",
+      "description": "Get performance metrics from recent jobs: avg job duration, jobs completed/failed, success rate, jobs by status.",
+      "tags": [
+        "performance",
+        "throughput",
+        "duration",
+        "metrics"
+      ],
+      "examples": [
+        "job speed",
+        "success rate last week"
+      ],
+      "risk": "read_only",
+      "args_summary": "(days: int = 7)"
+    },
+    {
+      "name": "get_pipeline_stats",
+      "repo": "backend",
+      "domain": "jobs",
+      "server": "is-be-jobs",
+      "description": "Get statistics about the processing pipeline and active jobs. Runner status, queue sizes, dispatcher state, and active job info.",
+      "tags": [
+        "pipeline",
+        "queue",
+        "dispatcher",
+        "stats"
+      ],
+      "examples": [
+        "queue depth",
+        "dispatcher state"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    },
+    {
+      "name": "get_recent_jobs",
+      "repo": "backend",
+      "domain": "jobs",
+      "server": "is-be-jobs",
+      "description": "Get recent scoring/tagging jobs with their status.",
+      "tags": [
+        "jobs",
+        "runs",
+        "history",
+        "recent"
+      ],
+      "examples": [
+        "recent scoring runs",
+        "last jobs"
+      ],
+      "risk": "read_only",
+      "args_summary": "(limit: int = 10)"
+    },
+    {
+      "name": "get_run_diagnostics",
+      "repo": "backend",
+      "domain": "jobs",
+      "server": "is-be-jobs",
+      "description": "Post-run audit snapshot from queue_payload plus per-phase image_phase_status counts for this job/run id.",
+      "tags": [
+        "run",
+        "diagnostics",
+        "audit",
+        "post-run"
+      ],
+      "examples": [
+        "audit run 456",
+        "post run diagnostics"
+      ],
+      "risk": "read_only",
+      "args_summary": "(run_id: int)"
+    },
+    {
+      "name": "get_runner_status",
+      "repo": "backend",
+      "domain": "jobs",
+      "server": "is-be-jobs",
+      "description": "Get current status of scoring and tagging background runners including progress and recent logs.",
+      "tags": [
+        "runners",
+        "active",
+        "progress",
+        "scoring"
+      ],
+      "examples": [
+        "is scoring running",
+        "runner progress"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    },
+    {
+      "name": "get_server_log_tail",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Tail webui.log and/or debug.log (same paths and caps as GET /api/status/log-tails).",
+      "tags": [
+        "logs",
+        "webui.log",
+        "tail"
+      ],
+      "examples": [
+        "webui log tail",
+        "server logs"
+      ],
+      "risk": "read_only",
+      "args_summary": "(sources: str = 'all', lines: int = 100)"
+    },
+    {
+      "name": "get_stacks_summary",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Get summary of image stacks/clusters including size distribution and largest stacks.",
+      "tags": [
+        "stacks",
+        "clusters",
+        "culling",
+        "similarity"
+      ],
+      "examples": [
+        "stack sizes",
+        "cluster summary"
+      ],
+      "risk": "read_only",
+      "args_summary": "(folder_path: Optional[str] = None)"
+    },
+    {
+      "name": "get_stale_running_phase_status",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Find image_phase_status rows stuck in ``running`` longer than ``min_age_seconds`` (folder rollup drift).",
+      "tags": [
+        "stuck",
+        "running",
+        "stale",
+        "phases"
+      ],
+      "examples": [
+        "phases stuck in running"
+      ],
+      "risk": "read_only",
+      "args_summary": "(min_age_seconds: int = 3600, limit: int = 50)"
+    },
+    {
+      "name": "get_system_resources",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "CPU and RAM snapshot plus optional ``nvidia-smi`` GPU rows. Does not require database access.",
+      "tags": [
+        "cpu",
+        "ram",
+        "gpu",
+        "resources"
+      ],
+      "examples": [
+        "memory usage",
+        "nvidia smi snapshot"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    },
+    {
+      "name": "get_thread_dump",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Capture a full Python thread dump for backend diagnostic and stall debugging.",
+      "tags": [
+        "threads",
+        "stall",
+        "deadlock",
+        "dump"
+      ],
+      "examples": [
+        "thread dump",
+        "hung server debug"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    },
+    {
+      "name": "manage_runners",
+      "repo": "backend",
+      "domain": "maintenance",
+      "server": "is-be-maint",
+      "description": "Request ``stop`` or read ``status`` for an in-process background runner (WebUI / SSE context). Starting jobs is not supported here — use ``run_processing_job`` or the UI.",
+      "tags": [
+        "runners",
+        "stop",
+        "status",
+        "write"
+      ],
+      "examples": [
+        "stop scoring runner"
+      ],
+      "risk": "read_only",
+      "args_summary": "(runner: str, operation: str)"
+    },
+    {
+      "name": "process_newly_imported_folders",
+      "repo": "backend",
+      "domain": "maintenance",
+      "server": "is-be-maint",
+      "description": "Trigger background processing jobs for newly imported folders that haven't been completed yet.",
+      "tags": [
+        "import",
+        "enqueue",
+        "scoring",
+        "write"
+      ],
+      "examples": [
+        "start scoring on new folders"
+      ],
+      "risk": "read_only",
+      "args_summary": "(days: int = 7, job_type: str = 'scoring', path_pattern: Optional[str] = None)"
+    },
+    {
+      "name": "propagate_tags",
+      "repo": "backend",
+      "domain": "maintenance",
+      "server": "is-be-maint",
+      "description": "Propagate keywords from tagged images to untagged neighbors using embedding cosine similarity. Uses weighted voting with configurable thresholds. Defaults to dry_run=true for safe preview.",
+      "tags": [
+        "keywords",
+        "tags",
+        "propagate",
+        "write"
+      ],
+      "examples": [
+        "propagate keywords to neighbors"
+      ],
+      "risk": "write",
+      "args_summary": "(folder_path: Optional[str] = None, dry_run: bool = True, k: Optional[int] = None, min_similarity: Optional[float] = None, min_keyword_confidence: Optional[float] = None)"
+    },
+    {
+      "name": "prune_missing_files",
+      "repo": "backend",
+      "domain": "maintenance",
+      "server": "is-be-maint",
+      "description": "Remove database records for images whose files no longer exist on disk.",
+      "tags": [
+        "prune",
+        "delete rows",
+        "missing files",
+        "destructive"
+      ],
+      "examples": [
+        "remove db rows for missing files"
+      ],
+      "risk": "read_only",
+      "args_summary": "(dry_run: bool = True)"
+    },
+    {
+      "name": "query_images",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Query images with flexible filtering and pagination. Supports filtering by score range, rating, label, keywords, and folder.",
+      "tags": [
+        "images",
+        "list",
+        "filter",
+        "scores",
+        "rating"
+      ],
+      "examples": [
+        "find images with high score",
+        "list images in folder",
+        "filter by rating"
+      ],
+      "risk": "read_only",
+      "args_summary": "(limit: int = 20, offset: int = 0, sort_by: str = 'created_at', order: str = 'desc', min_score: Optional[float] = None, max_score: Optional[float] = None, rating: Optional[int] = None, label: Optional[str] = None, keyword: Optional[str] = None, folder_path: Optional[str] = None)"
+    },
+    {
+      "name": "read_debug_log",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Read recent entries from debug.log (JSON lines); falls back to raw line in entries.",
+      "tags": [
+        "logs",
+        "debug.log",
+        "tail"
+      ],
+      "examples": [
+        "recent debug log lines"
+      ],
+      "risk": "read_only",
+      "args_summary": "(lines: int = 100)"
+    },
+    {
+      "name": "rebase_file_paths",
+      "repo": "backend",
+      "domain": "maintenance",
+      "server": "is-be-maint",
+      "description": "Batch update image file paths by replacing a root prefix.",
+      "tags": [
+        "paths",
+        "rebase",
+        "move library",
+        "write"
+      ],
+      "examples": [
+        "update paths after drive letter change"
+      ],
+      "risk": "read_only",
+      "args_summary": "(old_root: str, new_root: str, dry_run: bool = True)"
+    },
+    {
+      "name": "run_processing_job",
+      "repo": "backend",
+      "domain": "maintenance",
+      "server": "is-be-maint",
+      "description": "Trigger a background processing job (scoring, tagging, clustering/stacks, or bird_species).",
+      "tags": [
+        "start job",
+        "scoring",
+        "tagging",
+        "write"
+      ],
+      "examples": [
+        "start scoring job on folder"
+      ],
+      "risk": "read_only",
+      "args_summary": "(job_type: str, input_path: str, args: dict = None)"
+    },
+    {
+      "name": "search_images_by_hash",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Find an image by content hash (image_hash column, typically SHA-256). Returns file_paths when found.",
+      "tags": [
+        "hash",
+        "duplicate",
+        "content hash",
+        "lookup"
+      ],
+      "examples": [
+        "find image by sha256",
+        "lookup content hash"
+      ],
+      "risk": "read_only",
+      "args_summary": "(image_hash: str, hash_version: Optional[int] = None)"
+    },
+    {
+      "name": "search_images_by_text",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Search images by free-text query using CLIP text-to-image similarity.",
+      "tags": [
+        "semantic",
+        "clip",
+        "text search",
+        "captions"
+      ],
+      "examples": [
+        "find sunset photos",
+        "text to image search"
+      ],
+      "risk": "read_only",
+      "args_summary": "(query: str, limit: int = 20, folder_path: Optional[str] = None, folder_ids: Optional[list[int]] = None, min_similarity: Optional[float] = None, min_rating: Optional[int] = None, color_label: Optional[str] = None, keyword: Optional[str] = None, captured_date: Optional[str] = None, sort_by: Optional[str] = None, order: Optional[str] = None)"
+    },
+    {
+      "name": "search_logs",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Search the tail of ``webui.log`` / ``debug.log`` for a regex ``pattern``; returns matching lines with optional context.",
+      "tags": [
+        "logs",
+        "regex",
+        "search",
+        "grep"
+      ],
+      "examples": [
+        "search logs for error",
+        "find exception in log"
+      ],
+      "risk": "read_only",
+      "args_summary": "(pattern: str, sources: str = 'all', context_lines: int = 2, max_lines_scan: int = 25000, max_matches_per_file: int = 40, case_insensitive: bool = True)"
+    },
+    {
+      "name": "search_similar_images",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Find images visually similar to an example image using stored embeddings and cosine similarity.",
+      "tags": [
+        "similarity",
+        "embeddings",
+        "cosine",
+        "neighbors"
+      ],
+      "examples": [
+        "images similar to example",
+        "visual neighbors"
+      ],
+      "risk": "read_only",
+      "args_summary": "(example_path: Optional[str] = None, example_image_id: Optional[int] = None, limit: int = 20, folder_path: Optional[str] = None, min_similarity: Optional[float] = None, embedding_space: Optional[str] = None)"
+    },
+    {
+      "name": "set_config_value",
+      "repo": "backend",
+      "domain": "maintenance",
+      "server": "is-be-maint",
+      "description": "Set a configuration value in config.json.",
+      "tags": [
+        "config",
+        "persist",
+        "write"
+      ],
+      "examples": [
+        "change config setting"
+      ],
+      "risk": "read_only",
+      "args_summary": "(key: str, value: Any)"
+    },
+    {
+      "name": "set_image_metadata",
+      "repo": "backend",
+      "domain": "maintenance",
+      "server": "is-be-maint",
+      "description": "Update metadata for a specific image in the database.",
+      "tags": [
+        "rating",
+        "label",
+        "metadata",
+        "write"
+      ],
+      "examples": [
+        "set star rating",
+        "color label"
+      ],
+      "risk": "read_only",
+      "args_summary": "(file_path: str, rating: Optional[int] = None, label: Optional[str] = None)"
+    },
+    {
+      "name": "validate_config",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Validate config structure and referenced paths; optionally ping the database when available.",
+      "tags": [
+        "config",
+        "validation",
+        "paths"
+      ],
+      "examples": [
+        "is config valid",
+        "config sanity"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    },
+    {
+      "name": "validate_file_paths",
+      "repo": "backend",
+      "domain": "data",
+      "server": "is-be-data",
+      "description": "Validate that image ``file_path`` values exist on disk. Optional ``folder_path`` restricts to images under that folder path (exact ``folders.path`` match or descendants). When ``missing_only`` is true, only missing files are listed (scans up to ``limit`` missing rows, expanding the DB fetch window).",
+      "tags": [
+        "paths",
+        "missing files",
+        "filesystem",
+        "integrity"
+      ],
+      "examples": [
+        "missing files on disk",
+        "path validation"
+      ],
+      "risk": "read_only",
+      "args_summary": "(limit: int = 100, folder_path: Optional[str] = None, missing_only: bool = False)"
+    },
+    {
+      "name": "verify_environment",
+      "repo": "backend",
+      "domain": "diagnostics",
+      "server": "is-be-diag",
+      "description": "Comprehensive environment check: GPU, DB, Python, and system stats.",
+      "tags": [
+        "environment",
+        "gpu",
+        "python",
+        "sanity"
+      ],
+      "examples": [
+        "environment check",
+        "gpu available"
+      ],
+      "risk": "read_only",
+      "args_summary": "()"
+    }
+  ]
+}
