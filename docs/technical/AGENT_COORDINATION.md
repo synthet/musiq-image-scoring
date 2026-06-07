@@ -104,7 +104,7 @@ Local pointers (not authoritative): [design/DESIGN_SYSTEM.md](../design/DESIGN_S
 
 ## 🔍 Troubleshooting with MCP
 
-Agents use **stdio** MCP against the Python backend: **`imgscore-py-stdio`** in the **image-scoring-backend** workspace; **`imgscore-el-stdio`** in **image-scoring-gallery** (same server, different `cwd`). For WebUI / **`execute_code`**, enable **`imgscore-py-sse`** or **`imgscore-el-sse`** (unique keys, same URL). Use these to diagnose cross-project issues:
+Agents use MCP against the Python backend: **`is-be-mcp`** (`search` / `dispatch`) in **image-scoring-backend**; **`is-ui-*`** in **image-scoring-gallery**. For WebUI / **`execute_code`**, enable **`is-be-webui`**. Use these to diagnose cross-project issues:
 
 | Tool | Usage in Coordination |
 |------|------------------------|

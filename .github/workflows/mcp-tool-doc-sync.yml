@@ -44,6 +44,6 @@ jobs:
         run: |
           python scripts/generate_mcp_tool_inventory.py --check-action-registry
 
-      - name: Lint MCP doc vocabulary (warn-only)
+      - name: Lint MCP doc vocabulary
         run: |
-          python scripts/lint_mcp_doc_vocabulary.py || true
+          python scripts/lint_mcp_doc_vocabulary.py --error

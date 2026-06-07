@@ -24,12 +24,16 @@ SKIP_GLOBS = (
     "docs/archive/**",
     "notebooklm_docs.md",
     "docs/technical/MCP_SEARCH_DISPATCH_PR1_SUMMARY.md",
+    ".claude/settings.local.json",
+    "docs/log.md",
 )
 
 STALE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("imgscore-py-*", re.compile(r"imgscore-py[-_]")),
     ("imgscore-el-gallery", re.compile(r"imgscore-el-gallery")),
+    ("imgscore-el-stdio", re.compile(r"imgscore-el-stdio")),
     ("image-scoring-backend-stdio", re.compile(r"image-scoring-backend-(stdio|webui|postgres)")),
+    ("image-scoring-gallery-stdio", re.compile(r"image-scoring-gallery-(stdio|live)")),
     ("is-ga-*", re.compile(r"\bis-ga-")),
     ("ga_find", re.compile(r"\bga_find\b")),
     ("mcp__imgscore-py", re.compile(r"mcp__imgscore-py")),

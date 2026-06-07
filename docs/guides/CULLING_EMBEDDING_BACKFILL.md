@@ -184,7 +184,7 @@ culling tower and embedding coverage is < 90%, the script logs a **LOW EMBEDDING
 COVERAGE** warning (those stacks collapse to one leaf = whole-stack cap) — finish
 Step 4 first.
 
-Verify afterward (Windows host or `mcp__imgscore-py-sse__execute_sql`):
+Verify afterward (Windows host or **`is-be-data`** `execute_sql` / compact **`dispatch`** when enabled):
 
 ```sql
 -- multi-image stacks still missing sub_stacks (expect ~0 after a full run)

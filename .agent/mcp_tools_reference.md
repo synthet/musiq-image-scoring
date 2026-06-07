@@ -4,9 +4,9 @@ This document tracks the tools registered in [`modules/mcp_server.py`](../module
 
 ## Connection modes
 
-- **`image-scoring-backend-stdio`**, **`image-scoring-backend-webui`**, **`image-scoring-backend-postgres`**: backend [`.cursor/mcp.json`](../.cursor/mcp.json)
-- **`image-scoring-gallery-stdio`**, **`image-scoring-gallery-live`**: gallery `.cursor/mcp.json`
-- **`execute_code`**: requires **`image-scoring-backend-webui`** and `ENABLE_MCP_EXECUTE_CODE=1` on the WebUI process.
+- **Backend:** **`is-be-mcp`** (preferred), **`is-be-diag`**, **`is-be-jobs`**, **`is-be-data`**, **`is-be-webui`**, optional **`is-be-pg`** — see [`.cursor/mcp.pair.example.json`](../.cursor/mcp.pair.example.json)
+- **Gallery (sibling repo):** **`is-ui-router`**, **`is-ui-local`**, **`is-ui-api`**, **`is-ui-live`** — see gallery `mcp.example.json`
+- **`execute_code`**: requires **`is-be-webui`** and `ENABLE_MCP_EXECUTE_CODE=1` on the WebUI process.
 
 ## Postgres query patterns (operators)
 

@@ -153,7 +153,7 @@ Review the zip before sharing. `secrets.json` is never included.
 
 ## Vocabulary (do not use)
 
-- `imgscore-py-*`, `image-scoring-backend-*`, `is-ga-*`
+Use **`is-be-*`** and **`is-ui-*`** keys only; remove legacy MCP server names from user configs.
 - Calling 50+ legacy tools from **new** agent configs (use `is-be-mcp` instead)
 
 ## Gallery

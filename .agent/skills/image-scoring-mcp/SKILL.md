@@ -22,7 +22,7 @@ Example: `search("why did scoring fail")` → `dispatch("diagnostics.get_error_s
 | **`is-be-*`** | backend | Legacy domain tools |
 | **`is-ui-*`** | gallery | **`ui_find`** on **`is-ui-router`** |
 
-Do not use `imgscore-py-*`, `image-scoring-backend-*`, `is-ga-*`.
+Use **`is-be-*`** and **`is-ui-*`** keys only; drop legacy MCP server names from user configs.
 
 ## Server keys (backend)
 

@@ -29,9 +29,9 @@ Investigate **image-scoring-backend** issues using the Vexlum Scoring MCP **read
 
 ## MCP server selection
 
-- **Python workspace (this repo):** `imgscore-py-stdio` for stdio MCP.
-- **Electron workspace with backend as sibling:** `imgscore-el-stdio` (same tools; PYTHONPATH points at backend).
-- **WebUI live / `execute_code`:** `imgscore-py-sse` or `imgscore-el-sse` only when needed and when enabled—see `AGENTS.md`.
+- **Backend workspace (this repo):** **`is-be-mcp`** → **`search`** / **`dispatch`** (preferred); legacy **`is-be-diag`**, **`is-be-jobs`**, **`is-be-data`**.
+- **Gallery workspace:** **`is-ui-local`**, **`is-ui-api`**, **`is-ui-live`**; backend triage via sibling **`is-be-mcp`**.
+- **WebUI live / `execute_code`:** **`is-be-webui`** only when needed and when enabled—see `AGENTS.md`.
 
 ## Investigation order (align with AGENTS.md)
 

@@ -35,15 +35,15 @@ Add the following to your Cursor MCP settings (Settings → MCP → Add Server):
 
 ```json
 {
-  "name": "imgscore-py-stdio",
+  "name": "is-be-mcp",
   "command": "python",
-  "args": ["-m", "modules.mcp_server"],
+  "args": ["-m", "modules.mcp.router_server", "--profile", "compact"],
   "cwd": "${workspaceFolder}",
-  "env": { "PYTHONPATH": "${workspaceFolder}" }
+  "env": { "PYTHONPATH": "${workspaceFolder}", "MCP_TOOL_PROFILE": "compact" }
 }
 ```
 
-When the Cursor workspace is **image-scoring-gallery**, use the same `command` / `args` but name the server **`imgscore-el-stdio`** and set `cwd` / `PYTHONPATH` to your **image-scoring-backend** checkout path. For WebUI / `execute_code`, register **`imgscore-el-sse`** (or **`imgscore-py-sse`** in the Python workspace) with the `url` from `GET /mcp-status`.
+See [`.cursor/mcp.pair.example.json`](../../.cursor/mcp.pair.example.json) for domain-split servers. When the Cursor workspace is **image-scoring-gallery**, use **`is-ui-*`** keys from gallery `mcp.example.json`. For WebUI / `execute_code`, register **`is-be-webui`** with the `url` from `GET /mcp-status`.
 
 ### Option 2: Project Config File
 
@@ -439,7 +439,7 @@ Start a background scoring, tagging, or clustering job (requires the correspondi
 Embedding-assisted tools for duplicate pairs, keyword propagation, and outlier detection. See tool docstrings in `modules/mcp_server.py`.
 
 #### `execute_code`
-Execute Python in the **WebUI process** over SSE. Requires **`ENABLE_MCP_EXECUTE_CODE=1`** and a Cursor SSE server (**`imgscore-py-sse`** or **`imgscore-el-sse`**). Assign to `result` to return a value.
+Execute Python in the **WebUI process** over SSE. Requires **`ENABLE_MCP_EXECUTE_CODE=1`** and **`is-be-webui`**. Assign to `result` to return a value.
 
 #### `get_pipeline_stats`
 Get statistics about the processing pipeline and active jobs.

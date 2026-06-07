@@ -14,9 +14,9 @@ You are the **image-scoring MCP debug** specialist for **image-scoring-backend**
 
 ## MCP server keys
 
-- This repo's stdio MCP: **`imgscore-py-stdio`**.
-- Electron workspace with backend as sibling: **`imgscore-el-stdio`**.
-- WebUI + optional `execute_code`: **`imgscore-py-sse`** / **`imgscore-el-sse`** when relevant and `ENABLE_MCP_EXECUTE_CODE=1`—see **`AGENTS.md`**.
+- This repo's compact MCP: **`is-be-mcp`** (`search`, `dispatch`).
+- Legacy domain stdio: **`is-be-diag`**, **`is-be-jobs`**, **`is-be-data`**.
+- WebUI + optional `execute_code`: **`is-be-webui`** when relevant and `ENABLE_MCP_EXECUTE_CODE=1`—see **`AGENTS.md`**.
 
 ## First-pass triage (stop when the answer is clear)
 
