@@ -6,12 +6,20 @@ from typing import Any
 
 from modules.mcp.actions.errors import (
     ActionNotDispatchableError,
+    ConfirmationRequiredError,
     DeprecatedActionError,
     PolicyError,
+    UnsupportedDryRunError,
     VersionMismatchError,
 )
 
 READ_ONLY = "read_only"
+
+ALLOWED_SIDE_EFFECT_ACTIONS = frozenset(
+    {
+        "support.export_debug_bundle",
+    }
+)
 
 
 def check_dispatchable(record: dict[str, Any], *, allow_deprecated: bool = False) -> None:
@@ -46,21 +54,31 @@ def check_side_effect_policy(
     *,
     confirmed: bool,
     dry_run: bool,
-    pr1_read_only_only: bool = True,
 ) -> None:
     level = str(record.get("side_effect_level") or READ_ONLY)
-    if pr1_read_only_only and level != READ_ONLY:
-        raise PolicyError(
-            f"Action {record.get('action_id')} has side_effect_level={level}; not enabled in PR1",
-            details={"side_effect_level": level, "policy": "pr1_read_only_only"},
+    action_id = str(record.get("action_id") or "")
+
+    if level != READ_ONLY:
+        if action_id not in ALLOWED_SIDE_EFFECT_ACTIONS:
+            raise PolicyError(
+                f"Action {action_id} has side_effect_level={level}; not in ALLOWED_SIDE_EFFECT_ACTIONS",
+                details={"side_effect_level": level, "policy": "side_effect_allowlist"},
+            )
+
+    if dry_run and level != READ_ONLY and not record.get("dry_run_supported"):
+        raise UnsupportedDryRunError(
+            f"Action {action_id} does not support dry_run",
+            details={"action_id": action_id, "dry_run_supported": False},
         )
+
     if record.get("confirmation_required") and not confirmed and level != READ_ONLY:
-        raise PolicyError(
+        raise ConfirmationRequiredError(
             "confirmation_required=true; pass confirmed=True",
-            details={"action_id": record.get("action_id")},
+            details={"action_id": action_id},
         )
+
     if level != READ_ONLY and not dry_run and record.get("dry_run_supported"):
         raise PolicyError(
             "dry_run_supported; call dispatch with dry_run=True first",
-            details={"action_id": record.get("action_id")},
+            details={"action_id": action_id},
         )

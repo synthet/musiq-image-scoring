@@ -57,3 +57,80 @@ def test_dispatch_run_diagnostics_requires_run_id():
     result = dispatch_action("jobs.get_run_diagnostics", {})
     assert result.get("status") == "error"
     assert result.get("code") == "validation_error"
+
+
+def test_dispatch_export_debug_bundle_requires_confirmation():
+    with patch("modules.debug_bundle_export.write_redacted_debug_bundle") as mock_write:
+        result = dispatch_action("support.export_debug_bundle", {})
+    assert result.get("status") == "error"
+    assert result.get("code") == "confirmation_required"
+    mock_write.assert_not_called()
+
+
+def test_dispatch_export_debug_bundle_rejects_dry_run():
+    with patch("modules.debug_bundle_export.write_redacted_debug_bundle") as mock_write:
+        result = dispatch_action(
+            "support.export_debug_bundle",
+            {},
+            dry_run=True,
+            confirmed=True,
+        )
+    assert result.get("status") == "error"
+    assert result.get("code") == "unsupported_dry_run"
+    mock_write.assert_not_called()
+
+
+def test_dispatch_export_debug_bundle_confirmed(tmp_path):
+    zip_path = tmp_path / "bundle.zip"
+    with patch("modules.debug_bundle_export.write_redacted_debug_bundle") as mock_write:
+        mock_write.return_value = {"success": True, "path": str(zip_path)}
+        zip_path.write_bytes(b"fake")
+        result = dispatch_action(
+            "support.export_debug_bundle",
+            {},
+            confirmed=True,
+        )
+    assert result.get("status") == "success"
+    assert result.get("review_reminder")
+    artifact = result.get("data", {}).get("artifact", {})
+    assert artifact.get("kind") == "debug_bundle"
+    assert artifact.get("path") == str(zip_path.resolve())
+    assert artifact.get("size_bytes") == 4
+    mock_write.assert_called_once()
+
+
+def test_dispatch_export_debug_bundle_bad_extension():
+    result = dispatch_action(
+        "support.export_debug_bundle",
+        {"output_path": "bundle.txt"},
+        confirmed=True,
+    )
+    assert result.get("status") == "error"
+    assert result.get("code") == "validation_error"
+
+
+def test_dispatch_export_debug_bundle_rejects_traversal():
+    result = dispatch_action(
+        "support.export_debug_bundle",
+        {"output_path": "../bundle.zip"},
+        confirmed=True,
+    )
+    assert result.get("status") == "error"
+    assert result.get("code") == "policy_rejected"
+
+
+def test_dispatch_side_effect_not_in_allowlist_even_if_dispatch_enabled():
+    """Overlay-only write actions stay blocked without code allowlist entry."""
+    fake_record = {
+        "action_id": "maintenance.prune_missing_files",
+        "dispatch_enabled": True,
+        "side_effect_level": "destructive",
+        "confirmation_required": True,
+        "dry_run_supported": True,
+        "version": 1,
+        "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
+    }
+    with patch("modules.mcp.actions.dispatch.require_action", return_value=fake_record):
+        result = dispatch_action("maintenance.prune_missing_files", {}, confirmed=True)
+    assert result.get("status") == "error"
+    assert result.get("code") == "policy_rejected"

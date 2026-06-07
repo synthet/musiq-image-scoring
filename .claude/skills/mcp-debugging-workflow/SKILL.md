@@ -18,7 +18,7 @@ Apply this skill when the user asks to:
 
 ### 1. Get Error Overview
 
-Call `get_error_summary` (Vexlum Scoring MCP: **`imgscore-py-stdio`** in the Python workspace, **`imgscore-el-stdio`** in the Electron workspace) to identify scope of failures: failed jobs, missing scores, orphaned records.
+Call **`search("scoring failures")`** then **`dispatch("diagnostics.get_error_summary", {})`** on **`is-be-mcp`** (or legacy **`get_error_summary`** on **`is-be-diag`**) to identify scope of failures: failed jobs, missing scores, orphaned records.
 
 ### 2. Check Database Health
 
@@ -42,8 +42,9 @@ Call `read_debug_log` with optional `lines` to see recent error messages.
 
 ## Server Selection
 
-- **stdio (DB/jobs, no WebUI)**: `imgscore-py-stdio` if workspace is **image-scoring**; `imgscore-el-stdio` if workspace is **electron-image-scoring**
-- **WebUI / `execute_code`**: `imgscore-py-sse` or `imgscore-el-mcp-sse` (same endpoint; use the key from your open workspace)
+- **Compact dispatch (preferred):** **`is-be-mcp`** → **`search`** / **`dispatch`**
+- **Legacy domain stdio:** **`is-be-diag`**, **`is-be-jobs`**, **`is-be-data`**
+- **WebUI / `execute_code`:** **`is-be-webui`** (requires `ENABLE_MCP_EXECUTE_CODE=1`)
 
 ## Terminology
 

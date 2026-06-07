@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-06] feature | MCP support.export_debug_bundle dispatch
+
+First side-effecting compact action: `support.export_debug_bundle` with code allowlist, path safety, `confirmation_required`, and metadata-only response ([technical/MCP_SEARCH_DISPATCH.md](technical/MCP_SEARCH_DISPATCH.md)).
+
 ## [2026-06-06] feature | MCP search + dispatch PR1
 
 Shipped compact backend MCP **`is-be-mcp`** with **`search`** and **`dispatch`** over a curated action registry ([technical/MCP_SEARCH_DISPATCH.md](technical/MCP_SEARCH_DISPATCH.md), [mcp/action_registry.json](../mcp/action_registry.json)). Planning: [planning/mcp-search-dispatch.md](planning/mcp-search-dispatch.md).

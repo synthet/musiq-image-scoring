@@ -24,6 +24,7 @@ EVAL_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "mcp_search_eval.y
         ("database health", "diagnostics.check_database_health"),
         ("images without embeddings", "data.get_embedding_stats"),
         ("search logs for error", "logs.search_logs"),
+        ("export debug bundle", "support.export_debug_bundle"),
     ],
 )
 def test_search_finds_expected_action(query, expected_in_top):

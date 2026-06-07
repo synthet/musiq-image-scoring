@@ -5,15 +5,4 @@ alwaysApply: true
 
 # Vexlum Scoring MCP
 
-When the user asks about **debugging**, **investigating failures**, **database health**, **scoring/tagging/clustering jobs** (batch rows in `jobs`), or **Gradio / WebUI state**, use the image-scoring MCP servers.
-
-## Server Selection (project keys)
-
-| Server key | Transport | When to use |
-|------------|-----------|-------------|
-| **`image-scoring-backend-stdio`** | stdio | DB/jobs offline; WSL `~/.venvs/tf`. |
-| **`image-scoring-backend-webui`** | SSE | Live WebUI; `execute_code` when `ENABLE_MCP_EXECUTE_CODE=1`. |
-| **`image-scoring-gallery-stdio`** | stdio | Gallery logs, `api_*`. |
-| **`image-scoring-gallery-live`** | SSE | Electron `cdp_*`. |
-
-See backend [`.cursor/rules/image-scoring-mcp.mdc`](../../.cursor/rules/image-scoring-mcp.mdc) for full tables and triage flows.
+Mirror of [`.cursor/rules/image-scoring-mcp.mdc`](../../.cursor/rules/image-scoring-mcp.mdc). **Preferred:** **`is-be-mcp`** → **`search`** / **`dispatch`**. Gallery: **`is-ui-*`**. See backend **`AGENTS.md`** and [MCP_SEARCH_DISPATCH.md](../../docs/technical/MCP_SEARCH_DISPATCH.md).

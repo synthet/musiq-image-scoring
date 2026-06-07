@@ -77,7 +77,7 @@ Legacy: **`is-be-router`** exposes `search`/`dispatch` plus deprecated **`be_fin
 
 Example templates: [`.cursor/mcp.pair.example.json`](.cursor/mcp.pair.example.json) (backend), gallery [`.cursor/mcp.pair.example.json`](https://github.com/synthet/image-scoring-gallery/blob/main/.cursor/mcp.pair.example.json).
 
-**Legacy keys** (`image-scoring-backend-*`, `imgscore-py-*`, `is-ga-*`): remove from user MCP configs; use **`is-be-*`** / **`is-ui-*`**.
+**Legacy MCP keys:** remove obsolete server names from user `~/.cursor/mcp.json`; use **`is-be-*`** (backend) and **`is-ui-*`** (gallery) from each repo's `mcp.example.json` / `.cursor/mcp.json`.
 
 For backend WebUI SSE, start the WebUI first (`run_webui.bat`). Confirm URL with **`GET /mcp-status`** → `expected_sse_url`. For **`execute_code`**, set **`ENABLE_MCP_EXECUTE_CODE=1`** on **`is-be-webui`**. Gallery live port: **`gallery-mcp.lock`** (default `9373`).
 
@@ -361,7 +361,7 @@ Agent: "How fast is the system processing images?"
 
 ### Duplicate MCP servers in Cursor (same name twice)
 
-If you still see duplicate or legacy keys (`scoring`, `webui`, `imgscore-py-*`), remove them from **`%USERPROFILE%\.cursor\mcp.json`**. Project keys belong only in each repo’s `.cursor/mcp.json`.
+If you still see duplicate or legacy keys (`scoring`, `webui`, old `imgscore-*` prefixes), remove them from **`%USERPROFILE%\.cursor\mcp.json`**. Project keys belong only in each repo’s `.cursor/mcp.json`.
 
 ## Pytest E2E vocabulary (agents)
 

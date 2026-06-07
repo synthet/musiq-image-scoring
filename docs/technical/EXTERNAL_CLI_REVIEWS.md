@@ -17,7 +17,7 @@ Optional **review-only** second opinions from **Codex** or **Gemini CLI**, orche
 
 ## Duplicate MCP servers
 
-Cursor merges **project** [`.cursor/mcp.json`](../../.cursor/mcp.json) with **user-level** MCP config. If you also have a global `subagent-orchestrator` or `user-subagent-orchestrator` entry, **disable one** — prefer the project key `imgscore-subagent-orchestrator` so `WORKSPACE_ROOT` is this repository and tool names stay prefixed consistently with other `imgscore-py-*` servers.
+Cursor merges **project** [`.cursor/mcp.json`](../../.cursor/mcp.json) with **user-level** MCP config. If you also have a global `subagent-orchestrator` or `user-subagent-orchestrator` entry, **disable one** — prefer the project key `imgscore-subagent-orchestrator` so `WORKSPACE_ROOT` is this repository.
 
 ## MCP in this repo
 

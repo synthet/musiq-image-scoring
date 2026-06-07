@@ -16,8 +16,9 @@ def success_envelope(
     errors: list[str] | None = None,
     artifacts: list[dict[str, Any]] | None = None,
     logs_ref: str | None = None,
+    review_reminder: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    out: dict[str, Any] = {
         "action_id": record.get("action_id"),
         "action_version": int(record.get("version") or 1),
         "request_id": request_id,
@@ -32,6 +33,9 @@ def success_envelope(
         "logs_ref": logs_ref,
         "canonical_docs": list(record.get("canonical_docs") or []),
     }
+    if review_reminder:
+        out["review_reminder"] = review_reminder
+    return out
 
 
 def dry_run_envelope(
