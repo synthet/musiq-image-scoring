@@ -870,6 +870,102 @@ def test_loop_guard_not_bypassed_when_failures_present(monkeypatch):
     assert len(result["scheduled"]) == 0
 
 
+def test_loop_guard_classifies_failed_exhausted(monkeypatch):
+    """A folder whose only remaining work is retry-exhausted failures is surfaced as
+    ``failed_exhausted`` (naming the bad images), not opaque ``loop_detected``."""
+    monkeypatch.setattr(
+        runs_autodrive, "build_folder_buckets_for_autodrive", _bird_folder_buckets(40.0)
+    )
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda _path: ("/mnt/d/Photos/bird-folder", ["/mnt/d/Photos/bird-folder"]),
+    )
+    monkeypatch.setattr(
+        runs_autodrive, "phases_with_work_from_repair_plan", lambda *_a, **_k: ["bird_species"]
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db, "get_jobs", lambda **_k: _two_completed_bird_jobs(40.0)
+    )
+    # Nothing left to retry (no un-attempted work) ...
+    monkeypatch.setattr(
+        runs_autodrive.db, "scope_has_unattempted_phase_work", lambda *_a, **_k: False
+    )
+    # ... and the shortfall is images that exhausted their per-image retry budget.
+    monkeypatch.setattr(
+        runs_autodrive.db, "scope_has_exhausted_phase_work", lambda *_a, **_k: True
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_scope_exhausted_failed_images",
+        lambda *_a, **_k: [
+            {
+                "image_id": 190235,
+                "file_path": "/mnt/d/Photos/bird-folder/DSC_6280.NEF",
+                "attempt_count": 2,
+                "last_error": "RAW Conversion Failed",
+            }
+        ],
+    )
+
+    def _boom(*_a, **_k):
+        raise AssertionError("exhausted folder must not be re-enqueued")
+
+    monkeypatch.setattr(runs_autodrive, "_enqueue_auto_bucket", _boom)
+
+    result = runs_autodrive.auto_drive_runs(dry_run=False, max_repeats=2)
+
+    assert result["scheduled"] == []
+    assert result["loop_detected"] == 1
+    skip = result["skipped"][0]
+    assert skip["reason"] == "failed_exhausted"
+    assert skip["failed_phase"] == "bird_species"
+    assert skip["failed_images"][0]["image_id"] == 190235
+    assert result["skip_reason_counts"].get("failed_exhausted") == 1
+
+
+def test_loop_guard_failed_exhausted_can_be_disabled(monkeypatch):
+    """With the kill switch off, an exhausted-failed folder falls back to ``loop_detected``
+    and the exhausted-work probe is never consulted."""
+    monkeypatch.setattr(
+        runs_autodrive, "build_folder_buckets_for_autodrive", _bird_folder_buckets(40.0)
+    )
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda _path: ("/mnt/d/Photos/bird-folder", ["/mnt/d/Photos/bird-folder"]),
+    )
+    monkeypatch.setattr(
+        runs_autodrive, "phases_with_work_from_repair_plan", lambda *_a, **_k: ["bird_species"]
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db, "get_jobs", lambda **_k: _two_completed_bird_jobs(40.0)
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db, "scope_has_unattempted_phase_work", lambda *_a, **_k: False
+    )
+    monkeypatch.setattr(runs_autodrive, "_treat_exhausted_failed_as_terminal", lambda: False)
+
+    def _boom(*_a, **_k):
+        raise AssertionError("exhausted probe must be skipped when feature disabled")
+
+    monkeypatch.setattr(runs_autodrive.db, "scope_has_exhausted_phase_work", _boom)
+
+    result = runs_autodrive.auto_drive_runs(dry_run=False, max_repeats=2)
+
+    assert result["loop_detected"] == 1
+    assert result["skipped"][0]["reason"] == "loop_detected"
+
+
+def test_exhausted_failed_min_attempts_from_config(monkeypatch):
+    """``scoring.max_image_retries`` (total attempts) maps to attempt_count >= max-1."""
+    def _cfg(key, default=None):
+        return 4 if key == "scoring.max_image_retries" else default
+
+    monkeypatch.setattr("modules.config.get_config_value", _cfg)
+    assert runs_autodrive._exhausted_failed_min_attempts() == 3
+
+
 def test_loop_guard_bypassed_after_interrupted_with_unattempted_work(monkeypatch):
     """An ``interrupted`` job (backend restart) must not permanently strand never-attempted work.
 

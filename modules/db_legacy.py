@@ -14006,6 +14006,91 @@ def scope_has_unattempted_phase_work(folder_path: str, phase_code: str) -> bool:
     return row is not None
 
 
+def scope_has_exhausted_phase_work(folder_path: str, phase_code: str, min_attempts: int = 2) -> bool:
+    """True when the folder scope has images whose ``phase_code`` is terminally
+    ``failed`` after exhausting the per-image retry budget (``attempt_count >=
+    min_attempts``).
+
+    Lets the auto-drive loop guard distinguish "permanently failed, nothing left to
+    retry" from "still retryable / never attempted" (see
+    ``scope_has_unattempted_phase_work``). A folder whose only remaining shortfall is
+    exhausted failures is surfaced as blocked (``failed_exhausted``) with the offending
+    images, instead of being re-enqueued forever or reported as opaque ``loop_detected``.
+    """
+    from modules import utils
+
+    if not folder_path or not str(folder_path).strip() or not phase_code:
+        return False
+
+    wsl_path = utils.convert_path_to_wsl(folder_path) if hasattr(utils, "convert_path_to_wsl") else folder_path
+    target_path = wsl_path if wsl_path else folder_path
+    path_like_unix = target_path + "/%"
+    path_like_win = target_path + "\\%"
+    code = (phase_code or "").strip().lower()
+
+    try:
+        row = get_connector().query_one(
+            """
+            SELECT 1 AS x
+            FROM images i
+            JOIN folders f ON f.id = i.folder_id
+            JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
+            JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
+            WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+              AND LOWER(TRIM(ips.status)) = 'failed'
+              AND COALESCE(ips.attempt_count, 0) >= ?
+            LIMIT 1
+            """,
+            (code, target_path, path_like_unix, path_like_win, int(min_attempts)),
+        )
+        return row is not None
+    except Exception:
+        logger.debug(
+            "scope_has_exhausted_phase_work failed for %s / %s", folder_path, phase_code, exc_info=True
+        )
+        return False
+
+
+def get_scope_exhausted_failed_images(folder_path: str, phase_code: str, min_attempts: int = 2,
+                                      limit: int = 50) -> List[dict]:
+    """Return up to ``limit`` images in scope whose ``phase_code`` is terminally failed
+    (``attempt_count >= min_attempts``). Used to surface the offending files in
+    auto-drive diagnostics so a permanently-stuck folder names its bad images."""
+    from modules import utils
+
+    if not folder_path or not str(folder_path).strip() or not phase_code:
+        return []
+
+    wsl_path = utils.convert_path_to_wsl(folder_path) if hasattr(utils, "convert_path_to_wsl") else folder_path
+    target_path = wsl_path if wsl_path else folder_path
+    path_like_unix = target_path + "/%"
+    path_like_win = target_path + "\\%"
+    code = (phase_code or "").strip().lower()
+
+    try:
+        rows = get_connector().query(
+            """
+            SELECT i.id AS image_id, i.file_path, ips.attempt_count, ips.last_error
+            FROM images i
+            JOIN folders f ON f.id = i.folder_id
+            JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
+            JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
+            WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
+              AND LOWER(TRIM(ips.status)) = 'failed'
+              AND COALESCE(ips.attempt_count, 0) >= ?
+            ORDER BY i.id
+            """,
+            (code, target_path, path_like_unix, path_like_win, int(min_attempts)),
+        )
+        out = [dict(r) for r in (rows or [])]
+        return out[:limit] if limit and limit > 0 else out
+    except Exception:
+        logger.debug(
+            "get_scope_exhausted_failed_images failed for %s / %s", folder_path, phase_code, exc_info=True
+        )
+        return []
+
+
 # Debounce for _heal_stale_phase_flags: concurrent force_refresh calls (UI scope
 # tree + runs_autodrive + folder-buckets) frequently target the same folder within
 # milliseconds, each re-running the full heal scan. The resets are idempotent, but

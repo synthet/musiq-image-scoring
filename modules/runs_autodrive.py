@@ -732,7 +732,9 @@ def _autodrive_buckets_cache_key(
 # same empty/stuck folders every tick. The cooldown is voided early if the folder's
 # ``overall_percent`` advances (it likely became plannable again). Library drives
 # only — explicit/scoped requests always honor the user's chosen folders.
-_UNPRODUCTIVE_SKIP_REASONS = frozenset({"nothing_to_queue", "loop_detected", "missing_on_disk"})
+_UNPRODUCTIVE_SKIP_REASONS = frozenset(
+    {"nothing_to_queue", "loop_detected", "missing_on_disk", "failed_exhausted"}
+)
 DRIVE_UNPRODUCTIVE_COOLDOWN_SEC = 600.0
 _FOLDER_COOLDOWN_LOCK = threading.Lock()
 _FOLDER_COOLDOWN: Dict[str, tuple[float, float]] = {}  # path_key -> (expiry_ts, percent_at_skip)
@@ -804,6 +806,37 @@ def _retry_unattempted_on_loop() -> bool:
         return bool(get_config_value("auto_drive.retry_unattempted_on_loop", default=True))
     except Exception:
         return True
+
+
+def _treat_exhausted_failed_as_terminal() -> bool:
+    """Kill switch: ``runs_autodrive.treat_exhausted_failed_as_terminal`` (default True).
+
+    When True, a loop-guard trip whose only remaining work is images that exhausted
+    their per-image retry budget is surfaced as ``failed_exhausted`` (with the offending
+    files) instead of an opaque ``loop_detected``.
+    """
+    try:
+        from modules.config import get_config_value
+
+        return bool(get_config_value("runs_autodrive.treat_exhausted_failed_as_terminal", default=True))
+    except Exception:
+        return True
+
+
+def _exhausted_failed_min_attempts() -> int:
+    """Minimum ``attempt_count`` for a failed image to count as retry-exhausted.
+
+    Derived from ``scoring.max_image_retries`` (total attempts allowed, default 3).
+    ``attempt_count`` increments on each failed→running rerun, so it equals
+    (attempts - 1); exhaustion is therefore ``attempt_count >= max_image_retries - 1``.
+    """
+    try:
+        from modules.config import get_config_value
+
+        max_retries = int(get_config_value("scoring.max_image_retries", default=3))
+    except Exception:
+        max_retries = 3
+    return max(1, max_retries - 1)
 
 
 def build_folder_buckets_for_autodrive(
@@ -1460,18 +1493,43 @@ def auto_drive_runs(
                     item.get("path"), prep["phase_values"][0], completed_attempts,
                 )
             else:
+                # If the only thing keeping this folder unfinished is images that have
+                # exhausted their per-image retry budget, classify it as ``failed_exhausted``
+                # (naming the bad files) rather than an opaque ``loop_detected`` — there is
+                # genuinely nothing more to retry, so the dashboard should say so.
+                failed_phase: Optional[str] = None
+                failed_images: list[dict[str, Any]] = []
+                if _treat_exhausted_failed_as_terminal() and prep["phase_values"] and prep["resolved"]:
+                    min_attempts = _exhausted_failed_min_attempts()
+                    for ph in prep["phase_values"]:
+                        try:
+                            if db.scope_has_exhausted_phase_work(prep["resolved"], ph, min_attempts):
+                                failed_phase = ph
+                                failed_images = db.get_scope_exhausted_failed_images(
+                                    prep["resolved"], ph, min_attempts
+                                )
+                                break
+                        except Exception:
+                            logger.debug(
+                                "runs_autodrive: exhausted-failed probe failed for %s/%s",
+                                item.get("path"), ph, exc_info=True,
+                            )
                 loop_detected += 1
-                skipped.append({
+                skip_entry: dict[str, Any] = {
                     "folder_path": item.get("path"),
                     "phases": item.get("next_phases") or [],
-                    "reason": "loop_detected",
+                    "reason": "failed_exhausted" if failed_phase else "loop_detected",
                     "attempts": effective_attempts,
                     "failure_attempts": failure_attempts,
                     "completed_attempts": completed_attempts,
                     "made_progress": made_progress,
                     "last_run_id": attempt_meta.get("last_run_id"),
                     "last_status": attempt_meta.get("last_status"),
-                })
+                }
+                if failed_phase:
+                    skip_entry["failed_phase"] = failed_phase
+                    skip_entry["failed_images"] = failed_images
+                skipped.append(skip_entry)
                 if record_cooldowns:
                     _record_unproductive_cooldown(
                         _path_key(str(item.get("path") or "")),
@@ -2041,11 +2099,34 @@ def get_drive_diagnostics() -> Dict[str, Any]:
     loop_detected = _as_int(last_result.get("loop_detected"))
     stop_reason = state.get("stop_reason")
     schedulable = _as_int(health.get("schedulable_folders"))
+    skip_reason_counts = last_result.get("skip_reason_counts") or {}
+    failed_exhausted_folders = [
+        {
+            "folder_path": s.get("folder_path"),
+            "failed_phase": s.get("failed_phase"),
+            "failed_images": s.get("failed_images") or [],
+        }
+        for s in (last_result.get("skipped") or [])
+        if str(s.get("reason") or "") == "failed_exhausted"
+    ]
     anomalies: list[dict[str, Any]] = []
-    if loop_detected > 0:
+    if failed_exhausted_folders:
+        anomalies.append({
+            "code": "failed_exhausted",
+            "message": (
+                f"{len(failed_exhausted_folders)} folder(s) blocked by image(s) that "
+                "exhausted their per-image retry budget — manual attention needed."
+            ),
+            "severity": "warning",
+            "details": failed_exhausted_folders,
+        })
+    # ``failed_exhausted`` trips also increment loop_detected; only flag the generic
+    # loop anomaly for the remainder that are NOT explained by exhausted failures.
+    unexplained_loops = max(0, loop_detected - _as_int(skip_reason_counts.get("failed_exhausted")))
+    if unexplained_loops > 0:
         anomalies.append({
             "code": "loop_detected",
-            "message": f"Last tick skipped {loop_detected} repeated folder plan(s).",
+            "message": f"Last tick skipped {unexplained_loops} repeated folder plan(s).",
             "severity": "warning",
         })
     if duplicates:

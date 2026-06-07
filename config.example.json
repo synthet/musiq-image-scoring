@@ -13,6 +13,7 @@
   },
   "scoring": {
     "force_rescore_default": false,
+    "max_image_retries": 3,
     "default_sort_by": "score_general",
     "default_sort_order": "desc",
     "fusion": {
@@ -141,7 +142,12 @@
   "raw_conversion": {
     "method": "rawpy_half",
     "max_resolution": 512,
-    "jpeg_quality": 85
+    "jpeg_quality": 85,
+    "exiftool_timeout_s": 20,
+    "transient_retries": 2
+  },
+  "runs_autodrive": {
+    "treat_exhausted_failed_as_terminal": true
   },
   "embedding_map": {
     "enabled": false,

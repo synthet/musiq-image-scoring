@@ -128,10 +128,22 @@ class MultiModelMUSIQ:
                 "method": raw_cfg.get("method", "rawpy_half"),
                 "max_resolution": int(raw_cfg.get("max_resolution", 512)),
                 "jpeg_quality": int(raw_cfg.get("jpeg_quality", 85)),
+                # Transient-failure handling for embedded-preview extraction. A slow
+                # exiftool spawn under concurrent load used to be misreported as a
+                # permanent "RAW Conversion Failed" on otherwise-valid files; retry the
+                # subprocess a few times with a longer timeout before giving up.
+                "exiftool_timeout_s": float(raw_cfg.get("exiftool_timeout_s", 20)),
+                "transient_retries": max(0, int(raw_cfg.get("transient_retries", 2))),
             }
         except Exception:
             pass
-        return {"method": "rawpy_half", "max_resolution": 512, "jpeg_quality": 85}
+        return {
+            "method": "rawpy_half",
+            "max_resolution": 512,
+            "jpeg_quality": 85,
+            "exiftool_timeout_s": 20.0,
+            "transient_retries": 2,
+        }
 
     def preprocess_image(self, file_path: str, output_dir: Optional[str] = None, resolution_override: Optional[int] = None) -> Optional[str]:
         """
@@ -245,25 +257,49 @@ class MultiModelMUSIQ:
         """
         if shutil.which("exiftool") is None:
             return None
+        cfg = self._get_raw_conversion_config()
+        timeout_s = cfg["exiftool_timeout_s"]
+        max_attempts = max(1, cfg["transient_retries"] + 1)
         min_len = 500
+        log = logging.getLogger(__name__)
         for tag in ("JpgFromRaw", "PreviewImage", "OtherImage", "ThumbnailImage"):
-            try:
-                cmd = ["exiftool", "-b", f"-{tag}", raw_path]
-                result = subprocess.run(cmd, capture_output=True, text=False, timeout=10)
-            except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-                continue
-            if result.returncode != 0 or len(result.stdout) < min_len:
-                continue
-            data = result.stdout
-            if data.startswith(b"\xff\xd8"):
-                return (tag, data)
-            try:
-                img = Image.open(io.BytesIO(data))
-                img.load()
-                img.close()
-                return (tag, data)
-            except Exception:
-                continue
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    cmd = ["exiftool", "-b", f"-{tag}", raw_path]
+                    result = subprocess.run(cmd, capture_output=True, text=False, timeout=timeout_s)
+                except (subprocess.TimeoutExpired, OSError) as e:
+                    # Transient: a slow/failed exiftool spawn under concurrent load.
+                    # Retry the SAME tag before moving on — this is the failure mode
+                    # that wedged folders into a permanent scoring 'failed' state for
+                    # otherwise-valid RAW files (e.g. Nikon Z8 HE*).
+                    if attempt < max_attempts:
+                        log.warning(
+                            "exiftool -%s transient failure on %s (attempt %d/%d): %s — retrying",
+                            tag, Path(raw_path).name, attempt, max_attempts, e,
+                        )
+                        time.sleep(0.5 * attempt)
+                        continue
+                    log.warning(
+                        "exiftool -%s exhausted %d attempt(s) on %s: %s",
+                        tag, max_attempts, Path(raw_path).name, e,
+                    )
+                    break  # give up on this tag, try the next one
+                except Exception:
+                    break  # unexpected error for this tag — try the next one
+                # Subprocess returned without raising: a non-zero rc or short output
+                # means the tag is genuinely absent (terminal for this tag), not transient.
+                if result.returncode != 0 or len(result.stdout) < min_len:
+                    break
+                data = result.stdout
+                if data.startswith(b"\xff\xd8"):
+                    return (tag, data)
+                try:
+                    img = Image.open(io.BytesIO(data))
+                    img.load()
+                    img.close()
+                    return (tag, data)
+                except Exception:
+                    break  # data present but undecodable for this tag — try the next one
         return None
 
     def _extract_jpeg_exiftool(self, file_path: str) -> Tuple[Optional[Image.Image], Optional[str]]:
