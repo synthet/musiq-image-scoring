@@ -280,6 +280,23 @@ class PrepWorker(PipelineWorker):
                         step="prep",
                     )
 
+                # Mark scoring RUNNING up-front, before RAW conversion, so a conversion
+                # failure is recorded as a running→failed transition and counts toward the
+                # per-image retry budget (attempt_count increments on failed→running reruns).
+                # Previously a RAW-conversion failure returned before this transition,
+                # leaving attempt_count at 0 forever — so scope_has_unattempted_phase_work()
+                # kept classifying the image as "never attempted" and auto-drive re-enqueued
+                # the whole folder indefinitely (see RCA: transient-conversion loop wedge).
+                if job.image_id:
+                    db.set_image_phase_status(
+                        job.image_id,
+                        PhaseCode.SCORING,
+                        PhaseStatus.RUNNING,
+                        app_version=APP_VERSION,
+                        executor_version=SCORING_EXECUTOR_VERSION,
+                        job_id=job.job_id,
+                    )
+
                 # RAW Conversion for Scoring
                 if job.is_raw:
                     # Custom conversion logic here to avoid sharing state
@@ -318,16 +335,6 @@ class PrepWorker(PipelineWorker):
                         return
                 else:
                     job.process_path = job.image_path
-
-                if job.image_id:
-                    db.set_image_phase_status(
-                        job.image_id,
-                        PhaseCode.SCORING,
-                        PhaseStatus.RUNNING,
-                        app_version=APP_VERSION,
-                        executor_version=SCORING_EXECUTOR_VERSION,
-                        job_id=job.job_id,
-                    )
 
             self.output_queue.put(job)
             
