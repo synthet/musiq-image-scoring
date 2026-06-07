@@ -25,6 +25,10 @@ EVAL_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "mcp_search_eval.y
         ("images without embeddings", "data.get_embedding_stats"),
         ("search logs for error", "logs.search_logs"),
         ("export debug bundle", "support.export_debug_bundle"),
+        ("runner status", "jobs.get_runner_status"),
+        ("recent jobs", "jobs.get_recent_jobs"),
+        ("query images in folder", "data.query_images"),
+        ("image details by path", "data.get_image_details"),
     ],
 )
 def test_search_finds_expected_action(query, expected_in_top):
@@ -106,7 +110,6 @@ def test_search_eval_fixture_top3_recall():
 @pytest.mark.parametrize("query", [
     "rebuild embeddings for this folder",
     "start thumbnail generation",
-    "export a debug bundle",
 ])
 def test_search_unsupported_queries_low_confidence(query: str):
     result = search_actions(query, limit=8)

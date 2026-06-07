@@ -447,6 +447,193 @@ actions:
       function: get_run_diagnostics
     legacy_tool_name: get_run_diagnostics
 
+  jobs.get_runner_status:
+    title: Runner status
+    description: Scoring, tagging, clustering, and related in-process runner state (WebUI process).
+    category: jobs
+    tags: [runners, pipeline, status, progress]
+    aliases: [runner status, is scoring running]
+    intent_examples:
+      - are runners active
+      - scoring job progress
+      - pipeline runner status
+    side_effect_level: read_only
+    confirmation_required: false
+    dry_run_supported: false
+    dispatch_enabled: true
+    review_required: false
+    compact_profile_exposure: true
+    version: 1
+    deprecated: false
+    canonical_docs: [docs/technical/MCP_DEBUGGING_TOOLS.md]
+    api_contract_refs: []
+    auth_or_policy_requirements: []
+    input_schema:
+      type: object
+      additionalProperties: false
+    canonical_backend_handler:
+      kind: python_function
+      module: modules.mcp_server
+      function: get_runner_status
+    legacy_tool_name: get_runner_status
+
+  jobs.get_recent_jobs:
+    title: Recent jobs
+    description: Recent scoring/tagging/clustering jobs with status.
+    category: jobs
+    tags: [jobs, runs, history]
+    aliases: [recent jobs, job history]
+    intent_examples:
+      - list recent runs
+      - show latest jobs
+      - recent scoring jobs
+    side_effect_level: read_only
+    confirmation_required: false
+    dry_run_supported: false
+    dispatch_enabled: true
+    review_required: false
+    compact_profile_exposure: true
+    version: 1
+    deprecated: false
+    canonical_docs: [docs/technical/MCP_DEBUGGING_TOOLS.md]
+    api_contract_refs: []
+    auth_or_policy_requirements: [requires_db]
+    input_schema:
+      type: object
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+      additionalProperties: false
+    canonical_backend_handler:
+      kind: python_function
+      module: modules.mcp_server
+      function: get_recent_jobs
+    legacy_tool_name: get_recent_jobs
+
+  jobs.get_job_details:
+    title: Job details
+    description: One job/run by jobs.id (same as workflow run_id).
+    category: jobs
+    tags: [job, run, details]
+    aliases: [job details, run details]
+    intent_examples:
+      - details for job 123
+      - show run status
+      - get job by id
+    side_effect_level: read_only
+    confirmation_required: false
+    dry_run_supported: false
+    dispatch_enabled: true
+    review_required: false
+    compact_profile_exposure: true
+    version: 1
+    deprecated: false
+    canonical_docs: [docs/technical/MCP_DEBUGGING_TOOLS.md]
+    api_contract_refs: []
+    auth_or_policy_requirements: [requires_db]
+    input_schema:
+      type: object
+      properties:
+        job_id:
+          type: integer
+          minimum: 1
+      required: [job_id]
+      additionalProperties: false
+    canonical_backend_handler:
+      kind: python_function
+      module: modules.mcp_server
+      function: get_job_details
+    legacy_tool_name: get_job_details
+
+  data.query_images:
+    title: Query images
+    description: Filtered image listing with scores, rating, label, keywords, folder.
+    category: data
+    tags: [images, query, filter, scores]
+    aliases: [find images, list images, query images]
+    intent_examples:
+      - images with high score
+      - photos in folder
+      - query by rating
+    side_effect_level: read_only
+    confirmation_required: false
+    dry_run_supported: false
+    dispatch_enabled: true
+    review_required: false
+    compact_profile_exposure: true
+    version: 1
+    deprecated: false
+    canonical_docs: [docs/technical/MCP_DEBUGGING_TOOLS.md]
+    api_contract_refs: []
+    auth_or_policy_requirements: [requires_db]
+    input_schema:
+      type: object
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+        offset:
+          type: integer
+          minimum: 0
+        sort_by:
+          type: string
+        order:
+          type: string
+          enum: [asc, desc]
+        min_score:
+          type: number
+        max_score:
+          type: number
+        rating:
+          type: integer
+        label:
+          type: string
+        keyword:
+          type: string
+        folder_path:
+          type: string
+      additionalProperties: false
+    canonical_backend_handler:
+      kind: python_function
+      module: modules.mcp_server
+      function: query_images
+    legacy_tool_name: query_images
+
+  data.get_image_details:
+    title: Image details by path
+    description: Full image row for a file_path.
+    category: data
+    tags: [image, details, metadata]
+    aliases: [image details, get image]
+    intent_examples:
+      - details for image path
+      - lookup image by path
+    side_effect_level: read_only
+    confirmation_required: false
+    dry_run_supported: false
+    dispatch_enabled: true
+    review_required: false
+    compact_profile_exposure: true
+    version: 1
+    deprecated: false
+    canonical_docs: [docs/technical/MCP_DEBUGGING_TOOLS.md]
+    api_contract_refs: []
+    auth_or_policy_requirements: [requires_db]
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+      required: [file_path]
+      additionalProperties: false
+    canonical_backend_handler:
+      kind: python_function
+      module: modules.mcp_server
+      function: get_image_details
+    legacy_tool_name: get_image_details
+
   data.get_embedding_stats:
     title: Embedding coverage stats
     description: Count images with vs without embeddings; optional folder filter.

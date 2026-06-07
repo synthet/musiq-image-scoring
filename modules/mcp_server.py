@@ -3019,16 +3019,15 @@ def wrap_mcp_app_with_security(app):
     return _MCPSecurityMiddleware(app)
 
 
-def create_mcp_sse_app(mount_path: str = "/mcp"):
-    """
-    Create a Starlette ASGI app that exposes MCP over SSE, to be mounted in FastAPI.
-    Cursor connects via url e.g. http://localhost:7860/mcp/sse
-    """
-    if not MCP_AVAILABLE:
-        raise RuntimeError("MCP SDK required. Install: pip install mcp")
+def get_mcp_sse_profile() -> str:
+    """SSE MCP surface: compact (search+dispatch) or full (legacy ~54 tools)."""
+    raw = (os.environ.get("MCP_SSE_PROFILE") or "compact").strip().lower()
+    if raw in ("full", "legacy"):
+        return "full"
+    return "compact"
 
-    prepare_mcp_embedded()
-    app = wrap_mcp_app_with_security(mcp.sse_app(mount_path=mount_path))
+
+def _install_mcp_sse_route_aliases(app) -> None:
     try:
         from starlette.responses import Response
         from starlette.routing import Mount, Route
@@ -3058,7 +3057,52 @@ def create_mcp_sse_app(mount_path: str = "/mcp"):
     except Exception as e:
         logger.warning("Failed to install SSE compatibility aliases: %s", e)
 
+
+_compact_mcp_sse = None
+
+
+def _get_compact_mcp_sse():
+    """Lazy FastMCP with search+dispatch only (is-be-webui compact SSE)."""
+    global _compact_mcp_sse
+    if _compact_mcp_sse is None:
+        from modules.mcp.names import BE_WEBUI
+        from modules.mcp.router_tools import register_compact_tools
+
+        _compact_mcp_sse = FastMCP(BE_WEBUI)
+        register_compact_tools(_compact_mcp_sse)
+    return _compact_mcp_sse
+
+
+def _build_mcp_sse_asgi(fast_mcp_instance, mount_path: str):
+    if not MCP_AVAILABLE:
+        raise RuntimeError("MCP SDK required. Install: pip install mcp")
+    prepare_mcp_embedded()
+    app = wrap_mcp_app_with_security(fast_mcp_instance.sse_app(mount_path=mount_path))
+    _install_mcp_sse_route_aliases(app)
     return app
+
+
+def create_mcp_compact_sse_app(mount_path: str = "/mcp"):
+    """
+    SSE app exposing only search + dispatch (same contract as is-be-mcp stdio).
+    """
+    return _build_mcp_sse_asgi(_get_compact_mcp_sse(), mount_path)
+
+
+def create_mcp_sse_app(mount_path: str = "/mcp"):
+    """
+    Create a Starlette ASGI app that exposes MCP over SSE, to be mounted in FastAPI.
+    Cursor connects via url e.g. http://localhost:7860/mcp/sse
+    """
+    return _build_mcp_sse_asgi(mcp, mount_path)
+
+
+def resolve_mcp_sse_app(mount_path: str = "/"):
+    """Return (asgi_app, profile) where profile is compact or full."""
+    profile = get_mcp_sse_profile()
+    if profile == "full":
+        return create_mcp_sse_app(mount_path=mount_path), profile
+    return create_mcp_compact_sse_app(mount_path=mount_path), profile
 
 
 async def run_server():

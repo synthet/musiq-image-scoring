@@ -66,7 +66,7 @@ Side-effecting dispatch (e.g. **`support.export_debug_bundle`**) requires **`con
 | Cursor server key | Transport | Tools / notes |
 |-------------------|-----------|---------------|
 | **`is-be-mcp`** | stdio | **`search`**, **`dispatch`** — **use this** |
-| **`is-be-webui`** | SSE | Live WebUI; all legacy tools; `execute_code` when `ENABLE_MCP_EXECUTE_CODE=1` |
+| **`is-be-webui`** | SSE | **`search`**, **`dispatch`** (same registry as `is-be-mcp`); set **`MCP_SSE_PROFILE=full`** for legacy ~54-tool SSE |
 
 **Debug-only (not in default mcp.json):** `scripts/batch/run_mcp_server_windows.bat` with `MCP_TOOL_PROFILE=diagnostics|jobs|data|maintenance|full`.
 
@@ -74,14 +74,14 @@ Side-effecting dispatch (e.g. **`support.export_debug_bundle`**) requires **`con
 
 | Cursor server key | Transport | Requires running app? |
 |-------------------|-----------|------------------------|
-| **`is-ui-router`** | stdio | No — `ui_find` discovery |
-| **`is-ui-local`** | stdio | No — logs, config, `gallery_status` |
-| **`is-ui-api`** | stdio | Backend WebUI for `api_*` |
-| **`is-ui-live`** | SSE | Yes — Electron dev / `ENABLE_GALLERY_MCP_SSE` |
+| **`is-ui-mcp`** | stdio | No — **`search`**, **`dispatch`** over gallery actions |
+| **`is-ui-live`** | SSE | Yes — Electron dev / `ENABLE_GALLERY_MCP_SSE` (CDP + live IPC via dispatch) |
+
+**Not in default config:** `is-ui-router`, `is-ui-local`, `is-ui-api` (gallery debug entrypoints only).
 
 **Legacy MCP keys:** remove obsolete server names from user `~/.cursor/mcp.json`; use **`is-be-*`** / **`is-ui-*`** from each repo's `mcp.example.json`.
 
-For backend WebUI SSE, start the WebUI first (`run_webui.bat`). Confirm URL with **`GET /mcp-status`** → `expected_sse_url`. For **`execute_code`**, set **`ENABLE_MCP_EXECUTE_CODE=1`** on **`is-be-webui`**. Gallery live port: **`gallery-mcp.lock`** (default `9373`).
+For backend WebUI SSE, start the WebUI first (`run_webui.bat`). Confirm URL with **`GET /mcp-status`** → `expected_sse_url` and **`sse_profile`** (`compact` default). Set **`MCP_SSE_PROFILE=full`** on the WebUI process for legacy raw tools (including **`execute_code`** when `ENABLE_MCP_EXECUTE_CODE=1`). Gallery live port: **`gallery-mcp.lock`** (default `9373`).
 
 Claude Code: [`.claude/settings.json`](.claude/settings.json) — enable **`is-be-mcp`** first; allow `mcp__is-be-mcp__search`, `mcp__is-be-mcp__dispatch`.
 
@@ -276,10 +276,10 @@ The MCP server registers **53** tools (see [`modules/mcp_server.py`](modules/mcp
 → `dispatch("diagnostics.check_database_health", {})` → `dispatch("diagnostics.validate_config", {})`
 
 **"How fast is processing?"**
-→ **`is-be-webui`**: `get_performance_metrics` → `get_runner_status` → `get_pipeline_stats` (not yet compact dispatch)
+→ **`search`** then **`dispatch("jobs.get_runner_status", {})`** or **`dispatch("jobs.get_recent_jobs", {})`** on **`is-be-mcp`** / **`is-be-webui`**
 
 **"Find images with X property"**
-→ **`is-be-webui`**: `query_images` with filters → `get_image_details` (not yet compact dispatch)
+→ **`search`** then **`dispatch("data.query_images", …)`** / **`dispatch("data.get_image_details", …)`** on compact MCP
 
 **"What's in the database?"**
 → **`is-be-webui`**: `get_database_stats` → `get_folder_tree` → `get_stacks_summary` (not yet compact dispatch)

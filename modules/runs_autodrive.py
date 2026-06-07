@@ -604,6 +604,7 @@ def _recent_auto_attempt_counts(plan_keys: Iterable[str], *, scan_limit: int = 5
     counts: dict[str, dict[str, Any]] = {
         key: {
             "failure_attempts": 0,
+            "interrupted_attempts": 0,
             "completed_attempts": 0,
             "last_completed_percent": 0.0,
             "last_run_id": None,
@@ -629,6 +630,12 @@ def _recent_auto_attempt_counts(plan_keys: Iterable[str], *, scan_limit: int = 5
         entry = counts[key]
         if _job_counts_toward_loop_guard(status):
             entry["failure_attempts"] += 1
+            # ``interrupted`` is an involuntary stop (backend restart / OOM), not a
+            # runner defect. Track it separately so the un-attempted-work bypass can
+            # forgive it while still bounding repeats; only hard failures (failed /
+            # canceled) must keep the bypass closed.
+            if norm == "interrupted":
+                entry["interrupted_attempts"] += 1
         elif norm in _LOOP_GUARD_COMPLETED_STATUSES:
             entry["completed_attempts"] += 1
             pct = _as_float(payload.get("auto_drive_overall_percent"))
@@ -1417,6 +1424,11 @@ def auto_drive_runs(
         plan_key = str(prep["plan_key"] or "")
         attempt_meta = attempts.get(plan_key) or {}
         failure_attempts = _as_int(attempt_meta.get("failure_attempts"))
+        interrupted_attempts = _as_int(attempt_meta.get("interrupted_attempts"))
+        # Hard failures = failed/canceled (a genuinely broken runner). Interruptions
+        # (backend restarts) are excluded so a single restart can't permanently strand
+        # never-attempted work behind the loop guard.
+        hard_failure_attempts = max(0, failure_attempts - interrupted_attempts)
         completed_attempts = _as_int(attempt_meta.get("completed_attempts"))
         # Forgive completed runs only when the folder advanced since the last completed pass;
         # a folder that keeps completing without progress is bounded at max_repeats.
@@ -1435,10 +1447,13 @@ def auto_drive_runs(
             # so a truly broken runner stalls instead of spinning.
             if (
                 _retry_unattempted_on_loop()
-                and failure_attempts == 0
+                and hard_failure_attempts == 0
                 and prep["phase_values"]
                 and prep["resolved"]
-                and db.scope_has_unattempted_phase_work(prep["resolved"], prep["phase_values"][0])
+                and any(
+                    db.scope_has_unattempted_phase_work(prep["resolved"], ph)
+                    for ph in prep["phase_values"]
+                )
             ):
                 logger.info(
                     "runs_autodrive: loop-guard bypass — un-attempted work in %s (phase=%s, %d no-op completions)",

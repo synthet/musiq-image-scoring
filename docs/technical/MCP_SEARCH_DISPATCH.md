@@ -6,10 +6,12 @@
 
 | Server | Tools | Use |
 |--------|-------|-----|
-| **`is-be-mcp`** | **`search`**, **`dispatch`** | **Default** — compact, stable surface |
-| **`is-be-webui`** | All legacy MCP tools | SSE when WebUI is running; tools not yet on compact dispatch |
+| **`is-be-mcp`** | **`search`**, **`dispatch`** | **Default** — compact stdio |
+| **`is-be-webui`** | **`search`**, **`dispatch`** | **Default SSE** when WebUI is running (same registry as `is-be-mcp`) |
 
-Copy [`.cursor/mcp.example.json`](../../.cursor/mcp.example.json) → `.cursor/mcp.json`. Legacy profile stdio servers (`is-be-diag`, `is-be-jobs`, `is-be-data`, `is-be-router`, `is-be-full`) are **not** in the default config — use compact dispatch or **`is-be-webui`**.
+Set **`MCP_SSE_PROFILE=full`** (or `legacy`) on the WebUI process to restore the legacy ~54-tool SSE surface during migration.
+
+Copy [`.cursor/mcp.example.json`](../../.cursor/mcp.example.json) → `.cursor/mcp.json`. Legacy profile stdio servers (`is-be-diag`, `is-be-jobs`, `is-be-data`, `is-be-router`, `is-be-full`) are **not** in the default config.
 
 ## Workflow
 
@@ -96,6 +98,11 @@ dispatch(
 | `config.get_config` | `{}` |
 | `jobs.get_failed_images` | `{"limit": 20}` |
 | `jobs.get_run_diagnostics` | `{"run_id": 123}` |
+| `jobs.get_runner_status` | `{}` |
+| `jobs.get_recent_jobs` | `{"limit": 10}` |
+| `jobs.get_job_details` | `{"job_id": 123}` |
+| `data.query_images` | `{"limit": 20, "folder_path": "…"}` |
+| `data.get_image_details` | `{"file_path": "…"}` |
 | `data.get_embedding_stats` | `{}` |
 
 ### Side-effecting (confirmation required)
@@ -114,7 +121,7 @@ dispatch(
 
 ## Common agent workflows
 
-Attach **`is-be-mcp`**, then **`search`** → **`dispatch`**. If `low_confidence` is true, refine the query. For tools not in the action registry, use **`is-be-webui`** (SSE).
+Attach **`is-be-mcp`** or **`is-be-webui`**, then **`search`** → **`dispatch`**. If `low_confidence` is true, refine the query. For legacy raw tools not in the action registry, set **`MCP_SSE_PROFILE=full`** on WebUI.
 
 ### Scoring failure triage
 
@@ -150,13 +157,12 @@ Review the zip before sharing. `secrets.json` is never included.
 
 ### Still unsupported via compact dispatch
 
-`execute_sql`, `execute_code`, maintenance writes/jobs, and other side-effecting actions unless listed above and in `ALLOWED_SIDE_EFFECT_ACTIONS`.
-
-## Vocabulary (do not use)
-
-Use **`is-be-*`** and **`is-ui-*`** keys only; remove legacy MCP server names from user configs.
-- Calling 50+ legacy tools from **new** agent configs (use `is-be-mcp` instead)
+`execute_sql`, `execute_code`, maintenance writes/jobs, and other side-effecting actions unless listed above and in `ALLOWED_SIDE_EFFECT_ACTIONS`. Use **`MCP_SSE_PROFILE=full`** on WebUI for the legacy tool surface.
 
 ## Gallery
 
-Backend compact MCP is authoritative for diagnostics/pipeline. Gallery uses **`is-ui-*`** (`ui_find`, …) until gallery `search`/`dispatch` mirrors land (later phase).
+Gallery **`is-ui-mcp`** exposes the same **`search`** + **`dispatch`** workflow over gallery-local, API, and live actions. Attach **`is-ui-live`** (SSE) when Electron dev is running for CDP/live IPC actions.
+
+## Vocabulary (do not use)
+
+Use **`is-be-*`** and **`is-ui-*`** keys only; remove legacy MCP server names from user configs. Prefer compact **`search`/`dispatch`** over attaching many profile servers.

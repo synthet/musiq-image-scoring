@@ -9,13 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- **Culling "No Stacks" bug**: Removed premature `RUNNING` and `DONE` phase status updates in `SelectionRunner`. These updates previously caused `ClusteringEngine` to skip images because it saw them as already running, resulting in zero stacks being created for newly processed folders. Life-cycle transitions are now correctly owned by the clustering engine.
-
 ### Roadmap (not yet released)
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
+
+## [8.2.0] - 2026-06-07
+
+### Added
+
+- **MCP compact dispatch expansion**: Extended `search` / `dispatch` registry and overlay for additional read-only backend actions; compact SSE profile on WebUI; tests for dispatch, search, and compact SSE.
+- **Auto-drive interrupted tracking**: Loop-guard metadata now distinguishes `interrupted` runs from hard failures so backend restarts do not permanently block un-attempted work.
+
+### Changed
+
+- **MCP agent docs**: Default `is-be-mcp` / `is-be-webui` compact workflow documented in AGENTS.md, MCP_SEARCH_DISPATCH.md, and agent skills; `.cursor/mcp.example.json` templates updated.
+
+### Fixed
+
+- **Culling "No Stacks" bug**: Removed premature `RUNNING` and `DONE` phase status updates in `SelectionRunner`. These updates previously caused `ClusteringEngine` to skip images because it saw them as already running, resulting in zero stacks being created for newly processed folders. Life-cycle transitions are now correctly owned by the clustering engine.
+- **Auto-drive loop guard**: Un-attempted-work bypass now checks all planned phases (not only the first) and forgives interrupted runs while still bounding hard failures.
+- **Pipeline dispatcher**: Improved logging for dispatch failures (#156) and orphan-interrupted `image_phase_status` sweep (#157).
 
 ## [8.1.0] - 2026-06-03
 

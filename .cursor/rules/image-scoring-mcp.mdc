@@ -12,31 +12,31 @@ When the user asks about **debugging**, **investigating failures**, **database h
 | Prefix | Repo | Default keys |
 |--------|------|--------------|
 | **`is-be-*`** | backend | **`is-be-mcp`**, optional **`is-be-webui`** |
-| **`is-ui-*`** | gallery | **`is-ui-router`**, **`is-ui-local`**, **`is-ui-api`**, **`is-ui-live`** |
+| **`is-ui-*`** | gallery | **`is-ui-mcp`**, optional **`is-ui-live`** |
 
 User `~/.cursor/mcp.json`: **`github`**, **`subagent-orchestrator`**, etc. — **not** `is-be-*` / `is-ui-*`. Project keys: copy **`mcp.example.json`** → **`.cursor/mcp.json`** in each repo.
 
 ## Compact dispatch (default)
 
-**`is-be-mcp`** → **`search(query)`** → **`dispatch(action_id, arguments)`**. Contract: [docs/technical/MCP_SEARCH_DISPATCH.md](../../docs/technical/MCP_SEARCH_DISPATCH.md).
+**`is-be-mcp`** and **`is-be-webui`** (default compact SSE) → **`search(query)`** → **`dispatch(action_id, arguments)`**. Contract: [docs/technical/MCP_SEARCH_DISPATCH.md](../../docs/technical/MCP_SEARCH_DISPATCH.md).
 
-Gallery discovery: **`is-ui-router`** → **`ui_find(query)`**.
+Gallery: **`is-ui-mcp`** → same **`search`** / **`dispatch`** over gallery actions (`mcp-server/action_registry.json`).
 
 ## Backend server keys (default config)
 
 | Server key | Transport | When to use |
 |------------|-----------|-------------|
 | **`is-be-mcp`** | stdio | **Default** — `search`, `dispatch` |
-| **`is-be-webui`** | SSE | Live WebUI; legacy tools not yet on compact dispatch; `execute_code` when `ENABLE_MCP_EXECUTE_CODE=1` |
+| **`is-be-webui`** | SSE | **Default compact** — same `search`, `dispatch` as `is-be-mcp`; **`MCP_SSE_PROFILE=full`** for legacy tools + `execute_code` |
 
 ## Gallery server keys (sibling repo)
 
 | Server key | When to use |
 |------------|-------------|
-| **`is-ui-router`** | `ui_find` — discover gallery tools |
-| **`is-ui-local`** | `gallery_status`, Electron logs, config |
-| **`is-ui-api`** | `api_*` when Python WebUI is up |
-| **`is-ui-live`** | SSE: `cdp_*`, `gallery_window_status` (Electron dev) |
+| **`is-ui-mcp`** | **Default** — `search`, `dispatch` over gallery actions |
+| **`is-ui-live`** | SSE: live IPC + CDP actions via dispatch when Electron dev is running |
+
+Not in default gallery config: **`is-ui-router`**, **`is-ui-local`**, **`is-ui-api`** (debug entrypoints only).
 
 ## Terminology (agents)
 
@@ -54,8 +54,8 @@ Gallery discovery: **`is-ui-router`** → **`ui_find(query)`**.
 - **Why did scoring fail?** → `dispatch("diagnostics.get_error_summary", {})` → `dispatch("jobs.get_failed_images", {"limit": 20})`
 - **Is the system healthy?** → `dispatch("diagnostics.check_database_health", {})`, `dispatch("diagnostics.validate_config", {})`
 - **Redacted support bundle** → `dispatch("support.export_debug_bundle", {}, confirmed=True)`
-- **Legacy tools not in registry** → **`is-be-webui`** SSE (WebUI must be running)
-- **Gallery won't start / IPC** → **`is-ui-local`** `gallery_status` → **`is-ui-live`** `cdp_*` if Electron running
+- **Legacy tools not in registry** → backend WebUI with **`MCP_SSE_PROFILE=full`**
+- **Gallery won't start / IPC** → **`dispatch("local.gallery_status", {})`** on **`is-ui-mcp`**; live CDP via **`is-ui-live`** dispatch
 - **Gradio in-process debug** → **`is-be-webui`** + `execute_code` (`ENABLE_MCP_EXECUTE_CODE=1`)
 
 ## High-risk tools (SSE / maintenance profile only)

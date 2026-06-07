@@ -189,6 +189,7 @@ def main():
         )
     
     mcp_mount_error: str | None = None
+    mcp_sse_profile: str | None = None
 
     @asynccontextmanager
     async def lifespan(app):
@@ -337,6 +338,7 @@ def main():
             "mcp_token_required": mcp_token_configured,
             "mcp_client_allowlist": mcp_client_allowlist,
             "mount_error": mcp_mount_error,
+            "sse_profile": mcp_sse_profile,
             "expected_sse_url": f"http://127.0.0.1:{server_port}/mcp/sse",
             "server_host": server_host,
             "server_port": server_port,
@@ -386,7 +388,7 @@ def main():
             # NOTE: we mount *after* Gradio is mounted; gr.mount_gradio_app()
             # may wrap/replace the FastAPI app instance.
             # Use mount_path="/" since FastAPI will mount this app at /mcp, making the full path /mcp/sse
-            mcp_sse_app = mcp_server.create_mcp_sse_app(mount_path="/")
+            mcp_sse_app, mcp_sse_profile = mcp_server.resolve_mcp_sse_app(mount_path="/")
         except Exception as e:
             mcp_mount_error = str(e)
             print(f"MCP Server: Failed to mount SSE endpoint: {e}")
@@ -421,7 +423,7 @@ def main():
     # MUST be mounted BEFORE Gradio to avoid being shadowed by Gradio's catch-all route at /
     if mcp_sse_app is not None:
         app.mount("/mcp", mcp_sse_app)
-        print("MCP Server: SSE endpoint mounted at /mcp/sse")
+        print(f"MCP Server: SSE endpoint mounted at /mcp/sse (profile={mcp_sse_profile})")
         try:
             has_mcp_mount = any(getattr(r, "path", None) == "/mcp" for r in app.routes)
             print(f"MCP Server: mount_registered={has_mcp_mount}")

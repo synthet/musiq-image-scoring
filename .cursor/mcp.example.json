@@ -1,9 +1,9 @@
 {
-  "_comment": "Copy to .cursor/mcp.json (gitignored). User ~/.cursor/mcp.json should NOT duplicate is-be-* / is-ui-* servers.",
+  "_comment": "Copy to .cursor/mcp.json (gitignored). is-be-mcp uses WSL + ~/.venvs/tf (canonical for DB/modules). Windows-native fallback: run_mcp_compact_windows.bat + .venv. is-be-webui SSE defaults to compact; MCP_SSE_PROFILE=full for legacy tools.",
   "mcpServers": {
     "is-be-mcp": {
       "command": "cmd",
-      "args": ["/c", "scripts\\batch\\run_mcp_compact_windows.bat"],
+      "args": ["/c", "scripts\\batch\\run_mcp_compact_wsl.bat"],
       "cwd": "${workspaceFolder}"
     },
     "is-be-webui": {

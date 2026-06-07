@@ -44,4 +44,7 @@ def invoke_handler(record: dict[str, Any], validated_args: dict[str, Any]) -> An
     if action_id == "jobs.get_run_diagnostics":
         return fn(int(validated_args["run_id"]))
 
+    if action_id == "jobs.get_job_details":
+        return fn(int(validated_args["job_id"]))
+
     return fn(**validated_args) if validated_args else fn()

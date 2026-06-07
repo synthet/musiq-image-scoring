@@ -870,6 +870,104 @@ def test_loop_guard_not_bypassed_when_failures_present(monkeypatch):
     assert len(result["scheduled"]) == 0
 
 
+def test_loop_guard_bypassed_after_interrupted_with_unattempted_work(monkeypatch):
+    """An ``interrupted`` job (backend restart) must not permanently strand never-attempted work.
+
+    Regression: a single involuntary interruption was counted as a hard failure, which
+    closed the un-attempted-work bypass forever even though the folder had genuinely
+    unscored images (see folders 2026-05-24/05-30).
+    """
+    monkeypatch.setattr(
+        runs_autodrive, "build_folder_buckets_for_autodrive", _bird_folder_buckets(40.0)
+    )
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda _path: ("/mnt/d/Photos/bird-folder", ["/mnt/d/Photos/bird-folder"]),
+    )
+    monkeypatch.setattr(
+        runs_autodrive, "phases_with_work_from_repair_plan", lambda *_a, **_k: ["bird_species"]
+    )
+    plan_key = runs_autodrive._plan_key("/mnt/d/Photos/bird-folder", ["bird_species"])
+    payload = json.dumps({
+        "tool_id": "runs_auto_drive",
+        "auto_drive_plan_key": plan_key,
+        "auto_drive_overall_percent": 40.0,
+    })
+    # One interruption + two no-op completions => effective_attempts trips max_repeats,
+    # but the only "failure" is an interruption, so the bypass should still apply.
+    monkeypatch.setattr(
+        runs_autodrive.db, "get_jobs",
+        lambda **_k: [
+            {"id": 30, "status": "interrupted", "queue_payload": payload},
+            {"id": 31, "status": "completed", "queue_payload": payload},
+            {"id": 32, "status": "completed", "queue_payload": payload},
+        ],
+    )
+    monkeypatch.setattr(
+        runs_autodrive.db, "scope_has_unattempted_phase_work", lambda *_a, **_k: True
+    )
+    monkeypatch.setattr(
+        runs_autodrive, "_enqueue_auto_bucket", lambda *_a, **_k: (42, 1, None)
+    )
+
+    result = runs_autodrive.auto_drive_runs(dry_run=False, max_repeats=2)
+
+    assert result["loop_detected"] == 0
+    assert len(result["scheduled"]) == 1
+
+
+def test_loop_guard_bypass_checks_all_phase_values_not_just_first(monkeypatch):
+    """Un-attempted work in a later phase must trigger the bypass when the first phase is a no-op.
+
+    Regression: the bypass only probed ``phase_values[0]`` (e.g. ``metadata``, whose data is
+    already present), so it missed real never-attempted ``scoring`` work further down the plan.
+    """
+    monkeypatch.setattr(
+        runs_autodrive, "build_folder_buckets_for_autodrive", _bird_folder_buckets(40.0)
+    )
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda _path: ("/mnt/d/Photos/bird-folder", ["/mnt/d/Photos/bird-folder"]),
+    )
+    # Plan has a no-op first phase (metadata) and real work later (scoring).
+    monkeypatch.setattr(
+        runs_autodrive,
+        "phases_with_work_from_repair_plan",
+        lambda *_a, **_k: ["metadata", "scoring"],
+    )
+    plan_key = runs_autodrive._plan_key(
+        "/mnt/d/Photos/bird-folder", ["metadata", "scoring"]
+    )
+    payload = json.dumps({
+        "tool_id": "runs_auto_drive",
+        "auto_drive_plan_key": plan_key,
+        "auto_drive_overall_percent": 40.0,
+    })
+    monkeypatch.setattr(
+        runs_autodrive.db, "get_jobs",
+        lambda **_k: [
+            {"id": 40, "status": "completed", "queue_payload": payload},
+            {"id": 41, "status": "completed", "queue_payload": payload},
+        ],
+    )
+    # Only the non-first phase (scoring) has un-attempted work.
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "scope_has_unattempted_phase_work",
+        lambda _resolved, phase, *_a, **_k: phase == "scoring",
+    )
+    monkeypatch.setattr(
+        runs_autodrive, "_enqueue_auto_bucket", lambda *_a, **_k: (42, 1, None)
+    )
+
+    result = runs_autodrive.auto_drive_runs(dry_run=False, max_repeats=2)
+
+    assert result["loop_detected"] == 0
+    assert len(result["scheduled"]) == 1
+
+
 def test_retry_unattempted_on_loop_config(monkeypatch):
     monkeypatch.setattr(
         "modules.config.get_config_value",

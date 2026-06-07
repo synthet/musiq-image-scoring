@@ -104,14 +104,25 @@ Local pointers (not authoritative): [design/DESIGN_SYSTEM.md](../design/DESIGN_S
 
 ## 🔍 Troubleshooting with MCP
 
-Agents use MCP against the Python backend: **`is-be-mcp`** (`search` / `dispatch`) in **image-scoring-backend**; **`is-ui-*`** in **image-scoring-gallery**. For WebUI / **`execute_code`**, enable **`is-be-webui`**. Use these to diagnose cross-project issues:
+Agents use the same **`search` → `dispatch`** workflow on both repos:
 
-| Tool | Usage in Coordination |
-|------|------------------------|
-| `get_recent_jobs` | Verify if a job triggered by the gallery actually started in the backend. |
-| `check_database_health` | Diagnose if data inconsistencies are due to backend pipeline failures. |
-| `query_images` | Compare CLI/DB output with UI results to locate bugs in the query layer. |
-| `get_runner_status` | Check if background workers (scoring/tagging) are alive. |
+| Repo | Default MCP | Notes |
+|------|-------------|-------|
+| **image-scoring-backend** | **`is-be-mcp`** (stdio), optional **`is-be-webui`** (SSE) | Action registry in `mcp/action_registry.json` |
+| **image-scoring-gallery** | **`is-ui-mcp`** (stdio), optional **`is-ui-live`** (SSE) | Action registry in `mcp-server/action_registry.json` |
+
+For legacy raw tools not yet in the registry, set **`MCP_SSE_PROFILE=full`** on the backend WebUI process. For **`execute_code`**, use full SSE profile with **`ENABLE_MCP_EXECUTE_CODE=1`**.
+
+Example backend dispatch for cross-project checks:
+
+| action_id | Usage in coordination |
+|-----------|----------------------|
+| `jobs.get_recent_jobs` | Verify if a job triggered by the gallery actually started in the backend. |
+| `diagnostics.check_database_health` | Diagnose if data inconsistencies are due to backend pipeline failures. |
+| `data.query_images` | Compare CLI/DB output with UI results to locate bugs in the query layer. |
+| `jobs.get_runner_status` | Check if background workers (scoring/tagging) are alive. |
+
+Gallery examples: `search("gallery status")` → `dispatch("local.gallery_status", {})`; `search("backend health")` → `dispatch("api.api_health", {})`.
 
 ## 📚 Maintenance
 

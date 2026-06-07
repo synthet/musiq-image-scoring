@@ -134,3 +134,39 @@ def test_dispatch_side_effect_not_in_allowlist_even_if_dispatch_enabled():
         result = dispatch_action("maintenance.prune_missing_files", {}, confirmed=True)
     assert result.get("status") == "error"
     assert result.get("code") == "policy_rejected"
+
+
+def test_dispatch_get_runner_status_mocked():
+    with patch("modules.mcp_server.get_runner_status", return_value={"scoring": "idle"}) as mock_fn:
+        result = dispatch_action("jobs.get_runner_status", {})
+    assert result.get("status") == "success"
+    assert result.get("data") == {"scoring": "idle"}
+    mock_fn.assert_called_once()
+
+
+def test_dispatch_get_recent_jobs_mocked():
+    with patch("modules.mcp_server.get_recent_jobs", return_value=[{"id": 1}]) as mock_fn:
+        result = dispatch_action("jobs.get_recent_jobs", {"limit": 5})
+    assert result.get("status") == "success"
+    mock_fn.assert_called_once_with(limit=5)
+
+
+def test_dispatch_get_job_details_mocked():
+    with patch("modules.mcp_server.get_job_details", return_value={"id": 42}) as mock_fn:
+        result = dispatch_action("jobs.get_job_details", {"job_id": 42})
+    assert result.get("status") == "success"
+    mock_fn.assert_called_once_with(42)
+
+
+def test_dispatch_query_images_mocked():
+    with patch("modules.mcp_server.query_images", return_value={"images": []}) as mock_fn:
+        result = dispatch_action("data.query_images", {"limit": 3, "folder_path": "/photos"})
+    assert result.get("status") == "success"
+    mock_fn.assert_called_once_with(limit=3, folder_path="/photos")
+
+
+def test_dispatch_get_image_details_mocked():
+    with patch("modules.mcp_server.get_image_details", return_value={"file_path": "/a.jpg"}) as mock_fn:
+        result = dispatch_action("data.get_image_details", {"file_path": "/a.jpg"})
+    assert result.get("status") == "success"
+    mock_fn.assert_called_once_with(file_path="/a.jpg")
