@@ -74,9 +74,11 @@ dispatch(
 
 ### Error envelope
 
-`status: "error"`, `code` (`unknown_action`, `validation_error`, `policy_rejected`, …), `message`, `request_id`.
+`status: "error"`, `code` (`unknown_action`, `validation_error`, `policy_rejected`, `confirmation_required`, `unsupported_dry_run`, …), `message`, `request_id`.
 
-## PR1 dispatchable actions
+## Dispatchable actions
+
+### Read-only (PR1)
 
 | action_id | Example arguments |
 |-----------|-----------------|
@@ -94,6 +96,12 @@ dispatch(
 | `jobs.get_failed_images` | `{"limit": 20}` |
 | `jobs.get_run_diagnostics` | `{"run_id": 123}` |
 | `data.get_embedding_stats` | `{}` |
+
+### Side-effecting (confirmation required)
+
+| action_id | Example arguments | Notes |
+|-----------|-------------------|-------|
+| `support.export_debug_bundle` | `{"confirmed": true}` via dispatch | Writes redacted zip; `output_path` optional (`.zip` only); returns metadata + `review_reminder` |
 
 ## Legacy tool mapping
 
@@ -129,9 +137,19 @@ dispatch("diagnostics.validate_config", {})
 dispatch("diagnostics.run_doctor", {"no_gpu": true})
 ```
 
-### Unsupported in PR1
+### Export debug bundle (writes_files)
 
-Writes, `execute_sql`, debug bundle export, and thumbnail generation should return **`low_confidence: true`**.
+```text
+search("export debug bundle")
+dispatch("support.export_debug_bundle", {}, confirmed=True)
+# optional: {"output_path": "exports/debug-bundles/my-bundle.zip"}
+```
+
+Review the zip before sharing. `secrets.json` is never included.
+
+### Still unsupported via compact dispatch
+
+`execute_sql`, `execute_code`, maintenance writes/jobs, and other side-effecting actions unless listed above and in `ALLOWED_SIDE_EFFECT_ACTIONS`.
 
 ## Vocabulary (do not use)
 

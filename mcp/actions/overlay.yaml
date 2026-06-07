@@ -481,3 +481,38 @@ actions:
       module: modules.mcp_server
       function: get_embedding_stats
     legacy_tool_name: get_embedding_stats
+
+  support.export_debug_bundle:
+    title: Export redacted debug bundle
+    description: Write a redacted support zip (config, environment, doctor JSON, log tails). Same as scripts/export_debug_bundle.py.
+    category: support
+    tags: [support, diagnostics, bundle, export]
+    aliases: [export debug bundle, support zip, debug bundle]
+    intent_examples:
+      - export debug bundle
+      - create support zip
+      - redacted diagnostics bundle
+    side_effect_level: writes_files
+    confirmation_required: true
+    dry_run_supported: false
+    dispatch_enabled: true
+    review_required: true
+    compact_profile_exposure: true
+    version: 1
+    deprecated: false
+    canonical_docs: [docs/DIAGNOSTICS.md]
+    api_contract_refs: []
+    auth_or_policy_requirements: []
+    input_schema:
+      type: object
+      properties:
+        output_path:
+          type: string
+          description: Optional absolute or repo-relative .zip path; default exports/debug-bundles/
+      additionalProperties: false
+    canonical_backend_handler:
+      kind: python_function
+      module: modules.debug_bundle_export
+      function: write_redacted_debug_bundle
+    legacy_tool_name: export_debug_bundle
+    test_refs: [tests/test_mcp_dispatch.py::test_dispatch_export_debug_bundle_confirmed]

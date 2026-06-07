@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 from modules.mcp.actions.envelope import dry_run_envelope, success_envelope
-from modules.mcp.actions.errors import McpActionError
+from modules.mcp.actions.errors import McpActionError, ValidationError
 from modules.mcp.actions.handlers import invoke_handler
+from modules.mcp.actions.path_safety import validate_debug_bundle_output_path
 from modules.mcp.actions.policy import (
     check_dispatchable,
     check_side_effect_policy,
@@ -28,6 +30,54 @@ def _sanitize(data: Any) -> Any:
         return _sanitize_for_mcp(data)
     except Exception:
         return data
+
+
+_REVIEW_REMINDER = (
+    "Review the zip before sharing. secrets.json is excluded. See docs/DIAGNOSTICS.md."
+)
+
+
+def _dispatch_export_debug_bundle(
+    record: dict[str, Any],
+    validated: dict[str, Any],
+    *,
+    request_id: str,
+    warnings: list[str],
+) -> dict[str, Any]:
+    from modules.debug_bundle_export import write_redacted_debug_bundle
+
+    output_path = validated.get("output_path")
+    if output_path is not None and not isinstance(output_path, str):
+        raise ValidationError("output_path must be a string", details={"field": "output_path"})
+
+    resolved = validate_debug_bundle_output_path(
+        output_path if isinstance(output_path, str) else None,
+    )
+    raw = write_redacted_debug_bundle(output_zip=resolved)
+    if not raw.get("success"):
+        raise McpActionError(
+            str(raw.get("error") or "export failed"),
+            details={"path": raw.get("path")},
+        )
+
+    zip_path = Path(str(raw["path"])).resolve()
+    size_bytes = zip_path.stat().st_size if zip_path.is_file() else 0
+    data = {
+        "artifact": {
+            "kind": "debug_bundle",
+            "path": str(zip_path),
+            "size_bytes": size_bytes,
+        }
+    }
+    return success_envelope(
+        record,
+        request_id=request_id,
+        data=data,
+        summary="Redacted debug bundle written.",
+        dry_run=False,
+        warnings=warnings,
+        review_reminder=_REVIEW_REMINDER,
+    )
 
 
 def dispatch_action(
@@ -61,6 +111,9 @@ def dispatch_action(
                 validated_args=validated,
                 warnings=warnings + ["dry_run has no effect for read-only actions"],
             )
+
+        if action_id == "support.export_debug_bundle":
+            return _dispatch_export_debug_bundle(record, validated, request_id=rid, warnings=warnings)
 
         raw = invoke_handler(record, validated)
         data = _sanitize(raw)

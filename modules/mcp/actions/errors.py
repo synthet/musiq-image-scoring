@@ -38,6 +38,14 @@ class PolicyError(McpActionError):
     code = "policy_rejected"
 
 
+class ConfirmationRequiredError(McpActionError):
+    code = "confirmation_required"
+
+
+class UnsupportedDryRunError(McpActionError):
+    code = "unsupported_dry_run"
+
+
 class ValidationError(McpActionError):
     code = "validation_error"
 
