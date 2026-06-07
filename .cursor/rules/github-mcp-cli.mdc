@@ -1,0 +1,50 @@
+---
+description: Use GitHub MCP tools and gh CLI for issues, PRs, branches, and repo operations
+alwaysApply: true
+---
+
+# GitHub MCP and CLI
+
+When the user asks about **GitHub operations** (issues, pull requests, branches, repositories, users), prefer these tools in order:
+
+## 1. GitHub MCP (preferred)
+
+The GitHub MCP server (`github` or `user-github`) is configured at `https://api.githubcopilot.com/mcp/`. Use `call_mcp_tool` with server `github` (or `user-github` if that is the configured name).
+
+**Before calling**: Check the tool schema/descriptor for required parameters (e.g. in `mcps/<server>/tools/` if available).
+
+**Common MCP skills** (from [GitHub Copilot cheat sheet](https://docs.github.com/en/copilot/reference/github-copilot-chat-cheat-sheet#mcp-skills)):
+
+| Skill | Use for |
+|-------|---------|
+| `create_branch` | Create branch in owner/repo |
+| `create_or_update_file` | Add/update file on a branch |
+| `push_files` | Push files to a branch |
+| `update_pull_request_branch` | Update PR branch with base |
+| `merge_pull_request` | Merge a PR |
+| `get_me` | Current user info |
+| `search_users` | Find users by name |
+
+Plus: create issues, list PRs, retrieve repo info (exact tool names may vary; check schema).
+
+## 2. GitHub CLI (`gh`) — fallback
+
+When MCP is unavailable or for local/terminal workflows, use [GitHub CLI](https://cli.github.com/):
+
+```bash
+gh issue list          # List issues
+gh pr status           # PR status for current branch
+gh pr create           # Create PR
+gh pr checkout <n>     # Checkout PR branch
+gh repo view           # View repo README
+gh release create      # Create release
+```
+
+## Quick decision
+
+| Task | Prefer |
+|------|--------|
+| Create/merge PR, create branch, push files | GitHub MCP |
+| List issues/PRs, search users, get repo info | GitHub MCP |
+| Local git + GitHub (checkout PR, status) | `gh` CLI |
+| MCP not responding | `gh` CLI |

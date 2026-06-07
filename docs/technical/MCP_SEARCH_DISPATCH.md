@@ -6,9 +6,10 @@
 
 | Server | Tools | Use |
 |--------|-------|-----|
-| **`is-be-mcp`** | **`search`**, **`dispatch`** | **New agents** — compact, stable surface |
-| **`is-be-router`** | `search`, `dispatch`, deprecated `be_find`, `be_card`, `be_domains` | Legacy agents |
-| **`is-be-diag`**, **`is-be-jobs`**, **`is-be-data`** | Legacy per-operation tools | Debug / compatibility only |
+| **`is-be-mcp`** | **`search`**, **`dispatch`** | **Default** — compact, stable surface |
+| **`is-be-webui`** | All legacy MCP tools | SSE when WebUI is running; tools not yet on compact dispatch |
+
+Copy [`.cursor/mcp.example.json`](../../.cursor/mcp.example.json) → `.cursor/mcp.json`. Legacy profile stdio servers (`is-be-diag`, `is-be-jobs`, `is-be-data`, `is-be-router`, `is-be-full`) are **not** in the default config — use compact dispatch or **`is-be-webui`**.
 
 ## Workflow
 
@@ -113,7 +114,7 @@ dispatch(
 
 ## Common agent workflows
 
-Attach **`is-be-mcp`**, then **`search`** → **`dispatch`**. If `low_confidence` is true, refine the query or use a legacy domain server.
+Attach **`is-be-mcp`**, then **`search`** → **`dispatch`**. If `low_confidence` is true, refine the query. For tools not in the action registry, use **`is-be-webui`** (SSE).
 
 ### Scoring failure triage
 

@@ -1,0 +1,4 @@
+{
+  "_comment": "User-level ~/.cursor/mcp.json only — cross-repo tools (github, subagent-orchestrator). Do NOT duplicate is-be-* / is-ui-* here; use each repo's .cursor/mcp.example.json → mcp.json.",
+  "mcpServers": {}
+}

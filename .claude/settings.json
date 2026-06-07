@@ -3,7 +3,6 @@
     "allow": [
       "mcp__is-be-mcp__search",
       "mcp__is-be-mcp__dispatch",
-      "mcp__is-be-diag__check_database_health",
       "Read(//d/Projects/image-scoring-backend/modules/*.py)",
       "Read(<ELECTRON_IMAGE_SCORING_PATH>/**)",
       "Read(<ELECTRON_IMAGE_SCORING_PATH>/mcp-server/**)",
@@ -51,10 +50,6 @@
   },
   "enabledMcpjsonServers": [
     "is-be-mcp",
-    "is-be-router",
-    "is-be-diag",
-    "is-be-jobs",
-    "is-be-data",
     "is-be-webui"
   ],
   "disabledMcpjsonServers": [

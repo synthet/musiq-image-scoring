@@ -1,0 +1,28 @@
+---
+description: Conventions for maintaining docs/ as a wiki — categories, indexes, log, cross-references
+globs: "docs/**"
+alwaysApply: false
+---
+
+# Documentation wiki (image-scoring-backend)
+
+Applies when creating, renaming, or reorganizing files under `docs/`.
+
+## Categories
+
+| Folder | Use for |
+|--------|---------|
+| `docs/architecture/` | System overview, pipeline diagrams, DB connector proposals |
+| `docs/guides/` | How-tos (`getting-started/`, `setup/`) |
+| `docs/features/planned/` | Specs for not-yet-shipped product work (including `embeddings/`) |
+| `docs/planning/` | Migrations, schema phases, refactors, model roadmaps |
+| `docs/technical/` | Stable reference; keep `UPPER_CASE.md` names unless a deliberate rename |
+| `docs/reports/` | Point-in-time audits; move stale snapshots to `docs/archive/reports/` |
+| `docs/archive/` | Deprecated or superseded material |
+
+## Rules
+
+- Start agents from `docs/CANONICAL_SOURCES.md` and `docs/WIKI_SCHEMA.md`.
+- Use **relative** markdown links; cross-repo links to **image-scoring-gallery** use full GitHub URLs when needed.
+- After moves: update folder `INDEX.md`, root `docs/INDEX.md`, and `docs/README.md` when the hub changes.
+- Append one line to `docs/log.md` for significant wiki operations (see `WIKI_SCHEMA.md`).

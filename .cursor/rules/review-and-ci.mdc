@@ -1,0 +1,21 @@
+---
+description: PR hygiene, CI interpretation, and merge readiness
+globs: "**/.github/**"
+alwaysApply: false
+---
+
+# Review and CI
+
+## Pull requests
+
+- PR descriptions should state **what** changed and **why**, not only the diff.
+- Call out **breaking changes**, migrations, and config/env updates explicitly.
+
+## CI
+
+- If CI fails, use logs to **fix root cause**; avoid disabling checks without explicit user approval.
+- When adding workflows, keep them **minimal** and cache-friendly; document required secrets in README or AGENTS.md.
+
+## Security
+
+- Do not bypass review or security steps for convenience; flag dependency or permission escalations clearly.

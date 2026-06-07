@@ -1,0 +1,16 @@
+{
+  "_comment": "Copy to .cursor/mcp.json (gitignored). User ~/.cursor/mcp.json should NOT duplicate is-be-* / is-ui-* servers.",
+  "mcpServers": {
+    "is-be-mcp": {
+      "command": "cmd",
+      "args": ["/c", "scripts\\batch\\run_mcp_compact_windows.bat"],
+      "cwd": "${workspaceFolder}"
+    },
+    "is-be-webui": {
+      "url": "http://127.0.0.1:7860/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer ${env:IMGSCORE_MCP_TOKEN}"
+      }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+---
+description: Tests use only scoring_history_test.fdb; never production SCORING_HISTORY.FDB
+globs: tests/**/*
+alwaysApply: false
+---
+
+# Test database: scoring_history_test.fdb only
+
+When running or writing tests:
+
+- **Use only** the test database file **`scoring_history_test.fdb`** (project root).
+- **Never** use or reference the production database **`SCORING_HISTORY.FDB`** (or `scoring_history.fdb`) in test code, fixtures, or test config.
+
+## PostgreSQL (pytest)
+
+- **Test database name**: **`image_scoring_test`** (constant `POSTGRES_TEST_DB` in [`modules/test_db_constants.py`](../../modules/test_db_constants.py)).
+- **Enforcement**: While pytest is active, [`modules/db_postgres.py`](../../modules/db_postgres.py) `get_pg_config()` **always** uses `image_scoring_test` as the database name. **`POSTGRES_DB`**, **`database.postgres.dbname`**, and Docker’s `POSTGRES_DB` are ignored for the effective target (so tests cannot accidentally truncate another database).
+- **Escape hatch** (dangerous, rare): set **`IMAGE_SCORING_POSTGRES_PRODUCTION_IN_PYTEST=1`** and **`IMAGE_SCORING_I_ACCEPT_PRODUCTION_PYTEST_RISK=1`** so pytest uses the normal `POSTGRES_DB` / config dbname resolution. `truncate_app_tables()` still allows non-test DBs only when both are set.
+- **`tests/conftest.py`**: `pytest_sessionstart` ensures `image_scoring_test` exists when `database.engine` resolves to `postgres` (unless both escape vars are set).
+- **Do not** name a production PostgreSQL database `image_scoring_test` on a host where you run this suite (naming collision).
+
+## How it’s enforced
+
+- **`modules/db.py`**: Under pytest, `DB_FILE` is always set to `scoring_history_test.fdb` (config is ignored for the filename). Connecting to a file whose basename is production `scoring_history.fdb` is refused during pytest.
+- **`scripts/setup_test_db.py`**: Does not read or copy from production. It only creates or wipes `scoring_history_test.fdb` (creates from schema if missing, or clears tables if it exists).
+
+## Do not
+
+- Point test config or env at `SCORING_HISTORY.FDB` or `scoring_history.fdb`.
+- Copy from production DB in test setup; use `scoring_history_test.fdb` only.
+- Run pytest with a config that sets database filename to the production file.
