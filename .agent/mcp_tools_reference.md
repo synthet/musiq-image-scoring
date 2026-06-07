@@ -4,7 +4,7 @@ This document tracks the tools registered in [`modules/mcp_server.py`](../module
 
 ## Connection modes
 
-- **Backend:** **`is-be-mcp`** (preferred), **`is-be-diag`**, **`is-be-jobs`**, **`is-be-data`**, **`is-be-webui`**, optional **`is-be-pg`** — see [`.cursor/mcp.pair.example.json`](../.cursor/mcp.pair.example.json)
+- **Backend:** **`is-be-mcp`** (default), optional **`is-be-webui`** (SSE) — copy [`.cursor/mcp.example.json`](../.cursor/mcp.example.json) → `.cursor/mcp.json`
 - **Gallery (sibling repo):** **`is-ui-router`**, **`is-ui-local`**, **`is-ui-api`**, **`is-ui-live`** — see gallery `mcp.example.json`
 - **`execute_code`**: requires **`is-be-webui`** and `ENABLE_MCP_EXECUTE_CODE=1` on the WebUI process.
 

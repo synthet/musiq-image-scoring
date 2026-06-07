@@ -1,0 +1,34 @@
+{
+  "_comment": "Multi-root: copy backend block into image-scoring-backend/.cursor/mcp.json and gallery block into image-scoring-gallery/.cursor/mcp.json (both gitignored; use mcp.example.json in each repo). User ~/.cursor/mcp.json: github, subagent-orchestrator only — not is-be-* / is-ui-*.",
+  "mcpServers": {
+    "is-be-mcp": {
+      "command": "cmd",
+      "args": ["/c", "scripts\\batch\\run_mcp_compact_windows.bat"],
+      "cwd": "${workspaceFolder}"
+    },
+    "is-be-webui": {
+      "url": "http://127.0.0.1:7860/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer ${env:IMGSCORE_MCP_TOKEN}"
+      }
+    },
+    "is-ui-router": {
+      "command": "node",
+      "args": ["${workspaceFolder}/mcp-server/dist/routerIndex.js"]
+    },
+    "is-ui-local": {
+      "command": "node",
+      "args": ["${workspaceFolder}/mcp-server/dist/localIndex.js"]
+    },
+    "is-ui-api": {
+      "command": "node",
+      "args": ["${workspaceFolder}/mcp-server/dist/apiIndex.js"]
+    },
+    "is-ui-live": {
+      "url": "http://127.0.0.1:9373/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer ${env:GALLERY_MCP_TOKEN}"
+      }
+    }
+  }
+}

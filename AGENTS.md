@@ -39,45 +39,47 @@ For [OWASP Agentic Skills Top 10](https://github.com/kenhuangus/agentic-skills-t
 
 ## MCP servers (Vexlum Scoring)
 
-Domain-split MCP with compact **search + dispatch**. **Naming:** `is-` = image scoring; **`is-be-*`** = backend; **`is-ui-*`** = gallery. User `~/.cursor/mcp.json`: cross-repo tools only — **not** `is-be-*` / `is-ui-*`.
+Compact **search + dispatch** is the default agent surface. **Naming:** `is-` = image scoring; **`is-be-*`** = backend; **`is-ui-*`** = gallery. User `~/.cursor/mcp.json`: cross-repo tools only — **not** `is-be-*` / `is-ui-*`.
 
 **Canonical contract:** [docs/technical/MCP_SEARCH_DISPATCH.md](docs/technical/MCP_SEARCH_DISPATCH.md)
 
-### Compact-first (new agents)
+### Setup
 
-1. Attach **`is-be-mcp`** (stdio)
-2. **`search(query)`** → pick `action_id`
-3. **`dispatch(action_id, arguments)`**
+1. Copy [`.cursor/mcp.example.json`](.cursor/mcp.example.json) → `.cursor/mcp.json` (gitignored).
+2. Attach **`is-be-mcp`** (stdio) — **`search`**, **`dispatch`** only.
+3. Optional **`is-be-webui`** (SSE) when WebUI is running.
 
-Legacy: **`is-be-router`** exposes `search`/`dispatch` plus deprecated **`be_find`** / **`be_card`** / **`be_domains`**. Domain servers (`is-be-diag`, …) remain for compatibility/debug.
+Templates: [`.cursor/mcp.pair.example.json`](.cursor/mcp.pair.example.json) (multi-root), gallery [`.cursor/mcp.example.json`](https://github.com/synthet/image-scoring-gallery/blob/main/.cursor/mcp.example.json).
 
-### Backend ([`.cursor/mcp.json`](.cursor/mcp.json))
+### Workflow
 
-| Cursor server key | Profile | Transport | Tools / notes |
-|-------------------|---------|-----------|---------------|
-| **`is-be-mcp`** | compact | stdio | **`search`**, **`dispatch`** — **preferred** |
-| **`is-be-router`** | router | stdio | `search`, `dispatch`, deprecated `be_*` |
-| **`is-be-diag`** | diagnostics | stdio | Legacy tools (debug) |
-| **`is-be-jobs`** | jobs | stdio | Legacy tools (debug) |
-| **`is-be-data`** | data | stdio | Legacy tools (debug) |
-| **`is-be-maint`** | maintenance | stdio | Disabled in project mcp.json |
-| **`is-be-webui`** | full | SSE | Live WebUI; `execute_code` when enabled |
-| **`is-be-full`** | full | stdio | Legacy; disabled |
-| **`is-be-pg`** | — | stdio | Postgres toolbox; disabled |
+```text
+search("why did scoring fail")
+dispatch("diagnostics.get_error_summary", {})
+dispatch("jobs.get_failed_images", {"limit": 20})
+```
+
+Side-effecting dispatch (e.g. **`support.export_debug_bundle`**) requires **`confirmed=True`** and is gated by `ALLOWED_SIDE_EFFECT_ACTIONS` in code.
+
+### Backend server keys (default config)
+
+| Cursor server key | Transport | Tools / notes |
+|-------------------|-----------|---------------|
+| **`is-be-mcp`** | stdio | **`search`**, **`dispatch`** — **use this** |
+| **`is-be-webui`** | SSE | Live WebUI; all legacy tools; `execute_code` when `ENABLE_MCP_EXECUTE_CODE=1` |
+
+**Debug-only (not in default mcp.json):** `scripts/batch/run_mcp_server_windows.bat` with `MCP_TOOL_PROFILE=diagnostics|jobs|data|maintenance|full`.
 
 ### Gallery (sibling repo)
 
 | Cursor server key | Transport | Requires running app? |
 |-------------------|-----------|------------------------|
-| **`is-ui-router`** | stdio | No |
-| **`is-ui-local`** | stdio | No |
+| **`is-ui-router`** | stdio | No — `ui_find` discovery |
+| **`is-ui-local`** | stdio | No — logs, config, `gallery_status` |
 | **`is-ui-api`** | stdio | Backend WebUI for `api_*` |
 | **`is-ui-live`** | SSE | Yes — Electron dev / `ENABLE_GALLERY_MCP_SSE` |
-| **`is-ui-full`** | stdio | Legacy local+api (disabled) |
 
-Example templates: [`.cursor/mcp.pair.example.json`](.cursor/mcp.pair.example.json) (backend), gallery [`.cursor/mcp.pair.example.json`](https://github.com/synthet/image-scoring-gallery/blob/main/.cursor/mcp.pair.example.json).
-
-**Legacy MCP keys:** remove obsolete server names from user `~/.cursor/mcp.json`; use **`is-be-*`** (backend) and **`is-ui-*`** (gallery) from each repo's `mcp.example.json` / `.cursor/mcp.json`.
+**Legacy MCP keys:** remove obsolete server names from user `~/.cursor/mcp.json`; use **`is-be-*`** / **`is-ui-*`** from each repo's `mcp.example.json`.
 
 For backend WebUI SSE, start the WebUI first (`run_webui.bat`). Confirm URL with **`GET /mcp-status`** → `expected_sse_url`. For **`execute_code`**, set **`ENABLE_MCP_EXECUTE_CODE=1`** on **`is-be-webui`**. Gallery live port: **`gallery-mcp.lock`** (default `9373`).
 
@@ -274,13 +276,13 @@ The MCP server registers **53** tools (see [`modules/mcp_server.py`](modules/mcp
 → `dispatch("diagnostics.check_database_health", {})` → `dispatch("diagnostics.validate_config", {})`
 
 **"How fast is processing?"**
-→ Legacy **`is-be-jobs`**: `get_performance_metrics` → `get_runner_status` → `get_pipeline_stats`
+→ **`is-be-webui`**: `get_performance_metrics` → `get_runner_status` → `get_pipeline_stats` (not yet compact dispatch)
 
 **"Find images with X property"**
-→ Legacy **`is-be-data`**: `query_images` with filters → `get_image_details` for specifics
+→ **`is-be-webui`**: `query_images` with filters → `get_image_details` (not yet compact dispatch)
 
 **"What's in the database?"**
-→ Legacy **`is-be-data`**: `get_database_stats` → `get_folder_tree` → `get_stacks_summary`
+→ **`is-be-webui`**: `get_database_stats` → `get_folder_tree` → `get_stacks_summary` (not yet compact dispatch)
 
 ## Git Configuration — Do Not Modify
 

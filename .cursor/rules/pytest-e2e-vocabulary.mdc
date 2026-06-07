@@ -1,0 +1,16 @@
+---
+description: Map user phrases ("E2E", "docker E2E") to pytest suites in image-scoring-backend
+alwaysApply: true
+---
+
+# Pytest E2E vocabulary (`image-scoring-backend`)
+
+When the user asks to run **E2E tests**, do **not** assume one suite. Two different E2E stacks exist:
+
+| They mean (keywords) | Suite | Location | Command hint |
+|----------------------|-------|----------|----------------|
+| **Postgres / API / integration E2E**, runs-submit matrix | Postgres API E2E | `tests/integration/*_e2e.py` | `pytest … -m postgres` or `RUN_POSTGRES_TESTS=1` |
+| **Docker / inference / GPU container E2E** | Docker inference E2E | `tests/e2e_docker/` | `IMAGE_SCORING_DOCKER_INFERENCE_E2E=1` inside CUDA compose; `docker compose --profile e2e-inference run --rm inference-e2e` |
+
+- **“E2e unit tests”** is ambiguous: clarify **Postgres API E2E** vs **ordinary unit tests** (fast marker subset).
+- Canonical table and full commands: **`AGENTS.md`** section **Pytest E2E vocabulary (agents)**.

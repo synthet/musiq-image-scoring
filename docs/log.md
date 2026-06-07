@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-07] chore | Finalize compact MCP config (is-be-mcp only)
+
+Default project MCP config is **`is-be-mcp`** + optional **`is-be-webui`**. Added [`.cursor/mcp.example.json`](../.cursor/mcp.example.json); legacy profile servers removed from templates. Track `.cursor/` rules/skills in git (operator-local `.cursor/mcp.json` gitignored).
+
 ## [2026-06-06] feature | MCP support.export_debug_bundle dispatch
 
 First side-effecting compact action: `support.export_debug_bundle` with code allowlist, path safety, `confirmation_required`, and metadata-only response ([technical/MCP_SEARCH_DISPATCH.md](technical/MCP_SEARCH_DISPATCH.md)).
