@@ -4276,6 +4276,27 @@ def get_folder_by_id(folder_id):
     return row["path"] if row else None
 
 
+def get_folder_detail_by_id(folder_id):
+    """Return folder row with live image_count, or None if missing."""
+    row = get_connector().query_one(
+        """
+        SELECT
+            f.id,
+            f.path,
+            f.parent_id,
+            f.is_fully_scored,
+            f.created_at,
+            COUNT(i.id) AS image_count
+        FROM folders f
+        LEFT JOIN images i ON i.folder_id = f.id
+        WHERE f.id = ?
+        GROUP BY f.id, f.path, f.parent_id, f.is_fully_scored, f.created_at
+        """,
+        (folder_id,),
+    )
+    return dict(row) if row else None
+
+
 def find_image_id_by_path(file_path):
     """Returns image id if exists by file_path, else None."""
     row = get_connector().query_one("SELECT id FROM images WHERE file_path = ?", (file_path,))

@@ -437,6 +437,33 @@ def test_folders_returns_list_and_count(monkeypatch):
     assert data["folders"][0]["folder_path"] == "/photos/2024"
 
 
+def test_folder_by_id_returns_detail(monkeypatch):
+    stub = {
+        "id": 7,
+        "path": "/photos/2024",
+        "parent_id": None,
+        "is_fully_scored": 0,
+        "created_at": None,
+        "image_count": 42,
+    }
+    monkeypatch.setattr(db, "get_folder_detail_by_id", lambda fid: stub if fid == 7 else None)
+    with _build_client() as client:
+        response = client.get("/api/folders/7")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == 7
+    assert data["path"] == "/photos/2024"
+    assert data["image_count"] == 42
+    assert data["is_fully_scored"] is False
+
+
+def test_folder_by_id_not_found(monkeypatch):
+    monkeypatch.setattr(db, "get_folder_detail_by_id", lambda _fid: None)
+    with _build_client() as client:
+        response = client.get("/api/folders/999999")
+    assert response.status_code == 404
+
+
 def test_folders_rebuild_calls_rebuild_and_returns_folders(monkeypatch):
     rebuilt = []
     monkeypatch.setattr(db, "rebuild_folder_cache", lambda: rebuilt.append(True))

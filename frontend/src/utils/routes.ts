@@ -2,6 +2,16 @@ export function imageInspectorPath(id: string | number): string {
   return `/images/${id}`
 }
 
+export function folderPath(id: string | number): string {
+  const parsed = parsePositiveImageId(id)
+  return parsed != null ? `/folder/${parsed}` : '/images'
+}
+
+export function stackPath(id: string | number): string {
+  const parsed = parsePositiveImageId(id)
+  return parsed != null ? `/stacks/${parsed}` : '/images'
+}
+
 export function dbExplorerPath(tableName?: string | null): string {
   if (!tableName) return '/db'
   return `/db/${encodeURIComponent(tableName)}`

@@ -9,6 +9,8 @@ import { LogsPage } from '@/pages/LogsPage'
 import { ImagesPage } from '@/pages/ImagesPage'
 import { ImageInspectorPage } from '@/pages/ImageInspectorPage'
 import { GeoMapPage } from '@/pages/GeoMapPage'
+import { FolderPage } from '@/pages/FolderPage'
+import { StackPage } from '@/pages/StackPage'
 import { EmbeddingAtlasPage } from '@/features/embedding-atlas/pages/EmbeddingAtlasPage'
 import { DbPage } from '@/pages/DbPage'
 import { ScopeSelector } from '@/components/scope/ScopeSelector'
@@ -49,6 +51,8 @@ export default function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/images" element={<ImagesPage />} />
             <Route path="/images/:imageId" element={<ImageInspectorPage />} />
+            <Route path="/folder/:folderId" element={<FolderPage />} />
+            <Route path="/stacks/:stackId" element={<StackPage />} />
             <Route path="/embeddings" element={<ProtectedAtlasRoute />} />
             <Route path="/db" element={<ProtectedDbRoute />} />
             <Route path="/db/:tableName" element={<ProtectedDbRoute />} />

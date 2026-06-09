@@ -1,6 +1,8 @@
+import { Link } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { Layers } from 'lucide-react'
+import { ExternalLink, Layers } from 'lucide-react'
 import { previewSrc, type CullingStack } from '../api/culling'
+import { stackPath } from '@/utils/routes'
 
 interface StackCardProps {
   stack: CullingStack
@@ -46,9 +48,20 @@ export function StackCard({ stack, active, onSelect, onOpenLoupe }: StackCardPro
       </div>
       <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs">
         <span className="truncate text-text-primary">{stack.name ?? `Stack ${stack.id}`}</span>
-        {stack.sort_val != null && Number.isFinite(stack.sort_val) && (
-          <span className="tabular-nums text-text-muted">{Math.round(stack.sort_val * 100)}%</span>
-        )}
+        <span className="flex items-center gap-1 shrink-0">
+          {stack.sort_val != null && Number.isFinite(stack.sort_val) && (
+            <span className="tabular-nums text-text-muted">{Math.round(stack.sort_val * 100)}%</span>
+          )}
+          <Link
+            to={stackPath(stack.id)}
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            className="text-text-muted hover:text-accent transition-colors"
+            title={`Open stack #${stack.id}`}
+          >
+            <ExternalLink size={12} />
+          </Link>
+        </span>
       </div>
     </button>
   )

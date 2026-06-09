@@ -5,7 +5,7 @@ import { ArrowLeft, Play } from 'lucide-react'
 import { clsx } from 'clsx'
 import { galleryApi } from '@/api/gallery'
 import { runsApi } from '@/api/runs'
-import { dbExplorerImagePath, imageInspectorPath } from '@/utils/routes'
+import { dbExplorerImagePath, folderPath, imageInspectorPath, stackPath } from '@/utils/routes'
 import { useUiStore } from '@/stores/uiStore'
 import { useConfig } from '@/hooks/useConfig'
 import { Button } from '@/components/ui/button'
@@ -566,6 +566,26 @@ export function ImageInspectorPage() {
                     return (
                       <Link
                         to={imageInspectorPath(v)}
+                        className="text-[var(--color-accent-bright)] hover:underline cursor-pointer"
+                      >
+                        {v}
+                      </Link>
+                    )
+                  }
+                  if (k === 'folder_id' && typeof v === 'number' && v > 0) {
+                    return (
+                      <Link
+                        to={folderPath(v)}
+                        className="text-[var(--color-accent-bright)] hover:underline cursor-pointer"
+                      >
+                        {v}
+                      </Link>
+                    )
+                  }
+                  if (k === 'stack_id' && typeof v === 'number' && v > 0) {
+                    return (
+                      <Link
+                        to={stackPath(v)}
                         className="text-[var(--color-accent-bright)] hover:underline cursor-pointer"
                       >
                         {v}

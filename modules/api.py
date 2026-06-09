@@ -42,6 +42,7 @@ Endpoints:
         PATCH /api/images/{image_id} - Update image metadata (rating/label/title/description/keywords)
         DELETE /api/images/{image_id} - Remove image record from database
         GET /api/folders - Get flat folder listing
+        GET /api/folders/{folder_id} - Get single folder by id (path, counts)
         GET /api/folders/tree - Get hierarchical folder tree (for Electron sidebar)
         GET /api/folders/phase-status - Get pipeline phase aggregate for a folder
         DELETE /api/folders/cache - Remove empty folder subtree from DB cache (no disk delete)
@@ -1277,6 +1278,21 @@ class FindDuplicatesRequest(BaseModel):
         description="Max number of duplicate pairs to return (defaults to configured duplicate_max_pairs).",
         example=5000
     )
+
+
+class BackupPlanRequest(BaseModel):
+    """Request model for gallery backup candidate planning."""
+    min_score: float = Field(0.7, ge=0.0, le=1.0, description="Minimum score_general (0–1).")
+    diversity_lambda: float = Field(0.7, ge=0.0, le=1.0, description="MMR score vs diversity balance.")
+    max_per_cluster: int = Field(2, ge=1, le=10, description="Max keepers per similarity cluster.")
+    folder_path: Optional[str] = Field(None, description="Optional folder scope.")
+    rough_fill_ratio: float = Field(
+        1.0,
+        ge=0.0,
+        le=1.0,
+        description="Estimated destination fill ratio (scales max_per_cluster).",
+    )
+    pair_batch_size: int = Field(500, ge=50, le=5000, description="Reserved for batched pair queries.")
 
 
 class ClusteringStartRequest(SelectorRequest):
@@ -4172,6 +4188,44 @@ def create_api_router() -> APIRouter:
         except Exception as e:
             return ApiResponse(success=False, message=str(e))
 
+    @router.post(
+        "/backup/plan",
+        response_model=ApiResponse,
+        summary="Plan backup image selection",
+        description=(
+            "Return ranked image IDs for gallery backup export using score floor, "
+            "per-date embedding dedup, and MMR multi-keep. Gallery uses local logic when unavailable."
+        ),
+        tags=["Backup"],
+    )
+    def post_backup_plan(req: BackupPlanRequest = Body(...)):
+        """Plan backup candidates (PostgreSQL + embeddings required)."""
+        try:
+            from modules import backup_plan
+
+            result = backup_plan.plan_backup_selection(
+                min_score=req.min_score,
+                diversity_lambda=req.diversity_lambda,
+                max_per_cluster=req.max_per_cluster,
+                folder_path=req.folder_path,
+                rough_fill_ratio=req.rough_fill_ratio,
+                pair_batch_size=req.pair_batch_size,
+            )
+            return ApiResponse(
+                success=True,
+                message=f"Planned {len(result.items)} backup candidates",
+                data={
+                    "items": [
+                        {"image_id": i.image_id, "score": i.score, "reason": i.reason}
+                        for i in result.items
+                    ],
+                    "deduplicated_count": result.deduplicated_count,
+                    "warnings": result.warnings,
+                },
+            )
+        except Exception as e:
+            return ApiResponse(success=False, message=str(e))
+
     @router.get(
         "/similarity/similar",
         summary="[DEPRECATED] Find similar images",
@@ -6007,6 +6061,34 @@ def create_api_router() -> APIRouter:
         try:
             phases = db.get_folder_phase_summary(path, force_refresh=force_refresh)
             return {"folder_path": path, "phases": phases}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get(
+        "/folders/{folder_id}",
+        summary="Get folder by id",
+        description=(
+            "Returns a single folder row: id, path, parent_id, is_fully_scored, created_at, "
+            "and a live image_count from images.folder_id (not the deprecated folders.image_count column)."
+        ),
+    )
+    async def get_folder_by_id_endpoint(folder_id: int):
+        from modules import db
+        try:
+            row = db.get_folder_detail_by_id(folder_id)
+            if not row:
+                raise HTTPException(status_code=404, detail=f"Folder {folder_id} not found")
+            created = row.get("created_at")
+            return {
+                "id": row["id"],
+                "path": row["path"],
+                "parent_id": row.get("parent_id"),
+                "is_fully_scored": bool(row.get("is_fully_scored")),
+                "image_count": int(row.get("image_count") or 0),
+                "created_at": created.isoformat() if hasattr(created, "isoformat") else created,
+            }
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 

@@ -151,6 +151,7 @@ GET /api/raw-preview?path=<url-encoded-file-path>
 - `indexing_metadata` — parsed `images.metadata` when valid JSON (indexing fingerprints).
 - `technical_failure_detection` — when technical failure detection has run: `version`, `technical_failure_score` (0–100), `primary_reject_reason`, nested `technical_failures` metrics. Table: `image_technical_failures`.
 | GET | `/api/folders` | Folder listing |
+| GET | `/api/folders/{folder_id}` | Single folder by id (path, live image_count) |
 | GET | `/api/stacks` | Stacks with cover images |
 | GET | `/api/stacks/{stack_id}/images` | Images in a stack (includes `sub_stack_id` when two-level culling ran) |
 | GET | `/api/stacks/{stack_id}/substacks` | Sub-stacks for a root stack (two-level culling) |
@@ -240,6 +241,19 @@ These fields serve different purposes. Do not substitute one for another when in
   "count": 42
 }
 ```
+
+### GET /api/folders/{folder_id} — Response
+```json
+{
+  "id": 12,
+  "path": "/photos/2024/January",
+  "parent_id": 3,
+  "is_fully_scored": false,
+  "image_count": 128,
+  "created_at": "2024-01-15T10:00:00"
+}
+```
+Returns **404** when the folder id does not exist. `image_count` is computed live from `images.folder_id`.
 
 ### GET /api/stacks — Query Parameters
 | Param | Type | Default | Description |

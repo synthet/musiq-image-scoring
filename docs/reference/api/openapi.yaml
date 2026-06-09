@@ -3478,6 +3478,30 @@ paths:
           description: Internal Server Error
         '503':
           description: Service Unavailable - Runner not initialized
+  /api/folders/{folder_id}:
+    get:
+      tags:
+      - Vexlum Scoring API
+      summary: Get folder by id
+      description: Returns a single folder row with live image_count from images.folder_id.
+      operationId: get_folder_by_id_api_folders__folder_id__get
+      parameters:
+      - name: folder_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Folder Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found - Resource not found
+        '500':
+          description: Internal Server Error
   /api/folders/rebuild:
     post:
       tags:

@@ -273,7 +273,21 @@
       "Bash(grep -nE \"^import \\(threading|time\\)$|^import \\(threading|time\\) |^import time|^import threading\" modules/db_legacy.py)",
       "PowerShell(& .\\\\.venv\\\\Scripts\\\\ruff.exe check modules\\\\config.py modules\\\\runs_autodrive.py modules\\\\db_legacy.py modules\\\\api.py tests\\\\test_runs_autodrive.py tests\\\\test_config_environment.py tests\\\\test_image_data_quality.py)",
       "PowerShell(& .\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests\\\\test_runs_autodrive.py tests\\\\test_config_environment.py tests\\\\test_image_data_quality.py -q 2>&1 | Select-Object -Last 40)",
-      "PowerShell(& .\\\\.venv\\\\Scripts\\\\ruff.exe check tests\\\\test_config_environment.py tests\\\\test_image_data_quality.py tests\\\\test_runs_autodrive.py modules\\\\config.py modules\\\\runs_autodrive.py modules\\\\api.py)"
+      "PowerShell(& .\\\\.venv\\\\Scripts\\\\ruff.exe check tests\\\\test_config_environment.py tests\\\\test_image_data_quality.py tests\\\\test_runs_autodrive.py modules\\\\config.py modules\\\\runs_autodrive.py modules\\\\api.py)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "PowerShell(docker inspect -f '{{range .Mounts}}{{.Type}} {{.Source}} -> {{.Destination}}{{\\\\\"`n\\\\\"}}{{end}}' image-scoring-webui 2>&1)",
+      "PowerShell(\"=== #244 marker \\(transient_retries in run_all_musiq_models.py\\) ===\")",
+      "PowerShell(\"=== #246 marker \\(phantom_score_finalize.py present?\\) ===\")",
+      "PowerShell(\"=== is the repo bind-mounted \\(git HEAD inside container\\) ===\")",
+      "PowerShell(\"=== mounts ===\")",
+      "Bash(awk '/export async function getAllScoredImagesForBackup/,/^}/' electron/db.ts)",
+      "Bash(awk '/export async function getSimilarPairsInGroup/,/^}/' electron/db.ts)",
+      "Bash(awk '/export async function getEmbeddingsBatch/,/^}/' electron/db.ts)",
+      "mcp__is-be-data__execute_sql",
+      "Bash(echo \"electron tsc exit: $?\")",
+      "Bash(echo \"web tsc exit: $?\")",
+      "Bash(echo \"app tsc exit: $?\")",
+      "Bash(echo \"node tsc exit: $?\")"
     ]
   },
   "enableAllProjectMcpServers": true,
