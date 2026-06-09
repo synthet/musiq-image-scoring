@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-08] docs | Consolidated AI-memory-tool reviews into one decision doc
+
+Merged four per-agent reviews (Claude/Codex/Cursor/Antigravity, never committed) into [ai-memory-comparison.md](ai-memory-comparison.md). Decision: keep `.agent-memory/memory.md` + native Claude `MEMORY.md` canonical; external tools are opt-in capture/search sidecars (ai-memory preferred, Icarus/Origin close, Midas for recall). Rejected the Mem0-embedded-in-app-pgvector proposal (violates separation-from-app-DB, the human-promote gate, and markdown SOtT).
+
 ## [2026-06-07] chore | Finalize compact MCP config (is-be-mcp only)
 
 Default project MCP config is **`is-be-mcp`** + optional **`is-be-webui`**. Added [`.cursor/mcp.example.json`](../.cursor/mcp.example.json); legacy profile servers removed from templates. Track `.cursor/` rules/skills in git (operator-local `.cursor/mcp.json` gitignored).

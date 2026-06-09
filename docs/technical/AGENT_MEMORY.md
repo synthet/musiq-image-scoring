@@ -42,3 +42,4 @@ Improve AI coding sessions over time via **external** memory artifacts — not m
 
 - [AGENTS.md](../../AGENTS.md) — slash command index
 - [.agent/SAFETY.md](../../.agent/SAFETY.md) — secrets hygiene for memory writes
+- [External-tool evaluation](../ai-memory-comparison.md) — why we keep `.agent-memory` over 73 third-party memory tools
