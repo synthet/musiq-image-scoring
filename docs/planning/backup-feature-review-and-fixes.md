@@ -21,9 +21,11 @@
 | Run gate ordering | ✅ Done | All destructive confirmation gates evaluated **before** any unlink (no partial-mutation-then-throw). |
 | Finding D — backend giant self-join | ✅ Done | `_similar_pairs_in_group` now batches by `pair_batch_size` with cross-batch combine + dedup. Tests added. |
 | Finding F — non-atomic manifest write | ✅ Done | `writeManifestAtomic` (tmp + fsync + `.bak` rotate + rename). |
-| Finding E — double plan build / TOCTOU | ⏳ Partial | Gate-before-mutation done; single-build caching still open (perf, not data-loss). |
-| Finding C / Phase 3 — single source of truth | ⛔ Needs decision | Keep authoritative backend endpoint vs gallery-only (open question 3). |
-| Findings G/H/I — polish | ⏳ Open | Low priority cosmetics. |
+| Finding E — double plan build / TOCTOU | ✅ Mostly | Gate-before-mutation done; preview now uses a **lightweight fast path** (no dedup) when not pruning, so it no longer double-builds the heavy plan or blocks the modal. |
+| Finding C / Phase 3 — single source of truth | ✅ Done | **Decision: gallery-only.** Removed `modules/backup_plan.py`, `tests/test_backup_plan.py`, the `BackupPlanRequest` model + `POST /api/backup/plan` endpoint, and the gallery's `fetchBackupPlan`/`fetchBackendBackupPlan` wiring. Single TS implementation now. |
+| Finding I — dead dedup progress | ✅ Done | `buildBackupPlan` forwards `onDedupProgress`; run handler emits the `deduplicating` phase. |
+| Preview hang | ✅ Done | Pre-flight fast path counts candidates via `countScoredImagesForBackup` and defers the exact plan to run time (shown as "computed during backup"). Heavy plan only built when a prune flag is enabled (needs accurate delete counts). |
+| Findings G/H — polish | ⏳ Open | Backend `reason` parity is moot now (endpoint removed); cross-day week math still approximate (off by default). |
 
 **Verification:** backend `pytest tests/test_backup_plan.py` → 9 passed, ruff clean; gallery
 `tsc` (electron+node) exit 0, 4 backup vitest suites → 41 passed. (App-tsconfig has 14

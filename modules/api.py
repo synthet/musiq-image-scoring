@@ -1280,21 +1280,6 @@ class FindDuplicatesRequest(BaseModel):
     )
 
 
-class BackupPlanRequest(BaseModel):
-    """Request model for gallery backup candidate planning."""
-    min_score: float = Field(0.7, ge=0.0, le=1.0, description="Minimum score_general (0–1).")
-    diversity_lambda: float = Field(0.7, ge=0.0, le=1.0, description="MMR score vs diversity balance.")
-    max_per_cluster: int = Field(2, ge=1, le=10, description="Max keepers per similarity cluster.")
-    folder_path: Optional[str] = Field(None, description="Optional folder scope.")
-    rough_fill_ratio: float = Field(
-        1.0,
-        ge=0.0,
-        le=1.0,
-        description="Estimated destination fill ratio (scales max_per_cluster).",
-    )
-    pair_batch_size: int = Field(500, ge=50, le=5000, description="Reserved for batched pair queries.")
-
-
 class ClusteringStartRequest(SelectorRequest):
     """Request model for starting a clustering job.
 
@@ -4184,44 +4169,6 @@ def create_api_router() -> APIRouter:
                 success=True, 
                 message=f"Found {len(results)} near-duplicate pairs",
                 data={"duplicates": results}
-            )
-        except Exception as e:
-            return ApiResponse(success=False, message=str(e))
-
-    @router.post(
-        "/backup/plan",
-        response_model=ApiResponse,
-        summary="Plan backup image selection",
-        description=(
-            "Return ranked image IDs for gallery backup export using score floor, "
-            "per-date embedding dedup, and MMR multi-keep. Gallery uses local logic when unavailable."
-        ),
-        tags=["Backup"],
-    )
-    def post_backup_plan(req: BackupPlanRequest = Body(...)):
-        """Plan backup candidates (PostgreSQL + embeddings required)."""
-        try:
-            from modules import backup_plan
-
-            result = backup_plan.plan_backup_selection(
-                min_score=req.min_score,
-                diversity_lambda=req.diversity_lambda,
-                max_per_cluster=req.max_per_cluster,
-                folder_path=req.folder_path,
-                rough_fill_ratio=req.rough_fill_ratio,
-                pair_batch_size=req.pair_batch_size,
-            )
-            return ApiResponse(
-                success=True,
-                message=f"Planned {len(result.items)} backup candidates",
-                data={
-                    "items": [
-                        {"image_id": i.image_id, "score": i.score, "reason": i.reason}
-                        for i in result.items
-                    ],
-                    "deduplicated_count": result.deduplicated_count,
-                    "warnings": result.warnings,
-                },
             )
         except Exception as e:
             return ApiResponse(success=False, message=str(e))
