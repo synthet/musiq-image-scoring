@@ -12,6 +12,8 @@ import {
   ChartScatter,
   Image,
   Table2,
+  Bird,
+  Tags,
 } from 'lucide-react'
 import { dispatchDbExplorerToggleTables } from '@/pages/DbPage'
 import { Sidebar } from './Sidebar'
@@ -85,6 +87,8 @@ export function Shell() {
           <NavItem to="/runs" icon={<Workflow size={14} />} label="Runs" />
           <NavItem to="/dashboard" icon={<LayoutDashboard size={14} />} label="Dashboard" />
           <NavItem to="/images" icon={<Image size={14} />} label="Images" />
+          <NavItem to="/birds" icon={<Bird size={14} />} label="Birds" />
+          <NavItem to="/keywords" icon={<Tags size={14} />} label="Keywords" />
           {isEmbeddingMapEnabled && (
             <NavItem to="/embeddings" icon={<ChartScatter size={14} />} label="Atlas" />
           )}

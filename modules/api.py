@@ -488,6 +488,7 @@ def _images_list_payload(
     phase_status_filter: Optional[str] = None,
     unscored_only: bool = False,
     data_gap: Optional[str] = None,
+    keyword_exact: bool = False,
 ) -> dict:
     """Paginated image rows as JSON (embeddings excluded). Used by /api/images and /public/api/images."""
     rating_filter = _parse_rating_filter(rating)
@@ -501,6 +502,7 @@ def _images_list_payload(
             rating_filter=rating_filter,
             label_filter=label_filter,
             keyword_filter=keyword,
+            keyword_exact=keyword_exact,
             min_score_general=min_score_general,
             min_score_aesthetic=min_score_aesthetic,
             min_score_technical=min_score_technical,
@@ -671,6 +673,7 @@ def create_public_api_router() -> APIRouter:
         rating: Optional[str] = Query(None, description="Comma-separated ratings"),
         label: Optional[str] = Query(None, description="Comma-separated labels"),
         keyword: Optional[str] = Query(None),
+        keyword_exact: bool = Query(False, description="When true, match the keyword exactly instead of a substring"),
         min_score_general: float = Query(0, ge=0, le=1),
         min_score_aesthetic: float = Query(0, ge=0, le=1),
         min_score_technical: float = Query(0, ge=0, le=1),
@@ -690,6 +693,7 @@ def create_public_api_router() -> APIRouter:
             min_score_technical=min_score_technical,
             folder_path=folder_path,
             stack_id=stack_id,
+            keyword_exact=keyword_exact,
         )
 
     @router.get(
@@ -4136,6 +4140,38 @@ def create_api_router() -> APIRouter:
 
         return {"queries": out, "source": "keywords"}
 
+    @router.get(
+        "/keywords/cloud",
+        summary="Keyword tag cloud (counts by keyword)",
+        description="""
+        Returns keywords with usage counts for a tag-cloud UI, ordered by count desc.
+
+        ``kind=species`` returns only ``species:*`` keywords (Birds page); ``kind=general``
+        returns all non-species keywords (Keywords page). Optionally scope to a folder path.
+
+        Each entry: ``{keyword_norm, keyword_display, count}``. Always HTTP 200; on failure
+        or empty catalog, ``keywords`` is an empty list.
+        """,
+        tags=["Keywords"],
+    )
+    def get_keyword_cloud_endpoint(
+        kind: str = Query("general", description="species | general"),
+        limit: int = Query(200, ge=1, le=1000, description="Maximum keywords to return"),
+        folder_path: Optional[str] = Query(None, description="Scope keywords to images under this folder path"),
+    ):
+        """Keyword usage counts for the Birds / Keywords tag clouds."""
+        from modules.keyword_discovery import get_keyword_cloud
+
+        kind_norm = (kind or "general").strip().lower()
+        if kind_norm not in ("species", "general"):
+            raise HTTPException(status_code=400, detail="kind must be 'species' or 'general'")
+        try:
+            rows = get_keyword_cloud(kind=kind_norm, limit=limit, folder_path=folder_path) or []
+        except Exception as e:
+            logger.warning("keyword cloud failed: %s", e)
+            return {"keywords": [], "kind": kind_norm}
+        return {"keywords": rows, "kind": kind_norm}
+
     # ========== Find Duplicates Endpoints ==========
 
     @router.post(
@@ -4599,6 +4635,7 @@ def create_api_router() -> APIRouter:
         rating: Optional[str] = Query(None, description="Comma-separated ratings to filter (e.g. '3,4,5')"),
         label: Optional[str] = Query(None, description="Comma-separated labels to filter (e.g. 'Green,Blue')"),
         keyword: Optional[str] = Query(None, description="Keyword to filter by (partial match)"),
+        keyword_exact: bool = Query(False, description="When true, match the keyword exactly instead of a substring (e.g. tag-cloud clicks)"),
         min_score_general: float = Query(0, ge=0, le=1, description="Minimum general score"),
         min_score_aesthetic: float = Query(0, ge=0, le=1, description="Minimum aesthetic score"),
         min_score_technical: float = Query(0, ge=0, le=1, description="Minimum technical score"),
@@ -4634,6 +4671,7 @@ def create_api_router() -> APIRouter:
             phase_status_filter=phase_status,
             unscored_only=unscored_only,
             data_gap=data_gap,
+            keyword_exact=keyword_exact,
         )
 
     @router.get(

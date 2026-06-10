@@ -157,6 +157,16 @@ GET /api/raw-preview?path=<url-encoded-file-path>
 | GET | `/api/stacks/{stack_id}/substacks` | Sub-stacks for a root stack (two-level culling) |
 | GET | `/api/substacks/{sub_stack_id}/images` | Images in a sub-stack |
 | GET | `/api/stats` | Database statistics |
+| GET | `/api/keywords/cloud` | Keyword tag cloud with usage counts (`kind=species\|general`) |
+
+### GET /api/keywords/cloud — Query Parameters
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| kind | string | "general" | `species` → only `species:*` tags (Birds page); `general` → all non-species keywords |
+| limit | int | 200 | Max keywords (1–1000) |
+| folder_path | string | — | Scope to images under this folder |
+
+Response: `{ "keywords": [{ "keyword_norm", "keyword_display", "count" }], "kind": "general" }` — ordered by `count` desc. Always HTTP 200 (empty list on failure); `kind` is validated to `species`/`general` (else HTTP 400).
 
 ### GET /api/images — Query Parameters
 | Param | Type | Default | Description |
@@ -167,7 +177,8 @@ GET /api/raw-preview?path=<url-encoded-file-path>
 | order | string | "desc" | asc, desc |
 | rating | string | — | Comma-separated (e.g. "3,4,5") |
 | label | string | — | Comma-separated (e.g. "Green,Blue") |
-| keyword | string | — | Partial match |
+| keyword | string | — | Substring match (or exact when `keyword_exact=true`) |
+| keyword_exact | bool | false | Match `keyword` exactly on `keyword_norm` instead of substring (tag-cloud clicks) |
 | min_score_general | float | 0 | 0–1 |
 | min_score_aesthetic | float | 0 | 0–1 |
 | min_score_technical | float | 0 | 0–1 |

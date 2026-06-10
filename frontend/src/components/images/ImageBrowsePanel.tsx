@@ -58,7 +58,7 @@ function QualityCell({ scoreGeneral }: { scoreGeneral?: number | null }) {
 }
 
 export interface ImageBrowsePanelProps {
-  filters: Pick<ImageFilters, 'folder_path' | 'stack_id'>
+  filters: Pick<ImageFilters, 'folder_path' | 'stack_id' | 'keyword' | 'keyword_exact'>
   title: string
   subtitle?: string
   titleLeading?: React.ReactNode
@@ -103,10 +103,12 @@ export function ImageBrowsePanel({
 
   const folderPath = filters.folder_path ?? null
   const stackId = filters.stack_id ?? null
+  const keyword = filters.keyword ?? null
+  const keywordExact = filters.keyword_exact ?? false
 
   useEffect(() => {
     setPage(1)
-  }, [folderPath, stackId, pageSize, sortBy, order, phaseStatusFilter, unscoredOnly, dataGapFilter])
+  }, [folderPath, stackId, keyword, keywordExact, pageSize, sortBy, order, phaseStatusFilter, unscoredOnly, dataGapFilter])
 
   const { data, isLoading, isFetching, isPlaceholderData } = useQuery({
     queryKey: [
@@ -114,6 +116,8 @@ export function ImageBrowsePanel({
       'browse',
       folderPath,
       stackId,
+      keyword,
+      keywordExact,
       page,
       pageSize,
       sortBy,
@@ -126,6 +130,8 @@ export function ImageBrowsePanel({
       galleryApi.list({
         folder_path: folderPath ?? undefined,
         stack_id: stackId ?? undefined,
+        keyword: keyword ?? undefined,
+        keyword_exact: keyword ? keywordExact || undefined : undefined,
         page,
         page_size: pageSize,
         sort_by: sortBy,

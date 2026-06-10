@@ -103,6 +103,86 @@ def get_top_keywords(limit: int = 50, folder_path: Optional[str] = None) -> List
         return []
 
 
+SPECIES_PREFIX = "species:"
+
+
+def get_keyword_cloud(
+    kind: str = "general",
+    limit: int = 200,
+    folder_path: Optional[str] = None,
+) -> List[Dict]:
+    """Top keywords by usage count, split by whether they are ``species:`` tags.
+
+    Args:
+        kind: ``"species"`` returns only ``species:*`` keywords (for the Birds
+            tag cloud); ``"general"`` returns everything else (the Keywords cloud).
+        limit: Number of keywords to return (default 200).
+        folder_path: Optional folder path to scope the cloud to one folder.
+
+    Returns:
+        List of dicts with keys: keyword_norm, keyword_display, count — ordered by
+        count descending. Empty list on failure or empty catalog.
+    """
+    conn = get_connector()
+    is_species = str(kind).strip().lower() == "species"
+    # keyword_norm is stored lowercased, so the prefix match is case-stable.
+    species_pred = "kd.keyword_norm LIKE ?" if is_species else "kd.keyword_norm NOT LIKE ?"
+    species_arg = f"{SPECIES_PREFIX}%"
+
+    try:
+        ph = "%s" if conn.type == "postgres" else "?"
+        species_pred_db = species_pred.replace("?", ph)
+        folder_id = None
+        if folder_path:
+            folder_id = db.get_or_create_folder(folder_path)
+            if not folder_id:
+                return []
+
+        where = [species_pred_db]
+        params: List = [species_arg]
+        join_images = ""
+        if folder_id:
+            join_images = "JOIN images i ON ik.image_id = i.id"
+            where.append(f"i.folder_id = {ph}")
+            params.append(folder_id)
+        where_sql = " AND ".join(where)
+
+        if conn.type == "postgres":
+            sql = f"""
+                SELECT kd.keyword_norm, kd.keyword_display,
+                       COUNT(DISTINCT ik.image_id) AS count
+                FROM keywords_dim kd
+                JOIN image_keywords ik ON kd.keyword_id = ik.keyword_id
+                {join_images}
+                WHERE {where_sql}
+                GROUP BY kd.keyword_id, kd.keyword_norm, kd.keyword_display
+                ORDER BY count DESC
+                LIMIT {ph}
+            """
+            params.append(limit)
+        else:
+            sql = f"""
+                SELECT kd.keyword_norm, kd.keyword_display,
+                       COUNT(DISTINCT ik.image_id) AS count
+                FROM keywords_dim kd
+                JOIN image_keywords ik ON kd.keyword_id = ik.keyword_id
+                {join_images}
+                WHERE {where_sql}
+                GROUP BY kd.keyword_id, kd.keyword_norm, kd.keyword_display
+                ORDER BY count DESC
+                ROWS 1 TO {ph}
+            """
+            params.append(limit)
+
+        rows = conn.query(sql, tuple(params))
+        return [{"keyword_norm": r.get("keyword_norm"),
+                 "keyword_display": r.get("keyword_display"),
+                 "count": r.get("count")} for r in (rows or [])]
+    except Exception as e:
+        logger.error(f"Failed to get keyword cloud (kind={kind}): {e}")
+        return []
+
+
 def search_keywords(search_term: str, limit: int = 20) -> List[Dict]:
     """
     Keyword autocomplete/search.

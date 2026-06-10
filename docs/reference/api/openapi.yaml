@@ -2121,6 +2121,64 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/keywords/cloud:
+    get:
+      tags:
+      - Vexlum Scoring API
+      - Keywords
+      summary: Keyword tag cloud (counts by keyword)
+      description: "Returns keywords with usage counts for a tag-cloud UI, ordered by\
+        \ count desc.\n\n        ``kind=species`` returns only ``species:*`` keywords\
+        \ (Birds page); ``kind=general`` returns all non-species keywords (Keywords\
+        \ page). Optionally scope to a folder path.\n\n        Each entry: ``{keyword_norm,\
+        \ keyword_display, count}``. Always HTTP 200; on failure or empty catalog,\
+        \ ``keywords`` is an empty list."
+      operationId: get_keyword_cloud_endpoint_api_keywords_cloud_get
+      parameters:
+      - name: kind
+        in: query
+        required: false
+        schema:
+          type: string
+          default: general
+          description: species | general
+          title: Kind
+        description: species | general
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          description: Maximum keywords to return
+          default: 200
+          title: Limit
+        description: Maximum keywords to return
+      - name: folder_path
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Scope keywords to images under this folder path
+          title: Folder Path
+        description: Scope keywords to images under this folder path
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '400':
+          description: Bad Request - Invalid input parameters
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/duplicates/find:
     post:
       tags:
@@ -2810,6 +2868,15 @@ paths:
           description: Keyword to filter by (partial match)
           title: Keyword
         description: Keyword to filter by (partial match)
+      - name: keyword_exact
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          description: When true, match the keyword exactly instead of a substring (e.g. tag-cloud clicks)
+          title: Keyword Exact
+        description: When true, match the keyword exactly instead of a substring (e.g. tag-cloud clicks)
       - name: min_score_general
         in: query
         required: false

@@ -12,6 +12,8 @@ export interface ImageFilters {
   rating?: string         // comma-separated ratings e.g. "3,4,5"
   label?: string          // comma-separated labels e.g. "Pick,Normal"
   keyword?: string
+  /** When true, match keyword exactly instead of substring (tag-cloud clicks). */
+  keyword_exact?: boolean
   min_score_general?: number
   min_score_aesthetic?: number
   min_score_technical?: number

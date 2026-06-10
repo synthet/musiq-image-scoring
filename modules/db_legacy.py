@@ -773,16 +773,27 @@ def _validate_sort(sort_by: str, order: str) -> tuple:
     return sort_by, order.upper()
 
 
-def _add_keyword_filter(conditions, params, keyword_filter, table_ref="images"):
-    """Append a keyword EXISTS filter using normalized keyword tables."""
+def _add_keyword_filter(conditions, params, keyword_filter, table_ref="images", exact=False):
+    """Append a keyword EXISTS filter using normalized keyword tables.
+
+    When ``exact`` is True, match ``keyword_norm`` equality instead of a substring
+    ``LIKE`` (used by tag-cloud clicks so "bird" does not also match "blackbird").
+    """
     if keyword_filter and keyword_filter.strip():
+        norm = keyword_filter.strip().lower()
+        if exact:
+            predicate = "kd.keyword_norm = ?"
+            value = norm
+        else:
+            predicate = "kd.keyword_norm LIKE ?"
+            value = f"%{norm}%"
         conditions.append(
             f"EXISTS (SELECT 1 FROM image_keywords ik "
             f"JOIN keywords_dim kd ON ik.keyword_id = kd.keyword_id "
             f"WHERE ik.image_id = {table_ref}.id "
-            f"AND kd.keyword_norm LIKE ?)"
+            f"AND {predicate})"
         )
-        params.append(f"%{keyword_filter.strip().lower()}%")
+        params.append(value)
 
 
 _legacy_keyword_warned = False
@@ -1883,6 +1894,7 @@ def _build_image_query_components(
     rating_filter=None,
     label_filter=None,
     keyword_filter=None,
+    keyword_exact=False,
     min_score_general=0,
     min_score_aesthetic=0,
     min_score_technical=0,
@@ -1950,7 +1962,7 @@ def _build_image_query_components(
             conditions.append(f"({' OR '.join(lbl_conds)})")
 
     # Keyword filter
-    _add_keyword_filter(conditions, params, keyword_filter)
+    _add_keyword_filter(conditions, params, keyword_filter, exact=keyword_exact)
 
     # Score Filters
     if min_score_general > 0:

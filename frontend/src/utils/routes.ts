@@ -12,6 +12,24 @@ export function stackPath(id: string | number): string {
   return parsed != null ? `/stacks/${parsed}` : '/images'
 }
 
+export function birdsPath(): string {
+  return `/birds`
+}
+
+export function keywordsPath(): string {
+  return `/keywords`
+}
+
+/** Images filtered to a single species:* keyword (Birds detail page). */
+export function speciesImagesPath(speciesNorm: string): string {
+  return `/birds/${encodeURIComponent(speciesNorm)}`
+}
+
+/** Images filtered to a single general keyword (Keywords detail page). */
+export function keywordImagesPath(keywordNorm: string): string {
+  return `/keywords/${encodeURIComponent(keywordNorm)}`
+}
+
 export function dbExplorerPath(tableName?: string | null): string {
   if (!tableName) return '/db'
   return `/db/${encodeURIComponent(tableName)}`

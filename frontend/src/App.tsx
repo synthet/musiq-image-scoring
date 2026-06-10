@@ -11,6 +11,9 @@ import { ImageInspectorPage } from '@/pages/ImageInspectorPage'
 import { GeoMapPage } from '@/pages/GeoMapPage'
 import { FolderPage } from '@/pages/FolderPage'
 import { StackPage } from '@/pages/StackPage'
+import { BirdsPage } from '@/pages/BirdsPage'
+import { KeywordsPage } from '@/pages/KeywordsPage'
+import { KeywordImagesPage } from '@/pages/KeywordImagesPage'
 import { EmbeddingAtlasPage } from '@/features/embedding-atlas/pages/EmbeddingAtlasPage'
 import { DbPage } from '@/pages/DbPage'
 import { ScopeSelector } from '@/components/scope/ScopeSelector'
@@ -53,6 +56,10 @@ export default function App() {
             <Route path="/images/:imageId" element={<ImageInspectorPage />} />
             <Route path="/folder/:folderId" element={<FolderPage />} />
             <Route path="/stacks/:stackId" element={<StackPage />} />
+            <Route path="/birds" element={<BirdsPage />} />
+            <Route path="/birds/:value" element={<KeywordImagesPage kind="species" />} />
+            <Route path="/keywords" element={<KeywordsPage />} />
+            <Route path="/keywords/:value" element={<KeywordImagesPage kind="general" />} />
             <Route path="/embeddings" element={<ProtectedAtlasRoute />} />
             <Route path="/db" element={<ProtectedDbRoute />} />
             <Route path="/db/:tableName" element={<ProtectedDbRoute />} />
