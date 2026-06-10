@@ -46,6 +46,25 @@ def test_policy_skips_when_done_same_version(monkeypatch):
     assert decision["reason"] == "already_done_current_executor"
 
 
+def test_policy_runs_when_done_but_thumbnail_missing(monkeypatch):
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_phase_statuses",
+        lambda image_id: {"metadata": {"status": "done", "executor_version": "1.0.0"}},
+    )
+    monkeypatch.setattr(phases_policy.db, "is_image_metadata_complete", lambda image_id: True)
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_metadata_asset_gap_reason",
+        lambda image_id: "missing_thumbnail",
+    )
+    PhaseRegistry.register(PhaseExecutor(code=PhaseCode.METADATA, executor_version="1.0.0"))
+
+    decision = phases_policy.explain_phase_run_decision(1, PhaseCode.METADATA)
+    assert decision["should_run"] is True
+    assert decision["reason"] == "missing_thumbnail"
+
+
 def test_policy_runs_when_done_but_scoring_data_missing(monkeypatch):
     """If status is 'done' but actual scores are missing, should_run must be True."""
     monkeypatch.setattr(
@@ -187,6 +206,11 @@ def test_policy_skips_valid_unrated_metadata(monkeypatch):
     )
     monkeypatch.setattr(
         phases_policy.db,
+        "get_image_metadata_asset_gap_reason",
+        lambda image_id: None,
+    )
+    monkeypatch.setattr(
+        phases_policy.db,
         "is_image_metadata_complete",
         lambda image_id: True, # In my new logic, rating=0 is complete
     )
@@ -289,6 +313,11 @@ def test_policy_skips_legacy_null_executor_version_when_data_complete(monkeypatc
         phases_policy.db,
         "get_image_phase_statuses",
         lambda image_id: {"metadata": {"status": "done", "executor_version": None}},
+    )
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_metadata_asset_gap_reason",
+        lambda image_id: None,
     )
     monkeypatch.setattr(
         phases_policy.db,

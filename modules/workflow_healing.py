@@ -314,6 +314,8 @@ def heal_phase_data(
                 "i",
                 include_folder_cohesion=False,
             )
+    elif phase_code == PhaseCode.METADATA.value:
+        incomplete_sql = db.get_metadata_asset_incomplete_sql(table_alias="i")
     else:
         incomplete_sql = db.get_phase_incomplete_sql(phase_code, table_alias="i")
 

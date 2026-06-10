@@ -146,6 +146,12 @@
     "exiftool_timeout_s": 20,
     "transient_retries": 2
   },
+  "auto_drive": {
+    "server_loop_enabled": true,
+    "self_heal_thumbnails": true,
+    "self_heal_exif": true,
+    "post_audit_followup": true
+  },
   "runs_autodrive": {
     "treat_exhausted_failed_as_terminal": true
   },

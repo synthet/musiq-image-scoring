@@ -642,11 +642,6 @@ def execute_write_sql_for_api(sql: str, params: list | None = None) -> list[dict
             pass
 
 
-def get_dual_write_stats() -> dict:
-    """Legacy stub — dual-write has been removed (Firebird decommissioned 2026-03)."""
-    return {"queued": 0, "success": 0, "fail": 0, "queue_depth": 0, "enabled": False}
-
-
 class PostgresConnectionProxy:
     """Proxies a PostgreSQL connection to provide sqlite3-compatible interface."""
     def __init__(self, pg_conn):
@@ -6820,6 +6815,16 @@ def run_post_completion_data_quality_audit(job_id: int):
         f"(see queue_payload.post_run_audit).",
     )
     _maybe_fail_job_on_post_audit_issues(job_id, post_run_audit)
+    try:
+        from modules.runs_autodrive import maybe_schedule_post_audit_followup
+
+        maybe_schedule_post_audit_followup(job_id, payload, post_run_audit)
+    except Exception:
+        logger.debug(
+            "post_run_audit: auto-drive follow-up scheduling failed job_id=%s",
+            job_id,
+            exc_info=True,
+        )
     return post_run_audit
 
 
@@ -10073,6 +10078,144 @@ def is_image_metadata_complete(image_id: int) -> bool:
         return False
     # If the row exists, even empty label is technically 'metadata read'.
     return True
+
+
+def get_metadata_asset_incomplete_sql(table_alias: str = "i") -> str:
+    """SQL predicate: thumbnail and/or capture-date work product still missing.
+
+    Broader than :func:`get_phase_incomplete_sql` for ``metadata``, which only matches
+    rows with no thumbnail **and** no EXIF **and** no XMP. Used by auto-drive planner
+    healing and workflow reset passes.
+    """
+    prefix = f"{table_alias}." if table_alias else ""
+    image_id_ref = f"{prefix}id"
+    return f"""(
+        (COALESCE(TRIM({prefix}thumbnail_path), '') = ''
+         AND COALESCE(TRIM({prefix}thumbnail_path_win), '') = '')
+        OR (
+            COALESCE(
+                (SELECT ie.date_time_original FROM image_exif ie WHERE ie.image_id = {image_id_ref} LIMIT 1),
+                (SELECT ie.create_date FROM image_exif ie WHERE ie.image_id = {image_id_ref} LIMIT 1),
+                (SELECT ix.create_date FROM image_xmp ix WHERE ix.image_id = {image_id_ref} LIMIT 1)
+            ) IS NULL
+        )
+    )"""
+
+
+def get_image_metadata_asset_gap_reason(image_id: int) -> Optional[str]:
+    """Return a planner reason when thumbnail or capture-date assets are missing."""
+    row = get_connector().query_one(
+        """
+        SELECT i.thumbnail_path, i.thumbnail_path_win,
+               ex.date_time_original, ex.create_date AS ex_create,
+               xm.create_date AS xmp_create
+        FROM images i
+        LEFT JOIN image_exif ex ON ex.image_id = i.id
+        LEFT JOIN image_xmp xm ON xm.image_id = i.id
+        WHERE i.id = ?
+        """,
+        (image_id,),
+    )
+    if not row:
+        return None
+    thumb_missing = (
+        not str(row.get("thumbnail_path") or "").strip()
+        and not str(row.get("thumbnail_path_win") or "").strip()
+    )
+    capture_missing = not (
+        row.get("date_time_original")
+        or row.get("ex_create")
+        or row.get("xmp_create")
+    )
+    if thumb_missing and capture_missing:
+        return "missing_metadata_assets"
+    if thumb_missing:
+        return "missing_thumbnail"
+    if capture_missing:
+        return "missing_exif_capture_date"
+    return None
+
+
+def reset_false_complete_metadata_phases(*, limit: int = 500) -> int:
+    """Reset metadata IPS ``done`` rows whose thumb/capture assets are still incomplete."""
+    try:
+        limit = max(1, int(limit))
+    except (TypeError, ValueError):
+        limit = 500
+    incomplete_sql = get_metadata_asset_incomplete_sql("i")
+    rows = get_connector().query(
+        f"""
+        SELECT i.id AS image_id
+        FROM images i
+        JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = 'metadata'
+        JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
+        WHERE LOWER(TRIM(ips.status)) = 'done'
+          AND ({incomplete_sql})
+        ORDER BY i.id
+        FETCH FIRST ? ROWS ONLY
+        """,
+        (limit,),
+    ) or []
+    reset = 0
+    for row in rows:
+        image_id = int(row["image_id"])
+        try:
+            set_image_phase_status(image_id, "metadata", "not_started")
+            reset += 1
+        except Exception:
+            logger.debug(
+                "reset_false_complete_metadata_phases failed image_id=%s",
+                image_id,
+                exc_info=True,
+            )
+    if reset:
+        logger.info("reset_false_complete_metadata_phases: reset %s row(s)", reset)
+    return reset
+
+
+def count_metadata_asset_gaps(*, scope_path: Optional[str] = None) -> dict:
+    """Count images missing thumbnails and/or capture dates (optional folder scope)."""
+    incomplete_sql = get_metadata_asset_incomplete_sql("i")
+    thumb_clause = (
+        "(COALESCE(TRIM(i.thumbnail_path), '') = '' "
+        "AND COALESCE(TRIM(i.thumbnail_path_win), '') = '')"
+    )
+    capture_clause = """(
+        COALESCE(
+            (SELECT ie.date_time_original FROM image_exif ie WHERE ie.image_id = i.id LIMIT 1),
+            (SELECT ie.create_date FROM image_exif ie WHERE ie.image_id = i.id LIMIT 1),
+            (SELECT ix.create_date FROM image_xmp ix WHERE ix.image_id = i.id LIMIT 1)
+        ) IS NULL
+    )"""
+
+    def _count(extra_predicate: str) -> int:
+        where_parts = [f"({extra_predicate})"]
+        params: list = []
+        if scope_path and str(scope_path).strip():
+            patterns = _folder_like_patterns_for_scope(scope_path)
+            if patterns:
+                where_parts.append(
+                    "(" + " OR ".join(["i.file_path LIKE ?"] * len(patterns)) + ")"
+                )
+                params.extend(patterns)
+        row = get_connector().query_one(
+            f"SELECT COUNT(*) AS n FROM images i WHERE {' AND '.join(where_parts)}",
+            tuple(params),
+        )
+        return int((row or {}).get("n") or 0)
+
+    return {
+        "asset_gap_total": _count(incomplete_sql),
+        "thumbnail_gap_count": _count(thumb_clause),
+        "exif_date_gap_count": _count(capture_clause),
+    }
+
+
+def _folder_like_patterns_for_scope(scope_path: str) -> list[str]:
+    """Best-effort folder prefix patterns for SQL LIKE filters."""
+    from modules.thumbnail_maintenance import folder_like_patterns
+
+    return folder_like_patterns(scope_path)
 
 
 def is_image_indexing_complete(image_id: int) -> bool:

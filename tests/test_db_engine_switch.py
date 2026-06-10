@@ -144,14 +144,6 @@ def test_postgres_proxy_translates_firebird_sql(monkeypatch):
     assert "?" not in translated
 
 
-def test_dual_write_removed_reports_disabled():
-    """Firebird→Postgres dual-write queue was removed; stats stub stays off."""
-    stats = db.get_dual_write_stats()
-    assert stats["enabled"] is False
-    assert stats["queue_depth"] == 0
-    assert stats["queued"] == 0
-
-
 # ---- _translate_fb_to_pg() unit tests ----
 
 def test_translate_rand_to_random():

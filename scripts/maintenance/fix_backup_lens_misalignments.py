@@ -29,21 +29,17 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 from modules.exif_extractor import extract_exif
+from modules.lens_folder_name import (
+    extract_lens_token_from_model,
+    extract_lens_token_from_path_segment,
+)
 
-_LENS_PATTERN = re.compile(r"(\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?mm)")
-_INVALID_LENSES = frozenset({"0mm"})
 _SIDECAR_EXTENSIONS = (".xmp",)
 _IMAGE_EXTENSIONS = (".nef", ".arw", ".cr2", ".cr3", ".dng", ".orf", ".rw2")
 
 
 def _extract_lens_from_model(lens_model: str | None) -> str | None:
-    if not lens_model or not lens_model.strip():
-        return None
-    m = _LENS_PATTERN.search(lens_model.strip())
-    if not m:
-        return None
-    lens = m.group(1).lower()
-    return None if lens in _INVALID_LENSES else lens
+    return extract_lens_token_from_model(lens_model)
 
 
 def _extract_lens_from_path(path: str) -> str | None:
@@ -52,8 +48,9 @@ def _extract_lens_from_path(path: str) -> str | None:
     normalized = path.replace("\\", "/")
     parts = [p for p in normalized.split("/") if p]
     for p in parts:
-        if "mm" in p.lower() and _LENS_PATTERN.search(p):
-            return p.lower()
+        token = extract_lens_token_from_path_segment(p)
+        if token:
+            return token
     return None
 
 

@@ -33,6 +33,8 @@ def _phase_data_complete(image_id: int, code: str) -> bool | None:
     if code == PhaseCode.KEYWORDS.value:
         return bool(db.is_image_keywords_complete(image_id))
     if code == PhaseCode.METADATA.value:
+        if db.get_image_metadata_asset_gap_reason(image_id):
+            return False
         return bool(db.is_image_metadata_complete(image_id))
     if code == PhaseCode.INDEXING.value:
         return bool(db.is_image_indexing_complete(image_id))
@@ -135,6 +137,11 @@ def explain_phase_run_decision(
             decision["reason"] = "missing_keyword_data"
             return decision
     elif code == PhaseCode.METADATA.value:
+        asset_gap = db.get_image_metadata_asset_gap_reason(image_id)
+        if asset_gap:
+            decision["should_run"] = True
+            decision["reason"] = asset_gap
+            return decision
         if not db.is_image_metadata_complete(image_id):
             decision["should_run"] = True
             decision["reason"] = "missing_metadata"

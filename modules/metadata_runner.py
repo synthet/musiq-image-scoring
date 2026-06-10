@@ -216,27 +216,34 @@ class MetadataRunner:
                 # Check if 'metadata' phase is already DONE
                 phase_status = db.get_image_phase_status(image_id, PhaseCode.METADATA)
                 if phase_status and phase_status.get('status') == PhaseStatus.DONE:
-                    skipped_count += 1
-                    if report_collector:
-                        report_collector.record_skip(image_id, "metadata_already_done")
-                    log(f"Skip (metadata done): {original_path}", "DEBUG", image_id=image_id)
-                    if self.current_count % PROGRESS_INTERVAL == 0:
-                        log(
-                            f"Progress {self.current_count}/{self.total_count} "
-                            f"(processed={processed_count}, skipped={skipped_count})",
-                            "INFO",
-                        )
-                        event_manager.broadcast_threadsafe(
-                            "job_progress",
-                            {
-                                "job_id": job_id,
-                                "job_type": "metadata",
-                                "phase_code": "metadata",
-                                "current": self.current_count,
-                                "total": self.total_count,
-                            },
-                        )
-                    continue
+                    asset_gap = db.get_image_metadata_asset_gap_reason(image_id)
+                    if not asset_gap:
+                        skipped_count += 1
+                        if report_collector:
+                            report_collector.record_skip(image_id, "metadata_already_done")
+                        log(f"Skip (metadata done): {original_path}", "DEBUG", image_id=image_id)
+                        if self.current_count % PROGRESS_INTERVAL == 0:
+                            log(
+                                f"Progress {self.current_count}/{self.total_count} "
+                                f"(processed={processed_count}, skipped={skipped_count})",
+                                "INFO",
+                            )
+                            event_manager.broadcast_threadsafe(
+                                "job_progress",
+                                {
+                                    "job_id": job_id,
+                                    "job_type": "metadata",
+                                    "phase_code": "metadata",
+                                    "current": self.current_count,
+                                    "total": self.total_count,
+                                },
+                            )
+                        continue
+                    log(
+                        f"Re-run metadata (asset gap={asset_gap}): {original_path}",
+                        "DEBUG",
+                        image_id=image_id,
+                    )
 
             db.set_image_phase_status(
                 image_id,
@@ -301,8 +308,26 @@ class MetadataRunner:
                     generated = thumbnails.generate_thumbnail(local_path)
                     if generated:
                         thumb = generated
+                thumb_written = False
                 if thumb and os.path.isfile(thumb):
-                    db.update_image_thumbnail_paths(image_id, thumb, None)
+                    thumb_written = bool(db.update_image_thumbnail_paths(image_id, thumb, None))
+
+                if not thumb_written:
+                    thumb_error = "thumbnail_generation_failed"
+                    log(thumb_error, "ERROR", image_id=image_id)
+                    skipped_count += 1
+                    if report_collector:
+                        report_collector.record_failure(image_id, thumb_error)
+                    db.set_image_phase_status(
+                        image_id,
+                        PhaseCode.METADATA,
+                        PhaseStatus.FAILED,
+                        app_version=APP_VERSION,
+                        executor_version=METADATA_VERSION,
+                        job_id=job_id,
+                        error=thumb_error,
+                    )
+                    continue
 
                 # 5. Update Status
                 db.set_image_phase_status(

@@ -350,54 +350,6 @@ def write_label(image_path: str, label: str) -> bool:
         return False
 
 
-def write_pick_flag(image_path: str, is_picked: bool) -> bool:
-    """
-    [DEPRECATED] Write pick/reject flag to XMP sidecar using old schema.
-    
-    This function uses the legacy xmp:Picked and xmp:Label approach.
-    Use write_pick_reject_flag() instead for Lightroom-compatible flags.
-    
-    For Lightroom: picked images get Rating >= 1 if unrated.
-    This also sets a custom Picked attribute.
-    
-    .. deprecated:: Use write_pick_reject_flag() instead
-    """
-    import warnings
-    warnings.warn(
-        "write_pick_flag() is deprecated. Use write_pick_reject_flag() instead for Lightroom-compatible flags.",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    logger.warning(f"write_pick_flag() is deprecated. Called for {image_path}")
-    
-    try:
-        root, xmp_path = _get_or_create_xmp(image_path)
-        desc = _get_description(root)
-        
-        # Set custom picked flag
-        desc.set(f'{{{NAMESPACES["xmp"]}}}Picked', str(is_picked).lower())
-        
-        # Lightroom Cloud convention: picked = Green label, rejected = Red label
-        # (But only if user hasn't set a label already)
-        existing_label = desc.get(f'{{{NAMESPACES["xmp"]}}}Label')
-        if not existing_label:
-            if is_picked:
-                desc.set(f'{{{NAMESPACES["xmp"]}}}Label', 'Green')
-            else:
-                desc.set(f'{{{NAMESPACES["xmp"]}}}Label', 'Red')
-        
-        # Write file
-        tree = ET.ElementTree(root)
-        tree.write(xmp_path, encoding='utf-8', xml_declaration=True)
-        
-        logger.info(f"Wrote pick={is_picked} to {xmp_path}")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Failed to write pick flag to {image_path}: {e}")
-        return False
-
-
 def write_pick_reject_flag(image_path: str, pick_status: int) -> bool:
     """
     Write Lightroom-compatible Pick/Reject flag to XMP sidecar.

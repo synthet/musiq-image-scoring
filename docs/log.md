@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-09] chore | Dead code registry and removal (#252)
+
+Added [reports/DEAD_CODE_REGISTRY.md](reports/DEAD_CODE_REGISTRY.md) documenting orphan Gradio tabs/assets, `remote_scoring.py`, CullingPage wrapper, gallery orphans, and archive trees removed with GitHub history citations.
+
 ## [2026-06-08] docs | Consolidated AI-memory-tool reviews into one decision doc
 
 Merged four per-agent reviews (Claude/Codex/Cursor/Antigravity, never committed) into [ai-memory-comparison.md](ai-memory-comparison.md). Decision: keep `.agent-memory/memory.md` + native Claude `MEMORY.md` canonical; external tools are opt-in capture/search sidecars (ai-memory preferred, Icarus/Origin close, Midas for recall). Rejected the Mem0-embedded-in-app-pgvector proposal (violates separation-from-app-DB, the human-promote gate, and markdown SOtT).
@@ -247,3 +251,9 @@ Moved loose drafts into raw archive: [gradio-serving-comparison.md](raw/gradio-s
 ## [2026-04-13] create | Wiki Schema
 
 Established LLM wiki system. Created [WIKI_SCHEMA.md](WIKI_SCHEMA.md) (conventions, page types, operations), this log file, and slash commands (`/wiki-ingest`, `/wiki-query`, `/wiki-lint`). Added wiki maintenance rules to CLAUDE.md. Pages touched: [WIKI_SCHEMA.md](WIKI_SCHEMA.md), [INDEX.md](INDEX.md), [README.md](README.md), [CLAUDE.md](../CLAUDE.md).
+
+---
+
+## [2026-06-09] create | Lens folder normalization
+
+Added `modules/lens_folder_name.py` (Nikon EXIF quad → canonical `…mm` folders), gallery parity in `lensFolderName.ts`, and `scripts/maintenance/merge_numeric_lens_folders.py` for legacy backup trees + manifest relPath rewrite. Refactored maintenance scripts to import shared module. Tests: `tests/test_lens_folder_name.py`.

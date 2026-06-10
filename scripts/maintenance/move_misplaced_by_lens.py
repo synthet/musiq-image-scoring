@@ -45,8 +45,11 @@ from modules.db import (
     init_db,
     invalidate_folder_phase_aggregates,
 )
+from modules.lens_folder_name import (
+    extract_lens_token_from_model,
+    extract_lens_token_from_path_segment,
+)
 from modules.thumbnails import (
-    THUMB_DIR,
     get_thumb_path,
     thumb_path_to_win,
     thumb_path_to_wsl,
@@ -112,37 +115,20 @@ def _normalize_for_db(win_or_wsl_path: str) -> str:
         return win_or_wsl_path.replace("/", "\\")
 
 
-# ── Lens extraction ─────────────────────────────────────────────────────────
-
-# Match focal length patterns: 105mm, 180-600mm, 24-70mm, 10.5mm
-_LENS_PATTERN = re.compile(r"(\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?mm)")
-
-# Invalid lens values to skip (bad EXIF)
-_INVALID_LENSES = frozenset({"0mm"})
-
-
 def _extract_lens_from_model(lens_model: str | None) -> str | None:
-    """Extract lens identifier from lens_model (e.g. '105mm', '180-600mm')."""
-    if not lens_model or not lens_model.strip():
-        return None
-    m = _LENS_PATTERN.search(lens_model.strip())
-    if not m:
-        return None
-    lens = m.group(1).lower()
-    if lens in _INVALID_LENSES:
-        return None
-    return lens
+    return extract_lens_token_from_model(lens_model)
 
 
 def _extract_lens_from_path(path: str) -> str | None:
-    """Extract lens folder segment: first path part containing a focal length like ``180-600mm``."""
+    """Extract canonical lens token from path (``180-600mm`` or ``35 35 1.8 1.8`` → ``35mm``)."""
     if not path:
         return None
     normalized = path.replace("\\", "/")
     parts = [p for p in normalized.split("/") if p]
     for p in parts:
-        if "mm" in p.lower() and _LENS_PATTERN.search(p):
-            return p.lower()
+        token = extract_lens_token_from_path_segment(p)
+        if token:
+            return token
     return None
 
 

@@ -191,6 +191,37 @@ def test_dispatcher_bird_species_explicit_selector_ids_bypass_empty_jit(monkeypa
     assert kwargs["resolved_image_ids"] == [101, 102]
 
 
+def test_dispatcher_maintenance_bypasses_empty_jit(monkeypatch):
+    """Maintenance jobs must reach MaintenanceRunner even when JIT would return empty."""
+    maintenance_runner = DummyRunner()
+    dispatcher = JobDispatcher(maintenance_runner=maintenance_runner)
+
+    def _empty_stub(self, job_id, payload, queue_key, input_path):
+        return dict(payload), [], True
+
+    monkeypatch.setattr(JobDispatcher, "_jit_replan_phase", _empty_stub)
+
+    queued_job = {
+        "id": 4146,
+        "job_type": "maintenance",
+        "input_path": "Tools: Backfill EXIF Dates (limit=10000)",
+        "queue_payload": json.dumps({
+            "action": "backfill_exif",
+            "limit": 10000,
+        }),
+    }
+
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.job_dispatcher.db.set_job_phase_state", lambda *a, **k: None)
+
+    dispatcher._tick()
+
+    assert len(maintenance_runner.calls) == 1
+    _, kwargs = maintenance_runner.calls[0]
+    assert kwargs["job_id"] == 4146
+
+
 def test_dispatcher_scoring_empty_jit_queue_skips_phase(monkeypatch):
     """When JIT replan finds no stale/missing work, scoring is not dispatched."""
     scoring_runner = DummyRunner()

@@ -32,13 +32,14 @@ def test_cap_id_list_truncates():
     assert sample == [0, 1, 2] and truncated is True
 
 
+@patch("modules.runs_autodrive.maybe_schedule_post_audit_followup")
 @patch.object(db, "_maybe_fail_job_on_post_audit_issues")
 @patch.object(db, "_append_job_log_line")
 @patch.object(db, "build_validation_repair_plan")
 @patch.object(db, "update_job_payload")
 @patch.object(db, "get_connector")
 def test_run_post_completion_audit_merges_payload(
-    mock_conn, mock_update, mock_plan, _mock_log, _mock_fail
+    mock_conn, mock_update, mock_plan, _mock_log, _mock_fail, _mock_followup
 ):
     mock_conn.return_value.query_one.return_value = {
         "id": 42,

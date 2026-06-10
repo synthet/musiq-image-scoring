@@ -17,7 +17,7 @@ from pathlib import Path
 
 import gradio as gr
 
-from modules.ui.tabs.pipeline import get_runner_activity_snapshot
+from modules.ui.runner_snapshot import get_runner_activity_snapshot
 
 # ── Design tokens (matched to React frontend src/styles/layout.css + tokens.css) ──
 

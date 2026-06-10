@@ -412,6 +412,22 @@ class JobDispatcher:
         }
         queue_key = phase_alias.get(phase_key, phase_key)
         payload = self._fresh_payload(job_id, payload)
+
+        # Maintenance jobs are self-scoping (global SQL limits / action handlers).
+        # They must not go through JIT replan, which treats input_path as folder scope.
+        if phase_key == "maintenance":
+            act = (payload or {}).get("action", "")
+            logger.info(
+                "Dispatching maintenance job id=%s action=%r input_path=%r",
+                job_id,
+                act,
+                input_path,
+            )
+            return runner.start_batch(
+                payload.get("input_path", input_path),
+                job_id=job_id,
+            )
+
         try:
             run_mode = normalize_run_mode(payload.get("run_mode"))
         except ValueError:
@@ -627,19 +643,6 @@ class JobDispatcher:
                 top_k=int(payload.get("top_k", 3)),
                 overwrite=overwrite,
                 resolved_image_ids=scoped_resolved,
-            )
-
-        if phase == "maintenance":
-            act = (payload or {}).get("action", "")
-            logger.info(
-                "Dispatching maintenance job id=%s action=%r input_path=%r",
-                job_id,
-                act,
-                input_path,
-            )
-            return runner.start_batch(
-                payload.get("input_path", input_path),
-                job_id=job_id,
             )
 
         return f"No dispatch handler for phase '{phase}'"

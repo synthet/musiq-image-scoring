@@ -191,6 +191,175 @@ def _reconcile_stale_ips_for_drive() -> None:
         db.reconcile_phantom_complete_image_phases(("scoring", "keywords"), limit=5000)
     except Exception:
         logger.debug("runs_autodrive: reconcile phantom-complete IPS failed", exc_info=True)
+    try:
+        db.reset_false_complete_metadata_phases(limit=500)
+    except Exception:
+        logger.debug("runs_autodrive: reset false-complete metadata IPS failed", exc_info=True)
+
+
+def _autodrive_config_bool(key: str, *, default: bool = True) -> bool:
+    try:
+        from modules.config import get_config_value
+
+        return bool(get_config_value(key, default=default))
+    except Exception:
+        return default
+
+
+def _has_active_maintenance_job() -> bool:
+    try:
+        rows = db.get_jobs(
+            limit=30,
+            offset=0,
+            status_filter=("queued", "running", "pending", "paused", "restarting"),
+        ) or []
+    except Exception:
+        return False
+    for row in rows:
+        if (row.get("job_type") or "").strip().lower() != "maintenance":
+            continue
+        status = (row.get("status") or "").strip().lower()
+        if status in ("queued", "running", "pending", "paused", "restarting"):
+            return True
+    return False
+
+
+def _enqueue_maintenance_action(action: str, *, limit: int, tool_id: str) -> Optional[int]:
+    from modules.maintenance_job_display import (
+        build_default_maintenance_description,
+        maintenance_job_input_path,
+    )
+    from modules.run_manifest import REASON_SOURCE_MAINTENANCE, attach_run_reason, build_maintenance_summary
+
+    queue_payload: dict[str, Any] = {"action": action, "limit": limit}
+    if action == "heal_thumbnails":
+        queue_payload["repair_limit"] = 1000
+        queue_payload["regen_limit"] = min(limit, 500)
+    queue_payload = augment_queue_payload_for_audit(queue_payload, trigger="api", tool_id=tool_id)
+    queue_payload = attach_run_reason(
+        queue_payload,
+        source=REASON_SOURCE_MAINTENANCE,
+        summary=build_maintenance_summary(action=action),
+        trigger="api",
+        tool_id=tool_id,
+        criteria={"action": action, "limit": limit, "source": "auto_drive_self_heal"},
+    )
+    job_id, _ = db.enqueue_job(
+        maintenance_job_input_path(action, queue_payload),
+        None,
+        job_type="maintenance",
+        queue_payload=queue_payload,
+        description=build_default_maintenance_description(action, queue_payload),
+    )
+    return int(job_id) if job_id else None
+
+
+def _maybe_enqueue_drive_self_heal_maintenance(summary: Optional[dict[str, Any]]) -> dict[str, Any]:
+    """Enqueue bounded maintenance when library-wide asset gaps remain."""
+    out: dict[str, Any] = {"enqueued": []}
+    if not _autodrive_config_bool("auto_drive.self_heal_thumbnails", default=True) and not _autodrive_config_bool(
+        "auto_drive.self_heal_exif", default=True
+    ):
+        return out
+    if _has_active_maintenance_job():
+        out["skipped"] = "maintenance_already_running"
+        return out
+    try:
+        gaps = db.count_metadata_asset_gaps()
+    except Exception:
+        logger.debug("runs_autodrive: count_metadata_asset_gaps failed", exc_info=True)
+        return out
+    out["gaps"] = gaps
+    if summary is not None:
+        summary["asset_gaps"] = gaps
+    if _autodrive_config_bool("auto_drive.self_heal_thumbnails", default=True):
+        thumb_n = int(gaps.get("thumbnail_gap_count") or 0)
+        if thumb_n > 0:
+            job_id = _enqueue_maintenance_action(
+                "heal_thumbnails",
+                limit=min(thumb_n, 500),
+                tool_id="auto_drive_heal_thumbnails",
+            )
+            if job_id:
+                out["enqueued"].append({"action": "heal_thumbnails", "job_id": job_id})
+    if _autodrive_config_bool("auto_drive.self_heal_exif", default=True):
+        exif_n = int(gaps.get("exif_date_gap_count") or 0)
+        if exif_n > 0 and not out["enqueued"]:
+            job_id = _enqueue_maintenance_action(
+                "backfill_exif",
+                limit=min(exif_n, 10000),
+                tool_id="auto_drive_backfill_exif",
+            )
+            if job_id:
+                out["enqueued"].append({"action": "backfill_exif", "job_id": job_id})
+    return out
+
+
+def maybe_schedule_post_audit_followup(
+    job_id: int,
+    payload: dict[str, Any],
+    post_run_audit: dict[str, Any],
+) -> Optional[int]:
+    """Re-queue metadata for auto-drive jobs when post-run audit still shows metadata work."""
+    if payload.get("tool_id") != "runs_auto_drive":
+        return None
+    if not _autodrive_config_bool("auto_drive.post_audit_followup", default=True):
+        return None
+    if post_run_audit.get("status") != "issues_remaining":
+        return None
+    stage_queues = post_run_audit.get("stage_queues") or {}
+    metadata_info = stage_queues.get("metadata") or stage_queues.get(PhaseCode.METADATA.value)
+    if not isinstance(metadata_info, dict):
+        return None
+    remaining = int(metadata_info.get("total") or 0)
+    if remaining <= 0:
+        return None
+    scope_paths = payload.get("scope_paths") or []
+    if not scope_paths:
+        ip = payload.get("input_path")
+        if ip:
+            scope_paths = [ip]
+    if not scope_paths:
+        return None
+    resolved = str(scope_paths[0]).strip()
+    if not resolved:
+        return None
+    try:
+        follow_id, _, err = _enqueue_auto_bucket(
+            {
+                "path": resolved,
+                "bucket": "awaiting_metadata",
+                "next_phases": [PhaseCode.METADATA.value],
+                "overall_percent": payload.get("auto_drive_overall_percent"),
+                "folder_created_at": None,
+                "is_newly_imported": False,
+            },
+            generate_captions=bool(payload.get("generate_captions", True)),
+            resolved=resolved,
+            phase_values=[PhaseCode.METADATA.value],
+        )
+    except Exception:
+        logger.exception(
+            "runs_autodrive: post_audit follow-up enqueue failed job_id=%s scope=%s",
+            job_id,
+            resolved,
+        )
+        return None
+    if err:
+        logger.info(
+            "runs_autodrive: post_audit follow-up skipped job_id=%s scope=%s reason=%s",
+            job_id,
+            resolved,
+            err,
+        )
+        return None
+    logger.info(
+        "runs_autodrive: post_audit follow-up queued metadata job %s for parent job %s (%s)",
+        follow_id,
+        job_id,
+        resolved,
+    )
+    return follow_id
 
 
 AUTODRIVE_DIRTY_REFRESH_LIMIT = 100
@@ -1944,6 +2113,12 @@ def _run_drive_batch(*, force: bool = False) -> Optional[Dict[str, Any]]:
             health=health,
         )
         summary = _summarize_result(result, last_tick_reason=tick_reason)
+        try:
+            heal_info = _maybe_enqueue_drive_self_heal_maintenance(summary)
+            if heal_info.get("enqueued"):
+                logger.info("runs_autodrive: self-heal maintenance enqueued %s", heal_info["enqueued"])
+        except Exception:
+            logger.debug("runs_autodrive: self-heal maintenance pass failed", exc_info=True)
 
         with _DRIVE_LOCK:
             _DRIVE_STATE["last_result"] = summary

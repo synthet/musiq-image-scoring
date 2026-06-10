@@ -112,6 +112,7 @@ if _project_root not in sys.path:
 
 import modules.utils as utils
 from modules.camera_folder_name import camera_folder_from_exif_model
+from modules.lens_folder_name import UNKNOWN_LENS_FOLDER, lens_folder_from_exif_model
 
 _EXIFTOOL_PATH = shutil.which("exiftool") or shutil.which("C:\\Program Files\\XnViewMP\\AddOn\\exiftool.exe")
 
@@ -224,27 +225,14 @@ def _sanitize_fs(s: str) -> str:
     return re.sub(r"\s+", "", s) or "unknown"
 
 
-def _fmt_focal(s: str) -> str:
-    """Format a focal length string, stripping unnecessary .0 decimals. E.g. '28.0' -> '28', '35.5' -> '35.5'."""
-    try:
-        f = float(s)
-        return str(int(f)) if f == int(f) else s
-    except ValueError:
-        return s
-
-
 def _lens_folder(lens: str) -> str:
-    """Extract focal range for folder. E.g. 'Nikon Z 180-600mm f/5.6-6.3' -> '180-600mm'."""
+    """Extract focal range for folder (parity with gallery ``normalizeLensFolderName``)."""
     if not lens or lens.lower() == "unknown":
         return "unknown"
-    # Match 24-180mm, 180-600mm, 50mm, 85mm f/1.4
-    m = re.search(r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*mm", lens)
-    if m:
-        return f"{_fmt_focal(m.group(1))}-{_fmt_focal(m.group(2))}mm"
-    m = re.search(r"(\d+(?:\.\d+)?)\s*mm", lens)
-    if m:
-        return f"{_fmt_focal(m.group(1))}mm"
-    return _sanitize_fs(lens)[:30]
+    result = lens_folder_from_exif_model(lens)
+    if result == UNKNOWN_LENS_FOLDER:
+        return "unknown"
+    return result
 
 
 def _get_metadata(path: Path) -> dict:

@@ -13,6 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.3.0] - 2026-06-09
+
+### Added
+
+- **Keyword cloud + Keywords/Birds pages**: New `GET /api/keywords/cloud` endpoint (`kind=species|general`, optional folder scope) backed by `keyword_discovery.get_keyword_cloud()`; React `/ui` gains Keywords, Keyword-images, and Birds pages with routes; static `/app` bundle rebuilt.
+- **Lens folder normalization**: `modules/lens_folder_name.py` maps Nikon EXIF lens quads to canonical `…mm` folder names, shared by backup/maintenance scripts; `scripts/maintenance/merge_numeric_lens_folders.py` merges legacy numeric folders and rewrites manifest relPaths.
+- **Auto-drive self-heal maintenance**: Post-audit follow-up can enqueue self-scoping maintenance jobs (`maybe_schedule_post_audit_followup`), guarded by config flags and an active-maintenance-job check.
+
+### Changed
+
+- **Backup planning moved to gallery**: Dropped the short-lived backend `/api/backup/plan` endpoint (introduced and superseded within this cycle) in favor of gallery-side selection; added a bundled folder/stack endpoint and hardened selection + prune safety.
+
+### Fixed
+
+- **Scoring robustness**: Retry transient RAW conversion failures so one failed image no longer wedges its folder (#243, #244); finalize phantom-scored images by backfilling the composite score from model rows (#246).
+- **Metadata asset gaps**: The metadata phase re-runs when thumbnails or preview assets are missing (`get_image_metadata_asset_gap_reason`); failed thumbnail writes now mark the phase `failed` instead of passing silently; workflow healing uses the metadata asset-incomplete SQL.
+- **Maintenance job dispatch**: The dispatcher routes maintenance jobs by their JIT-narrowed phase key so they bypass folder-scope replanning.
+
 ## [8.2.0] - 2026-06-07
 
 ### Added
