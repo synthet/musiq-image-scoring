@@ -33,32 +33,31 @@ Investigate **image-scoring-backend** issues using the Vexlum Scoring MCP **read
 - **Gallery workspace:** **`is-ui-local`**, **`is-ui-api`**, **`is-ui-live`**; backend triage via sibling **`is-be-mcp`**.
 - **WebUI live / `execute_code`:** **`is-be-webui`** only when needed and when enabled—see `AGENTS.md`.
 
-## Investigation order (align with AGENTS.md)
+## Investigation order (compact `is-be-mcp`)
 
-Run in order, **stopping early** if the answer is clear. Adjust when the question is narrowly scoped (e.g. only “stuck phases”).
+Use **`search(query)`** then **`dispatch(action_id, args)`** — see `.cursor/skills/image-scoring-mcp/SKILL.md`. Run in order, **stopping early** if the answer is clear.
 
-1. **`get_error_summary`** — scope: failed jobs, missing scores, orphans.
-2. **`check_database_health`** — integrity (orphans, duplicates, inconsistencies).
-3. **`get_failed_images`** and/or **`get_incomplete_images`** — lists to correlate with (2); use reasonable `limit`.
-4. **`get_model_status`** — GPU/CUDA/PyTorch/TensorFlow/model load (rules out “models never loaded”).
-5. **`get_runner_status`** — active runners/jobs when processing should be happening; pair with **`get_pipeline_stats`** if queue/state matters.
-6. **`read_debug_log`** — pull details after the above implicate a specific error window.
+1. **`diagnostics.get_error_summary`** — failed jobs, missing scores, orphans.
+2. **`diagnostics.check_database_health`** — integrity (orphans, duplicates).
+3. **`jobs.get_failed_images`** — images missing score columns (reasonable `limit`).
+4. **`diagnostics.get_model_status`** — GPU/models loaded.
+5. **`jobs.get_runner_status`** — active runners (often empty on stdio MCP; use **`is-be-webui`** when WebUI is up).
+6. **`logs.read_debug_log`** or **`logs.search_logs`** — details after the above narrow the window.
 
 ### Phase-specific add-ons (when relevant)
 
-- **`diagnose_phase_consistency`** — per-image vs folder phase mismatches.
-- **`get_stale_running_phase_status`** — rows stuck in `running`.
-- **`get_recent_jobs`** → **`get_job_details`** / **`get_job_phases`** / **`get_job_stage_images`** — trace a specific failed or confusing job.
+- **`diagnostics.diagnose_phase_consistency`** — requires **`image_id`** (+ optional `folder_path`).
+- **`diagnostics.get_stale_running_phase_status`** — IPS stuck in `running`.
+- **`jobs.get_image_pipeline_failures`** — per-image `job_image_actions` failed rows (`image_id` or `file_path`).
+- **`jobs.get_recent_jobs`** → **`jobs.get_job_details`** / **`jobs.get_run_diagnostics`** — trace a specific run.
 
 ### Config and environment (sanity)
 
-- **`validate_config`** — structural checks + optional DB reachability.
-- **`verify_environment`** — host/Python/deps sanity when MCP/venv confusion is suspected.
-- **`get_database_engine_info`** — configured engine and connection targets for Postgres vs Firebird questions.
+- **`diagnostics.validate_config`**, **`diagnostics.verify_environment`**, **`diagnostics.get_database_engine_info`**.
 
-### Raw SQL
+### Raw SQL (compact)
 
-- **`execute_sql`** — read-only `SELECT` only; use after overview tools when a precise row-level question remains.
+- **`data.get_db_schema`** then **`data.execute_sql`** — read-only `SELECT` only.
 
 ## Summarize using this template
 

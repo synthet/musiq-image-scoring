@@ -18,7 +18,7 @@ User `~/.cursor/mcp.json`: **`github`**, **`subagent-orchestrator`**, etc. — *
 
 ## Compact dispatch (default)
 
-**`is-be-mcp`** and **`is-be-webui`** (default compact SSE) → **`search(query)`** → **`dispatch(action_id, arguments)`**. Contract: [docs/technical/MCP_SEARCH_DISPATCH.md](../../docs/technical/MCP_SEARCH_DISPATCH.md).
+**`is-be-mcp`** and **`is-be-webui`** (default compact SSE) expose only **`search`** and **`dispatch`** — not raw tool names from AGENTS.md. Workflow: **`search(query)`** → **`dispatch(action_id, arguments)`** using registry `action_id` values (`category.tool`). On **`unknown_action`**, read `details.suggestions`; use `search(..., include_schemas=True)` before dispatch when unsure. Contract: [docs/technical/MCP_SEARCH_DISPATCH.md](../../docs/technical/MCP_SEARCH_DISPATCH.md); skill: `.cursor/skills/image-scoring-mcp/SKILL.md`.
 
 Gallery: **`is-ui-mcp`** → same **`search`** / **`dispatch`** over gallery actions (`mcp-server/action_registry.json`).
 
@@ -51,7 +51,9 @@ Not in default gallery config: **`is-ui-router`**, **`is-ui-local`**, **`is-ui-a
 ## Quick decision tree
 
 - **Unknown which action?** → **`search`** on **`is-be-mcp`**
-- **Why did scoring fail?** → `dispatch("diagnostics.get_error_summary", {})` → `dispatch("jobs.get_failed_images", {"limit": 20})`
+- **Why did scoring fail?** → `dispatch("diagnostics.get_error_summary", {})` → `dispatch("jobs.get_failed_images", {"limit": 20})` (missing scores; not per-job trace)
+- **Why did one image fail in a job?** → `dispatch("jobs.get_image_pipeline_failures", {"file_path": "…"})`
+- **Custom SQL** → `dispatch("data.get_db_schema", {})` then `dispatch("data.execute_sql", {"query": "SELECT …"})`
 - **Is the system healthy?** → `dispatch("diagnostics.check_database_health", {})`, `dispatch("diagnostics.validate_config", {})`
 - **Redacted support bundle** → `dispatch("support.export_debug_bundle", {}, confirmed=True)`
 - **Legacy tools not in registry** → backend WebUI with **`MCP_SSE_PROFILE=full`**

@@ -12,9 +12,9 @@
   },
   "categories": {
     "config": 1,
-    "data": 3,
-    "diagnostics": 7,
-    "jobs": 5,
+    "data": 5,
+    "diagnostics": 9,
+    "jobs": 6,
     "logs": 3,
     "support": 1
   },
@@ -58,6 +58,134 @@
       },
       "legacy_tool_name": "get_config",
       "action_id": "config.get_config"
+    },
+    {
+      "title": "Execute read-only SQL",
+      "description": "Run a read-only SELECT or WITH … SELECT query (? placeholders). Use get_db_schema first.",
+      "category": "data",
+      "tags": [
+        "sql",
+        "query",
+        "database",
+        "select",
+        "postgres"
+      ],
+      "aliases": [
+        "execute sql",
+        "run sql",
+        "sql query"
+      ],
+      "intent_examples": [
+        "execute sql select",
+        "custom database query",
+        "count images in folder sql",
+        "query postgres read only"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/technical/MCP_DEBUGGING_TOOLS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [
+        "requires_db"
+      ],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "params": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "execute_sql"
+      },
+      "legacy_tool_name": "execute_sql",
+      "test_refs": [
+        "tests/test_mcp_search.py"
+      ],
+      "action_id": "data.execute_sql"
+    },
+    {
+      "title": "Database schema reference",
+      "description": "List public PostgreSQL tables and columns (for drafting execute_sql queries).",
+      "category": "data",
+      "tags": [
+        "database",
+        "schema",
+        "sql",
+        "postgres",
+        "tables"
+      ],
+      "aliases": [
+        "db schema",
+        "table columns",
+        "information schema"
+      ],
+      "intent_examples": [
+        "list database tables",
+        "schema for images table",
+        "columns in postgres",
+        "draft execute sql query"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/technical/MCP_DEBUGGING_TOOLS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [
+        "requires_db"
+      ],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "table_name_prefix": {
+            "type": "string"
+          },
+          "max_tables": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "max_column_rows": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 50000
+          }
+        },
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "get_db_schema"
+      },
+      "legacy_tool_name": "get_db_schema",
+      "action_id": "data.get_db_schema"
     },
     {
       "title": "Embedding coverage stats",
@@ -295,6 +423,64 @@
       "action_id": "diagnostics.check_database_health"
     },
     {
+      "title": "Phase consistency diagnosis",
+      "description": "Folder vs per-image phase status mismatch for one image_id (optional folder_path override).",
+      "category": "diagnostics",
+      "tags": [
+        "phases",
+        "consistency",
+        "folder",
+        "image_phase_status"
+      ],
+      "aliases": [
+        "phase mismatch",
+        "folder phase drift"
+      ],
+      "intent_examples": [
+        "diagnose phase consistency",
+        "folder shows done but image pending",
+        "image phase status mismatch"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/technical/MCP_DEBUGGING_TOOLS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [
+        "requires_db"
+      ],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "image_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "folder_path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "image_id"
+        ],
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "diagnose_phase_consistency"
+      },
+      "legacy_tool_name": "diagnose_phase_consistency",
+      "action_id": "diagnostics.diagnose_phase_consistency"
+    },
+    {
       "title": "Database engine info",
       "description": "Configured engine, connector, safe connection targets, ping.",
       "category": "diagnostics",
@@ -426,6 +612,62 @@
       },
       "legacy_tool_name": "get_model_status",
       "action_id": "diagnostics.get_model_status"
+    },
+    {
+      "title": "Stale running phase rows",
+      "description": "image_phase_status rows stuck in running longer than min_age_seconds.",
+      "category": "diagnostics",
+      "tags": [
+        "phases",
+        "running",
+        "stale",
+        "stuck"
+      ],
+      "aliases": [
+        "stale running phases",
+        "stuck running"
+      ],
+      "intent_examples": [
+        "phases stuck running",
+        "stale running image phase status"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/technical/MCP_DEBUGGING_TOOLS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [
+        "requires_db"
+      ],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "min_age_seconds": {
+            "type": "integer",
+            "minimum": 60
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          }
+        },
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "get_stale_running_phase_status"
+      },
+      "legacy_tool_name": "get_stale_running_phase_status",
+      "action_id": "diagnostics.get_stale_running_phase_status"
     },
     {
       "title": "Run backend doctor checks",
@@ -570,12 +812,13 @@
     },
     {
       "title": "Failed images",
-      "description": "Images missing key quality scores.",
+      "description": "Images missing key quality scores (null score_general, technical, etc.).",
       "category": "jobs",
       "tags": [
         "failed",
         "scoring",
-        "images"
+        "images",
+        "missing scores"
       ],
       "aliases": [
         "missing scores",
@@ -584,8 +827,7 @@
       "intent_examples": [
         "images that failed scoring",
         "missing musiq scores",
-        "show failed pipeline phases",
-        "pipeline phase failures"
+        "images without general score"
       ],
       "side_effect_level": "read_only",
       "confirmation_required": false,
@@ -623,6 +865,67 @@
       },
       "legacy_tool_name": "get_failed_images",
       "action_id": "jobs.get_failed_images"
+    },
+    {
+      "title": "Per-image pipeline failures",
+      "description": "job_image_actions rows with action failed for one image (by image_id or file_path).",
+      "category": "jobs",
+      "tags": [
+        "pipeline",
+        "failures",
+        "image",
+        "job_image_actions"
+      ],
+      "aliases": [
+        "image pipeline failures",
+        "per image job failures"
+      ],
+      "intent_examples": [
+        "pipeline failures for image",
+        "why did this image fail in a job",
+        "job_image_actions failed for file path",
+        "image scoring job failure details"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/technical/MCP_DEBUGGING_TOOLS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [
+        "requires_db"
+      ],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "image_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          }
+        },
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "get_image_pipeline_failures"
+      },
+      "legacy_tool_name": "get_image_pipeline_failures",
+      "action_id": "jobs.get_image_pipeline_failures"
     },
     {
       "title": "Job details",

@@ -28,6 +28,12 @@ _MUTATING_QUERY_HINTS = frozenset(
 _index: Bm25Index | None = None
 
 
+def reset_search_index() -> None:
+    """Clear cached BM25 index (tests / registry reload)."""
+    global _index
+    _index = None
+
+
 def _entry_for_bm25(action: dict[str, Any]) -> dict[str, Any]:
     schema = action.get("input_schema") or {}
     props = schema.get("properties") or {}

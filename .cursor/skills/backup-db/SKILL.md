@@ -1,7 +1,7 @@
 ---
 name: backup-db
 description: >-
-  PostgreSQL custom-format backup for image-scoring-backend via Backup-Postgres.ps1. Use when the user runs /backup-db, asks for a local pg_dump, database backup, or Postgres dump. Default workflow keeps the repo copy under backups/postgres and mirrors a copy to D:\Dropbox\Photos\Scoring with 7-day rotation in the mirror folder only.
+  PostgreSQL custom-format backup for image-scoring-backend via Backup-Postgres.ps1. Use when the user runs /backup-db, asks for a local pg_dump, database backup, or Postgres dump. Default workflow keeps at most 3 dumps in backups/postgres and mirrors the latest copy to D:\Dropbox\Photos\Scoring (also capped at 3 files).
 ---
 
 # backup-db
@@ -12,30 +12,38 @@ Run **`scripts/powershell/Backup-Postgres.ps1`** from **repo root** so the dump 
 
 ## Canonical invocation (this operator)
 
-Always pass **mirror** arguments so a second copy lands in Dropbox and old mirror files are removed after **one week** (repo `backups\postgres` retention stays the script default, usually 30 days):
+Always pass **mirror** arguments and **count-based retention** so both locations keep at most **3** newest `image_scoring_*.dump` files:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\powershell\Backup-Postgres.ps1 `
+  -MaxBackups 3 `
   -MirrorDir "D:\Dropbox\Photos\Scoring" `
-  -MirrorRetentionDays 7
+  -MirrorMaxBackups 3 `
+  -RetentionDays 0 `
+  -MirrorRetentionDays 0
 ```
 
+- **Primary directory:** `backups\postgres` under repo root (default).
 - **Mirror directory:** `D:\Dropbox\Photos\Scoring` — created if missing.
-- **Mirror rotation:** only files matching `image_scoring_*.dump` in that folder with `LastWriteTime` older than 7 days are deleted (the new dump is copied first, then prune runs).
+- **Rotation:** after each successful dump, oldest files beyond the third newest are deleted in each folder (newest kept by `LastWriteTime`).
 
 ## Without mirror
 
 If the user explicitly wants **no** Dropbox copy:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\powershell\Backup-Postgres.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\powershell\Backup-Postgres.ps1 `
+  -MaxBackups 3 `
+  -RetentionDays 0
 ```
 
 ## Other script parameters
 
 - `-BackupDir <path>` — primary dump folder (default: `backups\postgres` under repo root).
-- `-RetentionDays <n>` — prune primary folder; `0` skips.
-- `-MirrorRetentionDays 0` — copy to mirror but do not delete old mirror dumps.
+- `-MaxBackups <n>` — keep newest *n* dumps in primary folder; `0` skips count prune.
+- `-RetentionDays <n>` — age-based prune in primary folder (used only when `-MaxBackups 0`); `0` skips.
+- `-MirrorMaxBackups <n>` — keep newest *n* mirror dumps; `0` skips count prune.
+- `-MirrorRetentionDays <n>` — age-based mirror prune (used only when `-MirrorMaxBackups 0`); `0` skips.
 - `-ConfigPath <path>` — non-default `config.json`.
 
 ## Success criteria
@@ -43,6 +51,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\powershell\Backup-
 - Process exits **0**.
 - Primary `.dump` exists and is **non-empty**.
 - When mirroring: mirror `.dump` exists, non-empty, and prune step completed without fatal errors.
+- After prune: at most **3** `image_scoring_*.dump` files in each retention-enabled folder.
 
 ## After restore
 

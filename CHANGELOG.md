@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.4.0] - 2026-06-10
+
+### Added
+
+- **Keyword relevance weights**: `modules/keyword_relevance.py` maps CLIP cosine similarity to stable per-tag `relevance_weight`; tagging forward-fill writes `relevance_map`; `scripts/db/backfill_keyword_relevance.py` backfills existing rows.
+- **MCP compact dispatch expansion**: Additional read-only actions in the action registry and overlay (phase consistency, stale running phases, data query helpers, logs, config, jobs).
+
+### Changed
+
+- **Backup script**: `Backup-Postgres.ps1` supports count-based retention (`-MaxBackups`, `-MirrorMaxBackups`) alongside age prune; backup-db skill and slash commands aligned.
+
 ## [8.3.0] - 2026-06-09
 
 ### Added

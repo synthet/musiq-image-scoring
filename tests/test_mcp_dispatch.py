@@ -14,6 +14,26 @@ def test_dispatch_unknown_action():
     result = dispatch_action("maintenance.prune_missing_files", {})
     assert result.get("status") == "error"
     assert result.get("code") == "unknown_action"
+    details = result.get("details") or {}
+    assert details.get("hint")
+    assert isinstance(details.get("suggestions"), list)
+
+
+def test_dispatch_legacy_tool_name_execute_sql():
+    with patch("modules.mcp_server.execute_sql", return_value={"rows": []}) as mock_fn:
+        result = dispatch_action("execute_sql", {"query": "SELECT 1"})
+    assert result.get("status") == "success"
+    mock_fn.assert_called_once_with(query="SELECT 1")
+
+
+def test_dispatch_category_prefixed_legacy_alias():
+    with patch("modules.mcp_server.get_image_pipeline_failures", return_value={"items": []}) as mock_fn:
+        result = dispatch_action(
+            "jobs.get_image_pipeline_failures",
+            {"file_path": "/mnt/d/Photos/test.jpg"},
+        )
+    assert result.get("status") == "success"
+    mock_fn.assert_called_once()
 
 
 def test_dispatch_run_doctor_no_gpu():

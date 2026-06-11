@@ -10967,12 +10967,14 @@ def update_image_keywords_for_image(
     relevance_weight=1.0,
     confidence_map=None,
     source_map=None,
+    relevance_map=None,
 ):
     """
     Update one image's legacy keywords CSV and normalized keyword rows.
 
-    ``confidence_map`` and ``source_map`` use normalized lowercase keyword strings
-    as keys and are applied only to ``image_keywords`` rows.
+    ``confidence_map``, ``relevance_map`` and ``source_map`` use normalized
+    lowercase keyword strings as keys and are applied only to ``image_keywords``
+    rows.
     """
     if not image_id:
         return
@@ -10993,6 +10995,7 @@ def update_image_keywords_for_image(
             relevance_weight=relevance_weight,
             confidence_map=confidence_map,
             source_map=source_map,
+            relevance_map=relevance_map,
         )
 
         invalidate_folder_images_cache()
@@ -14938,6 +14941,7 @@ def _sync_image_keywords(
     relevance_weight=1.0,
     confidence_map=None,
     source_map=None,
+    relevance_map=None,
 ):
     """
     Dual-write sync: Parses the legacy keywords CSV string and updates the normalized
@@ -14945,8 +14949,8 @@ def _sync_image_keywords(
 
     ``confidence`` reflects model/source confidence; ``relevance_weight`` is relative
     keyword importance for the image (ranking, propagation, filtering). Defaults to 1.0.
-    ``confidence_map`` and ``source_map`` can override those values per normalized
-    keyword string.
+    ``confidence_map``, ``relevance_map`` and ``source_map`` can override those values
+    per normalized keyword string.
     """
     if not image_id:
         return
@@ -14968,6 +14972,16 @@ def _sync_image_keywords(
             continue
         try:
             normalized_confidence_map[kw_key] = max(0.0, min(1.0, float(value)))
+        except (TypeError, ValueError):
+            continue
+
+    normalized_relevance_map = {}
+    for key, value in (relevance_map or {}).items():
+        kw_key = str(key or "").strip().lower()
+        if not kw_key:
+            continue
+        try:
+            normalized_relevance_map[kw_key] = float(value)
         except (TypeError, ValueError):
             continue
 
@@ -14993,6 +15007,7 @@ def _sync_image_keywords(
                 kw_norm = kw.lower()
                 row_source = normalized_source_map.get(kw_norm, source)
                 row_confidence = normalized_confidence_map.get(kw_norm, confidence)
+                row_relevance = normalized_relevance_map.get(kw_norm, relevance_weight)
                 row = tx.query_one("SELECT keyword_id FROM keywords_dim WHERE keyword_norm = ?", (kw_norm,))
                 if row:
                     kw_id = row["keyword_id"]
@@ -15004,7 +15019,7 @@ def _sync_image_keywords(
 
                 tx.execute(
                     "UPDATE OR INSERT INTO image_keywords (image_id, keyword_id, source, confidence, relevance_weight) VALUES (?, ?, ?, ?, ?) MATCHING (image_id, keyword_id)",
-                    (image_id, kw_id, row_source, row_confidence, relevance_weight))
+                    (image_id, kw_id, row_source, row_confidence, row_relevance))
 
         get_connector().run_transaction(_tx)
     except Exception as e:

@@ -249,16 +249,36 @@ class KeywordScorer:
                 logger.error(f"Failed to load CLIP model: {e}")
                 raise
 
-    def predict(self, image_path: str, keywords: List[str] = None, threshold: float = 0.2, top_k: int = 5) -> List[str]:
+    def predict(
+        self,
+        image_path: str,
+        keywords: List[str] = None,
+        threshold: float = 0.2,
+        top_k: int = 5,
+        return_scores: bool = False,
+    ):
         """
         Predict keywords for an image using zero-shot classification.
+
+        By default returns a ``List[str]`` of keywords (back-compat). When
+        ``return_scores`` is True, returns ``(keywords, confidence_map,
+        relevance_map)`` where ``confidence_map[kw]`` is the CLIP softmax
+        probability over the candidate set and ``relevance_map[kw]`` is a
+        stable ``(0, 1)`` weight derived from the raw image/text cosine
+        similarity (see ``modules.keyword_relevance``). Keys are the keyword
+        strings exactly as returned in the list.
         """
         self.load_model()
 
         self.last_image_embedding = None
         target_keywords = keywords if keywords else self.DEFAULT_KEYWORDS
         prompts = [f"a photo of {k}" for k in target_keywords]
-        
+
+        def _result(kw_list, conf_map=None, rel_map=None):
+            if return_scores:
+                return kw_list, (conf_map or {}), (rel_map or {})
+            return kw_list
+
         try:
             from modules.thumbnails import open_image_for_ml
 
@@ -266,7 +286,7 @@ class KeywordScorer:
 
             inputs = self.processor(text=prompts, images=image, return_tensors="pt", padding=True)
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
-            
+
             with torch.no_grad():
                 outputs = self.model(**inputs)
 
@@ -277,24 +297,42 @@ class KeywordScorer:
             except Exception as emb_err:  # noqa: BLE001 — best-effort side effect
                 logger.debug("CLIP image embedding extraction failed: %s", emb_err)
 
-            logits_per_image = outputs.logits_per_image 
-            probs = logits_per_image.softmax(dim=1) 
-            
+            logits_per_image = outputs.logits_per_image
+            probs = logits_per_image.softmax(dim=1)
+
             probs_list = probs[0].tolist()
-            
+
+            # Raw cosine similarity = logits / logit_scale; logits_per_image is
+            # the scaled dot product of L2-normalized image/text features.
+            try:
+                logit_scale = float(self.model.logit_scale.exp().item())
+            except Exception:  # noqa: BLE001 — fall back to no rescale
+                logit_scale = 1.0
+            if logit_scale <= 0:
+                logit_scale = 1.0
+            cosine_list = [float(v) / logit_scale for v in logits_per_image[0].tolist()]
+
             valid_results = []
             for i, score in enumerate(probs_list):
                 if score >= threshold:
-                    valid_results.append((target_keywords[i], score))
-            
+                    valid_results.append((target_keywords[i], score, cosine_list[i]))
+
             valid_results.sort(key=lambda x: x[1], reverse=True)
-            final_keywords = [k for k, s in valid_results[:top_k]]
-            
-            return final_keywords
-            
+            top = valid_results[:top_k]
+            final_keywords = [k for k, _s, _c in top]
+
+            if not return_scores:
+                return final_keywords
+
+            from modules.keyword_relevance import cosine_to_relevance
+
+            confidence_map = {k: float(s) for k, s, _c in top}
+            relevance_map = {k: cosine_to_relevance(c) for k, _s, c in top}
+            return _result(final_keywords, confidence_map, relevance_map)
+
         except Exception as e:
             logger.error(f"Error processing {image_path}: {e}")
-            return []
+            return _result([])
 
 
 class CaptionGenerator:
@@ -605,6 +643,14 @@ class TaggingRunner:
             except Exception:
                 logger.debug("tagging: set_scope_counts failed for job_id=%s", job_id, exc_info=True)
         
+        # Whether to persist per-keyword relevance_weight / confidence derived
+        # from CLIP inference scores (forward-fill). Only the native CLIP path
+        # produces scores; injected tagging engines return bare keyword lists.
+        from modules import config as _rel_cfg
+        write_keyword_relevance = bool(
+            (_rel_cfg.get_config_section('tagging') or {}).get('write_keyword_relevance', True)
+        )
+
         processed_count = 0
         skipped_count = 0
         processed_folders = set()
@@ -657,6 +703,8 @@ class TaggingRunner:
                 _persist_blip = bool(_emb_section.get('persist_blip_image', True))
 
                 # Run inference
+                confidence_map: Dict[str, float] = {}
+                relevance_map: Dict[str, float] = {}
                 if self.tagging_engine is not None:
                     tags = self.tagging_engine.predict_keywords(inference_path, custom_keywords)
                     caption = ""
@@ -666,7 +714,12 @@ class TaggingRunner:
                         import textwrap
                         title = textwrap.shorten(caption, width=50, placeholder="...")
                 else:
-                    tags = self.scorer.predict(inference_path, keywords=custom_keywords)
+                    if write_keyword_relevance:
+                        tags, confidence_map, relevance_map = self.scorer.predict(
+                            inference_path, keywords=custom_keywords, return_scores=True
+                        )
+                    else:
+                        tags = self.scorer.predict(inference_path, keywords=custom_keywords)
                     caption = ""
                     title = ""
                     if generate_captions:
@@ -731,11 +784,31 @@ class TaggingRunner:
 
                 if keywords_produced or metadata_produced:
                     tags_str = ",".join(tags)
-                    db.update_image_fields_batch([(row['id'], {
-                        "keywords": tags_str,
+                    # When CLIP inference produced per-keyword scores, persist
+                    # keywords (legacy column + normalized rows with confidence /
+                    # relevance_weight) via the dedicated helper, and write only
+                    # the remaining fields through the batch helper to avoid a
+                    # second keyword sync that would overwrite the weights.
+                    use_scored_keywords = bool(
+                        keywords_produced
+                        and write_keyword_relevance
+                        and (confidence_map or relevance_map)
+                    )
+                    field_updates = {
                         "title": title if title else row.get('title'),
-                        "description": caption if caption else row.get('description')
-                    })])
+                        "description": caption if caption else row.get('description'),
+                    }
+                    if not use_scored_keywords:
+                        field_updates["keywords"] = tags_str
+                    db.update_image_fields_batch([(row['id'], field_updates)])
+                    if use_scored_keywords:
+                        db.update_image_keywords_for_image(
+                            row['id'],
+                            tags_str,
+                            source="auto",
+                            confidence_map=confidence_map,
+                            relevance_map=relevance_map,
+                        )
                     if alt_text or extended_description:
                         db.upsert_image_xmp(row['id'], {
                             'alt_text': alt_text,

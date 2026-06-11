@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from modules.mcp.actions.registry import action_by_id, load_action_registry, registry_actions
+from modules.mcp.actions.registry import (
+    action_by_id,
+    load_action_registry,
+    registry_actions,
+    resolve_action_id,
+    suggest_actions,
+)
 
 
 def test_registry_loads_actions():
@@ -43,3 +49,26 @@ def test_action_has_version_and_schema():
     assert int(action.get("version") or 0) >= 1
     assert action.get("input_schema") is not None
     assert action.get("side_effect_level") == "read_only"
+
+
+def test_resolve_legacy_tool_name():
+    assert resolve_action_id("execute_sql") == "data.execute_sql"
+    assert resolve_action_id("data.execute_sql") == "data.execute_sql"
+
+
+def test_suggest_actions_for_unknown():
+    hits = suggest_actions("execute_sql", limit=3)
+    assert hits
+    assert hits[0]["action_id"] == "data.execute_sql"
+
+
+def test_pr2_sql_and_phase_actions_registered():
+    for aid in (
+        "data.execute_sql",
+        "data.get_db_schema",
+        "diagnostics.diagnose_phase_consistency",
+        "jobs.get_image_pipeline_failures",
+    ):
+        action = action_by_id(aid)
+        assert action is not None, aid
+        assert action.get("dispatch_enabled") is True

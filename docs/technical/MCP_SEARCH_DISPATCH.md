@@ -103,7 +103,12 @@ dispatch(
 | `jobs.get_job_details` | `{"job_id": 123}` |
 | `data.query_images` | `{"limit": 20, "folder_path": "…"}` |
 | `data.get_image_details` | `{"file_path": "…"}` |
+| `data.get_db_schema` | `{"table_name_prefix": "image"}` |
+| `data.execute_sql` | `{"query": "SELECT …", "params": []}` |
 | `data.get_embedding_stats` | `{}` |
+| `diagnostics.diagnose_phase_consistency` | `{"image_id": 123}` (+ optional `folder_path`) |
+| `diagnostics.get_stale_running_phase_status` | `{"min_age_seconds": 3600}` |
+| `jobs.get_image_pipeline_failures` | `{"file_path": "…"}` or `{"image_id": 123}` |
 
 ### Side-effecting (confirmation required)
 
@@ -155,9 +160,15 @@ dispatch("support.export_debug_bundle", {}, confirmed=True)
 
 Review the zip before sharing. `secrets.json` is never included.
 
+### `unknown_action` errors
+
+Compact dispatch returns `code: unknown_action` with `details.suggestions` (nearby registry actions) and `details.hint`. **Do not** call raw legacy tool names from AGENTS.md unless they appear in the registry or you use full SSE profile.
+
+Bare legacy names registered in the overlay (e.g. `execute_sql`) resolve automatically to `data.execute_sql`.
+
 ### Still unsupported via compact dispatch
 
-`execute_sql`, `execute_code`, maintenance writes/jobs, and other side-effecting actions unless listed above and in `ALLOWED_SIDE_EFFECT_ACTIONS`. Use **`MCP_SSE_PROFILE=full`** on WebUI for the legacy tool surface.
+`execute_code`, maintenance writes/jobs (`run_processing_job`, `prune_missing_files`, …), and other side-effecting actions unless listed above and in `ALLOWED_SIDE_EFFECT_ACTIONS`. Use **`MCP_SSE_PROFILE=full`** on WebUI for the full legacy tool surface (~54 tools).
 
 ## Gallery
 

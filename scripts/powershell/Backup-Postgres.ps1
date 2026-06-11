@@ -6,7 +6,7 @@
     Runs pg_dump against the Postgres instance defined in config.json.
     Tries a locally installed pg_dump.exe first; falls back to docker exec
     into the image-scoring-postgres container if no local binary is found.
-    Old dumps are pruned according to -RetentionDays.
+    Old dumps are pruned by -MaxBackups (count, newest kept) and/or -RetentionDays (age).
 
 .PARAMETER ConfigPath
     Path to config.json. Defaults to two levels above this script (project root).
@@ -16,29 +16,38 @@
     Defaults to <project root>\backups\postgres.
 
 .PARAMETER RetentionDays
-    Delete dumps older than this many days in -BackupDir. Set to 0 to skip cleanup.
+    Delete dumps older than this many days in -BackupDir. Set to 0 to skip age cleanup.
     Default: 30.
+
+.PARAMETER MaxBackups
+    Keep at most this many newest dumps in -BackupDir. Set to 0 to skip count cleanup.
 
 .PARAMETER MirrorDir
     If set, copy the finished .dump here (e.g. Dropbox). Empty skips mirror.
 
 .PARAMETER MirrorRetentionDays
     When -MirrorDir is set, delete mirror copies of ${dbname}_*.dump older than this many days.
-    Set to 0 to skip mirror cleanup. Default: 7.
+    Set to 0 to skip mirror age cleanup. Default: 7.
+
+.PARAMETER MirrorMaxBackups
+    When -MirrorDir is set, keep at most this many newest mirror dumps. Set to 0 to skip.
 
 .EXAMPLE
     .\Backup-Postgres.ps1
     .\Backup-Postgres.ps1 -RetentionDays 7
     .\Backup-Postgres.ps1 -BackupDir D:\Backups\postgres -RetentionDays 0
     .\Backup-Postgres.ps1 -MirrorDir "D:\Dropbox\Photos\Scoring" -MirrorRetentionDays 7
+    .\Backup-Postgres.ps1 -MaxBackups 3 -MirrorDir "D:\Dropbox\Photos\Scoring" -MirrorMaxBackups 3 -RetentionDays 0 -MirrorRetentionDays 0
 #>
 [CmdletBinding()]
 param(
     [string]$ConfigPath   = $null,
     [string]$BackupDir    = $null,
     [int]   $RetentionDays = 30,
+    [int]   $MaxBackups = 0,
     [string]$MirrorDir    = $null,
-    [int]   $MirrorRetentionDays = 7
+    [int]   $MirrorRetentionDays = 7,
+    [int]   $MirrorMaxBackups = 0
 )
 
 if ([string]::IsNullOrEmpty($PSScriptRoot)) {
@@ -68,6 +77,28 @@ function Write-OK([string]$msg) {
 
 function Write-Fail([string]$msg) {
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERR $msg" -ForegroundColor Red
+}
+
+function Invoke-PruneDumpBackupsByCount {
+    param(
+        [string]$Dir,
+        [string]$Filter,
+        [int]$MaxBackups,
+        [string]$Label = "dump"
+    )
+    if ($MaxBackups -le 0) {
+        return 0
+    }
+    $files = @(Get-ChildItem -Path $Dir -Filter $Filter -File | Sort-Object LastWriteTime -Descending)
+    $pruned = 0
+    if ($files.Count -gt $MaxBackups) {
+        $files | Select-Object -Skip $MaxBackups | ForEach-Object {
+            Write-Host "    Removing ($Label): $($_.Name)"
+            Remove-Item $_.FullName -Force
+            $pruned++
+        }
+    }
+    return $pruned
 }
 
 # ---------------------------------------------------------------------------
@@ -258,7 +289,15 @@ if (-not [string]::IsNullOrWhiteSpace($MirrorDir)) {
     $mMB = [math]::Round((Get-Item $mirrorFile).Length / 1MB, 2)
     Write-OK ('Mirror copy complete: {0} ({1} MB)' -f $mirrorFile, $mMB)
 
-    if ($MirrorRetentionDays -gt 0) {
+    if ($MirrorMaxBackups -gt 0) {
+        Write-Step "Pruning mirror dumps (keep newest $MirrorMaxBackups)..."
+        $mPruned = Invoke-PruneDumpBackupsByCount -Dir $MirrorDir -Filter "${PgDb}_*.dump" -MaxBackups $MirrorMaxBackups -Label "mirror"
+        if ($mPruned -eq 0) {
+            Write-Host "    Nothing to prune in mirror."
+        } else {
+            Write-OK "Pruned $mPruned old dump(s) from mirror."
+        }
+    } elseif ($MirrorRetentionDays -gt 0) {
         Write-Step "Pruning mirror dumps older than $MirrorRetentionDays days..."
         $mCutoff = (Get-Date).AddDays(-$MirrorRetentionDays)
         $mPruned = 0
@@ -275,7 +314,7 @@ if (-not [string]::IsNullOrWhiteSpace($MirrorDir)) {
             Write-OK "Pruned $mPruned old dump(s) from mirror."
         }
     } else {
-        Write-Host "    Mirror retention cleanup skipped (MirrorRetentionDays=0)."
+        Write-Host "    Mirror retention cleanup skipped (MirrorMaxBackups=0, MirrorRetentionDays=0)."
     }
 }
 
@@ -283,7 +322,15 @@ if (-not [string]::IsNullOrWhiteSpace($MirrorDir)) {
 # Retention cleanup
 # ---------------------------------------------------------------------------
 
-if ($RetentionDays -gt 0) {
+if ($MaxBackups -gt 0) {
+    Write-Step "Pruning dumps (keep newest $MaxBackups)..."
+    $pruned = Invoke-PruneDumpBackupsByCount -Dir $BackupDir -Filter "${PgDb}_*.dump" -MaxBackups $MaxBackups
+    if ($pruned -eq 0) {
+        Write-Host "    Nothing to prune."
+    } else {
+        Write-OK "Pruned $pruned old dump(s)."
+    }
+} elseif ($RetentionDays -gt 0) {
     Write-Step "Pruning dumps older than $RetentionDays days..."
     $cutoff = (Get-Date).AddDays(-$RetentionDays)
     $pruned = 0
@@ -300,7 +347,7 @@ if ($RetentionDays -gt 0) {
         Write-OK "Pruned $pruned old dump(s)."
     }
 } else {
-    Write-Host "    Retention cleanup skipped (RetentionDays=0)."
+    Write-Host "    Retention cleanup skipped (MaxBackups=0, RetentionDays=0)."
 }
 
 Write-OK "Backup finished successfully."

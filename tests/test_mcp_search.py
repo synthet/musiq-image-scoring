@@ -29,6 +29,10 @@ EVAL_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "mcp_search_eval.y
         ("recent jobs", "jobs.get_recent_jobs"),
         ("query images in folder", "data.query_images"),
         ("image details by path", "data.get_image_details"),
+        ("execute sql select", "data.execute_sql"),
+        ("database schema tables", "data.get_db_schema"),
+        ("diagnose phase consistency", "diagnostics.diagnose_phase_consistency"),
+        ("pipeline failures for image", "jobs.get_image_pipeline_failures"),
     ],
 )
 def test_search_finds_expected_action(query, expected_in_top):
