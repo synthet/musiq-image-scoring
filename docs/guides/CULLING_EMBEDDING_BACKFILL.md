@@ -9,27 +9,39 @@
 
 ## Goal
 
-Populate `image_embeddings_768` with **`openclip_l14_laion2b_image`** vectors for the full
-production library so two-level culling can sub-stack on the validated-best tower, then
-**enable** `culling.two_level`. "Done" =
+Populate `image_embeddings_768` with **`openclip_l14_laion2b_image`** vectors so
+two-level culling can sub-stack on the validated-best tower.
 
-1. every eligible image in `image_scoring` has an `openclip_l14_laion2b_image` embedding
-   (or is accounted for as unreadable), and
+**Two paths:**
+
+1. **JIT (default when `culling.two_level.enabled: true`):** Each culling run embeds
+   **stacked images only** that lack the configured `level2.embedding_space` via
+   [`modules/culling_embeddings.py`](../../modules/culling_embeddings.py) — no separate
+   job required for new imports after initial coverage.
+2. **Bulk backfill (this runbook):** Embed the whole library (or a folder) in one shot
+   via `scripts/backfill_culling_embeddings.py` — useful before first enable or for
+   A/B towers.
+
+"Done" for production =
+
+1. stacked images have `openclip_l14_laion2b_image` embeddings (JIT +/or bulk), and
 2. `culling.two_level.enabled: true` with `level2.embedding_space:
-   openclip_l14_laion2b_image` running on real vectors (no single-bucket fallback).
+   openclip_l14_laion2b_image` @ `0.06`.
 
 Optional follow-on: backfill `openai_clip_vit_l14_image`, `siglip2_base_image`,
 `dinov2_reg_base_image` for A/B comparison (same procedure, different `--space`).
 
-## Current state (2026-05-30)
+## Current state (2026-06-11)
 
 | Item | State |
 |------|-------|
 | Spaces registered in prod `embedding_spaces` | ✅ all 8 (incl. 4 culling towers) |
 | `sub_stacks` table | ✅ present |
-| `openclip_l14_laion2b_image` coverage | ✅ **61,597 / 61,597 (100%)** — backfilled 2026-05-30 |
+| `openclip_l14_laion2b_image` coverage | ✅ **62,969 / 62,969 (100%)** — bulk backfill 2026-06-11 |
+| JIT level-2 during culling | ✅ stack-scoped via [`culling_embeddings.py`](../../modules/culling_embeddings.py) when `two_level.enabled` |
+| Sub-stacks backfill | ✅ 10,795 root stacks / 13,884 leaves — 2026-06-11 |
 | Backfill code path | ✅ verified end-to-end (CUDA fp16, NEF decode, DB upsert) |
-| Loader optimization | ✅ thumbnails + downscale-on-load (1024 px cap) → ~30 img/s (~48 min full run) |
+| Loader optimization | ✅ thumbnails + downscale-on-load (1024 px cap) → ~30 img/s |
 | Blocker | ✅ resolved (was OOM from full-res decodes + degraded WSL VM; see Troubleshooting) |
 | `culling.two_level.enabled` (prod) | ✅ `true` (enabled 2026-05-31, level2 = openclip_l14 @ 0.06) |
 
@@ -39,7 +51,8 @@ Library is **100% `.NEF`**; ~81% have on-disk thumbnails (the rest decode RAW on
 
 | Path | Role |
 |------|------|
-| `scripts/backfill_culling_embeddings.py` | CLI driver (`--space`, `--folder-id`, `--limit`, `--no-thumbnails`, `--dry-run`) |
+| `modules/culling_embeddings.py` | JIT ensure during `SelectionService.run` (stack-scoped) |
+| `scripts/backfill_culling_embeddings.py` | CLI bulk driver (`--space`, `--folder-id`, `--limit`, `--no-thumbnails`, `--dry-run`) |
 | `modules/embedding_extractors.py` | `CullingEmbedder` (loaders), `generate_and_persist` (batched, parallel load, progress log) |
 | `modules/thumbnails.py` | `open_image_for_ml` — embedded-JPEG → rawpy → ImageMagick RAW decode |
 | `modules/db.update_image_embeddings_batch_for_space` | upsert into per-dim fact table (no-op off Postgres) |
@@ -230,8 +243,8 @@ GPU inference is not the bottleneck; image decode is. `generate_and_persist` loa
    WHERE embedding_space_id = (SELECT id FROM embedding_spaces WHERE code='openclip_l14_laion2b_image');
   ```
 - Disable the feature anytime: `culling.two_level.enabled: false` (reverts to legacy bands).
-- `embeddings.culling_spaces` only drives this backfill script — no pipeline auto-generation.
-- No default change: MobileNet remains the grouping/clustering default; this is opt-in per #220.
+- **Generation paths:** (1) JIT during culling — stack-scoped, reads `culling.two_level.level2.embedding_space` directly; (2) bulk CLI — driven by `embeddings.culling_spaces` or `--space`. Clustering/indexing still writes MobileNet only.
+- No default change: MobileNet remains the grouping/clustering default; OpenCLIP level-2 is opt-in per #220.
 
 ## Troubleshooting
 

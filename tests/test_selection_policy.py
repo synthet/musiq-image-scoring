@@ -5,7 +5,7 @@ Policy constants and behavior: docs/planning/refactoring/STACK_CULLING_REFACTOR_
 """
 
 import pytest
-from modules.selection_policy import band_sizes, classify_sorted_ids
+from modules.selection_policy import band_sizes, classify_sorted_ids, cull_decision_to_pick_status
 
 
 def test_band_sizes_small_values():
@@ -67,6 +67,14 @@ def test_classify_sorted_ids_n10():
     assert len(neutral) == 4
     assert picks == [100, 101, 102]
     assert rejects == [107, 108, 109]
+
+
+def test_cull_decision_to_pick_status_mapping():
+    assert cull_decision_to_pick_status("pick") == 1
+    assert cull_decision_to_pick_status("reject") == -1
+    assert cull_decision_to_pick_status("neutral") == 0
+    assert cull_decision_to_pick_status("PICK") == 1
+    assert cull_decision_to_pick_status("maybe") is None
 
 
 def test_classify_sorted_ids_tie_scenario():

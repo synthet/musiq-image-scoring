@@ -15,6 +15,12 @@ DEFAULT_REJECT_FRACTION = 0.33
 POLICY_VERSION = "1.0"
 TWO_LEVEL_POLICY_VERSION = "2.0"
 
+CULL_DECISION_TO_PICK_STATUS: dict[str, int] = {
+    "pick": 1,
+    "reject": -1,
+    "neutral": 0,
+}
+
 # Tie-break order for ranking (documented): score_field DESC, then EXIF
 # (ISO ASC, exposure ASC, date_time_original ASC, id ASC via quality_ranking),
 # then created_at ASC, id ASC
@@ -78,6 +84,13 @@ def classify_sorted_ids(sorted_ids: list[int], frac: float = DEFAULT_PICK_FRACTI
         else:
             out[image_id] = "neutral"
     return out
+
+
+def cull_decision_to_pick_status(decision: str) -> int | None:
+    """Map auto-cull decision to ``images.pick_status`` (-1, 0, 1)."""
+    if decision is None:
+        return None
+    return CULL_DECISION_TO_PICK_STATUS.get(str(decision).strip().lower())
 
 
 def classify_best_m(

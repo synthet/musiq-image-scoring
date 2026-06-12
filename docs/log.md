@@ -6,6 +6,14 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-11] created — Cull distribution audit report, diagnostic SQL, pick_status sync
+
+Added [reports/CULL_DISTRIBUTION_AUDIT_2026-06.md](reports/CULL_DISTRIBUTION_AUDIT_2026-06.md),
+[`05_cull_decision_distribution.sql`](../scripts/sql/culling_analytics_diagnostics/05_cull_decision_distribution.sql),
+`scripts/backfill_pick_status_from_cull_decision.py`. `batch_update_cull_decisions` now syncs
+`pick_status`; analytics `flags.auto_cull*` expose `cull_decision` stack/sub-stack stats.
+Updated [CULLING_ANALYTICS.md](technical/CULLING_ANALYTICS.md), [two-level-culling.md](features/planned/embeddings/two-level-culling.md), [STACK_CULLING_REFACTOR_PLAN.md](planning/refactoring/STACK_CULLING_REFACTOR_PLAN.md).
+
 ## [2026-06-09] chore | Dead code registry and removal (#252)
 
 Added [reports/DEAD_CODE_REGISTRY.md](reports/DEAD_CODE_REGISTRY.md) documenting orphan Gradio tabs/assets, `remote_scoring.py`, CullingPage wrapper, gallery orphans, and archive trees removed with GitHub history citations.

@@ -108,8 +108,8 @@ Session-based culling UI and selection pipeline. Duplicates **`default_threshold
 | Key | Reader |
 |-----|--------|
 | `enabled` | `GET /api/config` → `enable_culling` (React feature flag) |
-| `sub_cluster_distance_threshold` | `culling.py`, `selection.py` |
-| `two_level` | `selection.py`, two-level culling |
+| `sub_cluster_distance_threshold` | Legacy path in `selection.py` when `two_level.enabled=false` (default **0.05** in `config.example.json`); in-memory sub-clusters then 33/33 bands per sub-group |
+| `two_level` | `selection.py` when `enabled=true` — best-M/N-cap for multi-image root stacks; **implicit JIT** level-2 embed for stacked images via `modules/culling_embeddings.py` when `level2.embedding_space` is a culling tower; unstacked bucket and singletons still use legacy 33/33 / neutral. See [two-level-culling.md](../features/planned/embeddings/two-level-culling.md) |
 | `analytics.*` | `culling_analytics/composite.py` |
 
 ### `tagging`
@@ -134,7 +134,7 @@ Gallery page size, export format, `last_selected_folder` (runtime).
 
 ### `embeddings`
 
-Persistence flags, `culling_spaces` for backfill scripts, `model_versions` map.
+Persistence flags, `culling_spaces` for bulk backfill CLI defaults, `model_versions` map. JIT level-2 generation during culling reads `culling.two_level.level2.embedding_space` directly (not `culling_spaces`).
 
 ### `embedding_map`
 

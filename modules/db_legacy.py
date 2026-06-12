@@ -11005,11 +11005,27 @@ def batch_update_cull_decisions(updates: list, policy_version: str = "1.0", batc
             except Exception:
                 _audit_old = {}
 
-        all_params = [(decision, policy_version, img_id) for img_id, decision, _ in updates]
-        get_connector().execute_many(
-            "UPDATE images SET cull_decision = ?, cull_policy_version = ? WHERE id = ?",
-            all_params,
-        )
+        from modules.selection_policy import cull_decision_to_pick_status
+
+        with_pick_status: list = []
+        without_pick_status: list = []
+        for img_id, decision, _ in updates:
+            pick_status = cull_decision_to_pick_status(decision)
+            if pick_status is None:
+                without_pick_status.append((decision, policy_version, img_id))
+            else:
+                with_pick_status.append((decision, policy_version, pick_status, img_id))
+
+        if with_pick_status:
+            get_connector().execute_many(
+                "UPDATE images SET cull_decision = ?, cull_policy_version = ?, pick_status = ? WHERE id = ?",
+                with_pick_status,
+            )
+        if without_pick_status:
+            get_connector().execute_many(
+                "UPDATE images SET cull_decision = ?, cull_policy_version = ? WHERE id = ?",
+                without_pick_status,
+            )
 
         if _audit_on:
             audit.record_audit_batch(
@@ -11028,10 +11044,14 @@ def batch_update_cull_decisions(updates: list, policy_version: str = "1.0", batc
 
         invalidate_folder_images_cache()
         for img_id, decision, file_path in updates:
+            pick_status = cull_decision_to_pick_status(decision)
+            payload: dict = {"cull_decision": decision}
+            if pick_status is not None:
+                payload["pick_status"] = pick_status
             event_manager.broadcast_threadsafe("image_updated", {
                 "image_id": img_id,
                 "file_path": file_path,
-                "updates": {"cull_decision": decision}
+                "updates": payload,
             })
     except Exception as e:
         logging.error("Failed to batch update cull decisions: %s", e)
@@ -12425,12 +12445,19 @@ def update_image_embeddings_batch_for_space(space_code, rows):
         return 0
 
 
-def get_images_missing_embedding_for_space(space_code, folder_path=None, limit=None, tool_key=None):
+def get_images_missing_embedding_for_space(
+    space_code,
+    folder_path=None,
+    limit=None,
+    tool_key=None,
+    image_ids=None,
+):
     """Return image rows lacking a stored embedding for ``space_code``.
 
     Columns: ``id``, ``file_path``, ``thumbnail_path``, ``thumbnail_path_win``.
     Postgres-only; returns ``[]`` on other engines. Rows are ordered by ``id``
     for stable resume (optional ``tool_key`` applies folder touch round-robin).
+    When ``image_ids`` is set, restrict to that subset (stack-scoped JIT embed).
     """
     try:
         if _get_db_engine() != "postgres":
@@ -12446,6 +12473,7 @@ def get_images_missing_embedding_for_space(space_code, folder_path=None, limit=N
         table = _pg_embedding_table_for_dim(expected_dim)
         params: list = []
         folder_clause = ""
+        ids_clause = ""
         touch_join = ""
         order_by = "ORDER BY i.id"
         if tool_key:
@@ -12466,14 +12494,22 @@ def get_images_missing_embedding_for_space(space_code, folder_path=None, limit=N
                 return []
             folder_clause = " AND i.folder_id = %s"
             params.append(frow["id"])
+        if image_ids is not None:
+            id_list = [int(i) for i in image_ids if i is not None]
+            if not id_list:
+                return []
+            placeholders = ",".join(["%s"] * len(id_list))
+            ids_clause = f" AND i.id IN ({placeholders})"
+            params.extend(id_list)
         sql = (
             f"SELECT i.id, i.file_path, i.thumbnail_path, i.thumbnail_path_win "
             f"FROM images i "
             f"{touch_join}"
-            f"WHERE NOT EXISTS ("
+            f"WHERE i.file_path IS NOT NULL AND TRIM(i.file_path) <> '' "
+            f"AND NOT EXISTS ("
             f"  SELECT 1 FROM {table} e "
             f"  WHERE e.image_id = i.id AND e.embedding_space_id = %s"
-            f"){folder_clause} "
+            f"){folder_clause}{ids_clause} "
             f"{order_by}"
         )
         if limit:

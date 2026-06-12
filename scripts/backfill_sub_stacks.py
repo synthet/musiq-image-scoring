@@ -98,21 +98,53 @@ def _manual_override_image_ids() -> set[int]:
     return {int(r["id"]) for r in rows if r.get("id") is not None}
 
 
-def _stack_ids_to_process(folder_filter: set[int] | None) -> list[int]:
+def _stack_ids_to_process(
+    folder_filter: set[int] | None,
+    *,
+    only_policy_version: str | None = None,
+) -> list[int]:
     stacks = db.get_stacks()
     if not stacks:
         return []
-    if folder_filter is None:
-        return [int(s["id"]) for s in stacks if s.get("id") is not None]
+
+    policy_stack_ids: set[int] | None = None
+    if only_policy_version:
+        try:
+            rows = db.get_connector().query(
+                """
+                SELECT DISTINCT stack_id FROM images
+                WHERE stack_id IS NOT NULL
+                  AND cull_policy_version = ?
+                """,
+                (only_policy_version,),
+            )
+        except Exception as e:
+            logger.error("Could not filter by cull_policy_version=%r: %s", only_policy_version, e)
+            return []
+        policy_stack_ids = {
+            int(r["stack_id"]) for r in rows if r.get("stack_id") is not None
+        }
+        if not policy_stack_ids:
+            logger.info(
+                "No stacks with cull_policy_version=%r — nothing to process.",
+                only_policy_version,
+            )
+            return []
 
     keep: list[int] = []
     for s in stacks:
         sid = s.get("id")
         if sid is None:
             continue
-        rows = db.get_images_in_stack(int(sid))
+        sid_int = int(sid)
+        if policy_stack_ids is not None and sid_int not in policy_stack_ids:
+            continue
+        if folder_filter is None:
+            keep.append(sid_int)
+            continue
+        rows = db.get_images_in_stack(sid_int)
         if any((r.get("folder_id") in folder_filter) for r in rows):
-            keep.append(int(sid))
+            keep.append(sid_int)
     return keep
 
 
@@ -216,6 +248,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Process at most N stacks (0 = unlimited). Useful for smoke tests.",
     )
     parser.add_argument(
+        "--only-policy-version",
+        default=None,
+        help="Process only stacks that have at least one image with this "
+             "cull_policy_version (e.g. 1.0 for legacy stacked rows).",
+    )
+    parser.add_argument(
         "--write-sidecars",
         action="store_true",
         help="Also rewrite XMP sidecars for every changed image.",
@@ -256,7 +294,10 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         logger.info("Folder filter resolved to %d folder_ids", len(folder_filter))
 
-    stack_ids = _stack_ids_to_process(folder_filter)
+    stack_ids = _stack_ids_to_process(
+        folder_filter,
+        only_policy_version=args.only_policy_version,
+    )
     if not stack_ids:
         logger.info("No stacks found to process.")
         return 0
@@ -274,10 +315,12 @@ def main(argv: list[str] | None = None) -> int:
 
     logger.info(
         "Backfill plan: stacks=%d space=%s threshold=%.4f picks/substack=%d "
-        "max/stack=%d dry_run=%s write_sidecars=%s preserve_manual=%s",
+        "max/stack=%d dry_run=%s write_sidecars=%s preserve_manual=%s "
+        "only_policy_version=%s",
         len(stack_ids), space, tl_cfg.level2.distance_threshold,
         tl_cfg.picks_per_substack, tl_cfg.max_picks_per_stack,
         args.dry_run, args.write_sidecars, args.preserve_manual,
+        args.only_policy_version,
     )
 
     counts: Counter = Counter()

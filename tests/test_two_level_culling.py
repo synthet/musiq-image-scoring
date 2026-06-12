@@ -139,3 +139,20 @@ def test_process_stack_two_level_missing_embeddings_single_leaf():
     assert leaf_count == 1
     assert len(rows) == 1
     assert sum(1 for _, d, _ in decisions if d == "pick") <= _tl_cfg().max_picks_per_stack
+
+
+def test_two_level_config_default_level2_openclip():
+    cfg = TwoLevelConfig()
+    assert cfg.level2.embedding_space == "openclip_l14_laion2b_image"
+    assert cfg.level2.distance_threshold == 0.06
+
+
+def test_load_two_level_config_default_level2_openclip():
+    from unittest.mock import patch
+
+    from modules.selection import SelectionConfig, _load_two_level_config
+
+    with patch("modules.selection.get_config_value", return_value={}):
+        tl = _load_two_level_config(SelectionConfig())
+    assert tl.level2.embedding_space == "openclip_l14_laion2b_image"
+    assert tl.level2.distance_threshold == 0.06
