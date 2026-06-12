@@ -13,6 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.5.0] - 2026-06-11
+
+### Added
+
+- **BioCLIP embedding backfill**: `scripts/backfill_bioclip_embeddings.py` fills the `bioclip_2_image` (768-d) space for images missing that embedding (Postgres-only, thumbnail-aware, fp16/batch options).
+- **Single-species reconciliation**: `scripts/db/backfill_single_species.py` reduces images carrying multiple `species:` keywords to the highest-confidence one, syncing both `image_keywords` and the legacy CSV in one transaction (dry-run mode; equal-confidence ties skipped and logged).
+
+### Changed
+
+- **Bird species default `top_k` is now 1 (BioCLIP argmax)**: API request model, job dispatcher, MCP `run_processing_job`, and `BirdSpeciesRunner`/`BioCLIPClassifier` defaults switched from 3; pass `top_k > 1` to store multiple candidates.
+
+### Fixed
+
+- **Stale running-phase detection timezone**: `list_stale_running_image_phase_rows` compared local-time `updated_at` against a `datetime.utcnow()` cutoff, mis-reporting staleness by the UTC offset (webui startup reconciliation, MCP health/stale-phase tools); also removed a dead shadowed duplicate of the function left from a reverted decomposition.
+- **`/api/db/*` bridge endpoints**: repaired eight endpoints broken since v4.22.0 by calls against the removed `db_client` interface — images-by-keyword (TypeError), batch-embeddings, jobs dequeue/enqueue, job-phase create/update, folder phase-status, and culling-session creation (which silently wrote corrupt rows).
+- **Firebird legacy init**: added the missing `_column_exists` helper referenced by `_init_db_impl` migrations (unprotected calls crashed init; guarded ones silently skipped migrations).
+- **Duplicate `scope_has_unattempted_phase_work` removed**: a later copy shadowed the canonical version that excludes `running` rows from the unattempted-work probe.
+
 ## [8.4.0] - 2026-06-10
 
 ### Added

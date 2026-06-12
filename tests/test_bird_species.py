@@ -354,6 +354,57 @@ def test_runner_writes_bioclip_species_confidence_maps(monkeypatch):
     assert any(args[2] == "done" for args, _ in status_calls)
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# top_k default — single highest-scoring species (BioCLIP argmax)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_classify_default_top_k_is_one():
+    import inspect
+    sig = inspect.signature(BioCLIPClassifier.classify)
+    assert sig.parameters["top_k"].default == 1
+
+
+def test_start_batch_default_top_k_is_one():
+    import inspect
+    sig = inspect.signature(BirdSpeciesRunner.start_batch)
+    assert sig.parameters["top_k"].default == 1
+
+
+def test_bird_species_request_default_top_k_is_one():
+    from modules.api import BirdSpeciesStartRequest
+    assert BirdSpeciesStartRequest.model_fields["top_k"].default == 1
+
+
+def test_dispatcher_bird_species_default_top_k_is_one(monkeypatch):
+    """When the queue payload omits top_k, the dispatcher must pass top_k=1."""
+    from modules.job_dispatcher import JobDispatcher
+
+    bird_runner = _DummyRunner()
+    dispatcher = JobDispatcher(bird_species_runner=bird_runner)
+
+    queued_job = {
+        "id": 202,
+        "job_type": "bird_species",
+        "input_path": "D:/Photos/Birds",
+        "queue_payload": json.dumps({"input_path": "D:/Photos/Birds"}),  # no top_k
+    }
+
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *a, **kw: None)
+    monkeypatch.setattr("modules.job_dispatcher.db.get_job_by_id", lambda job_id: None)
+    monkeypatch.setattr(
+        JobDispatcher,
+        "_jit_replan_phase",
+        lambda self, job_id, payload, queue_key, input_path: (payload, [1], False),
+    )
+
+    dispatcher._tick()
+
+    assert len(bird_runner.calls) == 1
+    _args, kwargs = bird_runner.calls[0]
+    assert kwargs.get("top_k") == 1
+
+
 def test_dispatcher_bird_species_runner_busy_blocks_dequeue(monkeypatch):
     from modules.job_dispatcher import JobDispatcher
 

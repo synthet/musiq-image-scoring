@@ -209,7 +209,8 @@ def get_images(
     keyword: Optional[str] = Query(None)
 ):
     if keyword:
-        return db.get_images_with_keyword(keyword, folder_path=folder_path, limit=limit)
+        rows = db.get_images_with_keyword(folder_path=folder_path, keyword=keyword)
+        return rows[:limit] if limit and limit > 0 else rows
     if folder_path:
         return db.get_images_by_folder(folder_path)
     return db.get_all_images(limit=limit)
@@ -237,8 +238,12 @@ def update_image_fields_batch(payload: Dict[str, Any] = Body(...)):
 @router.post("/images/batch-embeddings")
 def update_embeddings_batch(payload: List[Dict[str, Any]] = Body(...)):
     # payload: list of {"image_id": int, "embedding": list[float]}
-    updates = [(item["image_id"], item["embedding"]) for item in payload]
-    db.update_embeddings_batch(updates)
+    import numpy as np
+    updates = [
+        (item["image_id"], np.asarray(item["embedding"], dtype=np.float32).tobytes())
+        for item in payload
+    ]
+    db.update_image_embeddings_batch(updates)
     return {"success": True}
 
 @router.get("/images/{image_id}/paths")
@@ -288,15 +293,21 @@ def get_job(job_id: int):
 
 @router.post("/jobs/dequeue")
 def dequeue_job(payload: Dict[str, Any] = Body(...)):
-    runner_id = payload.get("runner_id")
-    job_types = payload.get("job_types")
-    job = db.dequeue_job(runner_id, job_types=job_types)
-    return job
+    if payload.get("job_types"):
+        raise HTTPException(status_code=400, detail="job_types filtering is not supported")
+    return db.dequeue_next_job()
 
 @router.post("/jobs/enqueue")
 def enqueue_job(payload: Dict[str, Any] = Body(...)):
-    db.enqueue_job(payload)
-    return {"success": True}
+    input_path = payload.get("input_path", "")
+    job_id, queue_position = db.enqueue_job(
+        input_path,
+        phase_code=payload.get("phase_code"),
+        job_type=payload.get("job_type"),
+        queue_payload=payload.get("queue_payload"),
+        description=payload.get("description"),
+    )
+    return {"success": job_id is not None, "job_id": job_id, "queue_position": queue_position}
 
 @router.post("/jobs/recover")
 def recover_interrupted_jobs():
@@ -309,15 +320,17 @@ def get_job_phases(job_id: int):
 @router.post("/jobs/{job_id}/phases")
 def create_job_phase(job_id: int, payload: Dict[str, Any] = Body(...)):
     phase_code = payload.get("phase_code")
+    if not phase_code:
+        raise HTTPException(status_code=400, detail="Missing phase_code")
     status = payload.get("status", "queued")
-    db.create_job_phase(job_id, phase_code, status=status)
+    db.create_job_phases(job_id, [phase_code], status)
     return {"success": True}
 
 @router.put("/jobs/{job_id}/phases/{phase_code}")
 def update_job_phase(job_id: int, phase_code: str, payload: Dict[str, Any] = Body(...)):
     status = payload.get("status")
     error_message = payload.get("error_message")
-    db.update_job_phase(job_id, phase_code, status, error_message=error_message)
+    db.set_job_phase_state(job_id, phase_code, status, error_message=error_message)
     return {"success": True}
 
 # =========================================================================
@@ -355,7 +368,7 @@ def update_folder_phase_status(payload: Dict[str, Any] = Body(...)):
     folder_path = payload.get("folder_path")
     phase_code = payload.get("phase_code")
     status = payload.get("status")
-    db.update_folder_phase_status(folder_path, phase_code, status)
+    db.set_folder_phase_status(folder_path, phase_code, status)
     return {"success": True}
 
 # =========================================================================
@@ -389,9 +402,11 @@ def clear_stacks(folder_id: int = Body(..., embed=True)):
 
 @router.post("/culling/sessions")
 def create_culling_session(payload: Dict[str, Any] = Body(...)):
-    name = payload.get("name")
-    folder_id = payload.get("folder_id")
-    session_id = db.create_culling_session(name, folder_id)
+    folder_path = payload.get("folder_path")
+    if not folder_path:
+        raise HTTPException(status_code=400, detail="Missing folder_path")
+    mode = payload.get("mode", "automated")
+    session_id = db.create_culling_session(folder_path, mode)
     return {"session_id": session_id}
 
 @router.get("/culling/sessions/{session_id}")

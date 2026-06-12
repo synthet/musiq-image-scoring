@@ -512,7 +512,7 @@ def test_clustering_start_creates_job_phases_with_queued_first_phase(monkeypatch
 
     assert response.status_code == 200
     assert captured.get("job_id") == 42
-    assert captured.get("phase_codes") == ["culling"]
+    assert captured.get("phase_codes") == ["indexing", "metadata", "scoring", "culling"]
     assert captured.get("first_phase_state") == "queued"
 
 

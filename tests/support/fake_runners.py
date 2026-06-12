@@ -175,7 +175,7 @@ class FakeBirdSpeciesRunner(FakePhaseRunner):
         job_id: int = None,
         candidate_species=None,
         threshold: float = 0.1,
-        top_k: int = 3,
+        top_k: int = 1,
         overwrite: bool = False,
         resolved_image_ids=None,
         **kwargs: Any,

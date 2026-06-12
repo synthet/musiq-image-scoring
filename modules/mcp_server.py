@@ -2428,7 +2428,7 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
             input_path,
             job_id=jid,
             threshold=args.get("threshold", 0.1),
-            top_k=args.get("top_k", 3),
+            top_k=args.get("top_k", 1),
             overwrite=args.get("overwrite", False),
             candidate_species=args.get("candidate_species"),
         )

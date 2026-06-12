@@ -902,14 +902,15 @@ class BirdSpeciesStartRequest(SelectorRequest):
     """Request model for starting a bird species classification job.
 
     Only images that already have the 'birds' keyword are processed — all others are
-    automatically skipped. Top predicted species are stored as 'species:Common Name'
-    keywords using BioCLIP 2 (zero-shot, MIT license).
+    automatically skipped. The single highest-scoring species (BioCLIP 2 argmax) is
+    stored as a 'species:Common Name' keyword (zero-shot, MIT license). Pass top_k > 1
+    to store multiple candidates instead.
 
     Example:
         {
             "input_path": "D:/Photos/2024",
             "threshold": 0.1,
-            "top_k": 3,
+            "top_k": 1,
             "overwrite": false
         }
     """
@@ -930,9 +931,10 @@ class BirdSpeciesStartRequest(SelectorRequest):
         example=0.1
     )
     top_k: int = Field(
-        3,
-        description="Maximum number of species to store per image.",
-        example=3
+        1,
+        description="Maximum number of species to store per image. Default 1 keeps "
+                    "only the highest-scoring species (BioCLIP argmax).",
+        example=1
     )
     overwrite: bool = Field(
         False,
@@ -944,7 +946,7 @@ class BirdSpeciesStartRequest(SelectorRequest):
         "example": {
             "input_path": "D:/Photos/2024",
             "threshold": 0.1,
-            "top_k": 3,
+            "top_k": 1,
             "overwrite": False
         }
     })

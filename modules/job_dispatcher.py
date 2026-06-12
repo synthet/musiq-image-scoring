@@ -640,7 +640,7 @@ class JobDispatcher:
                 job_id=job_id,
                 candidate_species=payload.get("candidate_species"),
                 threshold=float(payload.get("threshold", 0.1)),
-                top_k=int(payload.get("top_k", 3)),
+                top_k=int(payload.get("top_k", 1)),
                 overwrite=overwrite,
                 resolved_image_ids=scoped_resolved,
             )

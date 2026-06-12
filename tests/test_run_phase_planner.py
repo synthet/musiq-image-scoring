@@ -74,6 +74,7 @@ def test_plan_scope_empty_queues_legacy_null_metadata_and_canonical_scoring(_moc
         lambda image_ids: {iid: _statuses(iid) for iid in image_ids},
     )
     monkeypatch.setattr(phases_policy.db, "is_image_metadata_complete", lambda _i: True)
+    monkeypatch.setattr(phases_policy.db, "get_image_metadata_asset_gap_reason", lambda _i: None)
     monkeypatch.setattr(phases_policy.db, "is_image_scoring_complete", lambda _i: True)
 
     plan = plan_scope(["/tmp/folder"], ["metadata", "scoring"], dry_run=True)

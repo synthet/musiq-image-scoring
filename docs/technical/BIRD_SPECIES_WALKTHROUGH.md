@@ -10,7 +10,7 @@ Given a folder of images (or an explicit image selector), the runner:
 
 1. **Queries only images that already have the `birds` keyword** — everything else is ignored automatically.
 2. Runs each image through **BioCLIP 2**, a zero-shot biology foundation model.
-3. Stores the top predicted species as **`species:Common Name`** keywords (e.g. `species:American Robin`) using the existing `image_keywords` / `keywords_dim` tables — no schema changes.
+3. Stores the **single highest-scoring** species (BioCLIP argmax) as a **`species:Common Name`** keyword (e.g. `species:American Robin`) using the existing `image_keywords` / `keywords_dim` tables — no schema changes. Pass `top_k > 1` to store multiple candidates instead.
 
 This is a standalone, asynchronous job — it does not require images to be re-scored or re-tagged first, as long as they already carry the `birds` keyword from a prior tagging run.
 
@@ -78,7 +78,7 @@ db.enqueue_job(
         "input_path":        request.input_path,
         "candidate_species": request.candidate_species,   # None → use default list
         "threshold":         request.threshold,           # default 0.1
-        "top_k":             request.top_k,               # default 3
+        "top_k":             request.top_k,               # default 1
         "overwrite":         request.overwrite,           # default False
         "resolved_image_ids": resolved_ids,               # None if folder scope
     },
@@ -98,7 +98,7 @@ if phase in ("bird_species", "bird-species"):
         job_id=job_id,
         candidate_species=payload.get("candidate_species"),
         threshold=float(payload.get("threshold", 0.1)),
-        top_k=int(payload.get("top_k", 3)),
+        top_k=int(payload.get("top_k", 1)),
         overwrite=bool(payload.get("overwrite", False)),
         resolved_image_ids=payload.get("resolved_image_ids"),
     ) == "Started"
@@ -274,7 +274,7 @@ The frontend posts:
 { "scope_type": "folder_recursive", "scope_paths": ["D:/Photos/2024"], "stages": ["bird_species"] }
 ```
 
-The `POST /runs/submit` handler strips `bird_species` from the pipeline phase list (it is not a `PhaseCode`), detects it as the sole requested stage, and enqueues a `job_type="bird_species"` job with default `threshold=0.1`, `top_k=3`. The new run appears immediately in the Runs list with status `queued`.
+The `POST /runs/submit` handler strips `bird_species` from the pipeline phase list (it is not a `PhaseCode`), detects it as the sole requested stage, and enqueues a `job_type="bird_species"` job with default `threshold=0.1`, `top_k=1`. The new run appears immediately in the Runs list with status `queued`.
 
 ---
 
@@ -300,7 +300,7 @@ Start a bird species classification job. Only images with the `birds` keyword ar
   // Classification options:
   "candidate_species": null,  // null → use bundled NA list; or ["Mallard", "Canada Goose"]
   "threshold":  0.1,          // minimum softmax probability to store a prediction
-  "top_k":      3,            // max species to store per image
+  "top_k":      1,            // max species to store per image (1 = BioCLIP argmax)
   "overwrite":  false         // re-classify images that already have species: keywords
 }
 ```
@@ -386,7 +386,7 @@ run_processing_job(
     input_path="D:/Photos/2024",
     args={
         "threshold": 0.15,   # optional — default 0.1
-        "top_k": 2,          # optional — default 3
+        "top_k": 2,          # optional — default 1
         "overwrite": False,  # optional — default False
         # "candidate_species": ["Bald Eagle", "Osprey"]  # optional
     }
@@ -477,7 +477,8 @@ curl -X POST http://127.0.0.1:7860/api/bird-species/start \
 
 | Situation | Recommendation |
 |-----------|---------------|
-| High false positives (wrong species) | Lower `top_k` to 1; raise `threshold` to 0.3–0.5 |
+| High false positives (wrong species) | `top_k` is already 1 (argmax); raise `threshold` to 0.3–0.5 |
+| Want multiple candidates per image | Raise `top_k` (e.g. 3) to store the next-best species too |
 | Missing predictions (nothing above threshold) | Lower `threshold` to 0.05; check the image has a visible bird |
 | Slow on CPU | Run on GPU (set `CUDA_VISIBLE_DEVICES=0`); or reduce `candidate_species` list size |
 | Regional shooting (e.g. Pacific Northwest only) | Pass a short `candidate_species` list of ~30 likely local species — dramatically improves accuracy |

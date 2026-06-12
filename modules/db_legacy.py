@@ -2348,6 +2348,14 @@ def _index_exists(cursor, index_name):
     )
     return cursor.fetchone() is not None
 
+def _column_exists(cursor, table_name, column_name):
+    """Check if a column exists on a table in Firebird database."""
+    cursor.execute(
+        "SELECT 1 FROM RDB$RELATION_FIELDS WHERE RDB$RELATION_NAME = ? AND RDB$FIELD_NAME = ?",
+        (table_name.upper(), column_name.upper())
+    )
+    return cursor.fetchone() is not None
+
 def _backup_db():
     """Create a timestamped backup of the database."""
     if "pytest" in sys.modules:
@@ -9967,60 +9975,6 @@ def reset_image_phase_status(image_ids: List[int], phase_code: str) -> int:
         conn.close()
 
 
-def list_stale_running_image_phase_rows(min_age_seconds: int = 3600, limit: int = 50) -> dict:
-    """Find image_phase_status rows stuck in 'running' longer than min_age_seconds.
-
-    Returns a dict with ``count_estimate`` (total matching rows) and ``rows``
-    (up to ``limit`` sample rows with image_id, phase_id, updated_at).
-    Used by ``check_database_health`` and ``get_stale_running_phase_status`` MCP tools.
-    """
-    from datetime import datetime, timedelta
-
-    cutoff = datetime.now() - timedelta(seconds=max(int(min_age_seconds), 0))
-    limit = max(1, min(int(limit), 500))
-
-    with connection() as conn:
-        c = conn.cursor()
-
-        # Count total stale rows
-        c.execute(
-            "SELECT COUNT(*) FROM image_phase_status "
-            "WHERE LOWER(TRIM(status)) = 'running' AND updated_at < %s",
-            (cutoff,),
-        )
-        count_row = c.fetchone()
-        count_estimate = count_row[0] if count_row else 0
-
-        # Fetch sample rows
-        c.execute(
-            "SELECT ips.image_id, ips.phase_id, pp.code AS phase_code, "
-            "       ips.updated_at, i.file_path "
-            "FROM image_phase_status ips "
-            "LEFT JOIN pipeline_phases pp ON pp.id = ips.phase_id "
-            "LEFT JOIN images i ON i.id = ips.image_id "
-            "WHERE LOWER(TRIM(ips.status)) = 'running' AND ips.updated_at < %s "
-            "ORDER BY ips.updated_at ASC "
-            "LIMIT %s",
-            (cutoff, limit),
-        )
-
-        rows = []
-        for row in c.fetchall():
-            rows.append({
-                "image_id": row[0],
-                "phase_id": row[1],
-                "phase_code": row[2],
-                "updated_at": str(row[3]) if row[3] else None,
-                "file_path": row[4],
-            })
-
-    return {
-        "count_estimate": count_estimate,
-        "min_age_seconds": min_age_seconds,
-        "rows": rows,
-    }
-
-
 def is_image_scoring_complete(image_id: int) -> bool:
     """
     Check if an image has all required scores in the database.
@@ -14006,7 +13960,9 @@ def list_stale_running_image_phase_rows(min_age_seconds: int = 3600, limit: int 
     """
     try:
         from datetime import datetime, timedelta
-        cutoff_time = datetime.utcnow() - timedelta(seconds=min_age_seconds)
+        # updated_at is written with local datetime.now() (set_image_phase_status),
+        # so the cutoff must be local time too — utcnow() skews staleness by the UTC offset.
+        cutoff_time = datetime.now() - timedelta(seconds=min_age_seconds)
 
         # Count total stale running rows
         count_rows = get_connector().query(
@@ -14150,37 +14106,6 @@ def folder_has_bird_species_work(folder_path: str) -> bool:
         LIMIT 1
         """,
         (target_path, path_like_unix, path_like_win),
-    )
-    return row is not None
-
-
-def scope_has_unattempted_phase_work(folder_path: str, phase_code: str) -> bool:
-    """True when the folder scope has incomplete phase work on images never attempted (attempt_count == 0)."""
-    from modules import utils
-
-    if not folder_path or not str(folder_path).strip() or not phase_code:
-        return False
-
-    wsl_path = utils.convert_path_to_wsl(folder_path) if hasattr(utils, "convert_path_to_wsl") else folder_path
-    target_path = wsl_path if wsl_path else folder_path
-    path_like_unix = target_path + "/%"
-    path_like_win = target_path + "\\%"
-    code = (phase_code or "").strip().lower()
-    incomplete = get_phase_incomplete_sql(code, "i")
-
-    row = get_connector().query_one(
-        f"""
-        SELECT 1 AS x
-        FROM images i
-        JOIN folders f ON f.id = i.folder_id
-        LEFT JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = ?
-        LEFT JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
-        WHERE (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)
-          AND ({incomplete})
-          AND COALESCE(ips.attempt_count, 0) = 0
-        LIMIT 1
-        """,
-        (code, target_path, path_like_unix, path_like_win),
     )
     return row is not None
 

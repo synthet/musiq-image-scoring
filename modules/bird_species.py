@@ -142,7 +142,7 @@ class BioCLIPClassifier:
         image_path: str,
         candidate_species: List[str],
         threshold: float = 0.1,
-        top_k: int = 3,
+        top_k: int = 1,
     ) -> List[Tuple[str, float]]:
         """
         Classify a single image against candidate_species.
@@ -261,7 +261,7 @@ class BirdSpeciesRunner:
         job_id: int = None,
         candidate_species: List[str] = None,
         threshold: float = 0.1,
-        top_k: int = 3,
+        top_k: int = 1,
         overwrite: bool = False,
         resolved_image_ids: List[int] = None,
     ) -> str:
