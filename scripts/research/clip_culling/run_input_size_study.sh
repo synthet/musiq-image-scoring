@@ -10,10 +10,32 @@
 # Include MobileNet: MODELS=mobilenet,openclip,... bash ...
 # Phase control: PHASE=1|2|3|all (default all)
 set -euo pipefail
+
+# Accept KEY=VALUE arguments as environment-style overrides so detached invocations
+# like `setsid bash run_input_size_study.sh PHASE=1` behave as documented.
+for arg in "$@"; do
+  case "$arg" in
+    PHASE=*|MODELS=*|EDGES=*|POSTGRES_HOST=*|POSTGRES_PORT=*|POSTGRES_DB=*)
+      export "$arg"
+      ;;
+    *)
+      echo "Unknown argument: $arg" >&2
+      echo "Usage: $0 [PHASE=1|2|3|all|eval] [MODELS=a,b] [EDGES=128,224,...]" >&2
+      exit 2
+      ;;
+  esac
+done
+
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$ROOT"
-source "${HOME}/.venvs/tf/bin/activate"
-export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5433 POSTGRES_DB=image_scoring_test
+if [[ -f "${HOME}/.venvs/tf/bin/activate" ]]; then
+  source "${HOME}/.venvs/tf/bin/activate"
+else
+  echo "Warning: ${HOME}/.venvs/tf/bin/activate not found; using current Python environment" >&2
+fi
+export POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}"
+export POSTGRES_PORT="${POSTGRES_PORT:-5433}"
+export POSTGRES_DB="${POSTGRES_DB:-image_scoring_test}"
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}:${ROOT}/FirebirdLinux/Firebird-5.0.0.1306-0-linux-x64/opt/firebird/lib"
 
 LOG_DIR="$ROOT/reports/clip-culling/input-size"
