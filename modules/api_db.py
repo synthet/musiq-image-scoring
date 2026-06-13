@@ -153,6 +153,9 @@ def raw_transaction(
             params = stmt.get("params") or []
             if not sql:
                 continue
+            err = db.validate_write_sql_for_api(sql)
+            if err:
+                raise ValueError(f"Statement rejected: {err}")
             if stmt.get("returning"):
                 tx.execute_returning(sql, params)
             else:
