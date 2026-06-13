@@ -8,18 +8,26 @@
 #
 # Override models: MODELS=openclip,openai,dinov2,siglip2,clip_b32 bash ...
 # Include MobileNet: MODELS=mobilenet,openclip,... bash ...
-# Phase control: PHASE=1|2|3|all (default all)
+# Override venv: VENV_PATH=/path/to/venv bash ...
+# Phase control: PHASE=1|2|3|all|eval (default all)
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 [PHASE=1|2|3|all|eval] [MODELS=a,b] [EDGES=128,224,...]" >&2
-  echo "          [POSTGRES_HOST=host] [POSTGRES_PORT=port] [POSTGRES_DB=name]" >&2
+  cat >&2 <<EOF
+Usage: $0 [PHASE=1|2|3|all|eval] [MODELS=a,b] [EDGES=128,224,...]
+          [POSTGRES_HOST=host] [POSTGRES_PORT=port] [POSTGRES_DB=name]
+          [VENV_PATH=/path/to/venv]
+EOF
 }
 
 # Accept a small allowlist of KEY=VALUE arguments so detached invocations like
 # `setsid bash run_input_size_study.sh PHASE=1` behave as documented without
 # accepting arbitrary environment mutations.
 for arg in "$@"; do
+  if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
+    usage
+    exit 0
+  fi
   key="${arg%%=*}"
   value="${arg#*=}"
   if [[ "$key" == "$arg" ]]; then
@@ -28,7 +36,7 @@ for arg in "$@"; do
     exit 2
   fi
   case "$key" in
-    PHASE|MODELS|EDGES|POSTGRES_HOST|POSTGRES_PORT|POSTGRES_DB)
+    PHASE|MODELS|EDGES|POSTGRES_HOST|POSTGRES_PORT|POSTGRES_DB|VENV_PATH)
       export "$key=$value"
       ;;
     *)
@@ -55,11 +63,22 @@ case "$PHASE" in
   *) echo "Unknown PHASE=$PHASE (use 1|2|3|all|eval)" >&2; exit 2 ;;
 esac
 
-source "${HOME}/.venvs/tf/bin/activate"
+VENV_PATH="${VENV_PATH:-${HOME}/.venvs/tf}"
+if [[ ! -f "${VENV_PATH}/bin/activate" ]]; then
+  echo "Virtualenv not found: ${VENV_PATH}/bin/activate" >&2
+  echo "Set VENV_PATH=/path/to/venv or create ${HOME}/.venvs/tf." >&2
+  exit 2
+fi
+source "${VENV_PATH}/bin/activate"
 export POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}"
 export POSTGRES_PORT="${POSTGRES_PORT:-5433}"
 export POSTGRES_DB="${POSTGRES_DB:-image_scoring_test}"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}:${ROOT}/FirebirdLinux/Firebird-5.0.0.1306-0-linux-x64/opt/firebird/lib"
+FIREBIRD_LIB="${ROOT}/FirebirdLinux/Firebird-5.0.0.1306-0-linux-x64/opt/firebird/lib"
+if [[ -n "${LD_LIBRARY_PATH:-}" ]]; then
+  export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${FIREBIRD_LIB}"
+else
+  export LD_LIBRARY_PATH="${FIREBIRD_LIB}"
+fi
 
 log() { echo "[$(date -Iseconds)] $*" | tee -a "$MAIN_LOG"; }
 
