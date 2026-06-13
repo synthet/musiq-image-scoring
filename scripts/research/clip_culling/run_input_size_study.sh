@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pipeline input-size study — resumable end-to-end (E2E DB @5433).
+# Pipeline input-size study - resumable end-to-end (E2E DB @5433).
 # Skips existing NPZ files. MobileNet omitted by default (TF GPU contention).
 #
 # Recommended detached launch (WSL):
