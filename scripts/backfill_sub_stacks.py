@@ -25,6 +25,15 @@ Usage examples
     # Live run, whole library, log to a file
     python -u -m scripts.backfill_sub_stacks > reports/clip-culling/backfill_sub_stacks.log 2>&1
 
+    # Sidecar sync with progress bar + checkpoint (resume after interrupt)
+    python -u -m scripts.backfill_sub_stacks --write-sidecars \\
+        --checkpoint reports/clip-culling/backfill_sub_stacks.checkpoint.json
+    python -u -m scripts.backfill_sub_stacks --write-sidecars --resume \\
+        --checkpoint reports/clip-culling/backfill_sub_stacks.checkpoint.json
+
+    # Explicit resume after stack id 42000 (stable ascending stack_id order)
+    python -u -m scripts.backfill_sub_stacks --write-sidecars --resume-after-stack-id 42000
+
 The level2 embedding space + threshold default to ``culling.two_level.level2``
 from config.json; override with ``--embedding-space`` / ``--threshold``. If the
 level2 space is a culling tower (e.g. ``openclip_l14_laion2b_image``), complete
@@ -34,10 +43,13 @@ the embedding backfill first or stacks collapse to a single fallback leaf.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import sys
+import time
 from collections import Counter
+from pathlib import Path
 from typing import Iterable
 
 # Allow running directly from a checkout without a package install.
@@ -61,6 +73,121 @@ logger = logging.getLogger("backfill_sub_stacks")
 # collapse to one leaf (whole-stack cap). Warn so the operator can stop and
 # finish the embedding backfill first.
 _LOW_COVERAGE_WARN = 0.90
+_DEFAULT_CHECKPOINT = "reports/clip-culling/backfill_sub_stacks.checkpoint.json"
+_PROGRESS_LOG_EVERY = 100
+
+
+def _load_checkpoint(path: str) -> dict | None:
+    p = Path(path)
+    if not p.is_file():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("Could not read checkpoint %s: %s", path, e)
+        return None
+
+
+def _save_checkpoint(path: str, payload: dict) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(p.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    tmp.replace(p)
+
+
+def _format_progress_line(
+    done: int,
+    total: int,
+    *,
+    counts: Counter,
+    side_ok: int,
+    side_err: int,
+    elapsed_s: float,
+) -> str:
+    pct = 100.0 * done / total if total else 100.0
+    rate = done / elapsed_s if elapsed_s > 0 else 0.0
+    remaining = total - done
+    eta_s = remaining / rate if rate > 0 else 0.0
+    bar_w = 32
+    filled = int(bar_w * done / total) if total else bar_w
+    bar = "#" * filled + "-" * (bar_w - filled)
+    return (
+        f"[{bar}] {done}/{total} ({pct:.1f}%) "
+        f"pick={counts['pick']} reject={counts['reject']} neutral={counts['neutral']} "
+        f"sidecar_ok={side_ok} sidecar_err={side_err} "
+        f"rate={rate:.1f} stacks/s eta={eta_s:.0f}s"
+    )
+
+
+class _StackProgress:
+    """Visual progress on TTY (tqdm) or periodic log lines otherwise."""
+
+    def __init__(self, total: int, *, log_every: int = _PROGRESS_LOG_EVERY):
+        self.total = total
+        self.log_every = max(1, log_every)
+        self.done = 0
+        self.started = time.monotonic()
+        self._tqdm = None
+        self._use_tqdm = sys.stderr.isatty()
+        if self._use_tqdm:
+            try:
+                from tqdm import tqdm
+
+                self._tqdm = tqdm(
+                    total=total,
+                    unit="stack",
+                    file=sys.stderr,
+                    dynamic_ncols=True,
+                    mininterval=0.5,
+                )
+            except ImportError:
+                self._use_tqdm = False
+
+    def update(
+        self,
+        stack_id: int,
+        *,
+        counts: Counter,
+        side_ok: int,
+        side_err: int,
+    ) -> None:
+        self.done += 1
+        elapsed = time.monotonic() - self.started
+        if self._tqdm is not None:
+            self._tqdm.set_postfix(
+                stack=stack_id,
+                pick=counts["pick"],
+                reject=counts["reject"],
+                side_ok=side_ok,
+                refresh=False,
+            )
+            self._tqdm.update(1)
+            return
+        if self.done == 1 or self.done >= self.total or self.done % self.log_every == 0:
+            line = _format_progress_line(
+                self.done,
+                self.total,
+                counts=counts,
+                side_ok=side_ok,
+                side_err=side_err,
+                elapsed_s=elapsed,
+            )
+            logger.info("%s (last_stack_id=%d)", line, stack_id)
+
+    def close(self) -> None:
+        if self._tqdm is not None:
+            self._tqdm.close()
+        elif self.total and self.done:
+            elapsed = time.monotonic() - self.started
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+            logger.info(
+                "Progress complete: %d/%d stacks in %.1fs",
+                self.done,
+                self.total,
+                elapsed,
+            )
 
 
 def _resolve_folder_ids(folder_path: str) -> set[int]:
@@ -200,7 +327,13 @@ def _iter_stack_results(
     for sid in stack_ids:
         images = _prepare_images(db.get_images_in_stack(int(sid)))
         if len(images) < 2:
-            yield int(sid), [], [], 0
+            # Singleton stacks: two-level culling uses legacy classify (n=1 → neutral).
+            singleton_decisions = [
+                (int(im["id"]), "neutral", im.get("file_path") or "")
+                for im in images
+                if im.get("id") is not None
+            ]
+            yield int(sid), [], singleton_decisions, 0
             continue
 
         ids = [int(im["id"]) for im in images if im.get("id") is not None]
@@ -254,6 +387,33 @@ def main(argv: list[str] | None = None) -> int:
              "cull_policy_version (e.g. 1.0 for legacy stacked rows).",
     )
     parser.add_argument(
+        "--resume-after-stack-id",
+        type=int,
+        default=None,
+        help="Skip stacks with id <= N (stable ascending order). Use after "
+             "interrupt or with --checkpoint --resume.",
+    )
+    parser.add_argument(
+        "--checkpoint",
+        default=None,
+        metavar="PATH",
+        help=f"Write progress JSON after each stack (default when --resume: "
+             f"{_DEFAULT_CHECKPOINT}).",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Continue from --checkpoint (or --resume-after-stack-id). "
+             "Stacks at or before the saved last_stack_id are skipped.",
+    )
+    parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=_PROGRESS_LOG_EVERY,
+        help="When stderr is not a TTY, log a progress line every N stacks "
+             f"(default {_PROGRESS_LOG_EVERY}).",
+    )
+    parser.add_argument(
         "--write-sidecars",
         action="store_true",
         help="Also rewrite XMP sidecars for every changed image.",
@@ -301,8 +461,51 @@ def main(argv: list[str] | None = None) -> int:
     if not stack_ids:
         logger.info("No stacks found to process.")
         return 0
+
+    stack_ids = sorted(set(stack_ids))
+
+    resume_after: int | None = args.resume_after_stack_id
+    checkpoint_path: str | None = args.checkpoint
+    if args.resume and checkpoint_path is None:
+        checkpoint_path = _DEFAULT_CHECKPOINT
+    if checkpoint_path is None and args.write_sidecars and not args.dry_run:
+        checkpoint_path = _DEFAULT_CHECKPOINT
+
+    if args.resume:
+        ckpt = _load_checkpoint(checkpoint_path) if checkpoint_path else None
+        if ckpt and ckpt.get("last_stack_id") is not None:
+            ckpt_id = int(ckpt["last_stack_id"])
+            resume_after = max(resume_after or 0, ckpt_id)
+            logger.info(
+                "Resuming from checkpoint %s (last_stack_id=%d, done=%s/%s)",
+                checkpoint_path,
+                ckpt_id,
+                ckpt.get("stacks_done"),
+                ckpt.get("stacks_total"),
+            )
+        elif resume_after is None:
+            logger.warning(
+                "No checkpoint at %r and no --resume-after-stack-id — starting from beginning.",
+                checkpoint_path,
+            )
+
+    if resume_after is not None:
+        before = len(stack_ids)
+        stack_ids = [sid for sid in stack_ids if sid > resume_after]
+        logger.info(
+            "Resume filter: stack_id > %d — %d of %d stacks remaining",
+            resume_after,
+            len(stack_ids),
+            before,
+        )
+        if not stack_ids:
+            logger.info("All stacks already processed.")
+            return 0
+
     if args.limit > 0:
         stack_ids = stack_ids[: args.limit]
+
+    total_planned = len(stack_ids)
 
     skip_ids: set[int] = set()
     if args.preserve_manual:
@@ -316,11 +519,11 @@ def main(argv: list[str] | None = None) -> int:
     logger.info(
         "Backfill plan: stacks=%d space=%s threshold=%.4f picks/substack=%d "
         "max/stack=%d dry_run=%s write_sidecars=%s preserve_manual=%s "
-        "only_policy_version=%s",
-        len(stack_ids), space, tl_cfg.level2.distance_threshold,
+        "only_policy_version=%s resume_after_stack_id=%s checkpoint=%s",
+        total_planned, space, tl_cfg.level2.distance_threshold,
         tl_cfg.picks_per_substack, tl_cfg.max_picks_per_stack,
         args.dry_run, args.write_sidecars, args.preserve_manual,
-        args.only_policy_version,
+        args.only_policy_version, resume_after, checkpoint_path,
     )
 
     counts: Counter = Counter()
@@ -334,6 +537,8 @@ def main(argv: list[str] | None = None) -> int:
     pending_decisions: list[tuple] = []
     BATCH = 5_000
 
+    progress = _StackProgress(total_planned, log_every=args.progress_every)
+
     def _flush(buf: list[tuple]) -> None:
         if not buf or args.dry_run:
             buf.clear()
@@ -341,44 +546,74 @@ def main(argv: list[str] | None = None) -> int:
         db.batch_update_cull_decisions(buf, policy_version=TWO_LEVEL_POLICY_VERSION)
         buf.clear()
 
-    for sid, persist_rows, decisions, leaf_count in _iter_stack_results(
-        stack_ids, tl_cfg, sort_key, dry_run=args.dry_run, coverage_tracker=coverage_tracker,
-    ):
-        leaves_total += leaf_count
-        if persist_rows and not args.dry_run:
-            db.create_sub_stacks_batch(persist_rows)
-        substacks_total += len(persist_rows)
+    stacks_done = 0
+    try:
+        for sid, persist_rows, decisions, leaf_count in _iter_stack_results(
+            stack_ids, tl_cfg, sort_key, dry_run=args.dry_run, coverage_tracker=coverage_tracker,
+        ):
+            leaves_total += leaf_count
+            if persist_rows and not args.dry_run:
+                db.create_sub_stacks_batch(persist_rows)
+            substacks_total += len(persist_rows)
 
-        if skip_ids:
-            kept = []
-            for d in decisions:
-                if d[0] in skip_ids:
-                    skipped_manual += 1
-                else:
-                    kept.append(d)
-            decisions = kept
-        for _, decision, _ in decisions:
-            counts[decision] += 1
+            if skip_ids:
+                kept = []
+                for d in decisions:
+                    if d[0] in skip_ids:
+                        skipped_manual += 1
+                    else:
+                        kept.append(d)
+                decisions = kept
+            for _, decision, _ in decisions:
+                counts[decision] += 1
 
-        if args.write_sidecars and decisions and not args.dry_run:
-            ok, err = _write_sidecars(decisions, sid)
-            side_ok += ok
-            side_err += err
+            if args.write_sidecars and decisions and not args.dry_run:
+                ok, err = _write_sidecars(decisions, sid)
+                side_ok += ok
+                side_err += err
 
-        if args.verbose:
-            logger.debug(
-                "stack=%d leaves=%d substacks=%d picks=%d",
-                sid, leaf_count, len(persist_rows),
-                sum(1 for _, d, _ in decisions if d == "pick"),
+            if args.verbose:
+                logger.debug(
+                    "stack=%d leaves=%d substacks=%d picks=%d",
+                    sid, leaf_count, len(persist_rows),
+                    sum(1 for _, d, _ in decisions if d == "pick"),
+                )
+
+            pending_decisions.extend(decisions)
+            if len(pending_decisions) >= BATCH:
+                logger.info(
+                    "Flushing %d decisions (totals: pick=%d reject=%d neutral=%d)",
+                    len(pending_decisions), counts["pick"], counts["reject"], counts["neutral"],
+                )
+                _flush(pending_decisions)
+
+            stacks_done += 1
+            progress.update(
+                sid,
+                counts=counts,
+                side_ok=side_ok,
+                side_err=side_err,
             )
 
-        pending_decisions.extend(decisions)
-        if len(pending_decisions) >= BATCH:
-            logger.info(
-                "Flushing %d decisions (totals: pick=%d reject=%d neutral=%d)",
-                len(pending_decisions), counts["pick"], counts["reject"], counts["neutral"],
-            )
-            _flush(pending_decisions)
+            if checkpoint_path and not args.dry_run:
+                _save_checkpoint(
+                    checkpoint_path,
+                    {
+                        "last_stack_id": int(sid),
+                        "stacks_done": stacks_done,
+                        "stacks_total": total_planned,
+                        "resume_after_stack_id": int(sid),
+                        "write_sidecars": bool(args.write_sidecars),
+                        "only_policy_version": args.only_policy_version,
+                        "folder": args.folder,
+                        "counts": dict(counts),
+                        "sidecar_ok": side_ok,
+                        "sidecar_err": side_err,
+                        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    },
+                )
+    finally:
+        progress.close()
 
     _flush(pending_decisions)
 
@@ -395,10 +630,10 @@ def main(argv: list[str] | None = None) -> int:
     logger.info(
         "Backfill done. stacks=%d leaves=%d substacks_written=%d coverage=%.1f%% "
         "picks=%d rejects=%d neutrals=%d skipped_manual=%d sidecar_ok=%d sidecar_err=%d "
-        "dry_run=%s",
-        len(stack_ids), leaves_total, substacks_total, coverage * 100.0,
+        "dry_run=%s checkpoint=%s",
+        stacks_done, leaves_total, substacks_total, coverage * 100.0,
         counts["pick"], counts["reject"], counts["neutral"],
-        skipped_manual, side_ok, side_err, args.dry_run,
+        skipped_manual, side_ok, side_err, args.dry_run, checkpoint_path,
     )
     return 0
 
