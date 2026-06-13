@@ -463,6 +463,15 @@ def validate_readonly_sql_for_api(query: str) -> str | None:
         r"\bCOPY\b",    # PostgreSQL COPY (can write to file)
         r"\bLOAD\b",    # MySQL LOAD (can read files)
         r"\bINTO\s+OUTFILE\b",  # MySQL INTO OUTFILE
+        # PostgreSQL server-side file/exec functions (file exfiltration via CTEs)
+        r"\bPG_READ_FILE\b",
+        r"\bPG_READ_BINARY_FILE\b",
+        r"\bPG_LS_DIR\b",
+        r"\bPG_STAT_FILE\b",
+        r"\bLO_EXPORT\b",
+        r"\bLO_IMPORT\b",
+        r"\bDBLINK\b",
+        r"\bPG_EXECUTE_SERVER_PROGRAM\b",
     ]
     for pattern in dangerous_patterns:
         if re.search(pattern, upper):
@@ -528,6 +537,7 @@ def execute_readonly_sql_for_api(
 
         pg_sql = _translate_fb_to_pg(sql)
         with db_postgres.PGConnectionManager() as conn:
+            conn.set_session(readonly=True)
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(pg_sql, tuple(params) if params else None)
                 rows = cur.fetchmany(max_rows)
@@ -573,7 +583,9 @@ def validate_write_sql_for_api(query: str) -> str | None:
         r"\bTRUNCATE\b",
         r"\bGRANT\b",
         r"\bREVOKE\b",
-        r";--",
+        r";",    # multi-statement separator
+        r"--",   # line comment
+        r"/\*",  # block comment start
     ]
     for pattern in dangerous_patterns:
         if re.search(pattern, upper):
