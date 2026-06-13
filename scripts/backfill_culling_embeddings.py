@@ -25,56 +25,8 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from typing import List, Tuple
 
 logger = logging.getLogger("backfill_culling_embeddings")
-
-
-def _missing_rows(
-    space_id: int, folder_id: int | None, limit: int | None
-) -> List[Tuple[int, str, str]]:
-    from modules import db_postgres
-
-    sql = (
-        "SELECT i.id, i.file_path, COALESCE(i.thumbnail_path, '') AS thumbnail_path "
-        "FROM images i "
-        "WHERE i.file_path IS NOT NULL AND i.file_path <> '' "
-        "AND NOT EXISTS (SELECT 1 FROM image_embeddings_768 e "
-        "WHERE e.image_id = i.id AND e.embedding_space_id = %s)"
-    )
-    params: list = [space_id]
-    if folder_id is not None:
-        sql += " AND i.folder_id = %s"
-        params.append(folder_id)
-    sql += " ORDER BY i.id"
-    if limit is not None:
-        sql += " LIMIT %s"
-        params.append(limit)
-    rows = db_postgres.execute_select(sql, tuple(params))
-    return [(int(r["id"]), str(r["file_path"]), str(r["thumbnail_path"])) for r in rows]
-
-
-def _resolve_paths(rows, use_thumbnails: bool):
-    """Return (image_id, local_path) tuples, preferring an existing thumbnail.
-
-    Reading the 512px thumbnail JPEG is far cheaper than decoding a RAW per image.
-    Falls back to the raw ``file_path`` when no thumbnail exists on disk.
-    """
-    import os
-
-    from modules import utils
-
-    resolved: List[Tuple[int, str]] = []
-    n_thumb = 0
-    for image_id, file_path, thumb in rows:
-        path = file_path
-        if use_thumbnails and thumb:
-            local_thumb = utils.convert_path_to_local(thumb)
-            if os.path.exists(local_thumb):
-                path = thumb
-                n_thumb += 1
-        resolved.append((image_id, utils.convert_path_to_local(path)))
-    return resolved, n_thumb
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -106,12 +58,8 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     from modules import config, db
-    from modules.embedding_extractors import (
-        SUPPORTED_CULLING_SPACES,
-        CullingEmbedder,
-        generate_and_persist,
-        is_supported,
-    )
+    from modules.culling_embeddings import ensure_embeddings_for_space
+    from modules.embedding_extractors import SUPPORTED_CULLING_SPACES, is_supported
     from modules.embedding_spaces import get_embedding_space_id
 
     spaces = list(args.space or [])
@@ -149,28 +97,40 @@ def main(argv: list[str] | None = None) -> int:
             rc = 2
             continue
 
-        rows = _missing_rows(space_id, args.folder_id, args.limit)
-        logger.info("Images missing %s: %d", space, len(rows))
-        if args.dry_run or not rows:
+        kwargs = {"limit": args.limit}
+        if args.folder_id is not None:
+            from modules import db_postgres
+
+            row = db_postgres.execute_select_one(
+                "SELECT path FROM folders WHERE id = %s",
+                (args.folder_id,),
+            )
+            if not row:
+                logger.error("Unknown folder_id=%s", args.folder_id)
+                rc = 2
+                continue
+            kwargs["folder_path"] = row["path"]
+
+        missing_rows = db.get_images_missing_embedding_for_space(space, **kwargs)
+        logger.info("Images missing %s: %d", space, len(missing_rows))
+        if args.dry_run or not missing_rows:
             continue
 
-        # Prefer the on-disk thumbnail (cheap) over decoding the RAW per image.
-        local_rows, n_thumb = _resolve_paths(rows, use_thumbnails=not args.no_thumbnails)
-        logger.info(
-            "Loading %d via thumbnail, %d via original file", n_thumb, len(local_rows) - n_thumb
+        missing_ids = [int(r["id"]) for r in missing_rows]
+        result = ensure_embeddings_for_space(
+            space,
+            missing_ids,
+            batch_size=args.batch_size,
+            use_thumbnails=not args.no_thumbnails,
+            device=args.device,
+            fp16=not args.no_fp16,
         )
-
-        embedder = CullingEmbedder(space, device=args.device, fp16=not args.no_fp16)
-        try:
-            persisted = generate_and_persist(
-                space,
-                local_rows,
-                batch_size=args.batch_size,
-                embedder=embedder,
-            )
-        finally:
-            embedder.unload()
-        logger.info("Persisted %d/%d embeddings for space %s", persisted, len(rows), space)
+        logger.info(
+            "Persisted %d/%d embeddings for space %s",
+            result.persisted,
+            result.missing_before,
+            space,
+        )
 
     return rc
 

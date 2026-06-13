@@ -1230,4 +1230,82 @@ def _init_db_transaction():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_auditlog_created_at ON auditlog(created_at);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_auditlog_thread_name ON auditlog(thread_name);")
 
+            # ------------------------------------------------------------------
+            # Agent-assisted cull review (metadata-only removal candidates)
+            # ------------------------------------------------------------------
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS agent_cull_review_groups (
+                id                      BIGSERIAL PRIMARY KEY,
+                stack_id                INTEGER NOT NULL REFERENCES stacks(id) ON DELETE CASCADE,
+                sub_stack_id            INTEGER REFERENCES sub_stacks(id) ON DELETE SET NULL,
+                review_unit_key         VARCHAR(128) NOT NULL,
+                status                  VARCHAR(32) NOT NULL DEFAULT 'discovered',
+                dry_run                 BOOLEAN NOT NULL DEFAULT TRUE,
+                agent_name              VARCHAR(64),
+                agent_model             VARCHAR(128),
+                agent_version           VARCHAR(64),
+                agent_supports_vision   BOOLEAN,
+                prompt_template_version VARCHAR(32),
+                prompt_hash             VARCHAR(64),
+                request_json            JSONB,
+                response_raw            TEXT,
+                response_validated      JSONB,
+                group_decision          VARCHAR(32),
+                group_confidence        DOUBLE PRECISION,
+                summary                 TEXT,
+                safety_overrides        JSONB,
+                error_code              VARCHAR(64),
+                error_message           TEXT,
+                created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                applied_at              TIMESTAMP,
+                applied_by              VARCHAR(128)
+            );
+            """)
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_agent_cull_groups_unit_created "
+                "ON agent_cull_review_groups(review_unit_key, created_at);"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_agent_cull_groups_stack_status "
+                "ON agent_cull_review_groups(stack_id, sub_stack_id, status);"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_agent_cull_groups_status_created "
+                "ON agent_cull_review_groups(status, created_at);"
+            )
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS agent_cull_recommendations (
+                id                      BIGSERIAL PRIMARY KEY,
+                review_group_id         BIGINT NOT NULL REFERENCES agent_cull_review_groups(id) ON DELETE CASCADE,
+                image_id                INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                agent_decision          VARCHAR(16) NOT NULL,
+                final_decision          VARCHAR(16) NOT NULL,
+                confidence              DOUBLE PRECISION,
+                reason                  TEXT,
+                better_alternatives     JSONB,
+                risk_flags              JSONB,
+                safety_overrides        JSONB,
+                candidate_status        VARCHAR(32) NOT NULL DEFAULT 'none',
+                prior_pick_status       SMALLINT,
+                prior_cull_decision     VARCHAR(20),
+                prior_candidate_status  VARCHAR(32),
+                operator_actor          VARCHAR(128),
+                operator_note           TEXT,
+                operator_at             TIMESTAMP
+            );
+            """)
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_agent_cull_recs_group "
+                "ON agent_cull_recommendations(review_group_id);"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_agent_cull_recs_image_status "
+                "ON agent_cull_recommendations(image_id, candidate_status);"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_agent_cull_recs_status_image "
+                "ON agent_cull_recommendations(candidate_status, image_id);"
+            )
+
             logger.info("PostgreSQL schema initialization completed.")

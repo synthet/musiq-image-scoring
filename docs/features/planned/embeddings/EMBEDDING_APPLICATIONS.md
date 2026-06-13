@@ -17,7 +17,7 @@ Detailed per-feature specs:
 
 ## 1. Diversity-Aware Selection (highest impact)
 
-**Problem:** The current selection policy ([modules/selection.py](../../../modules/selection.py)) ranks images inside a stack purely by `score_general` and then applies a fixed 33/33/34% pick/reject/neutral split. When a stack contains several near-identical shots, the top picks can be visually redundant.
+**Problem:** The legacy selection policy ([modules/selection_policy.py](../../../modules/selection_policy.py)) ranks images inside a stack purely by `score_general` and then applies `k = floor(n × 0.33)` pick/reject bands (middle remainder neutral). When a stack contains several near-identical shots, the top picks can be visually redundant. Two-level culling ([two-level-culling.md](two-level-culling.md)) addresses this with sub-stacks + best-M picks.
 
 **Idea:** After sorting by score, penalize candidates that are too similar to already-picked images. This produces a set of picks that are both high-quality *and* visually varied.
 

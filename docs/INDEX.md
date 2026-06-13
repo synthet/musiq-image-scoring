@@ -108,6 +108,7 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | Page | Purpose |
 |---|---|
 | [features/planned/INDEX.md](features/planned/INDEX.md) | Planned feature index. |
+| [specs/agent-assisted-cull-review/INDEX.md](specs/agent-assisted-cull-review/INDEX.md) | Agent cull review implementation spec + worklog. |
 | [features/planned/ui-pipeline-redesign.md](features/planned/ui-pipeline-redesign.md) | Pipeline UI redesign plan. |
 | [features/planned/import-discovery-alignment.md](features/planned/import-discovery-alignment.md) | Import/discovery alignment plan. |
 | [features/planned/image-identity-and-hashing-improvements.md](features/planned/image-identity-and-hashing-improvements.md) | Image identity and hashing improvements. |

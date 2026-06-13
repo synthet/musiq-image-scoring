@@ -13,7 +13,21 @@ Technical reference for stack/culling statistics exposed via REST (`GET /api/ana
 | Auto cull policy | `images.cull_decision` | `pick`, `reject`, `neutral`, … |
 | Culling workspace | `culling_picks.decision` | `pick`, `reject`, `maybe`, NULL |
 
-Library/folder analytics use **`pick_status`** unless noted as session scope.
+Library/folder analytics expose **two flag layers**:
+
+| Response field | Source | When populated |
+|----------------|--------|----------------|
+| `flags.pick_count`, `reject_count`, `neutral_count` | `images.pick_status` | Manual culling UI, XMP import, or after Selection sync |
+| `flags.auto_cull.*` | `images.cull_decision` | Automated Selection / two-level culling runs |
+| `flags.by_cull_decision` | Raw `cull_decision` histogram | Always (includes `unset`) |
+| `flags.auto_cull_stacks` | `cull_decision` per `stack_id` | Stack pick pattern + N=20 cap violations |
+| `flags.auto_cull_substacks` | `sub_stacks` + `cull_decision` | Singleton-leaf %, M=3 violations, giant leaves |
+
+**Note:** `SelectionService` writes `cull_decision` on every auto-cull run and (since 2026-06)
+also syncs `pick_status` via `batch_update_cull_decisions`. Libraries upgraded before that
+change need a one-time backfill: `python -m scripts.backfill_pick_status_from_cull_decision`.
+
+Session scope uses `culling_picks.decision` (`flags` on session endpoint).
 
 ## Confirmed schema
 

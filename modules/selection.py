@@ -19,7 +19,11 @@ from modules.selection_metadata import write_selection_metadata
 from modules.indexing_policy import filter_image_rows_for_nef_policy
 from modules.sub_clustering import compute_sub_clusters
 from modules.config import get_config_value
+from modules.culling_embeddings import collect_stacked_image_ids, ensure_embeddings_for_space
+from modules.embedding_extractors import is_supported
+from modules.embedding_spaces import OPENCLIP_L14_IMAGE_SPACE_CODE
 from modules.two_level_culling import (
+    LEVEL2_DEFAULT_DISTANCE_THRESHOLD,
     TWO_LEVEL_POLICY_VERSION,
     TwoLevelConfig,
     TwoLevelLevelConfig,
@@ -73,7 +77,7 @@ def _load_two_level_config(cfg: SelectionConfig) -> TwoLevelConfig:
         max_picks_per_stack=int(tl.get("max_picks_per_stack", 20)),
         reject_non_picks=bool(tl.get("reject_non_picks", True)),
         level1=_level("level1", "mobilenet_v2_imagenet_gap", 0.15),
-        level2=_level("level2", "mobilenet_v2_imagenet_gap", 0.05),
+        level2=_level("level2", OPENCLIP_L14_IMAGE_SPACE_CODE, LEVEL2_DEFAULT_DISTANCE_THRESHOLD),
         diversity_enabled=bool(div.get("enabled", True)),
         diversity_lambda=float(div.get("lambda", 0.70)),
         score_field=cfg.score_field,
@@ -286,6 +290,16 @@ class SelectionService:
 
                 if use_two_level:
                     db.clear_sub_stacks_for_folder(folder)
+                    if tl_cfg is not None and is_supported(tl_cfg.level2.embedding_space):
+                        stacked_ids = collect_stacked_image_ids(by_stack)
+                        if stacked_ids:
+                            ensure_embeddings_for_space(
+                                tl_cfg.level2.embedding_space,
+                                stacked_ids,
+                                progress_cb=lambda msg: self._progress(
+                                    progress_cb, pct_base, msg
+                                ),
+                            )
 
                 self._progress(progress_cb, pct_base, "Assigning pick/reject bands...")
                 folder_decisions: list[tuple[int, str, str]] = []

@@ -49,6 +49,11 @@ def compute_library_flags(folder_id: int | None) -> dict[str, Any]:
     )
     by_cull_decision = {str(r["cd"]): int(r["cnt"]) for r in cull_rows}
 
+    auto_pick = by_cull_decision.get("pick", 0)
+    auto_reject = by_cull_decision.get("reject", 0)
+    auto_neutral = by_cull_decision.get("neutral", 0)
+    auto_unset = by_cull_decision.get("unset", 0)
+
     stack_rows = conn.query(
         f"""
         SELECT
@@ -56,6 +61,19 @@ def compute_library_flags(folder_id: int | None) -> dict[str, Any]:
             COUNT(*) FILTER (WHERE i.pick_status = 1)::int AS picks,
             COUNT(*) FILTER (WHERE i.pick_status = -1)::int AS rejects,
             COUNT(DISTINCT i.pick_status)::int AS distinct_status
+        FROM images i
+        WHERE i.stack_id IS NOT NULL{folder_clause}
+        GROUP BY i.stack_id
+        """,
+        tuple(params),
+    )
+
+    cull_stack_rows = conn.query(
+        f"""
+        SELECT
+            i.stack_id,
+            COUNT(*) FILTER (WHERE LOWER(TRIM(i.cull_decision)) = 'pick')::int AS picks,
+            COUNT(*) FILTER (WHERE LOWER(TRIM(i.cull_decision)) = 'reject')::int AS rejects
         FROM images i
         WHERE i.stack_id IS NOT NULL{folder_clause}
         GROUP BY i.stack_id
@@ -77,6 +95,43 @@ def compute_library_flags(folder_id: int | None) -> dict[str, Any]:
             stacks_all_reject += 1
         elif picks == 0:
             stacks_no_pick += 1
+
+    cull_stacks_one_pick = cull_stacks_multi_pick = cull_stacks_over_cap = 0
+    for r in cull_stack_rows:
+        picks = int(r.get("picks") or 0)
+        if picks == 1:
+            cull_stacks_one_pick += 1
+        elif picks > 1:
+            cull_stacks_multi_pick += 1
+        if picks > 20:
+            cull_stacks_over_cap += 1
+
+    substack_row = conn.query_one(
+        f"""
+        WITH leaf_sizes AS (
+            SELECT ss.id, COUNT(i.id)::int AS image_count,
+                   COUNT(*) FILTER (WHERE LOWER(TRIM(i.cull_decision)) = 'pick')::int AS picks
+            FROM sub_stacks ss
+            JOIN images i ON i.sub_stack_id = ss.id
+            WHERE 1=1{folder_clause}
+            GROUP BY ss.id
+        )
+        SELECT
+            COUNT(*)::int AS total_substacks,
+            COUNT(*) FILTER (WHERE image_count = 1)::int AS singleton_leaves,
+            COUNT(*) FILTER (WHERE picks > 3)::int AS substacks_picks_over_m3,
+            COUNT(*) FILTER (WHERE image_count > 50)::int AS giant_leaves
+        FROM leaf_sizes
+        """,
+        tuple(params),
+    )
+    total_substacks = int((substack_row or {}).get("total_substacks") or 0)
+    singleton_leaves = int((substack_row or {}).get("singleton_leaves") or 0)
+    substacks_picks_over_m3 = int((substack_row or {}).get("substacks_picks_over_m3") or 0)
+    giant_leaves = int((substack_row or {}).get("giant_leaves") or 0)
+    singleton_leaf_pct = (
+        round(100.0 * singleton_leaves / total_substacks, 1) if total_substacks else 0.0
+    )
 
     disagree = conn.query_one(
         f"""
@@ -106,6 +161,28 @@ def compute_library_flags(folder_id: int | None) -> dict[str, Any]:
         "reject_pct": _pct(by_pick_status["reject"]),
         "neutral_pct": _pct(by_pick_status["neutral"]),
         "by_cull_decision": by_cull_decision,
+        "auto_cull": {
+            "flag_layer": "images.cull_decision",
+            "pick_count": auto_pick,
+            "reject_count": auto_reject,
+            "neutral_count": auto_neutral,
+            "unset_count": auto_unset,
+            "pick_pct": _pct(auto_pick),
+            "reject_pct": _pct(auto_reject),
+            "neutral_pct": _pct(auto_neutral),
+        },
+        "auto_cull_stacks": {
+            "stacks_with_exactly_one_pick": cull_stacks_one_pick,
+            "stacks_with_multiple_picks": cull_stacks_multi_pick,
+            "stacks_over_pick_cap_20": cull_stacks_over_cap,
+        },
+        "auto_cull_substacks": {
+            "total_substacks": total_substacks,
+            "singleton_leaves": singleton_leaves,
+            "singleton_leaf_pct": singleton_leaf_pct,
+            "substacks_picks_over_m3": substacks_picks_over_m3,
+            "giant_leaves_over_50": giant_leaves,
+        },
         "stacks_with_exactly_one_pick": stacks_one_pick,
         "stacks_with_multiple_picks": stacks_multi_pick,
         "stacks_with_no_picks": stacks_no_pick,

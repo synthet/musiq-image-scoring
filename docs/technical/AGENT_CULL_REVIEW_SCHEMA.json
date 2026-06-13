@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vexlum.local/schemas/agent-cull-response-v1.json",
+  "title": "AgentCullResponseV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "stack_id",
+    "sub_stack_id",
+    "group_decision",
+    "confidence",
+    "summary",
+    "rejected_image_decisions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "agent-cull-response-v1"
+    },
+    "stack_id": {
+      "type": "integer"
+    },
+    "sub_stack_id": {
+      "type": ["integer", "null"]
+    },
+    "group_decision": {
+      "type": "string",
+      "enum": ["apply_removals", "do_not_apply"]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "rejected_image_decisions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rejectedImageDecision"
+      }
+    }
+  },
+  "$defs": {
+    "rejectedImageDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image_id",
+        "filename",
+        "decision",
+        "confidence",
+        "reason",
+        "better_alternatives",
+        "risk_flags"
+      ],
+      "properties": {
+        "image_id": {
+          "type": "integer"
+        },
+        "filename": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["remove", "keep", "uncertain"]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "better_alternatives": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "risk_flags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128
+          }
+        }
+      }
+    }
+  }
+}

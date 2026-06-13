@@ -22,6 +22,9 @@ def test_library_analytics_smoke(_skip_non_postgres):
     assert "stack_size" in result
     assert "flags" in result
     assert result["flags"]["flag_layer"] == "images.pick_status"
+    assert "auto_cull" in result["flags"]
+    assert "auto_cull_stacks" in result["flags"]
+    assert "auto_cull_substacks" in result["flags"]
     assert "generated_at" in result
 
 

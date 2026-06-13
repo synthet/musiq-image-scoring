@@ -49,6 +49,16 @@ def get_library_analytics(
     if fl.get("pick_status_cull_decision_disagree", 0) > 0:
         warnings.append(f"pick_status_cull_decision_disagree:{fl['pick_status_cull_decision_disagree']}")
 
+    ac_stacks = fl.get("auto_cull_stacks") or {}
+    if ac_stacks.get("stacks_over_pick_cap_20", 0) > 0:
+        warnings.append(f"stacks_over_pick_cap_20:{ac_stacks['stacks_over_pick_cap_20']}")
+
+    ac_sub = fl.get("auto_cull_substacks") or {}
+    if ac_sub.get("substacks_picks_over_m3", 0) > 0:
+        warnings.append(f"substacks_picks_over_m3:{ac_sub['substacks_picks_over_m3']}")
+    if ac_sub.get("giant_leaves_over_50", 0) > 0:
+        warnings.append(f"giant_substack_leaves_over_50:{ac_sub['giant_leaves_over_50']}")
+
     comp = composite.build_composite(
         flags=fl,
         stack_size=ss,

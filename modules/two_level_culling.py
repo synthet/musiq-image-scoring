@@ -9,10 +9,12 @@ from dataclasses import dataclass
 from math import floor
 from typing import Callable, List, Mapping, Sequence
 
+from modules.embedding_spaces import OPENCLIP_L14_IMAGE_SPACE_CODE
 from modules.selection_policy import classify_best_m
 from modules.sub_clustering import compute_sub_clusters
 
 TWO_LEVEL_POLICY_VERSION = "2.0"
+LEVEL2_DEFAULT_DISTANCE_THRESHOLD = 0.06
 
 
 @dataclass(frozen=True)
@@ -36,10 +38,11 @@ class TwoLevelConfig:
         if self.level1 is None:
             self.level1 = TwoLevelLevelConfig("mobilenet_v2_imagenet_gap", 0.15)
         if self.level2 is None:
-            # Single sub-stacking pass with one model. Code default is the
-            # always-populated MobileNet space; config.example.json documents the
-            # recommended opt-in OpenCLIP L/14 (requires backfill).
-            self.level2 = TwoLevelLevelConfig("mobilenet_v2_imagenet_gap", 0.05)
+            # Single sub-stacking pass; matches config.example.json (requires
+            # openclip_l14_laion2b_image backfill when enabled).
+            self.level2 = TwoLevelLevelConfig(
+                OPENCLIP_L14_IMAGE_SPACE_CODE, LEVEL2_DEFAULT_DISTANCE_THRESHOLD
+            )
 
 
 @dataclass

@@ -97,6 +97,38 @@
       "diversity": {
         "enabled": true,
         "lambda": 0.70
+      },
+      "min_stack_size_for_substack": 3,
+      "skip_single_leaf_persist": true
+    },
+    "agent_review": {
+      "enabled": false,
+      "dry_run_default": true,
+      "max_group_size": 9,
+      "min_usable_images": 2,
+      "min_agent_confidence": 0.75,
+      "min_group_confidence": 0.70,
+      "decision_source": "pick_status",
+      "allow_metadata_only_remove": false,
+      "agent": {
+        "provider": "gemini",
+        "command": "gemini",
+        "args": [],
+        "timeout_seconds": 120,
+        "max_retries": 1,
+        "supports_vision": true,
+        "include_thumbnails": true,
+        "thumbnail_mode": "path",
+        "max_thumbnail_edge_px": 512
+      },
+      "local_gates": {
+        "block_if_rejected_scores_higher": true,
+        "score_margin": 0.0,
+        "block_embedding_outliers": true,
+        "outlier_z_threshold": 2.0,
+        "block_unique_species": true,
+        "block_unique_keywords": true,
+        "block_missing_alternatives": true
       }
     }
   },

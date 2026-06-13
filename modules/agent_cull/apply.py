@@ -1,0 +1,175 @@
+"""Apply and persist agent cull recommendations (metadata-only)."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+from typing import Any
+
+from modules import audit, db
+from modules.agent_cull.config import PROMPT_TEMPLATE_VERSION, AgentCullConfig
+from modules.agent_cull.discovery import ReviewUnit
+from modules.agent_cull.repository import (
+    insert_recommendation,
+    insert_review_group,
+    list_recommendations_for_group,
+    update_review_group,
+)
+from modules.agent_cull.safety import SafetyResult
+
+logger = logging.getLogger(__name__)
+
+
+def _coerce_dry_run(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "t", "on")
+    return bool(value)
+
+
+def prompt_hash(packet: dict[str, Any]) -> str:
+    blob = json.dumps(packet, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+
+def candidate_status_for_decision(final_decision: str, *, dry_run: bool) -> str:
+    if final_decision != "remove":
+        return "none"
+    return "proposed" if dry_run else "agent_remove_candidate"
+
+
+def persist_validated_review(
+    *,
+    unit: ReviewUnit,
+    packet: dict[str, Any],
+    validated: dict[str, Any],
+    safety: SafetyResult,
+    cfg: AgentCullConfig,
+    dry_run: bool,
+    rows_by_id: dict[int, dict[str, Any]],
+    raw_response: str,
+    provider_name: str,
+    provider_supports_vision: bool,
+) -> int:
+    group_id = insert_review_group(
+        stack_id=unit.stack_id,
+        sub_stack_id=unit.sub_stack_id,
+        review_unit_key=unit.review_unit_key,
+        dry_run=dry_run,
+        status="validated",
+        request_json=packet,
+    )
+    update_review_group(
+        group_id,
+        agent_name=provider_name,
+        agent_supports_vision=provider_supports_vision,
+        prompt_template_version=PROMPT_TEMPLATE_VERSION,
+        prompt_hash=prompt_hash(packet),
+        response_raw=raw_response[:500_000],
+        response_validated=validated,
+        group_decision=validated.get("group_decision"),
+        group_confidence=float(validated.get("confidence") or 0.0),
+        summary=str(validated.get("summary") or "")[:4000],
+        safety_overrides=[o.to_dict() for o in safety.overrides],
+        status="proposed" if dry_run else "validated",
+    )
+
+    for decision in safety.image_decisions:
+        row = rows_by_id.get(decision.image_id) or {}
+        insert_recommendation(
+            review_group_id=group_id,
+            image_id=decision.image_id,
+            agent_decision=decision.agent_decision,
+            final_decision=decision.final_decision,
+            confidence=decision.confidence,
+            reason=decision.reason,
+            better_alternatives=decision.better_alternatives,
+            risk_flags=decision.risk_flags,
+            safety_overrides=[o.to_dict() for o in decision.safety_overrides],
+            candidate_status=candidate_status_for_decision(decision.final_decision, dry_run=dry_run),
+            prior_pick_status=row.get("pick_status"),
+            prior_cull_decision=row.get("cull_decision"),
+            prior_candidate_status="none",
+        )
+    return group_id
+
+
+def persist_failed_review(
+    *,
+    unit: ReviewUnit,
+    packet: dict[str, Any] | None,
+    dry_run: bool,
+    error_code: str,
+    error_message: str,
+    raw_response: str | None = None,
+) -> int:
+    group_id = insert_review_group(
+        stack_id=unit.stack_id,
+        sub_stack_id=unit.sub_stack_id,
+        review_unit_key=unit.review_unit_key,
+        dry_run=dry_run,
+        status="failed",
+        request_json=packet,
+    )
+    update_review_group(
+        group_id,
+        response_raw=(raw_response or "")[:500_000],
+        error_code=error_code,
+        error_message=error_message[:4000],
+        status="failed",
+    )
+    return group_id
+
+
+def apply_agent_remove_candidates(
+    group_id: int,
+    *,
+    applied_by: str = "system",
+    recommendation_ids: list[int] | None = None,
+) -> dict[str, Any]:
+    """Promote final remove recommendations to agent_remove_candidate. Never deletes files."""
+    group = db.get_connector().query_one(
+        "SELECT id, dry_run FROM agent_cull_review_groups WHERE id = ?",
+        (group_id,),
+    )
+    if not group:
+        return {"ok": False, "error": "group_not_found", "updated": 0}
+    if _coerce_dry_run(group.get("dry_run")):
+        return {"ok": False, "error": "dry_run_group", "updated": 0}
+
+    recs = list_recommendations_for_group(group_id)
+    if recommendation_ids:
+        wanted = {int(i) for i in recommendation_ids}
+        recs = [r for r in recs if int(r["id"]) in wanted]
+
+    updated = 0
+    with audit.audit_context(source="agent_cull", phase_code="culling"):
+        for rec in recs:
+            if rec.get("final_decision") != "remove":
+                continue
+            if rec.get("candidate_status") not in ("proposed", "none"):
+                continue
+            prior = rec.get("candidate_status") or "none"
+            db.get_connector().execute(
+                """
+                UPDATE agent_cull_recommendations
+                SET prior_candidate_status = ?,
+                    candidate_status = 'agent_remove_candidate'
+                WHERE id = ?
+                """,
+                (prior, rec["id"]),
+            )
+            updated += 1
+    if updated:
+        update_review_group(
+            group_id,
+            status="applied",
+            applied_by=applied_by,
+        )
+    return {"ok": True, "updated": updated, "group_id": group_id}

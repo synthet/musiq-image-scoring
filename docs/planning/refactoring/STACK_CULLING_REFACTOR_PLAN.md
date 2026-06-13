@@ -8,9 +8,9 @@ The new feature keeps using the same existing quality scores/models already used
 
 1. Build stack/burst groups in DB.
 2. Write stack/burst IDs to metadata files.
-3. Mark the bottom 33% as rejected.
-4. Mark the top 33% as picked.
-5. Keep the middle 34% unflagged.
+3. Mark the bottom ~33% as rejected (`k = floor(n × 0.33)`).
+4. Mark the top ~33% as picked (same `k`).
+5. Keep the middle unflagged (remainder; not a fixed 34% — e.g. n=10 → 30% / 30% / 40%).
 
 Old Stacks and Culling UIs remain temporarily available during migration, then are deprecated and removed.
 
@@ -63,17 +63,22 @@ Old Stacks and Culling UIs remain temporarily available during migration, then a
 ## Decision policy (fixed)
 For each stack/burst:
 - Sort by chosen score field (default: `score_general`).
-- Mark:
-  - top 33% => `pick`
-  - bottom 33% => `reject`
-  - middle => neutral
-- Deterministic rounding policy must be explicit and stable.
+- Mark (implemented in [`selection_policy.py`](../../../modules/selection_policy.py)):
+  - `k = floor(n × 0.33)` picks (top k by score) and `k` rejects (bottom k)
+  - middle images => `neutral`
+- Deterministic rounding policy is explicit and tested ([`test_selection_policy.py`](../../../tests/test_selection_policy.py)).
 
-Recommended deterministic rule:
-- `k = floor(n * 0.33)` for pick and reject.
-- For very small stacks (`n < 3`), apply safe fallback:
-  - `n=1`: neutral (or pick if business wants one best always).
-  - `n=2`: 1 pick, 1 reject only if explicitly desired; otherwise 1 pick, 1 neutral.
+Small-stack rules (fixed):
+
+| n | picks | rejects | neutral |
+|---|-------|---------|---------|
+| 1 | 0 | 0 | 1 |
+| 2 | 1 | 0 | 1 |
+| ≥3 | k | k | n − 2k |
+
+When `culling.sub_cluster_distance_threshold > 0`, bands apply **per in-memory sub-cluster**
+inside each root stack, not per root stack. When `culling.two_level.enabled=true`, stacked
+images use best-M/N-cap instead — see [two-level-culling.md](../../features/planned/embeddings/two-level-culling.md).
 
 > Final rounding policy should be decided once and documented in config/help text to avoid behavior ambiguity.
 
