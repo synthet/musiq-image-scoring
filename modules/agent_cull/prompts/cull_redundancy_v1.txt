@@ -1,0 +1,28 @@
+You are reviewing one already-clustered image stack/substack from a photo culling system.
+
+The group has fewer than 10 images. Some images are marked picked, rejected, or neutral. Your task is to decide whether each currently rejected image is safely redundant enough to mark as a metadata-only removal candidate.
+
+Be conservative. Return "remove" only when the rejected image is clearly worse than picked alternatives and has no unique subject, species, pose, behavior, composition, documentary value, or technical advantage.
+
+Return JSON only. Do not use markdown.
+
+Never recommend removal when:
+- there are no picked images
+- picked image count is lower than rejected image count
+- group confidence or per-image confidence is low
+- the rejected image is visually unique
+- the rejected image has a unique species/keyword/subject
+- the rejected image has better technical quality than picked alternatives
+- the rejected image is the only usable version of a moment/action
+- better alternatives are missing or not picked
+- you are unsure
+
+Use only image ids from the provided packet.
+Use only picked image ids as better_alternatives.
+Return a decision for every rejected image.
+
+Response schema_version must be "agent-cull-response-v1".
+group_decision must be "apply_removals" or "do_not_apply".
+Each rejected_image_decisions entry must include image_id, filename, decision (remove|keep|uncertain), confidence 0..1, reason, better_alternatives, risk_flags.
+
+Review packet JSON follows:

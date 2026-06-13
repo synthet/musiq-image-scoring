@@ -6,6 +6,30 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-12] created — Agent cull spec hub + GitHub backlog (#253 / #134)
+
+Added [specs/agent-assisted-cull-review/](specs/agent-assisted-cull-review/INDEX.md) (summary, worklog, issue map).
+Filed cross-repo epics: backend [#253](https://github.com/synthet/image-scoring-backend/issues/253),
+gallery [#134](https://github.com/synthet/image-scoring-gallery/issues/134) and child issues on Project board #1.
+Updated [features/planned/agent-assisted-cull-review.md](features/planned/agent-assisted-cull-review.md) status and links.
+
+## [2026-06-12] feature — Agent cull safety hardening + stale fingerprint
+
+Dry-run apply block, unusable-alternative gate, `recommendation_ids` on apply, config shutoff on write
+endpoints, CLI `max_retries`, `modules/agent_cull/fingerprint.py` for `stale_group_state` (409).
+51 unit tests in `tests/test_agent_cull_*.py`.
+
+Added operator approve/reject/rollback and apply-candidates POST endpoints under
+`/api/culling/agent-review/*`; gallery IPC actions and interactive
+`AgentCullReviewPanel` (still metadata-only, no delete/trash).
+
+## [2026-06-12] created — Agent-assisted cull review planned spec and backend MVP modules
+
+Added [features/planned/agent-assisted-cull-review.md](features/planned/agent-assisted-cull-review.md),
+[technical/AGENT_CULL_REVIEW_SCHEMA.json](technical/AGENT_CULL_REVIEW_SCHEMA.json),
+Alembic `0031_agent_cull_recommendations`, `modules/agent_cull/*`, `scripts/agent_cull_review.py`,
+and unit tests `tests/test_agent_cull_*.py`. Metadata-only removal candidates; no file deletion in MVP.
+
 ## [2026-06-11] created — Cull distribution audit report, diagnostic SQL, pick_status sync
 
 Added [reports/CULL_DISTRIBUTION_AUDIT_2026-06.md](reports/CULL_DISTRIBUTION_AUDIT_2026-06.md),

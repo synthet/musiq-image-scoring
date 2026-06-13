@@ -4,6 +4,7 @@ Specs and proposals for product work not yet fully shipped. **Database / migrati
 
 | Document | Description |
 |----------|-------------|
+| [agent-assisted-cull-review.md](agent-assisted-cull-review.md) | AI-assisted redundancy review — [spec hub](../../specs/agent-assisted-cull-review/INDEX.md), backlog #253/#134 |
 | [embeddings/](embeddings/) | Embedding applications (8 app specs + `NEXT_STEPS`, `TODO`, [two-level culling](embeddings/two-level-culling.md)) |
 | [ui-pipeline-redesign.md](ui-pipeline-redesign.md) | Pipeline-centric UI redesign |
 | [ux-ui-implementation-plan.md](ux-ui-implementation-plan.md) | Operator UI polish (Quick Start, confirmations) |

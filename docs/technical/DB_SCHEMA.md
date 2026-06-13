@@ -24,7 +24,7 @@ The current PostgreSQL initializer creates or maintains these application tables
 | Runs, jobs, and execution trail | `jobs`, `job_phases`, `job_steps`, `job_image_actions`, `pipeline_phases`, `image_phase_status`, `image_incidents` |
 | Metadata | `image_exif`, `image_xmp`, image identity fields on `images` |
 | Scoring | composite scores on `images` (`score_general`, `score_technical`, `score_aesthetic`); per-model scores in `image_model_scores` |
-| Culling and stacks | `stacks`, `stack_cache`, `cluster_progress`, `culling_sessions`, `culling_picks` |
+| Culling and stacks | `stacks`, `sub_stacks`, `stack_cache`, `cluster_progress`, `culling_sessions`, `culling_picks`, `agent_cull_review_groups`, `agent_cull_recommendations` |
 | Keywords | `keywords_dim`, `image_keywords`, legacy keyword text fields where retained for compatibility |
 | Embeddings | `embedding_spaces`, `image_embeddings`, `image_embeddings_512`, `image_embeddings_768` (legacy `images.image_embedding` dropped in migration 0024) |
 

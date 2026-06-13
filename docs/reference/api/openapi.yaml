@@ -3885,6 +3885,208 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/culling/agent-review/groups:
+    get:
+      tags:
+      - Vexlum Scoring API
+      summary: List agent cull review groups
+      description: Postgres-only metadata-only agent cull review groups for stack/substack units.
+      operationId: list_agent_cull_groups_api_culling_agent_review_groups_get
+      parameters:
+      - name: stack_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+      - name: sub_stack_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          maximum: 200
+          minimum: 1
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '501':
+          description: PostgreSQL required
+        '500':
+          description: Internal Server Error
+  /api/culling/agent-review/groups/{group_id}:
+    get:
+      tags:
+      - Vexlum Scoring API
+      summary: Get agent cull review group
+      operationId: get_agent_cull_group_api_culling_agent_review_groups__group_id__get
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '501':
+          description: PostgreSQL required
+        '500':
+          description: Internal Server Error
+  /api/culling/agent-review/schema:
+    get:
+      tags:
+      - Vexlum Scoring API
+      summary: Agent cull review schema metadata
+      operationId: get_agent_cull_schema_api_culling_agent_review_schema_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/culling/agent-review/discover:
+    post:
+      tags:
+      - Vexlum Scoring API
+      summary: Discover eligible agent cull review units
+      operationId: discover_agent_cull_units_api_culling_agent_review_discover_post
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        '200':
+          description: Successful Response
+        '501':
+          description: PostgreSQL required
+  /api/culling/agent-review/run:
+    post:
+      tags:
+      - Vexlum Scoring API
+      summary: Run agent cull review
+      operationId: run_agent_cull_review_api_culling_agent_review_run_post
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        '200':
+          description: Successful Response
+        '403':
+          description: Agent review disabled
+        '501':
+          description: PostgreSQL required
+  /api/culling/agent-review/groups/{group_id}/apply-candidates:
+    post:
+      tags:
+      - Vexlum Scoring API
+      summary: Apply metadata-only removal candidates
+      operationId: apply_agent_cull_candidates_api_culling_agent_review_groups__group_id__apply_candidates_post
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        '200':
+          description: Successful Response
+        '404':
+          description: Not Found
+  /api/culling/agent-review/groups/{group_id}/approve:
+    post:
+      tags:
+      - Vexlum Scoring API
+      summary: Operator approve recommendations
+      operationId: approve_agent_cull_group_api_culling_agent_review_groups__group_id__approve_post
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        '200':
+          description: Successful Response
+  /api/culling/agent-review/groups/{group_id}/reject:
+    post:
+      tags:
+      - Vexlum Scoring API
+      summary: Operator reject recommendations
+      operationId: reject_agent_cull_group_api_culling_agent_review_groups__group_id__reject_post
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        '200':
+          description: Successful Response
+  /api/culling/agent-review/recommendations/{recommendation_id}/rollback:
+    post:
+      tags:
+      - Vexlum Scoring API
+      summary: Rollback recommendation status
+      operationId: rollback_agent_cull_recommendation_api_culling_agent_review_recommendations__recommendation_id__rollback_post
+      parameters:
+      - name: recommendation_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        '200':
+          description: Successful Response
+        '404':
+          description: Not Found
   /api/import/register:
     post:
       tags:
