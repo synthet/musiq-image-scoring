@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import logging
 import math
 import os
 from statistics import mean, pstdev
@@ -13,6 +15,13 @@ from modules.agent_cull.config import (
     AgentCullConfig,
 )
 from modules.agent_cull.discovery import ReviewUnit, classify_image_status
+
+try:  # Pillow is a core dep; guard so packet build never hard-fails on import
+    from PIL import Image
+except Exception:  # pragma: no cover - environment without Pillow
+    Image = None  # type: ignore[assignment]
+
+logger = logging.getLogger(__name__)
 
 SCORE_FIELDS = ("score_general", "score_technical", "score_aesthetic", "score")
 
@@ -62,6 +71,59 @@ def _keywords_list(row: dict[str, Any]) -> list[str]:
     if isinstance(raw, list):
         return [str(k).strip() for k in raw if str(k).strip()]
     return []
+
+
+def _downscale_cache_dir(max_edge: int) -> str:
+    """Deterministic cache dir for agent-review downscaled thumbnails."""
+    try:
+        from modules.thumbnails import canonical_thumbnails_dir
+
+        base = canonical_thumbnails_dir()
+    except Exception:  # pragma: no cover - fallback if thumbnails module unavailable
+        from modules.config import BASE_DIR
+
+        base = os.path.join(str(BASE_DIR), "thumbnails")
+    return os.path.join(base, "agent_review", str(int(max_edge)))
+
+
+def _prepare_thumbnail(
+    thumb_path: str, max_edge: int
+) -> tuple[str, int | None, int | None, bool]:
+    """Return ``(path, width, height, downscaled)`` for an agent-review thumbnail.
+
+    When ``max_edge > 0`` and the source's longest edge exceeds it, a downscaled
+    JPEG is written into a deterministic cache dir (idempotent across runs) and
+    that path is returned so the agent loads a smaller image. Smaller sources are
+    passed through untouched. On any failure (or Pillow unavailable) the original
+    path is returned with no dimensions so the packet is never broken.
+    """
+    if Image is None or max_edge <= 0:
+        return thumb_path, None, None, False
+    try:
+        with Image.open(thumb_path) as img:
+            width, height = img.size
+            if max(width, height) <= max_edge:
+                return thumb_path, int(width), int(height), False
+            digest = hashlib.sha1(
+                f"{os.path.abspath(thumb_path)}|{int(max_edge)}".encode()
+            ).hexdigest()
+            cache_dir = _downscale_cache_dir(max_edge)
+            out_path = os.path.join(cache_dir, f"{digest}.jpg")
+            if not os.path.isfile(out_path):
+                os.makedirs(cache_dir, exist_ok=True)
+                resized = img.convert("RGB")
+                resized.thumbnail((max_edge, max_edge))
+                tmp_path = f"{out_path}.tmp"
+                resized.save(tmp_path, "JPEG", quality=85)
+                os.replace(tmp_path, out_path)
+            with Image.open(out_path) as out_img:
+                out_w, out_h = out_img.size
+            return out_path, int(out_w), int(out_h), True
+    except Exception:
+        logger.debug(
+            "agent cull thumbnail downscale failed for %s", thumb_path, exc_info=True
+        )
+        return thumb_path, None, None, False
 
 
 def build_review_packet(
@@ -117,13 +179,22 @@ def build_review_packet(
         }
         images_payload.append(entry)
         if cfg.agent.include_thumbnails and thumb_path and os.path.isfile(str(thumb_path)):
-            thumbnail_manifest.append(
-                {
-                    "image_id": image_id,
-                    "path": str(thumb_path),
-                    "mode": cfg.agent.thumbnail_mode,
-                }
+            max_edge = int(cfg.agent.max_thumbnail_edge_px)
+            prepared_path, thumb_w, thumb_h, downscaled = _prepare_thumbnail(
+                str(thumb_path), max_edge
             )
+            manifest_entry: dict[str, Any] = {
+                "image_id": image_id,
+                "path": prepared_path,
+                "mode": cfg.agent.thumbnail_mode,
+                "max_edge_px": max_edge,
+                "width": thumb_w,
+                "height": thumb_h,
+                "downscaled": downscaled,
+            }
+            if downscaled:
+                manifest_entry["source_path"] = str(thumb_path)
+            thumbnail_manifest.append(manifest_entry)
 
     return {
         "schema_version": REQUEST_SCHEMA_VERSION,

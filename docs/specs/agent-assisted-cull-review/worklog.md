@@ -4,6 +4,15 @@ Append-only session log. Newest entries at top (below this paragraph).
 
 ---
 
+## [2026-06-13] branch + #256 thumbnail downscale
+
+- Created branch `feat/agent-cull-review-mvp`; committed the MVP (42 files) separately from unrelated working-tree work (stack-hierarchy normalize, backlog housekeeping, two-level culling, frontend).
+- Implemented **[#256]** `agent.max_thumbnail_edge_px` in `payload.py`:
+  - `_prepare_thumbnail()` downscales oversized thumbnails (aspect preserved, JPEG q85) into idempotent cache `thumbnails/agent_review/<max_edge>/<sha1>.jpg`; manifest gains `max_edge_px`, `width`, `height`, `downscaled`, `source_path`.
+  - Fail-safe: `max_edge<=0`, Pillow missing, or resize error → original path passthrough.
+  - Tests: `tests/test_agent_cull_payload.py` (7) — passthrough, downscale + cache reuse, disabled, fail-safe (no Pillow / unreadable), packet manifest fields.
+- **58** backend unit tests green; ruff clean on `modules/agent_cull/*`.
+
 ## [2026-06-12] backlog + spec hub
 
 - Filed GitHub epics and child issues on Project board #1:

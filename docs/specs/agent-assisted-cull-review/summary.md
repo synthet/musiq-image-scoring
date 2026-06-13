@@ -41,6 +41,16 @@ Discovery (discovery.py + discovery_db.py)
 
 `config.json` → `culling.agent_review` (see `config.example.json`). Default **`enabled: false`**, **`dry_run_default: true`**.
 
+## Payload thumbnails
+
+When `agent.include_thumbnails=true`, `payload.py` adds a `thumbnail_manifest` entry per image (only for images whose stored thumbnail exists on disk). Each entry carries `path`, `mode`, `max_edge_px`, `width`, `height`, and `downscaled`.
+
+`agent.max_thumbnail_edge_px` (default **512**) bounds the longest edge sent to the agent to control vision token cost/latency:
+
+- Source longest edge **≤** `max_edge` → passed through unchanged (`downscaled: false`).
+- Source longest edge **>** `max_edge` → a downscaled JPEG (aspect preserved, quality 85) is written to a deterministic cache dir `thumbnails/agent_review/<max_edge>/<sha1>.jpg`; the manifest `path` points to it, `downscaled: true`, and `source_path` retains the original. The cache is idempotent across runs (re-uses an existing file).
+- `max_edge ≤ 0`, Pillow unavailable, or any resize error → **fail-safe**: the original path is emitted and the packet is never broken.
+
 ## REST surface
 
 | Method | Path | Notes |
@@ -65,7 +75,7 @@ OpenAPI: `docs/reference/api/openapi.yaml`
 
 ## Test coverage
 
-- **51** unit tests: `tests/test_agent_cull_*.py` (discovery, schema, safety, apply, fingerprint, actions, CLI adapter, operator, rollback)
+- **58** unit tests: `tests/test_agent_cull_*.py` (discovery, schema, safety, apply, fingerprint, actions, CLI adapter, operator, rollback, payload/thumbnail downscale)
 - Gallery: `AgentCullReviewPanel.test.tsx` (3 tests)
 - **Gap:** Postgres integration tests ([#255](https://github.com/synthet/image-scoring-backend/issues/255))
 
@@ -88,7 +98,7 @@ OpenAPI: `docs/reference/api/openapi.yaml`
 |-------|----------|-------|
 | [#254](https://github.com/synthet/image-scoring-backend/issues/254) | p1 | PR-ready, migration 0031, merge |
 | [#255](https://github.com/synthet/image-scoring-backend/issues/255) | p2 | Postgres integration tests |
-| [#256](https://github.com/synthet/image-scoring-backend/issues/256) | p2 | Thumbnail downscale (`max_thumbnail_edge_px`) |
+| [#256](https://github.com/synthet/image-scoring-backend/issues/256) | p2 | Thumbnail downscale (`max_thumbnail_edge_px`) — **done** |
 | [#257](https://github.com/synthet/image-scoring-backend/issues/257) | p2 | Export/filter semantics |
 | [#258](https://github.com/synthet/image-scoring-backend/issues/258) | p2 | Real Gemini CLI E2E |
 
