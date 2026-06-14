@@ -3002,6 +3002,95 @@
         }
       }
     },
+    "/api/keywords/cloud": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API",
+          "Keywords"
+        ],
+        "summary": "Keyword tag cloud (counts by keyword)",
+        "description": "Returns keywords with usage counts for a tag-cloud UI, ordered by count desc.\n\n        ``kind=species`` returns only ``species:*`` keywords (Birds page); ``kind=general``\n        returns all non-species keywords (Keywords page). Optionally scope to a folder path.\n\n        Each entry: ``{keyword_norm, keyword_display, count}``. Always HTTP 200; on failure\n        or empty catalog, ``keywords`` is an empty list.",
+        "operationId": "get_keyword_cloud_endpoint_api_keywords_cloud_get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "species | general",
+              "default": "general",
+              "title": "Kind"
+            },
+            "description": "species | general"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Maximum keywords to return",
+              "default": 200,
+              "title": "Limit"
+            },
+            "description": "Maximum keywords to return"
+          },
+          {
+            "name": "folder_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scope keywords to images under this folder path",
+              "title": "Folder Path"
+            },
+            "description": "Scope keywords to images under this folder path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/duplicates/find": {
       "post": {
         "tags": [
@@ -4000,6 +4089,18 @@
             "description": "Keyword to filter by (partial match)"
           },
           {
+            "name": "keyword_exact",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "When true, match the keyword exactly instead of a substring (e.g. tag-cloud clicks)",
+              "default": false,
+              "title": "Keyword Exact"
+            },
+            "description": "When true, match the keyword exactly instead of a substring (e.g. tag-cloud clicks)"
+          },
+          {
             "name": "min_score_general",
             "in": "query",
             "required": false,
@@ -4076,6 +4177,119 @@
               "title": "Stack Id"
             },
             "description": "Filter by stack ID"
+          },
+          {
+            "name": "phase_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by image_phase_status as phase_code:status (e.g. keywords:not_started)",
+              "title": "Phase Status"
+            },
+            "description": "Filter by image_phase_status as phase_code:status (e.g. keywords:not_started)"
+          },
+          {
+            "name": "unscored_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "When true, only images with score_general null or <= 0",
+              "default": false,
+              "title": "Unscored Only"
+            },
+            "description": "When true, only images with score_general null or <= 0"
+          },
+          {
+            "name": "data_gap",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Phase marked done/skipped but data missing (e.g. keywords)",
+              "title": "Data Gap"
+            },
+            "description": "Phase marked done/skipped but data missing (e.g. keywords)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images/{image_id}/auditlog": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Audit trail for image phase status changes",
+        "description": "Recent auditlog rows for image_phase_status (record_id = image_id).",
+        "operationId": "get_image_auditlog_api_images__image_id__auditlog_get",
+        "parameters": [
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Image Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
           }
         ],
         "responses": {
@@ -5530,6 +5744,551 @@
         }
       }
     },
+    "/api/culling/agent-review/groups": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "List agent cull review groups",
+        "description": "Postgres-only. Metadata-only removal candidate reviews for stack/substack units.",
+        "operationId": "list_agent_cull_groups_api_culling_agent_review_groups_get",
+        "parameters": [
+          {
+            "name": "stack_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stack Id"
+            }
+          },
+          {
+            "name": "sub_stack_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sub Stack Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/culling/agent-review/groups/{group_id}": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Get agent cull review group with recommendations",
+        "operationId": "get_agent_cull_group_api_culling_agent_review_groups__group_id__get",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/culling/agent-review/schema": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Agent cull review response schema metadata",
+        "operationId": "get_agent_cull_schema_api_culling_agent_review_schema_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          }
+        }
+      }
+    },
+    "/api/culling/agent-review/discover": {
+      "post": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Discover eligible agent cull review units",
+        "operationId": "discover_agent_cull_units_api_culling_agent_review_discover_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCullDiscoverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/culling/agent-review/run": {
+      "post": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Run agent cull review for one stack/substack unit",
+        "operationId": "run_agent_cull_review_api_culling_agent_review_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCullRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/culling/agent-review/groups/{group_id}/apply-candidates": {
+      "post": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Mark safe remove recommendations as agent_remove_candidate (metadata only)",
+        "operationId": "apply_agent_cull_candidates_api_culling_agent_review_groups__group_id__apply_candidates_post",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCullRecommendationIdsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/culling/agent-review/groups/{group_id}/approve": {
+      "post": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Operator approve agent removal recommendations",
+        "operationId": "approve_agent_cull_group_api_culling_agent_review_groups__group_id__approve_post",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCullRecommendationIdsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/culling/agent-review/groups/{group_id}/reject": {
+      "post": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Operator reject agent removal recommendations",
+        "operationId": "reject_agent_cull_group_api_culling_agent_review_groups__group_id__reject_post",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCullRecommendationIdsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/culling/agent-review/recommendations/{recommendation_id}/rollback": {
+      "post": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Rollback recommendation candidate status",
+        "operationId": "rollback_agent_cull_recommendation_api_culling_agent_review_recommendations__recommendation_id__rollback_post",
+        "parameters": [
+          {
+            "name": "recommendation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recommendation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCullRecommendationIdsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/import/register": {
       "post": {
         "tags": [
@@ -6329,6 +7088,59 @@
               "title": "Force Refresh"
             },
             "description": "Bypass cache and recompute live counts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/folders/{folder_id}": {
+      "get": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Get folder by id",
+        "description": "Returns a single folder row: id, path, parent_id, is_fully_scored, created_at, and a live image_count from images.folder_id (not the deprecated folders.image_count column).",
+        "operationId": "get_folder_by_id_endpoint_api_folders__folder_id__get",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Folder Id"
+            }
           }
         ],
         "responses": {
@@ -8658,6 +9470,18 @@
             }
           },
           {
+            "name": "keyword_exact",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "When true, match the keyword exactly instead of a substring",
+              "default": false,
+              "title": "Keyword Exact"
+            },
+            "description": "When true, match the keyword exactly instead of a substring"
+          },
+          {
             "name": "min_score_general",
             "in": "query",
             "required": false,
@@ -9174,6 +9998,150 @@
   },
   "components": {
     "schemas": {
+      "AgentCullDiscoverRequest": {
+        "properties": {
+          "folder_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Path"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "stack_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stack Id"
+          },
+          "sub_stack_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Stack Id"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 50
+          }
+        },
+        "type": "object",
+        "title": "AgentCullDiscoverRequest"
+      },
+      "AgentCullRecommendationIdsRequest": {
+        "properties": {
+          "recommendation_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommendation Ids"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor",
+            "default": "operator"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "AgentCullRecommendationIdsRequest"
+      },
+      "AgentCullRunRequest": {
+        "properties": {
+          "stack_id": {
+            "type": "integer",
+            "title": "Stack Id"
+          },
+          "sub_stack_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Stack Id"
+          },
+          "dry_run": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dry Run"
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "default": false
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stack_id"
+        ],
+        "title": "AgentCullRunRequest"
+      },
       "ApiResponse": {
         "properties": {
           "success": {
@@ -9346,9 +10314,9 @@
           "top_k": {
             "type": "integer",
             "title": "Top K",
-            "description": "Maximum number of species to store per image.",
-            "default": 3,
-            "example": 3
+            "description": "Maximum number of species to store per image. Default 1 keeps only the highest-scoring species (BioCLIP argmax).",
+            "default": 1,
+            "example": 1
           },
           "overwrite": {
             "type": "boolean",
@@ -9360,12 +10328,12 @@
         },
         "type": "object",
         "title": "BirdSpeciesStartRequest",
-        "description": "Request model for starting a bird species classification job.\n\nOnly images that already have the 'birds' keyword are processed \u2014 all others are\nautomatically skipped. Top predicted species are stored as 'species:Common Name'\nkeywords using BioCLIP 2 (zero-shot, MIT license).\n\nExample:\n    {\n        \"input_path\": \"D:/Photos/2024\",\n        \"threshold\": 0.1,\n        \"top_k\": 3,\n        \"overwrite\": false\n    }",
+        "description": "Request model for starting a bird species classification job.\n\nOnly images that already have the 'birds' keyword are processed \u2014 all others are\nautomatically skipped. The single highest-scoring species (BioCLIP 2 argmax) is\nstored as a 'species:Common Name' keyword (zero-shot, MIT license). Pass top_k > 1\nto store multiple candidates instead.\n\nExample:\n    {\n        \"input_path\": \"D:/Photos/2024\",\n        \"threshold\": 0.1,\n        \"top_k\": 1,\n        \"overwrite\": false\n    }",
         "example": {
           "input_path": "D:/Photos/2024",
           "overwrite": false,
           "threshold": 0.1,
-          "top_k": 3
+          "top_k": 1
         }
       },
       "ClusteringStartRequest": {
@@ -11778,13 +12746,6 @@
           "type": {
             "type": "string",
             "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
           }
         },
         "type": "object",
