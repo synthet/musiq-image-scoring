@@ -27,6 +27,8 @@ from dataclasses import dataclass
 from typing import Iterable, List, Sequence, Tuple
 
 from modules.embedding_spaces import (
+    CLIP_IMAGE_DIM,
+    CLIP_IMAGE_SPACE_CODE,
     CULLING_TOWER_IMAGE_DIM,
     DINOV2_REG_BASE_IMAGE_SPACE_CODE,
     OPENAI_CLIP_L14_IMAGE_SPACE_CODE,
@@ -62,6 +64,13 @@ SUPPORTED_CULLING_SPACES: dict[str, CullingSpaceSpec] = {
     ),
     SIGLIP2_BASE_IMAGE_SPACE_CODE: CullingSpaceSpec(
         SIGLIP2_BASE_IMAGE_SPACE_CODE, "hf_siglip2", "google/siglip2-base-patch16-224"
+    ),
+    # CLIP ViT-B/32 (512-d) — produced by the keywords phase (tagging.py) in normal
+    # runs, but registered here as a culling tower so the JIT ensure path can generate
+    # it *before* culling for the clip_quality_v0 pick/reject signal. Uses the same HF
+    # weights as KeywordScorer / similar_search so image↔text towers match.
+    CLIP_IMAGE_SPACE_CODE: CullingSpaceSpec(
+        CLIP_IMAGE_SPACE_CODE, "hf_clip", "openai/clip-vit-base-patch32", dim=CLIP_IMAGE_DIM
     ),
 }
 
@@ -128,6 +137,8 @@ class CullingEmbedder:
             self._load_timm()
         elif self.spec.loader in ("hf_siglip2", "hf_dinov2"):
             self._load_hf()
+        elif self.spec.loader == "hf_clip":
+            self._load_hf_clip()
         else:  # pragma: no cover - guarded by get_spec
             raise ValueError(f"Unknown loader {self.spec.loader!r}")
         logger.info(
@@ -174,6 +185,26 @@ class CullingEmbedder:
         model = AutoModel.from_pretrained(self.spec.model_name, torch_dtype=dtype)
         self._model = model.to(self.device).eval()
 
+    def _load_hf_clip(self) -> None:
+        """HF ``CLIPModel`` image tower (ViT-B/32, 512-d).
+
+        Resolves the model id from ``tagging.clip_model`` (falling back to the spec)
+        so the image embeddings match the text tower used by
+        ``similar_search._get_clip_text_embedding`` and ``KeywordScorer``.
+        """
+        import torch
+        from transformers import CLIPModel, CLIPProcessor
+
+        from modules import config
+
+        model_id = config.get_config_section("tagging").get(
+            "clip_model", self.spec.model_name
+        )
+        dtype = torch.float16 if self.fp16 else torch.float32
+        self._processor = CLIPProcessor.from_pretrained(model_id)
+        model = CLIPModel.from_pretrained(model_id, torch_dtype=dtype)
+        self._model = model.to(self.device).eval()
+
     def unload(self) -> None:
         self._model = None
         self._preprocess = None
@@ -198,6 +229,8 @@ class CullingEmbedder:
             out = self._embed_open_clip(pil_images, batch_size)
         elif self.spec.loader == "timm":
             out = self._embed_timm(pil_images, batch_size)
+        elif self.spec.loader == "hf_clip":
+            out = self._embed_hf_clip(pil_images, batch_size)
         else:
             out = self._embed_hf(pil_images, batch_size)
         if out.shape[1] != self.spec.dim:
@@ -235,6 +268,23 @@ class CullingEmbedder:
                 tensors = tensors.half()
             with torch.no_grad():
                 feats = self._model(tensors)
+                feats = feats / feats.norm(dim=-1, keepdim=True)
+            out.append(feats.float().cpu().numpy())
+        return np.concatenate(out, axis=0)
+
+    def _embed_hf_clip(self, pils, batch_size):
+        import numpy as np
+        import torch
+
+        out = []
+        for i in range(0, len(pils), batch_size):
+            chunk = pils[i : i + batch_size]
+            batch = self._processor(images=list(chunk), return_tensors="pt")
+            pixel_values = batch["pixel_values"].to(self.device)
+            if self.fp16:
+                pixel_values = pixel_values.half()
+            with torch.no_grad():
+                feats = self._model.get_image_features(pixel_values=pixel_values)
                 feats = feats / feats.norm(dim=-1, keepdim=True)
             out.append(feats.float().cpu().numpy())
         return np.concatenate(out, axis=0)

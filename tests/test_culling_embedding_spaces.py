@@ -27,12 +27,16 @@ def test_culling_codes_registered_in_space_dims():
 
 
 def test_embedder_registry_matches_space_dims():
+    # The four 768-d culling towers are all supported embedders...
+    assert CULLING_SPACE_CODES <= set(ee.SUPPORTED_CULLING_SPACES)
+    # ...plus CLIP B/32 (512-d), registered so the clip_quality signal can JIT-embed
+    # it before culling (see modules/clip_quality.py).
+    assert es.CLIP_IMAGE_SPACE_CODE in ee.SUPPORTED_CULLING_SPACES
     # Every supported embedder maps to a registered space of the right dim.
-    assert set(ee.SUPPORTED_CULLING_SPACES) == CULLING_SPACE_CODES
     for code, spec in ee.SUPPORTED_CULLING_SPACES.items():
         assert spec.code == code
         assert spec.dim == es.SPACE_DIMS[code]
-        assert spec.loader in {"open_clip", "timm", "hf_siglip2", "hf_dinov2"}
+        assert spec.loader in {"open_clip", "timm", "hf_siglip2", "hf_dinov2", "hf_clip"}
 
 
 def test_open_clip_specs_have_pretrained():

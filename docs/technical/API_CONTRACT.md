@@ -219,6 +219,13 @@ Both fields are omitted when the image has no `image_model_scores` rows (e.g.
 Firebird, or before the model has run). Backed by
 `db.get_image_model_scores` / `db.get_batch_image_model_scores`.
 
+> **Auxiliary `clip_quality_v0`.** The CLIP B/32 prompt-quality signal
+> (`modules/clip_quality.py`) is stored in `image_model_scores` like any other
+> model, so it auto-surfaces as `model_scores.clip_quality_v0` and the flat
+> `clip_quality_v0_score` (0–1) with **no endpoint change**. It is an auxiliary
+> culling tie-breaker, not a primary IQA score — see
+> [CULLING_ANALYTICS.md](CULLING_ANALYTICS.md#clip-prompt-quality-signal).
+
 ### Image identity: `image_hash`, `hash_version`, and `image_uuid` (developer reference)
 
 These fields serve different purposes. Do not substitute one for another when integrating.

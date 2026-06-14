@@ -90,6 +90,70 @@ def _two_level_enabled(cfg: SelectionConfig) -> bool:
     return bool(get_config_value("culling.two_level.enabled", default=False))
 
 
+def blended_rank_value(img: dict, score_field: str, clip_weight: float) -> float:
+    """Within-stack ranking value: base quality blended with clip_quality_v0.
+
+    ``(1 - w) * score_field + w * clip_quality_v0`` when a clip value is present and
+    ``w > 0``; otherwise the plain ``score_field`` value. Pure + side-effect-free so
+    the ranking math is unit-testable.
+    """
+    s = img.get(score_field) or 0
+    base = float(s) if s else 0.0
+    if clip_weight > 0.0:
+        cq = img.get("clip_quality_v0")
+        if cq is not None:
+            base = (1.0 - clip_weight) * base + clip_weight * float(cq)
+    return base
+
+
+def apply_clip_reject_guard(
+    folder_decisions: list[tuple[int, str, str]],
+    clip_map: dict[int, float],
+    stack_of: dict[int, object],
+    threshold: float,
+) -> list[tuple[int, str, str]]:
+    """Downgrade frames with ``clip_quality_v0 < threshold`` to ``reject``.
+
+    Conservative: never upgrades to pick, and never strips a stack's last surviving
+    pick. Pure function over the decision list so the guard is unit-testable.
+    """
+    picks_per_stack: dict = defaultdict(int)
+    for img_id, decision, _ in folder_decisions:
+        if decision == "pick":
+            picks_per_stack[stack_of.get(img_id)] += 1
+    guarded: list[tuple[int, str, str]] = []
+    for img_id, decision, path in folder_decisions:
+        cq = clip_map.get(img_id)
+        if cq is not None and cq < threshold and decision != "reject":
+            st = stack_of.get(img_id)
+            if decision == "pick" and picks_per_stack.get(st, 0) <= 1:
+                pass  # keep the stack's only surviving pick
+            else:
+                if decision == "pick":
+                    picks_per_stack[st] -= 1
+                decision = "reject"
+        guarded.append((img_id, decision, path))
+    return guarded
+
+
+def _clip_quality_cfg() -> dict:
+    """Resolve the auxiliary CLIP prompt-quality culling settings from config.json.
+
+    Default-off: when ``enabled`` is false the culling path is byte-identical to the
+    pre-feature behaviour. ``weight`` blends ``clip_quality_v0`` into the within-stack
+    ranking; ``reject_below`` (optional) downgrades obviously-bad frames to reject.
+    See docs/technical/CULLING_ANALYTICS.md and reports/clip-culling/prompt-quality/.
+    """
+    cfg = get_config_value("culling.clip_quality", default={}) or {}
+    weight = float(cfg.get("weight", 0.15))
+    weight = min(1.0, max(0.0, weight))
+    return {
+        "enabled": bool(cfg.get("enabled", False)),
+        "weight": weight,
+        "reject_below": cfg.get("reject_below", None),
+    }
+
+
 @dataclass
 class SelectionSummary:
     total_images: int
@@ -259,13 +323,35 @@ class SelectionService:
                     unstacked_n,
                 )
                     
+                # Auxiliary CLIP prompt-quality signal (default-off). When enabled, the
+                # clip_quality_v0 score (0–1) is generated just-in-time for stacked
+                # images (clip_vit_b32_image embeddings are otherwise produced later in
+                # the keywords phase) and blended into the within-stack ranking below.
+                clip_cfg = _clip_quality_cfg()
+                clip_map: dict[int, float] = {}
+                if clip_cfg["enabled"]:
+                    try:
+                        from modules import clip_quality
+                        stacked_ids = collect_stacked_image_ids(by_stack)
+                        if stacked_ids:
+                            self._progress(progress_cb, pct_base,
+                                           "Computing CLIP prompt-quality...")
+                            clip_map = clip_quality.compute_clip_quality(stacked_ids)
+                            for im in images:
+                                cq = clip_map.get(im["id"])
+                                if cq is not None:
+                                    im["clip_quality_v0"] = cq
+                    except Exception as exc:  # noqa: BLE001 — degrade to score_general
+                        logger.warning("[culling] clip_quality compute failed: %s", exc)
+                        clip_map = {}
+
                 score_col = cfg.score_field
+                clip_w = clip_cfg["weight"] if clip_cfg["enabled"] else 0.0
                 def sort_key(img):
-                    s = img.get(score_col) or 0
                     c = img.get("created_at") or ""
                     i = img.get("id") or 0
                     return (
-                        -float(s) if s else 0,
+                        -blended_rank_value(img, score_col, clip_w),
                         quality_tiebreak_sort_key_best_first(img),
                         str(c),
                         int(i),
@@ -371,6 +457,20 @@ class SelectionService:
                         use_two_level,
                         sub_thr_val,
                     )
+
+                # 4b. Optional obvious-reject guard: downgrade frames whose CLIP
+                # prompt-quality is below a configured floor to 'reject'. Conservative —
+                # never upgrades to pick, and never strips a stack's last surviving pick.
+                if clip_cfg["enabled"] and clip_cfg["reject_below"] is not None and clip_map:
+                    try:
+                        thr = float(clip_cfg["reject_below"])
+                    except (TypeError, ValueError):
+                        thr = None
+                    if thr is not None:
+                        stack_of = {img["id"]: img.get("stack_id") for img in images}
+                        folder_decisions = apply_clip_reject_guard(
+                            folder_decisions, clip_map, stack_of, thr
+                        )
 
                 # 5. Persist DB
                 db.batch_update_cull_decisions(folder_decisions, policy_version=policy_version)
