@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **CLIP B/32 prompt-quality pick/reject signal (auxiliary, default-off)**: `clip_quality_v0` — a 0–1 "good photo" probability derived from the persisted `clip_vit_b32_image` (512-d) embedding compared against antonym text prompts (CLIP-IQA style). New `modules/clip_quality.py` persists to `image_model_scores` (surfaces in the API as `clip_quality_v0_score`); culling blends it into the within-stack ranking behind `culling.clip_quality.*` (weight 0.15 default, optional `reject_below` floor) without touching `score_general`. B/32 is JIT-generated pre-culling and reused by the keywords phase (`embeddings.reuse_clip_image_for_keywords`). Backfill: `scripts/backfill_clip_quality.py`. Benchmark (`reports/clip-culling/prompt-quality/`): global pick/reject AUC 0.89, within-stack concordance 0.986.
+
 ### Roadmap (not yet released)
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):

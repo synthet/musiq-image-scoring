@@ -1,0 +1,214 @@
+{
+  "prompt_set_version": "v0",
+  "temp": 100.0,
+  "templates": [
+    "a photo that is {phrase}",
+    "a photograph that is {phrase}",
+    "an image that is {phrase}",
+    "a {phrase} photograph",
+    "a {phrase} image",
+    "this is a {phrase} photo"
+  ],
+  "n_meta": 62932,
+  "folders": null,
+  "results": [
+    {
+      "space": "clip_vit_b32_image",
+      "n_images": 59001,
+      "dim_dim": 512,
+      "n_picked": 20700,
+      "n_rejected": 12226,
+      "dimensions": {
+        "clip_quality_v0": {
+          "spearman_rating": 0.5669,
+          "auc_pick_vs_reject": 0.8901,
+          "within_stack_pairs": 7556,
+          "within_stack_concordance": 0.986,
+          "score_mean_picked": 0.5993,
+          "score_mean_rejected": 0.4009
+        },
+        "clip_focus_v0": {
+          "spearman_rating": 0.4777,
+          "auc_pick_vs_reject": 0.842,
+          "within_stack_pairs": 7556,
+          "within_stack_concordance": 0.9967,
+          "score_mean_picked": 0.6545,
+          "score_mean_rejected": 0.4289
+        },
+        "clip_exposure_v0": {
+          "spearman_rating": 0.5274,
+          "auc_pick_vs_reject": 0.8733,
+          "within_stack_pairs": 7556,
+          "within_stack_concordance": 0.6171,
+          "score_mean_picked": 0.7775,
+          "score_mean_rejected": 0.587
+        },
+        "clip_noise_v0": {
+          "spearman_rating": 0.1551,
+          "auc_pick_vs_reject": 0.6026,
+          "within_stack_pairs": 7556,
+          "within_stack_concordance": 0.5462,
+          "score_mean_picked": 0.3497,
+          "score_mean_rejected": 0.2956
+        },
+        "clip_misshot_v0": {
+          "spearman_rating": 0.3772,
+          "auc_pick_vs_reject": 0.7633,
+          "within_stack_pairs": 7556,
+          "within_stack_concordance": 0.9406,
+          "score_mean_picked": 0.4794,
+          "score_mean_rejected": 0.3465
+        },
+        "clip_composition_v0": {
+          "spearman_rating": 0.2996,
+          "auc_pick_vs_reject": 0.7312,
+          "within_stack_pairs": 7556,
+          "within_stack_concordance": 0.5491,
+          "score_mean_picked": 0.668,
+          "score_mean_rejected": 0.5569
+        },
+        "clip_wildlife_quality_v0": {
+          "spearman_rating": 0.2681,
+          "auc_pick_vs_reject": 0.6887,
+          "within_stack_pairs": 7556,
+          "within_stack_concordance": 0.9848,
+          "score_mean_picked": 0.4402,
+          "score_mean_rejected": 0.3056
+        }
+      },
+      "csv": "/mnt/d/Projects/image-scoring-backend/reports/clip-culling/prompt-quality/clip_prompt_quality__clip_vit_b32_image.csv"
+    },
+    {
+      "space": "openclip_l14_laion2b_image",
+      "n_images": 62932,
+      "dim_dim": 768,
+      "n_picked": 21466,
+      "n_rejected": 13301,
+      "dimensions": {
+        "clip_quality_v0": {
+          "spearman_rating": 0.405,
+          "auc_pick_vs_reject": 0.8003,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.9832,
+          "score_mean_picked": 0.6076,
+          "score_mean_rejected": 0.3797
+        },
+        "clip_focus_v0": {
+          "spearman_rating": 0.4031,
+          "auc_pick_vs_reject": 0.7955,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.993,
+          "score_mean_picked": 0.7201,
+          "score_mean_rejected": 0.4325
+        },
+        "clip_exposure_v0": {
+          "spearman_rating": 0.4223,
+          "auc_pick_vs_reject": 0.8118,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.6369,
+          "score_mean_picked": 0.771,
+          "score_mean_rejected": 0.55
+        },
+        "clip_noise_v0": {
+          "spearman_rating": 0.2379,
+          "auc_pick_vs_reject": 0.666,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.7666,
+          "score_mean_picked": 0.7636,
+          "score_mean_rejected": 0.6307
+        },
+        "clip_misshot_v0": {
+          "spearman_rating": 0.2587,
+          "auc_pick_vs_reject": 0.6937,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.7423,
+          "score_mean_picked": 0.4219,
+          "score_mean_rejected": 0.2592
+        },
+        "clip_composition_v0": {
+          "spearman_rating": 0.188,
+          "auc_pick_vs_reject": 0.6472,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.7254,
+          "score_mean_picked": 0.6701,
+          "score_mean_rejected": 0.5472
+        },
+        "clip_wildlife_quality_v0": {
+          "spearman_rating": 0.1669,
+          "auc_pick_vs_reject": 0.6161,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.9517,
+          "score_mean_picked": 0.2692,
+          "score_mean_rejected": 0.1752
+        }
+      },
+      "csv": "/mnt/d/Projects/image-scoring-backend/reports/clip-culling/prompt-quality/clip_prompt_quality__openclip_l14_laion2b_image.csv"
+    },
+    {
+      "space": "bioclip_2_image",
+      "n_images": 62932,
+      "dim_dim": 768,
+      "n_picked": 21466,
+      "n_rejected": 13301,
+      "dimensions": {
+        "clip_quality_v0": {
+          "spearman_rating": 0.0829,
+          "auc_pick_vs_reject": 0.556,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.4241,
+          "score_mean_picked": 0.8899,
+          "score_mean_rejected": 0.872
+        },
+        "clip_focus_v0": {
+          "spearman_rating": 0.1958,
+          "auc_pick_vs_reject": 0.6399,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.7079,
+          "score_mean_picked": 0.3274,
+          "score_mean_rejected": 0.2425
+        },
+        "clip_exposure_v0": {
+          "spearman_rating": 0.1512,
+          "auc_pick_vs_reject": 0.6226,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.1134,
+          "score_mean_picked": 0.9933,
+          "score_mean_rejected": 0.9887
+        },
+        "clip_noise_v0": {
+          "spearman_rating": 0.1086,
+          "auc_pick_vs_reject": 0.583,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.6234,
+          "score_mean_picked": 0.3555,
+          "score_mean_rejected": 0.3064
+        },
+        "clip_misshot_v0": {
+          "spearman_rating": -0.0272,
+          "auc_pick_vs_reject": 0.4736,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.2645,
+          "score_mean_picked": 0.5887,
+          "score_mean_rejected": 0.6013
+        },
+        "clip_composition_v0": {
+          "spearman_rating": 0.2193,
+          "auc_pick_vs_reject": 0.6577,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.76,
+          "score_mean_picked": 0.9281,
+          "score_mean_rejected": 0.873
+        },
+        "clip_wildlife_quality_v0": {
+          "spearman_rating": -0.0432,
+          "auc_pick_vs_reject": 0.4611,
+          "within_stack_pairs": 7559,
+          "within_stack_concordance": 0.6402,
+          "score_mean_picked": 0.0031,
+          "score_mean_rejected": 0.0042
+        }
+      },
+      "csv": "/mnt/d/Projects/image-scoring-backend/reports/clip-culling/prompt-quality/clip_prompt_quality__bioclip_2_image.csv"
+    }
+  ]
+}

@@ -101,6 +101,11 @@
       "min_stack_size_for_substack": 3,
       "skip_single_leaf_persist": true
     },
+    "clip_quality": {
+      "enabled": false,
+      "weight": 0.15,
+      "reject_below": null
+    },
     "agent_review": {
       "enabled": false,
       "dry_run_default": true,
@@ -198,6 +203,7 @@
     "persist_clip_image": true,
     "persist_blip_image": true,
     "persist_bioclip_image": true,
+    "reuse_clip_image_for_keywords": true,
     "culling_spaces": ["openclip_l14_laion2b_image"],
     "model_versions": {
       "clip_vit_b32_image": "openai/clip-vit-base-patch32",

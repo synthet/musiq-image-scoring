@@ -110,6 +110,9 @@ Session-based culling UI and selection pipeline. Duplicates **`default_threshold
 | `enabled` | `GET /api/config` → `enable_culling` (React feature flag) |
 | `sub_cluster_distance_threshold` | Legacy path in `selection.py` when `two_level.enabled=false` (default **0.05** in `config.example.json`); in-memory sub-clusters then 33/33 bands per sub-group |
 | `two_level` | `selection.py` when `enabled=true` — best-M/N-cap for multi-image root stacks; **implicit JIT** level-2 embed for stacked images via `modules/culling_embeddings.py` when `level2.embedding_space` is a culling tower; unstacked bucket and singletons still use legacy 33/33 / neutral. See [two-level-culling.md](../features/planned/embeddings/two-level-culling.md) |
+| `clip_quality.enabled` | `selection.py` — **default false**. When true, the CLIP B/32 prompt-quality score (`clip_quality_v0`) is JIT-computed for stacked images (`modules/clip_quality.py`) and blended into the within-stack ranking. See [CULLING_ANALYTICS.md](CULLING_ANALYTICS.md#clip-prompt-quality-signal). |
+| `clip_quality.weight` | Blend weight (default **0.15**, clamped 0–1): `(1-w)·score_general + w·clip_quality_v0` for within-stack ranking. |
+| `clip_quality.reject_below` | Optional float (default `null` = off). Frames with `clip_quality_v0` below this are downgraded to `reject` — conservative (never strips a stack's last pick). |
 | `analytics.*` | `culling_analytics/composite.py` |
 
 ### `tagging`
@@ -134,7 +137,7 @@ Gallery page size, export format, `last_selected_folder` (runtime).
 
 ### `embeddings`
 
-Persistence flags, `culling_spaces` for bulk backfill CLI defaults, `model_versions` map. JIT level-2 generation during culling reads `culling.two_level.level2.embedding_space` directly (not `culling_spaces`).
+Persistence flags, `culling_spaces` for bulk backfill CLI defaults, `model_versions` map. JIT level-2 generation during culling reads `culling.two_level.level2.embedding_space` directly (not `culling_spaces`). **`reuse_clip_image_for_keywords`** (default true): when the culling phase already persisted a `clip_vit_b32_image` vector (e.g. via `culling.clip_quality`), the keywords phase (`tagging.py`) reuses it instead of re-running the CLIP image forward pass.
 
 ### `embedding_map`
 

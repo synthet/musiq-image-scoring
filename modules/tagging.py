@@ -249,6 +249,44 @@ class KeywordScorer:
                 logger.error(f"Failed to load CLIP model: {e}")
                 raise
 
+    def _logit_scale(self) -> float:
+        try:
+            ls = float(self.model.logit_scale.exp().item())
+        except Exception:  # noqa: BLE001 — fall back to no rescale
+            ls = 1.0
+        return ls if ls > 0 else 1.0
+
+    def _score_prompts_from_embedding(self, image_embedding, prompts):
+        """Score ``prompts`` against a precomputed CLIP image embedding (text-only).
+
+        Returns ``(probs_list, cosine_list, normalized_embedding)``. Lets the
+        keywords phase reuse the ``clip_vit_b32_image`` vector that the culling
+        phase already persisted, skipping the (expensive) image forward pass.
+        Raises on dimension mismatch so the caller can fall back to image encode.
+        """
+        import numpy as np
+
+        emb = np.asarray(image_embedding, dtype=np.float32).reshape(-1)
+        norm = float(np.linalg.norm(emb))
+        if norm > 0:
+            emb = emb / norm
+        text_inputs = self.processor(text=prompts, return_tensors="pt", padding=True)
+        text_inputs = {k: v.to(self.device) for k, v in text_inputs.items()}
+        with torch.no_grad():
+            text_feats = self.model.get_text_features(**text_inputs)
+            text_feats = text_feats / text_feats.norm(dim=-1, keepdim=True)
+        text_np = text_feats.float().cpu().numpy()  # (T, d)
+        if text_np.shape[1] != emb.shape[0]:
+            raise ValueError(
+                f"embedding dim {emb.shape[0]} != text dim {text_np.shape[1]}"
+            )
+        cosine = text_np @ emb  # (T,)
+        logits = cosine * self._logit_scale()
+        logits = logits - logits.max()
+        e = np.exp(logits)
+        probs = e / e.sum()
+        return probs.tolist(), [float(c) for c in cosine.tolist()], emb
+
     def predict(
         self,
         image_path: str,
@@ -256,6 +294,7 @@ class KeywordScorer:
         threshold: float = 0.2,
         top_k: int = 5,
         return_scores: bool = False,
+        image_embedding=None,
     ):
         """
         Predict keywords for an image using zero-shot classification.
@@ -267,6 +306,11 @@ class KeywordScorer:
         stable ``(0, 1)`` weight derived from the raw image/text cosine
         similarity (see ``modules.keyword_relevance``). Keys are the keyword
         strings exactly as returned in the list.
+
+        When ``image_embedding`` (a CLIP ViT-B/32 512-d vector) is supplied, the
+        image is **not** re-encoded — the culling phase already persisted this
+        vector under ``clip_vit_b32_image`` — and only the text prompts are
+        encoded. Falls back to a full image forward pass on any mismatch/error.
         """
         self.load_model()
 
@@ -280,37 +324,47 @@ class KeywordScorer:
             return kw_list
 
         try:
-            from modules.thumbnails import open_image_for_ml
+            probs_list = None
+            cosine_list = None
 
-            image = open_image_for_ml(image_path)
+            # Fast path: reuse the embedding persisted by the culling phase.
+            if image_embedding is not None:
+                try:
+                    probs_list, cosine_list, reused_emb = self._score_prompts_from_embedding(
+                        image_embedding, prompts
+                    )
+                    self.last_image_embedding = reused_emb
+                except Exception as reuse_err:  # noqa: BLE001 — fall back to image encode
+                    logger.debug(
+                        "CLIP embedding reuse failed (%s); encoding image %s",
+                        reuse_err, image_path,
+                    )
+                    probs_list = None
 
-            inputs = self.processor(text=prompts, images=image, return_tensors="pt", padding=True)
-            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            if probs_list is None:
+                from modules.thumbnails import open_image_for_ml
 
-            with torch.no_grad():
-                outputs = self.model(**inputs)
+                image = open_image_for_ml(image_path)
 
-            try:
-                from modules.embeddings_extract import extract_clip_image_features_from_outputs
+                inputs = self.processor(text=prompts, images=image, return_tensors="pt", padding=True)
+                inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
-                self.last_image_embedding = extract_clip_image_features_from_outputs(outputs)
-            except Exception as emb_err:  # noqa: BLE001 — best-effort side effect
-                logger.debug("CLIP image embedding extraction failed: %s", emb_err)
+                with torch.no_grad():
+                    outputs = self.model(**inputs)
 
-            logits_per_image = outputs.logits_per_image
-            probs = logits_per_image.softmax(dim=1)
+                try:
+                    from modules.embeddings_extract import extract_clip_image_features_from_outputs
 
-            probs_list = probs[0].tolist()
+                    self.last_image_embedding = extract_clip_image_features_from_outputs(outputs)
+                except Exception as emb_err:  # noqa: BLE001 — best-effort side effect
+                    logger.debug("CLIP image embedding extraction failed: %s", emb_err)
 
-            # Raw cosine similarity = logits / logit_scale; logits_per_image is
-            # the scaled dot product of L2-normalized image/text features.
-            try:
-                logit_scale = float(self.model.logit_scale.exp().item())
-            except Exception:  # noqa: BLE001 — fall back to no rescale
-                logit_scale = 1.0
-            if logit_scale <= 0:
-                logit_scale = 1.0
-            cosine_list = [float(v) / logit_scale for v in logits_per_image[0].tolist()]
+                logits_per_image = outputs.logits_per_image
+                probs_list = logits_per_image.softmax(dim=1)[0].tolist()
+                # Raw cosine similarity = logits / logit_scale; logits_per_image is
+                # the scaled dot product of L2-normalized image/text features.
+                ls = self._logit_scale()
+                cosine_list = [float(v) / ls for v in logits_per_image[0].tolist()]
 
             valid_results = []
             for i, score in enumerate(probs_list):
@@ -714,12 +768,19 @@ class TaggingRunner:
                         import textwrap
                         title = textwrap.shorten(caption, width=50, placeholder="...")
                 else:
+                    # Reuse the clip_vit_b32_image embedding the culling phase already
+                    # persisted (if any) so we skip the CLIP image forward pass here.
+                    reuse_emb = self._reuse_clip_embedding(row['id']) if _persist_clip else None
                     if write_keyword_relevance:
                         tags, confidence_map, relevance_map = self.scorer.predict(
-                            inference_path, keywords=custom_keywords, return_scores=True
+                            inference_path, keywords=custom_keywords, return_scores=True,
+                            image_embedding=reuse_emb,
                         )
                     else:
-                        tags = self.scorer.predict(inference_path, keywords=custom_keywords)
+                        tags = self.scorer.predict(
+                            inference_path, keywords=custom_keywords,
+                            image_embedding=reuse_emb,
+                        )
                     caption = ""
                     title = ""
                     if generate_captions:
@@ -979,6 +1040,37 @@ class TaggingRunner:
                          log(f"Folder marked as fully processed: {f}")
                  except Exception as e:
                      log(f"Failed to update status for {f}: {e}")
+
+    def _reuse_clip_embedding(self, image_id: int):
+        """Return the persisted ``clip_vit_b32_image`` vector for ``image_id``, or None.
+
+        Lets ``KeywordScorer.predict`` skip the CLIP image forward pass when the
+        culling phase (clip_quality JIT) already generated the embedding. Gated by
+        ``embeddings.reuse_clip_image_for_keywords`` (default true); best-effort.
+        """
+        if image_id is None:
+            return None
+        try:
+            from modules import config as _cfg
+            if not bool((_cfg.get_config_section('embeddings') or {}).get(
+                    'reuse_clip_image_for_keywords', True)):
+                return None
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            import numpy as np
+
+            from modules.embedding_spaces import CLIP_IMAGE_DIM, CLIP_IMAGE_SPACE_CODE
+
+            raw = db.get_image_embeddings_batch_for_space(CLIP_IMAGE_SPACE_CODE, [int(image_id)])
+            emb = raw.get(int(image_id))
+            if emb is None:
+                return None
+            vec = np.frombuffer(bytes(emb), dtype=np.float32)
+            return vec if vec.size == CLIP_IMAGE_DIM else None
+        except Exception as exc:  # noqa: BLE001 — degrade to image encode
+            logger.debug("reuse clip embedding lookup failed for image_id=%s: %s", image_id, exc)
+            return None
 
     def _persist_tagging_embeddings(self, image_id: int, persist_clip: bool, persist_blip: bool) -> None:
         """Upsert CLIP / BLIP image embeddings produced during the last inference.
