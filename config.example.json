@@ -104,7 +104,8 @@
     "clip_quality": {
       "enabled": false,
       "weight": 0.15,
-      "reject_below": null
+      "reject_below": null,
+      "_comment_reject_below": "Optional floor e.g. 0.35 (benchmark mean rejected ~0.40); enable in environment.json override"
     },
     "agent_review": {
       "enabled": false,
@@ -117,6 +118,7 @@
       "allow_metadata_only_remove": false,
       "agent": {
         "provider": "gemini",
+        "_comment_command": "CLI on PATH for the WebUI process (WSL if using run_webui.bat). Use a full path if gemini is not global.",
         "command": "gemini",
         "args": [],
         "timeout_seconds": 120,

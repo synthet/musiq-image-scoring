@@ -59,7 +59,13 @@ from modules import db  # noqa: E402
 from modules.embedding_spaces import DEFAULT_EMBEDDING_SPACE_CODE  # noqa: E402
 from modules.indexing_policy import filter_image_rows_for_nef_policy  # noqa: E402
 from modules.quality_ranking import quality_tiebreak_sort_key_best_first  # noqa: E402
-from modules.selection import SelectionConfig, _load_two_level_config  # noqa: E402
+from modules.selection import (  # noqa: E402
+    SelectionConfig,
+    _clip_quality_cfg,
+    _load_two_level_config,
+    apply_clip_reject_guard,
+    blended_rank_value,
+)
 from modules.two_level_culling import (  # noqa: E402
     TWO_LEVEL_POLICY_VERSION,
     TwoLevelConfig,
@@ -275,19 +281,80 @@ def _stack_ids_to_process(
     return keep
 
 
-def _make_sort_key(score_field: str):
+def _make_sort_key(score_field: str, clip_weight: float = 0.0):
     def sort_key(img):
-        s = img.get(score_field) or 0
         c = img.get("created_at") or ""
         i = img.get("id") or 0
         return (
-            -float(s) if s else 0,
+            -blended_rank_value(img, score_field, clip_weight),
             quality_tiebreak_sort_key_best_first(img),
             str(c),
             int(i),
         )
 
     return sort_key
+
+
+def _collect_stacked_image_ids(stack_ids: Iterable[int]) -> list[int]:
+    out: list[int] = []
+    seen: set[int] = set()
+    for sid in stack_ids:
+        for im in db.get_images_in_stack(int(sid)):
+            iid = im.get("id")
+            if iid is None:
+                continue
+            iid_int = int(iid)
+            if iid_int not in seen:
+                seen.add(iid_int)
+                out.append(iid_int)
+    return out
+
+
+def _load_clip_quality_map(image_ids: list[int], *, batch_size: int = 5000) -> dict[int, float]:
+    """Compute or load ``clip_quality_v0`` for stacked images (no GPU image inference)."""
+    if not image_ids:
+        return {}
+    from modules import clip_quality
+
+    clip_map: dict[int, float] = {}
+    for start in range(0, len(image_ids), batch_size):
+        batch = image_ids[start:start + batch_size]
+        clip_map.update(
+            clip_quality.compute_clip_quality(batch, persist=True, ensure=False)
+        )
+    return clip_map
+
+
+def _existing_cull_decisions(image_ids: list[int]) -> dict[int, str]:
+    if not image_ids:
+        return {}
+    placeholders = ",".join("?" * len(image_ids))
+    rows = db.get_connector().query(
+        f"SELECT id, cull_decision FROM images WHERE id IN ({placeholders})",
+        tuple(image_ids),
+    )
+    out: dict[int, str] = {}
+    for row in rows:
+        iid = row.get("id")
+        if iid is None:
+            continue
+        raw = row.get("cull_decision")
+        out[int(iid)] = (str(raw).strip().lower() if raw else "") or "unset"
+    return out
+
+
+def _decision_delta_stats(
+    before: dict[int, str],
+    decisions: list[tuple],
+) -> tuple[int, int]:
+    """Return (images_changed, pick_to_reject_or_reverse)."""
+    changed = 0
+    for img_id, decision, _ in decisions:
+        prev = before.get(int(img_id), "unset")
+        new = (decision or "").strip().lower()
+        if prev != new:
+            changed += 1
+    return changed, 0
 
 
 def _prepare_images(images: list[dict]) -> list[dict]:
@@ -318,14 +385,23 @@ def _iter_stack_results(
     *,
     dry_run: bool,
     coverage_tracker: list[int],
+    clip_map: dict[int, float] | None = None,
+    clip_cfg: dict | None = None,
 ) -> Iterable[tuple[int, list[dict], list[tuple], int]]:
     """Yield ``(stack_id, persist_rows, decisions, leaf_count)`` per stack.
 
     Clears existing sub_stacks for the stack (live runs only) before rebuild.
     """
     space = tl_cfg.level2.embedding_space
+    clip_map = clip_map or {}
+    clip_cfg = clip_cfg or {"enabled": False, "reject_below": None}
     for sid in stack_ids:
         images = _prepare_images(db.get_images_in_stack(int(sid)))
+        if clip_map:
+            for im in images:
+                cq = clip_map.get(im.get("id"))
+                if cq is not None:
+                    im["clip_quality_v0"] = cq
         if len(images) < 2:
             # Singleton stacks: two-level culling uses legacy classify (n=1 → neutral).
             singleton_decisions = [
@@ -349,6 +425,19 @@ def _iter_stack_results(
         persist_rows, decisions, leaf_count = process_stack_two_level(
             int(sid), images, emb_map, tl_cfg, sort_key,
         )
+        decisions = list(decisions)
+        if (
+            clip_cfg.get("enabled")
+            and clip_cfg.get("reject_below") is not None
+            and clip_map
+        ):
+            try:
+                thr = float(clip_cfg["reject_below"])
+            except (TypeError, ValueError):
+                thr = None
+            if thr is not None:
+                stack_of = {im["id"]: sid for im in images if im.get("id") is not None}
+                decisions = apply_clip_reject_guard(decisions, clip_map, stack_of, thr)
         yield int(sid), persist_rows, decisions, leaf_count
 
 
@@ -444,7 +533,9 @@ def main(argv: list[str] | None = None) -> int:
     space = args.embedding_space or tl_cfg.level2.embedding_space
     threshold = args.threshold if args.threshold is not None else tl_cfg.level2.distance_threshold
     tl_cfg.level2 = TwoLevelLevelConfig(embedding_space=space, distance_threshold=float(threshold))
-    sort_key = _make_sort_key(tl_cfg.score_field)
+    clip_cfg = _clip_quality_cfg()
+    clip_w = clip_cfg["weight"] if clip_cfg["enabled"] else 0.0
+    sort_key = _make_sort_key(tl_cfg.score_field, clip_w)
 
     folder_filter: set[int] | None = None
     if args.folder:
@@ -519,12 +610,28 @@ def main(argv: list[str] | None = None) -> int:
     logger.info(
         "Backfill plan: stacks=%d space=%s threshold=%.4f picks/substack=%d "
         "max/stack=%d dry_run=%s write_sidecars=%s preserve_manual=%s "
-        "only_policy_version=%s resume_after_stack_id=%s checkpoint=%s",
+        "only_policy_version=%s resume_after_stack_id=%s checkpoint=%s "
+        "clip_quality_enabled=%s clip_weight=%.2f reject_below=%s",
         total_planned, space, tl_cfg.level2.distance_threshold,
         tl_cfg.picks_per_substack, tl_cfg.max_picks_per_stack,
         args.dry_run, args.write_sidecars, args.preserve_manual,
         args.only_policy_version, resume_after, checkpoint_path,
+        clip_cfg["enabled"], clip_w, clip_cfg.get("reject_below"),
     )
+
+    clip_map: dict[int, float] = {}
+    if clip_cfg["enabled"]:
+        stacked_ids = _collect_stacked_image_ids(stack_ids)
+        logger.info(
+            "Loading clip_quality_v0 for %d stacked images (ensure=False)...",
+            len(stacked_ids),
+        )
+        clip_map = _load_clip_quality_map(stacked_ids)
+        logger.info(
+            "clip_quality_v0 ready for %d/%d stacked images",
+            len(clip_map),
+            len(stacked_ids),
+        )
 
     counts: Counter = Counter()
     leaves_total = 0
@@ -533,6 +640,8 @@ def main(argv: list[str] | None = None) -> int:
     side_err = 0
     skipped_manual = 0
     coverage_tracker = [0, 0]  # [total_ids, ids_with_embedding]
+    stacks_with_decision_changes = 0
+    images_decision_changed = 0
 
     pending_decisions: list[tuple] = []
     BATCH = 5_000
@@ -549,8 +658,20 @@ def main(argv: list[str] | None = None) -> int:
     stacks_done = 0
     try:
         for sid, persist_rows, decisions, leaf_count in _iter_stack_results(
-            stack_ids, tl_cfg, sort_key, dry_run=args.dry_run, coverage_tracker=coverage_tracker,
+            stack_ids,
+            tl_cfg,
+            sort_key,
+            dry_run=args.dry_run,
+            coverage_tracker=coverage_tracker,
+            clip_map=clip_map,
+            clip_cfg=clip_cfg,
         ):
+            stack_image_ids = [d[0] for d in decisions]
+            before = _existing_cull_decisions(stack_image_ids) if stack_image_ids else {}
+            img_changed, _ = _decision_delta_stats(before, decisions)
+            if img_changed:
+                stacks_with_decision_changes += 1
+                images_decision_changed += img_changed
             leaves_total += leaf_count
             if persist_rows and not args.dry_run:
                 db.create_sub_stacks_batch(persist_rows)
@@ -630,10 +751,13 @@ def main(argv: list[str] | None = None) -> int:
     logger.info(
         "Backfill done. stacks=%d leaves=%d substacks_written=%d coverage=%.1f%% "
         "picks=%d rejects=%d neutrals=%d skipped_manual=%d sidecar_ok=%d sidecar_err=%d "
+        "stacks_decision_changed=%d images_decision_changed=%d "
         "dry_run=%s checkpoint=%s",
         stacks_done, leaves_total, substacks_total, coverage * 100.0,
         counts["pick"], counts["reject"], counts["neutral"],
-        skipped_manual, side_ok, side_err, args.dry_run, checkpoint_path,
+        skipped_manual, side_ok, side_err,
+        stacks_with_decision_changes, images_decision_changed,
+        args.dry_run, checkpoint_path,
     )
     return 0
 
