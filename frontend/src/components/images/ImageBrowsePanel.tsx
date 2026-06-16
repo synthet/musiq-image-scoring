@@ -14,7 +14,7 @@ import type { Image } from '@/types/api'
 const PAGE_SIZES = [25, 50, 100] as const
 
 const EMBEDDINGS_HEADER_HINT =
-  'MobileNetV2 · CLIP · BioCLIP · BLIP (hover icons for present/missing)'
+  'MobileNetV2 · CLIP · BioCLIP · BLIP · OpenCLIP · OpenAI CLIP · DINOv2 · SigLIP2 (hover icons for present/missing)'
 
 const SORT_COLUMNS: { key: string; label: string; sortable?: boolean; headerHint?: string }[] = [
   { key: 'id', label: 'ID' },

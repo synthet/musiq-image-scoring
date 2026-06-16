@@ -15,7 +15,7 @@ import {
   Bird,
   Tags,
 } from 'lucide-react'
-import { dispatchDbExplorerToggleTables } from '@/pages/DbPage'
+import { dispatchDbExplorerToggleTables } from '@/pages/dbExplorerEvents'
 import { Sidebar } from './Sidebar'
 import { ConnectionStatus } from './ConnectionStatus'
 import { useUiStore } from '@/stores/uiStore'

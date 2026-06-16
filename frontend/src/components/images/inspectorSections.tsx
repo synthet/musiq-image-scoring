@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { CollapsibleInspectorSection, KeyValueTable, formatInspectorValue } from '@/components/images/InspectorPrimitives'
 import {
+  ALL_EMBEDDING_SPACE_CODES,
   EmbeddingsInspectorChips,
-  PRIMARY_EMBEDDING_SPACE_CODES,
 } from '@/components/images/EmbeddingSpaceChip'
 import { describePick, pickStatusOf } from '@/features/culling/utils/pickStatus'
 import {
@@ -192,7 +192,7 @@ export function IndexingInspectorSection({
   )
 }
 
-const EMBEDDING_SPACES = PRIMARY_EMBEDDING_SPACE_CODES
+const EMBEDDING_SPACES = ALL_EMBEDDING_SPACE_CODES
 
 export function EmbeddingsInspectorSection({
   embeddings,

@@ -1,6 +1,7 @@
 import { clsx } from 'clsx'
 import { Check, X } from 'lucide-react'
 import {
+  ALL_EMBEDDING_SPACE_CODES,
   EmbeddingSpaceIcon,
   EMBEDDING_SPACE_COLORS,
   EMBEDDING_SPACE_LABELS,
@@ -81,8 +82,8 @@ export function ImageEmbeddingsRow({
   const present = embeddings ?? {}
 
   return (
-    <div className="flex items-center gap-0.5 justify-start">
-      {PRIMARY_EMBEDDING_SPACE_CODES.map((code) => (
+    <div className="flex items-center gap-0.5 flex-wrap justify-start">
+      {ALL_EMBEDDING_SPACE_CODES.map((code) => (
         <EmbeddingSpaceChip
           key={code}
           variant="table"
@@ -103,7 +104,7 @@ export function EmbeddingsInspectorChips({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {PRIMARY_EMBEDDING_SPACE_CODES.map((code) => (
+      {ALL_EMBEDDING_SPACE_CODES.map((code) => (
         <EmbeddingSpaceChip
           key={code}
           variant="inspector"
@@ -115,4 +116,4 @@ export function EmbeddingsInspectorChips({
   )
 }
 
-export { PRIMARY_EMBEDDING_SPACE_CODES }
+export { ALL_EMBEDDING_SPACE_CODES, PRIMARY_EMBEDDING_SPACE_CODES }

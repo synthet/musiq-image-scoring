@@ -3,6 +3,11 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
+/** Match an exact npm package path, not every package whose name contains a substring. */
+function inNodeModule(id: string, packageName: string): boolean {
+  return id.includes(`node_modules/${packageName}/`)
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -27,23 +32,33 @@ export default defineConfig({
     },
     outDir: '../static/app',
     emptyOutDir: true,
-    // Vite warns at 500 kB; our UI can legitimately exceed this (e.g. Leaflet/map).
-    // Keep the warning, but reduce noise and split known heavy deps.
+    // Cosmograph WebGL (~2 MB minified) may still exceed this on /embeddings only.
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return
 
-          if (id.includes('react') || id.includes('react-dom')) return 'react'
-          if (id.includes('react-router-dom')) return 'router'
-          if (id.includes('@tanstack/react-query')) return 'query'
+          if (id.includes('node_modules/@cosmograph/')) return 'cosmograph'
           if (
-            id.includes('leaflet') ||
-            id.includes('react-leaflet') ||
-            id.includes('react-leaflet-markercluster')
+            inNodeModule(id, 'leaflet') ||
+            inNodeModule(id, 'react-leaflet') ||
+            inNodeModule(id, 'react-leaflet-markercluster')
           ) {
             return 'maps'
+          }
+          if (inNodeModule(id, '@tanstack/react-query')) return 'query'
+          if (inNodeModule(id, 'react-router') || inNodeModule(id, 'react-router-dom')) {
+            return 'router'
+          }
+          if (inNodeModule(id, 'framer-motion')) return 'motion'
+          if (inNodeModule(id, 'yet-another-react-lightbox')) return 'lightbox'
+          if (
+            inNodeModule(id, 'react') ||
+            inNodeModule(id, 'react-dom') ||
+            inNodeModule(id, 'scheduler')
+          ) {
+            return 'react'
           }
         },
       },
