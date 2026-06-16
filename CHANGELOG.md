@@ -9,13 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **CLIP B/32 prompt-quality pick/reject signal (auxiliary, default-off)**: `clip_quality_v0` — a 0–1 "good photo" probability derived from the persisted `clip_vit_b32_image` (512-d) embedding compared against antonym text prompts (CLIP-IQA style). New `modules/clip_quality.py` persists to `image_model_scores` (surfaces in the API as `clip_quality_v0_score`); culling blends it into the within-stack ranking behind `culling.clip_quality.*` (weight 0.15 default, optional `reject_below` floor) without touching `score_general`. B/32 is JIT-generated pre-culling and reused by the keywords phase (`embeddings.reuse_clip_image_for_keywords`). Backfill: `scripts/backfill_clip_quality.py`. Benchmark (`reports/clip-culling/prompt-quality/`): global pick/reject AUC 0.89, within-stack concordance 0.986.
-
 ### Roadmap (not yet released)
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
+
+## [8.6.0] - 2026-06-15
+
+### Added
+
+- **Agent-assisted cull review MVP**: Conservative AI redundancy review for small clustered stack/sub-stack groups — discovery, JSON-only external CLI verdicts, deterministic safety gates, metadata-only removal candidates (no physical deletion). Alembic **0031** tables, `modules/agent_cull/`, REST `/api/culling/agent-review/*`, OpenAPI, and `scripts/agent_cull_review.py` (dry-run default).
+- **Agent-review thumbnail downscale**: `culling.agent_review.agent.max_thumbnail_edge_px` now resizes oversized thumbnails (aspect preserved, JPEG q85) with fail-safe fallback to the source path.
+- **JIT level-2 culling embeddings**: Stack-scoped OpenCLIP embedding during two-level culling so new stacks get level-2 sub-stacking without a separate bulk backfill.
+- **pick_status sync**: `scripts/backfill_pick_status_from_cull_decision.py` and selection policy sync `pick_status` from `cull_decision` on future runs.
+- **Sub-stacks backfill UX**: Progress bar (TTY), periodic log lines, per-stack checkpoint JSON, and `--resume` / `--resume-after-stack-id` for long sidecar sync runs.
+- **Cull distribution audit**: Analytics SQL and `docs/reports/CULL_DISTRIBUTION_AUDIT_2026-06.md` for level-2 pick/reject distribution review.
+- **CLIP B/32 prompt-quality pick/reject signal (auxiliary, default-off)**: `clip_quality_v0` — a 0–1 "good photo" probability derived from the persisted `clip_vit_b32_image` (512-d) embedding compared against antonym text prompts (CLIP-IQA style). New `modules/clip_quality.py` persists to `image_model_scores` (surfaces in the API as `clip_quality_v0_score`); culling blends it into the within-stack ranking behind `culling.clip_quality.*` (weight 0.15 default, optional `reject_below` floor) without touching `score_general`. B/32 is JIT-generated pre-culling and reused by the keywords phase (`embeddings.reuse_clip_image_for_keywords`). Backfill: `scripts/backfill_clip_quality.py`. Benchmark (`reports/clip-culling/prompt-quality/`): global pick/reject AUC 0.89, within-stack concordance 0.986.
+
+### Changed
+
+- **Culling analytics flags**: `auto_cull` flag helpers and distribution audit wiring in analytics service.
+
+### Fixed
+
+- **Input-size study runner hardening**: `scripts/research/clip_culling/run_input_size_study.sh` gains a validated `VENV_PATH` override (defaulting to `~/.venvs/tf`) with fail-fast checks, `--help`, strict `PHASE` validation (`1|2|3|all|eval`), and clean `LD_LIBRARY_PATH` handling that no longer emits an empty leading segment.
+
+### Security
+
+- **Read/write SQL validator hardening** (closes #209, #210, #211): the `/api/db/query` read validator now denies `pg_read_file`/`pg_read_binary_file`/`pg_ls_dir`/`pg_stat_file`/`lo_export`/`lo_import`/`dblink`/`pg_execute_server_program` (CTE-wrapped file-exfil), and the Postgres read path enforces `set_session(readonly=True)` at the transport layer; the write validator blocks bare-`;`/`--`/`/*` multi-statement injection and `/api/db/transaction` now validates every statement so DDL cannot reach the DB even with a valid write token.
 
 ## [8.5.0] - 2026-06-11
 
