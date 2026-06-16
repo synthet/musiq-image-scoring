@@ -1,6 +1,23 @@
+---
+type: Documentation Schema
+title: Wiki Schema
+description: Documentation structure, naming, link, metadata, and maintenance conventions.
+resource: WIKI_SCHEMA.md
+tags: [docs, schema, okf, maintenance]
+timestamp: 2026-06-16T00:00:00Z
+okf_version: 0.1
+---
+
 # Wiki schema — image-scoring-backend `docs/`
 
 This repository keeps `docs/` as an LLM-maintained wiki: small pages, clear hubs, and stable links to canonical contracts.
+
+
+## OKF alignment
+
+`docs/` is maintained as an [Open Knowledge Format adoption bundle](OKF_ADOPTION.md): markdown files with YAML frontmatter, stable relative paths as concept identities, relative markdown links as the knowledge graph, folder `INDEX.md` hubs, and append-only `log.md` history.
+
+New living pages and materially edited living pages should include YAML frontmatter with at least `type`; recommended fields are `title`, `description`, `resource`, `tags`, `timestamp`, and `okf_version`. See [OKF_ADOPTION.md](OKF_ADOPTION.md) for the local type vocabulary and migration policy.
 
 ## Page types and folders
 
