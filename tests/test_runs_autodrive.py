@@ -9,6 +9,11 @@ import pytest
 from modules import runs_autodrive
 
 
+def _local_bucket_path(raw: str) -> str:
+    """Expected ``path`` / ``folder_path`` from bucket builders on this host."""
+    return runs_autodrive._local_path(raw)
+
+
 def _phase(code: str, status: str, total: int = 10, done: int = 0, skipped: int = 0):
     return {
         "code": code,
@@ -1415,9 +1420,9 @@ def test_build_folder_buckets_prioritizes_new_folder_across_phases(monkeypatch):
 
     result = runs_autodrive.build_folder_buckets(limit=10)
 
-    assert result["items"][0]["path"] == new_path
+    assert result["items"][0]["path"] == _local_bucket_path(new_path)
     assert result["items"][0]["is_newly_imported"] is True
-    assert result["items"][1]["path"] == old_path
+    assert result["items"][1]["path"] == _local_bucket_path(old_path)
     assert result["items"][1]["is_newly_imported"] is False
 
 
@@ -1439,8 +1444,8 @@ def test_build_folder_buckets_new_folder_tiebreak_prefers_newer_created_at(monke
 
     result = runs_autodrive.build_folder_buckets(limit=10)
 
-    assert result["items"][0]["path"] == newer_new
-    assert result["items"][1]["path"] == older_new
+    assert result["items"][0]["path"] == _local_bucket_path(newer_new)
+    assert result["items"][1]["path"] == _local_bucket_path(older_new)
 
 
 def test_build_folder_buckets_legacy_sort_when_prioritize_disabled(monkeypatch):
@@ -1467,9 +1472,9 @@ def test_build_folder_buckets_legacy_sort_when_prioritize_disabled(monkeypatch):
 
     result = runs_autodrive.build_folder_buckets(limit=10)
 
-    assert result["items"][0]["path"] == old_path
+    assert result["items"][0]["path"] == _local_bucket_path(old_path)
     assert result["items"][0]["is_newly_imported"] is False
-    assert result["items"][1]["path"] == new_path
+    assert result["items"][1]["path"] == _local_bucket_path(new_path)
 
 
 def test_auto_drive_runs_dry_run_schedules_new_folder_first(monkeypatch):
@@ -1502,7 +1507,7 @@ def test_auto_drive_runs_dry_run_schedules_new_folder_first(monkeypatch):
     result = runs_autodrive.auto_drive_runs(limit=5, dry_run=True)
 
     assert result["scheduled"]
-    assert result["scheduled"][0]["folder_path"] == new_path
+    assert result["scheduled"][0]["folder_path"] == _local_bucket_path(new_path)
 
 
 def test_build_folder_buckets_explicit_paths_use_scoped_direct_counts(monkeypatch):
@@ -1539,7 +1544,7 @@ def test_build_folder_buckets_explicit_paths_use_scoped_direct_counts(monkeypatc
 
     assert scoped_paths == [[target]]
     assert len(result["items"]) == 1
-    assert result["items"][0]["path"] == target
+    assert result["items"][0]["path"] == _local_bucket_path(target)
 
 
 def test_auto_drive_explicit_paths_skip_library_reconcile_and_leaf_filter(monkeypatch):

@@ -50,10 +50,13 @@ def test_ensure_production_registry_registers_musiq_and_liqe():
 
 
 def test_create_production_scoring_host_returns_host(monkeypatch):
-    import importlib
+    import sys
+    import types
 
-    ram = importlib.import_module("scripts.python.run_all_musiq_models")
-    monkeypatch.setattr(ram, "MultiModelMUSIQ", _StubMusiqBackend)
+    stub = types.ModuleType("scripts.python.run_all_musiq_models")
+    stub.MultiModelMUSIQ = _StubMusiqBackend
+    monkeypatch.setitem(sys.modules, "scripts.python.run_all_musiq_models", stub)
+
     host = create_production_scoring_host(registry=ModelRegistry())
     assert isinstance(host, MultiModelHost)
     assert host.backend.VERSION == "stub-musiq"
