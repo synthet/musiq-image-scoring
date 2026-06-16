@@ -91,8 +91,7 @@ def apply_safety_gates(
         overrides.append(SafetyOverride("no_picked_images", "group"))
         group_blocked = True
     if len(picked_ids) < len(rejected_ids):
-        overrides.append(SafetyOverride("picked_lt_rejected", "group"))
-        group_blocked = True
+        overrides.append(SafetyOverride("picked_lt_rejected_advisory", "group"))
 
     group_conf = float(validated_response.get("confidence") or 0.0)
     if group_conf < cfg.min_group_confidence:

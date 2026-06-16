@@ -14,6 +14,21 @@ from modules.agent_cull.config import AgentCullConfig
 logger = logging.getLogger(__name__)
 
 MAX_RESPONSE_BYTES = 512_000
+AGENT_CLI_NOT_FOUND = "agent_cli_not_found"
+
+
+def classify_cli_os_error(exc: OSError, command: str) -> tuple[str, str]:
+    """Map subprocess spawn failures to stable operator-facing codes."""
+    message = str(exc)
+    errno = getattr(exc, "errno", None)
+    missing = errno == 2 or "No such file or directory" in message
+    if missing:
+        return (
+            AGENT_CLI_NOT_FOUND,
+            f"Agent CLI not found: {command!r}. Install it and ensure it is on PATH "
+            f"for the WebUI process, or set culling.agent_review.agent.command to the full path.",
+        )
+    return "agent_cli_spawn_failed", message
 
 
 @dataclass
@@ -131,15 +146,16 @@ class SubprocessAgentCullProvider:
             )
         except OSError as exc:
             duration_ms = int((time.monotonic() - start) * 1000)
+            error_code, error_message = classify_cli_os_error(exc, self.command)
             return AgentCullRawResponse(
                 ok=False,
                 stdout="",
-                stderr=str(exc),
+                stderr=error_message,
                 exit_code=-1,
                 duration_ms=duration_ms,
                 provider=self.name,
                 supports_vision=self.supports_vision,
-                error=str(exc),
+                error=error_code,
             )
 
     def run_review(self, prompt: str, cfg: AgentCullConfig) -> AgentCullRawResponse:

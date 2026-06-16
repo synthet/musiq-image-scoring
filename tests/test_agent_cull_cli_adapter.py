@@ -74,6 +74,22 @@ def test_subprocess_retries_transient_failures():
         assert run.call_count == 2
 
 
+def test_subprocess_missing_cli_maps_agent_cli_not_found():
+    provider = SubprocessAgentCullProvider(
+        name="gemini",
+        command="gemini",
+        args=(),
+        supports_vision=True,
+    )
+    cfg = AgentCullConfig()
+    with patch("modules.agent_cull.cli_adapter.subprocess.run") as run:
+        run.side_effect = FileNotFoundError(2, "No such file or directory", "gemini")
+        result = provider.run_review("{}", cfg)
+        assert result.ok is False
+        assert result.error == "agent_cli_not_found"
+        assert "gemini" in (result.stderr or "")
+
+
 def test_subprocess_does_not_retry_when_stdout_present():
     provider = SubprocessAgentCullProvider(
         name="gemini",

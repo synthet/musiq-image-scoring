@@ -101,8 +101,6 @@ def is_group_eligible(
         return False, "no_rejected_images"
     if counts.picked < 1:
         return False, "no_picked_images"
-    if counts.picked < counts.rejected:
-        return False, "picked_lt_rejected"
     return True, None
 
 
@@ -220,4 +218,36 @@ def discover_eligible_units_from_stack_rows(
         )
         if unit.skip_reason is None:
             units.append(unit)
+    return units
+
+
+def discover_review_units_from_stack_rows(
+    stack_id: int,
+    rows: list[dict[str, Any]],
+    cfg: AgentCullConfig,
+    *,
+    leaf_count: int = 0,
+    images_with_substack: int = 0,
+    is_usable_fn=default_is_usable,
+) -> list[ReviewUnit]:
+    """Like discover_eligible_units_from_stack_rows but includes ineligible units."""
+    tier = classify_stack_tier(len(rows), leaf_count, images_with_substack)
+    partitions = partition_rows_by_review_unit(
+        stack_id,
+        rows,
+        leaf_count=leaf_count,
+        images_with_substack=images_with_substack,
+    )
+    units: list[ReviewUnit] = []
+    for sub_stack_id, unit_rows in partitions:
+        units.append(
+            build_review_unit(
+                stack_id,
+                sub_stack_id,
+                unit_rows,
+                cfg,
+                hierarchy_tier=tier,
+                is_usable_fn=is_usable_fn,
+            )
+        )
     return units

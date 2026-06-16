@@ -96,9 +96,9 @@ All must hold:
 
 - At least one picked image (`pick_status = 1`)
 
-- `picked_count >= rejected_count`
-
 - At least `min_usable_images` (default 2) with readable source or thumbnail when vision required
+
+- When `picked_count < rejected_count`, the agent prompt and local gates apply extra conservatism (advisory only; not a hard skip)
 
 
 

@@ -118,7 +118,7 @@
       "allow_metadata_only_remove": false,
       "agent": {
         "provider": "gemini",
-        "_comment_command": "CLI on PATH for the WebUI process (WSL if using run_webui.bat). Use a full path if gemini is not global.",
+        "_comment_command": "CLI on PATH for the WebUI process (WSL if using run_webui.bat). On WSL+Windows npm, use scripts/wsl/gemini_agent.sh (full /mnt/... path).",
         "command": "gemini",
         "args": [],
         "timeout_seconds": 120,

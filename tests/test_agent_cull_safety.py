@@ -41,20 +41,24 @@ def test_no_picked_blocks_remove():
     assert safety.image_decisions[0].final_decision == "keep"
 
 
-def test_picked_lt_rejected_blocks():
+def test_picked_lt_rejected_does_not_block_group():
     safety = apply_safety_gates(
         cfg=_cfg(),
         validated_response=_response(),
         rows_by_id={
             100: {"score_general": 0.2, "usable": True},
             101: {"score_general": 0.9, "usable": True},
+            102: {"score_general": 0.1, "usable": True},
         },
         picked_ids={101},
         rejected_ids={100, 102},
         dry_run=True,
         provider_supports_vision=True,
     )
-    assert safety.group_blocked is True
+    assert safety.group_blocked is False
+    assert safety.image_decisions[0].final_decision == "remove"
+    group_gates = {o.gate for o in safety.overrides if o.scope == "group"}
+    assert "picked_lt_rejected_advisory" in group_gates
 
 
 def test_low_confidence_downgrades_remove():

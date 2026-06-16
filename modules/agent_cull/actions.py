@@ -6,7 +6,11 @@ from typing import Any
 
 from modules.agent_cull.apply import apply_agent_remove_candidates
 from modules.agent_cull.config import load_agent_cull_config
-from modules.agent_cull.discovery_db import discover_eligible_units, load_unit_rows
+from modules.agent_cull.discovery_db import (
+    discover_eligible_units,
+    inspect_review_unit_for_run,
+    load_unit_rows,
+)
 from modules.agent_cull.fingerprint import check_group_staleness
 from modules.agent_cull.operator import approve_recommendations, reject_recommendations
 from modules.agent_cull.repository import get_latest_group_for_unit
@@ -75,7 +79,22 @@ def run_review_action(
     elif len(units) > 1:
         units = [u for u in units if u.sub_stack_id is None] or units[:1]
     if not units:
-        return {"ok": False, "error": "no_eligible_unit"}
+        inspected = inspect_review_unit_for_run(
+            cfg,
+            stack_id=stack_id,
+            sub_stack_id=sub_stack_id,
+        )
+        payload: dict[str, Any] = {"ok": False, "error": "no_eligible_unit"}
+        if inspected is not None:
+            payload["skip_reason"] = inspected.skip_reason or "ineligible"
+            payload["counts"] = {
+                "total": len(inspected.image_ids),
+                "picked": len(inspected.picked_ids),
+                "rejected": len(inspected.rejected_ids),
+                "neutral": len(inspected.neutral_ids),
+                "usable": len(inspected.usable_ids),
+            }
+        return payload
     unit = units[0]
     if not force:
         latest = get_latest_group_for_unit(unit.review_unit_key)

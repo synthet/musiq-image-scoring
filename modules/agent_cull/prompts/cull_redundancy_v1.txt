@@ -8,7 +8,6 @@ Return JSON only. Do not use markdown.
 
 Never recommend removal when:
 - there are no picked images
-- picked image count is lower than rejected image count
 - group confidence or per-image confidence is low
 - the rejected image is visually unique
 - the rejected image has a unique species/keyword/subject
@@ -16,6 +15,8 @@ Never recommend removal when:
 - the rejected image is the only usable version of a moment/action
 - better alternatives are missing or not picked
 - you are unsure
+
+When picked image count is lower than rejected image count, be especially conservative; default to keep or uncertain unless redundancy is obvious.
 
 Use only image ids from the provided packet.
 Use only picked image ids as better_alternatives.

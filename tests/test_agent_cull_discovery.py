@@ -55,13 +55,13 @@ def test_skip_no_picked():
     assert reason == "no_picked_images"
 
 
-def test_skip_picked_lt_rejected():
+def test_eligible_picked_lt_rejected():
     ok, reason = is_group_eligible(
         GroupCounts(total=5, picked=1, rejected=2, usable=5),
         _cfg(),
     )
-    assert ok is False
-    assert reason == "picked_lt_rejected"
+    assert ok is True
+    assert reason is None
 
 
 def test_skip_singleton_root():
@@ -89,6 +89,26 @@ def test_discover_flat_stack_eligible():
     assert len(units) == 1
     assert units[0].rejected_ids == (3,)
     assert units[0].picked_ids == (1, 2)
+
+
+def test_discover_substack_three_picks_six_rejects():
+    rows = []
+    for i in range(1, 4):
+        rows.append({"id": i, "pick_status": 1, "sub_stack_id": 1, "file_path": f"/tmp/p{i}.jpg"})
+    for i in range(4, 10):
+        rows.append({"id": i, "pick_status": -1, "sub_stack_id": 1, "file_path": f"/tmp/r{i}.jpg"})
+    units = discover_eligible_units_from_stack_rows(
+        23243,
+        rows,
+        _cfg(),
+        leaf_count=1,
+        images_with_substack=9,
+        is_usable_fn=lambda _r: True,
+    )
+    assert len(units) == 1
+    assert units[0].sub_stack_id == 1
+    assert len(units[0].picked_ids) == 3
+    assert len(units[0].rejected_ids) == 6
 
 
 def test_discover_skips_ineligible():
