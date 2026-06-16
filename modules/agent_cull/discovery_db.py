@@ -6,12 +6,25 @@ from typing import Any
 
 from modules import db
 from modules.agent_cull.config import AgentCullConfig
-from modules.agent_cull.discovery import ReviewUnit, discover_eligible_units_from_stack_rows, default_is_usable
+from modules.agent_cull.discovery import (
+    ReviewUnit,
+    discover_eligible_units_from_stack_rows,
+    discover_review_units_from_stack_rows,
+    default_is_usable,
+)
 from modules.culling_analytics._common import images_folder_filter, require_postgres, resolve_folder_id
 
 
-def _stack_member_query(folder_id: int | None) -> tuple[str, list[Any]]:
+def _stack_member_query(
+    folder_id: int | None,
+    stack_id: int | None = None,
+) -> tuple[str, list[Any]]:
     folder_sql, folder_params = images_folder_filter(folder_id)
+    stack_sql = ""
+    stack_params: list[Any] = []
+    if stack_id is not None:
+        stack_sql = " AND i.stack_id = ?"
+        stack_params = [int(stack_id)]
     sql = f"""
         SELECT
             i.id,
@@ -39,9 +52,10 @@ def _stack_member_query(folder_id: int | None) -> tuple[str, list[Any]]:
         FROM images i
         WHERE i.stack_id IS NOT NULL
         {folder_sql}
+        {stack_sql}
         ORDER BY i.stack_id, i.sub_stack_id NULLS FIRST, i.id
     """
-    return sql, folder_params
+    return sql, folder_params + stack_params
 
 
 def _leaf_stats(rows: list[dict[str, Any]]) -> tuple[int, int]:
@@ -62,10 +76,7 @@ def discover_eligible_units(
 ) -> list[ReviewUnit]:
     require_postgres()
     fid, _ = resolve_folder_id(folder_path, folder_id)
-    sql, params = _stack_member_query(fid)
-    if stack_id is not None:
-        sql = sql.replace("ORDER BY", " AND i.stack_id = ? ORDER BY")
-        params = list(params) + [int(stack_id)]
+    sql, params = _stack_member_query(fid, stack_id)
     rows = db.get_connector().query(sql, tuple(params)) or []
 
     by_stack: dict[int, list[dict[str, Any]]] = {}
@@ -95,6 +106,43 @@ def discover_eligible_units(
             if len(units) >= limit:
                 return units
     return units
+
+
+def inspect_review_unit_for_run(
+    cfg: AgentCullConfig,
+    *,
+    stack_id: int,
+    sub_stack_id: int | None = None,
+) -> ReviewUnit | None:
+    """Resolve the review unit targeted by run_review_action, including when ineligible."""
+    require_postgres()
+    sql, params = _stack_member_query(None, stack_id)
+    rows = db.get_connector().query(sql, tuple(params)) or []
+    stack_rows = [dict(r) for r in rows]
+    if not stack_rows:
+        return None
+    if sub_stack_id is not None:
+        stack_rows = [r for r in stack_rows if int(r.get("sub_stack_id") or 0) == int(sub_stack_id)]
+        if not stack_rows:
+            return None
+    leaf_count, with_sub = _leaf_stats(stack_rows)
+    all_units = discover_review_units_from_stack_rows(
+        stack_id,
+        stack_rows,
+        cfg,
+        leaf_count=leaf_count,
+        images_with_substack=with_sub,
+        is_usable_fn=default_is_usable,
+    )
+    if not all_units:
+        return None
+    if sub_stack_id is not None:
+        matches = [u for u in all_units if u.sub_stack_id == int(sub_stack_id)]
+        return matches[0] if matches else None
+    if len(all_units) > 1:
+        flat = [u for u in all_units if u.sub_stack_id is None]
+        return flat[0] if flat else all_units[0]
+    return all_units[0]
 
 
 def load_unit_rows(unit: ReviewUnit, folder_id: int | None = None) -> dict[int, dict[str, Any]]:
