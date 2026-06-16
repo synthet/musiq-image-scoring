@@ -11,7 +11,7 @@ Answer a question by searching the docs wiki. Good answers can be filed back as 
 
 ## Schema
 
-Read `docs/WIKI_SCHEMA.md` for conventions.
+Read `docs/OKF_ADOPTION.md` and `docs/WIKI_SCHEMA.md` for OKF metadata and conventions.
 
 ## Steps
 
@@ -21,7 +21,7 @@ Read `docs/WIKI_SCHEMA.md` for conventions.
 4. **Present the answer** to the user in the chat.
 5. **Ask if the answer should be filed** as a wiki page (or file automatically if `--file` was specified).
 6. If filing:
-   - Write the answer as a page in `docs/reports/` (synthesis type).
+   - Write the answer as a page in `docs/reports/` (synthesis/report type) with OKF frontmatter.
    - Update `docs/reports/INDEX.md`.
    - Add cross-references from cited pages back to the new synthesis page.
    - Append to `docs/log.md`: `## [YYYY-MM-DD] query | Question Summary`

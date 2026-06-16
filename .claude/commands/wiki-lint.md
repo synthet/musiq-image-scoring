@@ -6,12 +6,12 @@ Audit the wiki for structural problems, stale content, and missed connections. K
 
 ## Schema
 
-Read `docs/WIKI_SCHEMA.md` for conventions and the full lint checklist.
+Read `docs/OKF_ADOPTION.md` and `docs/WIKI_SCHEMA.md` for the OKF frontmatter profile, conventions, and the full lint checklist.
 
 ## Steps
 
 1. **Scan all INDEX.md files** — build a list of every page referenced in indexes.
-2. **Scan all .md files in `docs/`** — build a list of every page that exists on disk.
+2. **Scan all .md files in `docs/`** — build a list of every page that exists on disk and note which living docs lack OKF frontmatter or a non-empty `type`.
 3. **Compare** to find:
    - **Orphan pages** — exist on disk but not in any INDEX.md
    - **Broken index entries** — listed in INDEX.md but file doesn't exist
