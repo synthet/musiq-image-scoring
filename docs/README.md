@@ -1,3 +1,13 @@
+---
+type: Documentation Hub
+title: Vexlum Scoring Documentation
+description: Root documentation hub and recommended reading path for image-scoring-backend.
+resource: README.md
+tags: [docs, hub, backend, okf]
+timestamp: 2026-06-16T00:00:00Z
+okf_version: 0.1
+---
+
 # Vexlum Scoring Documentation
 
 This is the documentation hub for **image-scoring-backend**, the Python scoring engine and FastAPI/Gradio service behind Vexlum Scoring.
@@ -9,7 +19,8 @@ This is the documentation hub for **image-scoring-backend**, the Python scoring 
 - [Project README](../README.md) - product overview and user-facing quick start.
 - [Implemented features](features/implemented/INDEX.md) - shipped behavior by area.
 - [Planned features](features/planned/INDEX.md) - specs and non-shipped work.
-- [Wiki schema](WIKI_SCHEMA.md) - page types, link rules, and maintenance process.
+- [Wiki schema](WIKI_SCHEMA.md) - page types, link rules, metadata, and maintenance process.
+- [OKF adoption](OKF_ADOPTION.md) - local Open Knowledge Format profile for agent-readable docs.
 - [Wiki log](log.md) - append-only record of docs changes.
 
 ## Getting Started Path

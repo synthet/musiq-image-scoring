@@ -1,3 +1,13 @@
+---
+type: Source-of-Truth Map
+title: Canonical Sources
+description: Authority map for APIs, schema, phases, diagnostics, testing, and cross-repo contracts.
+resource: CANONICAL_SOURCES.md
+tags: [docs, canonical-sources, contracts, okf]
+timestamp: 2026-06-16T00:00:00Z
+okf_version: 0.1
+---
+
 # Canonical Sources
 
 Use these files as authority before adding or changing APIs, database fields, phase names, config keys, scripts, or integration behavior. If a fact is not confirmed here or in the linked source code, write: "Not confirmed in current docs/code; check `<canonical file>`."
@@ -23,7 +33,7 @@ Use these files as authority before adding or changing APIs, database fields, ph
 | Gallery docs and implementation follow-up | [image-scoring-gallery docs/README.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/README.md), [image-scoring-gallery docs/CANONICAL_SOURCES.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/CANONICAL_SOURCES.md) |
 | Backlog and planned work | [../TODO.md](../TODO.md), [project/00-backlog-workflow.md](project/00-backlog-workflow.md), [planning/INDEX.md](planning/INDEX.md), [features/planned/INDEX.md](features/planned/INDEX.md) |
 | Design system (palette, icons, token package) | [image-scoring-ui docs/DESIGN_SYSTEM.md](https://github.com/synthet/image-scoring-ui/blob/main/docs/DESIGN_SYSTEM.md), npm package `@synthet/image-scoring-design` **1.0.0** ([image-scoring-ui](https://github.com/synthet/image-scoring-ui)); local pointer [design/DESIGN_SYSTEM.md](design/DESIGN_SYSTEM.md); consumers: backend `frontend/` (Tailwind), gallery `src/styles/tokens.css` (CSS Modules), Gradio `gradio-snippet.css` |
-| Wiki structure and maintenance | [WIKI_SCHEMA.md](WIKI_SCHEMA.md), [log.md](log.md), [INDEX.md](INDEX.md) |
+| Wiki structure, OKF metadata, and maintenance | [WIKI_SCHEMA.md](WIKI_SCHEMA.md), [OKF_ADOPTION.md](OKF_ADOPTION.md), [log.md](log.md), [INDEX.md](INDEX.md) |
 
 ## Cross-Repo Change Order
 

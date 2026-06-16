@@ -1,3 +1,13 @@
+---
+type: Documentation Index
+title: Documentation Index
+description: Categorized map of the image-scoring-backend documentation bundle.
+resource: INDEX.md
+tags: [docs, index, navigation, okf]
+timestamp: 2026-06-16T00:00:00Z
+okf_version: 0.1
+---
+
 # Documentation Index
 
 Full categorized index for **image-scoring-backend**. Prefer small linked pages over large duplicated dumps; when a topic has a canonical source, link to it rather than restating it.
@@ -188,6 +198,7 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 |---|---|
 | [CANONICAL_SOURCES.md](CANONICAL_SOURCES.md) | Source-of-truth map. |
 | [WIKI_SCHEMA.md](WIKI_SCHEMA.md) | Wiki conventions. |
+| [OKF_ADOPTION.md](OKF_ADOPTION.md) | Local Open Knowledge Format profile and migration policy. |
 | [log.md](log.md) | Append-only wiki activity log. |
 
 ## Sibling Repository

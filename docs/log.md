@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-16] reorganized — OKF-aligned documentation metadata
+
+Added [OKF_ADOPTION.md](OKF_ADOPTION.md) and updated [README.md](README.md), [INDEX.md](INDEX.md), [WIKI_SCHEMA.md](WIKI_SCHEMA.md), and [CANONICAL_SOURCES.md](CANONICAL_SOURCES.md) with an incremental Open Knowledge Format profile for agent-readable docs.
+
 ## [2026-06-12] created — Agent cull spec hub + GitHub backlog (#253 / #134)
 
 Added [specs/agent-assisted-cull-review/](specs/agent-assisted-cull-review/INDEX.md) (summary, worklog, issue map).
