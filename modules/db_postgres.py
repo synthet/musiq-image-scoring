@@ -313,10 +313,13 @@ class PGConnectionManager:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.conn:
-            if exc_type is None and self.commit:
-                self.conn.commit()
-            elif exc_type is not None:
-                self.conn.rollback()
+            try:
+                if exc_type is None and self.commit:
+                    self.conn.commit()
+                else:
+                    self.conn.rollback()
+            except Exception:
+                pass
             release_pg_connection(self.conn)
 
 def is_deadlock_error(exc: BaseException) -> bool:

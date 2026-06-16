@@ -43,6 +43,9 @@ def test_get_batch_image_embedding_presence_postgres(monkeypatch):
     assert res[101]["clip_vit_b32_image"] is True
     assert res[102]["mobilenet_v2_imagenet_gap"] is False
     assert res[102]["clip_vit_b32_image"] is False
+    from modules.embedding_spaces import SPACE_DIMS
+    for iid in (100, 101, 102):
+        assert set(res[iid].keys()) == set(SPACE_DIMS.keys())
 
 def test_get_batch_image_embedding_presence_firebird(monkeypatch):
     import modules.db_legacy as dbl
@@ -59,6 +62,9 @@ def test_get_batch_image_embedding_presence_firebird(monkeypatch):
     
     assert res[100]["mobilenet_v2_imagenet_gap"] is True
     assert res[101]["mobilenet_v2_imagenet_gap"] is False
+    from modules.embedding_spaces import SPACE_DIMS
+    for iid in (100, 101):
+        assert set(res[iid].keys()) == set(SPACE_DIMS.keys())
 
 def test_postgres_has_default_embedding_sql_table_only(monkeypatch):
     import modules.db_legacy as dbl

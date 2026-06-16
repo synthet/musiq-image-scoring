@@ -537,11 +537,15 @@ def execute_readonly_sql_for_api(
 
         pg_sql = _translate_fb_to_pg(sql)
         with db_postgres.PGConnectionManager() as conn:
-            conn.set_session(readonly=True)
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(pg_sql, tuple(params) if params else None)
-                rows = cur.fetchmany(max_rows)
-                return [_json_safe_api_row(dict(r)) for r in rows]
+            conn.rollback()
+            conn.set_session(readonly=True, autocommit=True)
+            try:
+                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                    cur.execute(pg_sql, tuple(params) if params else None)
+                    rows = cur.fetchmany(max_rows)
+                    return [_json_safe_api_row(dict(r)) for r in rows]
+            finally:
+                conn.set_session(readonly=False, autocommit=False)
 
     with connection() as conn:
         c = conn.cursor()
@@ -11743,13 +11747,24 @@ def remove_images_from_stack(image_ids):
             affected_stacks = [r["stack_id"] for r in aff_rows]
 
             removed_count = tx.execute(
-                f"UPDATE images SET stack_id = NULL WHERE id IN ({placeholders})", tuple(image_ids))
+                f"UPDATE images SET stack_id = NULL, sub_stack_id = NULL WHERE id IN ({placeholders})",
+                tuple(image_ids),
+            )
 
             deleted_stacks = 0
             for sid in affected_stacks:
                 cnt_row = tx.query_one("SELECT COUNT(*) AS cnt FROM images WHERE stack_id = ?", (sid,))
                 remaining = cnt_row["cnt"] if cnt_row else 0
                 if remaining == 0:
+                    tx.execute("DELETE FROM sub_stacks WHERE stack_id = ?", (sid,))
+                    tx.execute("DELETE FROM stacks WHERE id = ?", (sid,))
+                    deleted_stacks += 1
+                elif remaining == 1:
+                    tx.execute(
+                        "UPDATE images SET stack_id = NULL, sub_stack_id = NULL WHERE stack_id = ?",
+                        (sid,),
+                    )
+                    tx.execute("DELETE FROM sub_stacks WHERE stack_id = ?", (sid,))
                     tx.execute("DELETE FROM stacks WHERE id = ?", (sid,))
                     deleted_stacks += 1
                 else:
@@ -11782,6 +11797,62 @@ def remove_images_from_stack(image_ids):
     except Exception as e:
         logging.error(f"Failed to remove images from stack: {e}")
         return False, str(e)
+
+
+def normalize_stack_hierarchy(stack_id: int) -> dict:
+    """
+    Normalize degenerate stack hierarchies (singleton root, redundant single-leaf).
+
+    Returns a dict with ``action`` and ``details`` (including ``steps`` list).
+    """
+    if not stack_id:
+        return {"action": "skipped", "details": {"reason": "no_stack_id", "steps": []}}
+
+    try:
+        stats = get_connector().query_one(
+            """
+            SELECT
+                COUNT(*) AS n,
+                COUNT(DISTINCT sub_stack_id) FILTER (WHERE sub_stack_id IS NOT NULL) AS leaf_count,
+                COUNT(*) FILTER (WHERE sub_stack_id IS NOT NULL) AS with_sub
+            FROM images
+            WHERE stack_id = ?
+            """,
+            (int(stack_id),),
+        )
+        n = int((stats or {}).get("n") or 0)
+        leaf_count = int((stats or {}).get("leaf_count") or 0)
+        with_sub = int((stats or {}).get("with_sub") or 0)
+
+        if n == 0:
+            get_connector().execute("DELETE FROM stacks WHERE id = ?", (int(stack_id),))
+            event_manager.broadcast_threadsafe("stack_deleted", {"stack_id": int(stack_id)})
+            return {"action": "dissolved_empty", "details": {"steps": ["deleted_empty_stack"]}}
+
+        if n == 1:
+            def _tx(tx):
+                tx.execute(
+                    "UPDATE images SET stack_id = NULL, sub_stack_id = NULL WHERE stack_id = ?",
+                    (int(stack_id),),
+                )
+                tx.execute("DELETE FROM sub_stacks WHERE stack_id = ?", (int(stack_id),))
+                tx.execute("DELETE FROM stacks WHERE id = ?", (int(stack_id),))
+
+            get_connector().run_transaction(_tx)
+            event_manager.broadcast_threadsafe("stack_deleted", {"stack_id": int(stack_id)})
+            return {"action": "dissolved_singleton", "details": {"steps": ["dissolved_singleton"]}}
+
+        if leaf_count == 1 and with_sub == n:
+            clear_sub_stacks_for_stack_ids([int(stack_id)])
+            return {
+                "action": "normalized",
+                "details": {"steps": ["collapsed_single_leaf"]},
+            }
+
+        return {"action": "unchanged", "details": {"steps": []}}
+    except Exception as e:
+        logging.error("Failed to normalize stack hierarchy for %s: %s", stack_id, e)
+        return {"action": "failed", "details": {"error": str(e), "steps": []}}
 
 
 def dissolve_stack(stack_id):
@@ -13609,13 +13680,10 @@ def get_batch_image_embedding_presence(image_ids: list[int]) -> dict[int, dict[s
     if not image_ids:
         return {}
 
-    # Initialize results
-    results = {int(iid): {
-        "mobilenet_v2_imagenet_gap": False,
-        "clip_vit_b32_image": False,
-        "bioclip_2_image": False,
-        "blip_vit_b16_image": False
-    } for iid in image_ids}
+    from modules.embedding_spaces import SPACE_DIMS
+
+    default_flags = {code: False for code in SPACE_DIMS}
+    results = {int(iid): dict(default_flags) for iid in image_ids}
 
     try:
         engine = _get_db_engine()
@@ -13629,10 +13697,8 @@ def get_batch_image_embedding_presence(image_ids: list[int]) -> dict[int, dict[s
                 )
             except Exception:
                 spaces = [
-                    {"id": 1, "code": "mobilenet_v2_imagenet_gap", "dim": 1280},
-                    {"id": 2, "code": "clip_vit_b32_image", "dim": 512},
-                    {"id": 3, "code": "bioclip_2_image", "dim": 768},
-                    {"id": 4, "code": "blip_vit_b16_image", "dim": 768}
+                    {"id": i + 1, "code": code, "dim": dim}
+                    for i, (code, dim) in enumerate(SPACE_DIMS.items())
                 ]
 
             # Groups spaces by table dim
