@@ -2,29 +2,16 @@
 """Read-only wiki lint: orphans, broken internal links, missing index targets."""
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 
-LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from okf_bundle import LINK_RE, resolve_internal_link  # noqa: E402
+
 HUB_NAMES = ("INDEX.md", "README.md")
-SKIP_PREFIXES = ("http", "#", "mailto:", "file:")
-
-
-def resolve_link(from_file: Path, target: str, docs_root: Path) -> str | None:
-    t = target.strip()
-    if not t or any(t.startswith(p) for p in SKIP_PREFIXES):
-        return None
-    t = t.split("#")[0]
-    if not t or t.endswith("/"):
-        return None
-    resolved = (from_file.parent / t).resolve()
-    try:
-        return resolved.relative_to(docs_root.resolve()).as_posix()
-    except ValueError:
-        return None
-
-
 def lint_docs(docs_root: Path) -> dict:
     docs_root = docs_root.resolve()
     all_md = {p.relative_to(docs_root).as_posix() for p in docs_root.rglob("*.md")}
@@ -34,7 +21,7 @@ def lint_docs(docs_root: Path) -> dict:
     for hub in hubs:
         text = hub.read_text(encoding="utf-8", errors="replace")
         for m in LINK_RE.finditer(text):
-            rel = resolve_link(hub, m.group(1), docs_root)
+            rel = resolve_internal_link(hub, m.group(1), docs_root)
             if rel:
                 indexed.add(rel)
 
@@ -47,7 +34,7 @@ def lint_docs(docs_root: Path) -> dict:
         text = p.read_text(encoding="utf-8", errors="replace")
         for m in LINK_RE.finditer(text):
             raw = m.group(1).strip()
-            rel = resolve_link(p, raw, docs_root)
+            rel = resolve_internal_link(p, raw, docs_root)
             if rel is None:
                 continue
             if rel in all_md and rel != md:

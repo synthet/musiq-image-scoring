@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.7.0] - 2026-06-16
+
+### Added
+
+- **OKF bundle lint tooling**: `scripts/okf_bundle.py`, `scripts/okf_lint.py`, and `scripts/wiki_lint.py` validate Open Knowledge Format frontmatter, `resource` paths, and internal links for backend and sibling gallery `docs/` trees (`minimal` and `vexlum` profiles).
+- **OKF CI gate**: `.github/workflows/docs-lint.yml` runs linter unit tests, full gallery bundle lint, and `scripts/ci/okf_lint_changed.py` for changed backend docs on PR/push.
+
+### Changed
+
+- **OKF adoption docs**: `docs/OKF_ADOPTION.md` links the official Google OKF SPEC, documents Vexlum profile deviations, linter commands, and CI behavior; `docs/TESTING.md` and wiki `/wiki-lint` commands updated accordingly.
+
 ## [8.6.0] - 2026-06-15
 
 ### Added

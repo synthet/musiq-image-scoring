@@ -88,8 +88,71 @@ Prefer these type values unless a page needs a more specific one:
 ## Migration policy
 
 - **Do now:** add frontmatter to edited living docs, keep hubs thin, and strengthen links to canonical sources.
-- **Do later:** add a small docs linter check that validates parseable frontmatter and a non-empty `type` on living docs.
+- **Implemented:** automated OKF lint via `scripts/okf_lint.py` and combined `scripts/wiki_lint.py` (see [Automated lint](#automated-lint) below).
 - **Avoid:** bulk-editing archived snapshots, changing URL-stable filenames without redirects, or duplicating canonical technical content in indexes.
+
+## Official OKF reference
+
+OKF v0.1 is specified in the [Google knowledge-catalog repository](https://github.com/GoogleCloudPlatform/knowledge-catalog/):
+
+- [OKF SPEC v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) — conformance rules, reserved filenames, cross-linking.
+- [OKF README](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/README.md) — format goals and reference producer/consumer tooling.
+
+This repo does **not** depend on Google's `enrichment-agent` package. We adopt the spec and local lint tooling only.
+
+## Vexlum profile vs OKF v0.1
+
+| Topic | OKF v0.1 spec | Vexlum local profile |
+|---|---|---|
+| Required frontmatter | `type` only | `type`, `title`, `description`, `resource`, `tags`, `timestamp` (`vexlum` lint profile) |
+| Hub / index files | Lowercase `index.md`, no frontmatter | Uppercase `INDEX.md` / `README.md` with frontmatter for agent routing |
+| `resource` field | Canonical URI for underlying asset | Repo-relative path under `docs/` (also accepts `docs/<path>` for gallery parity) |
+| `okf_version` | Optional on bundle-root `index.md` only | Recommended on materially updated concept pages |
+| Activity log | Optional `log.md` | Required append-only [`log.md`](log.md); **no** frontmatter on log files |
+| Archive snapshots | Not specified | Excluded from lint via `--exclude-prefix archive/` |
+
+## Citations (OKF §8)
+
+Reports and audits that cite external sources should add a `# Citations` section at the bottom of the page:
+
+```markdown
+# Citations
+
+[1] [OKF SPEC v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+```
+
+## Automated lint
+
+From repo root (WSL or Windows Python with PyYAML):
+
+```bash
+# Backend docs — Vexlum profile (default); skip archived snapshots
+python scripts/okf_lint.py --profile vexlum --exclude-prefix archive/
+
+# OKF v0.1 minimal conformance (type + parseable frontmatter only)
+python scripts/okf_lint.py --profile minimal --exclude-prefix archive/
+
+# Sibling gallery bundle (from backend clone)
+python scripts/okf_lint.py ../image-scoring-gallery/docs --profile vexlum --bundle-name docs
+
+# Structural orphans/links + OKF metadata
+python scripts/wiki_lint.py --exclude-prefix archive/
+
+# CI-friendly JSON + non-zero exit on errors
+python scripts/okf_lint.py --json --fail-on error --exclude-prefix archive/
+```
+
+Expect many `vexlum` warnings on backend living docs until they are touched opportunistically; archive paths are skipped by default.
+
+### Continuous integration
+
+GitHub Actions (backend [`.github/workflows/docs-lint.yml`](../.github/workflows/docs-lint.yml)):
+
+- `pytest tests/test_okf_lint.py` — linter unit tests
+- Full **gallery** bundle lint (checked out as sibling in the job)
+- **Backend** changed-files lint via `scripts/ci/okf_lint_changed.py` (PR/push diffs only; does not block on legacy debt)
+
+Gallery [`.github/workflows/test-and-contract.yml`](https://github.com/synthet/image-scoring-gallery/blob/main/.github/workflows/test-and-contract.yml) clones backend and runs full OKF lint on `docs/`.
 
 ## Agent workflow
 

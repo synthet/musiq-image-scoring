@@ -32,7 +32,11 @@ Verified patterns from [AGENTS.md](../AGENTS.md), [.agent/INFRA_QUICKSTART.md](I
 
 ## Docs / wiki
 
-- Authority: [docs/CANONICAL_SOURCES.md](../docs/CANONICAL_SOURCES.md), [docs/WIKI_SCHEMA.md](../docs/WIKI_SCHEMA.md)
+- Authority: [docs/CANONICAL_SOURCES.md](../docs/CANONICAL_SOURCES.md), [docs/WIKI_SCHEMA.md](../docs/WIKI_SCHEMA.md), [docs/OKF_ADOPTION.md](../docs/OKF_ADOPTION.md)
+- OKF lint: `python scripts/okf_lint.py --profile vexlum --exclude-prefix archive/`
+- OKF changed docs (CI): `python scripts/ci/okf_lint_changed.py --base origin/main --fail-on error`
+- Combined wiki lint: `python scripts/wiki_lint.py --exclude-prefix archive/`
+- Gallery docs (sibling): `python scripts/okf_lint.py ../image-scoring-gallery/docs --profile vexlum`
 - Slash commands: `/wiki-ingest`, `/wiki-lint`, `/wiki-query` (see `.cursor/commands/`)
 - Skill: `.cursor/skills/docs-wiki/SKILL.md`
 - After substantive doc moves: append [docs/log.md](../docs/log.md)

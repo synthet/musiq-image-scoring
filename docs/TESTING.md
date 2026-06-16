@@ -40,3 +40,15 @@ For API, schema, or phase terminology changes, run backend checks first, then ga
 
 - Backend: fast pytest subset above, plus doctor when config, database, pgvector, or environment behavior changed.
 - Gallery: `npm run doctor`, `npx tsc --noEmit`, `npx tsc -p electron/tsconfig.json --noEmit`, and targeted Vitest files for touched API/DB/renderer paths.
+
+### OKF docs lint (CI and local)
+
+From **image-scoring-backend** repo root:
+
+```bash
+python -m pytest tests/test_okf_lint.py -q
+python scripts/okf_lint.py ../image-scoring-gallery/docs --profile vexlum --bundle-name docs --fail-on error
+python scripts/ci/okf_lint_changed.py --base origin/main --profile vexlum --fail-on error
+```
+
+CI: [`.github/workflows/docs-lint.yml`](../.github/workflows/docs-lint.yml) (backend) and gallery `test-and-contract.yml`. See [OKF_ADOPTION.md](OKF_ADOPTION.md).

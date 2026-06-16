@@ -6,6 +6,14 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-16] created — OKF lint in GitHub Actions
+
+Wired OKF bundle lint into [`.github/workflows/docs-lint.yml`](../.github/workflows/docs-lint.yml): pytest `tests/test_okf_lint.py`, full gallery bundle lint, and `scripts/ci/okf_lint_changed.py` for PR/push diffs. Gallery `test-and-contract.yml` runs full OKF lint via cloned backend. Documented in [OKF_ADOPTION.md](OKF_ADOPTION.md) and [TESTING.md](TESTING.md).
+
+## [2026-06-16] created — OKF automated lint tooling
+
+Added `scripts/okf_bundle.py`, `scripts/okf_lint.py`, and `scripts/wiki_lint.py`; tests in `tests/test_okf_lint.py`. Expanded [OKF_ADOPTION.md](OKF_ADOPTION.md) with official SPEC links, Vexlum deviation table, and lint commands. Updated `/wiki-lint` commands and docs-wiki skill.
+
 ## [2026-06-16] reorganized — OKF-aligned documentation metadata
 
 Added [OKF_ADOPTION.md](OKF_ADOPTION.md) and updated [README.md](README.md), [INDEX.md](INDEX.md), [WIKI_SCHEMA.md](WIKI_SCHEMA.md), and [CANONICAL_SOURCES.md](CANONICAL_SOURCES.md) with an incremental Open Knowledge Format profile for agent-readable docs.

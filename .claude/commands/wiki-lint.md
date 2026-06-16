@@ -10,6 +10,12 @@ Read `docs/OKF_ADOPTION.md` and `docs/WIKI_SCHEMA.md` for the OKF frontmatter pr
 
 ## Steps
 
+0. **Run automated lint** (from repo root):
+   - `python scripts/okf_lint.py --profile vexlum --exclude-prefix archive/`
+   - Optional combined structural scan: `python scripts/wiki_lint.py --exclude-prefix archive/`
+   - Gallery sibling: `python scripts/okf_lint.py ../image-scoring-gallery/docs --profile vexlum`
+   Use findings as the starting point for manual review below.
+
 1. **Scan all INDEX.md files** — build a list of every page referenced in indexes.
 2. **Scan all .md files in `docs/`** — build a list of every page that exists on disk and note which living docs lack OKF frontmatter or a non-empty `type`.
 3. **Compare** to find:
