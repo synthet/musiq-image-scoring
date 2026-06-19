@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-19] updated — bump LLM judge example model ID
+
+Updated `MODEL_RECOMMENDATIONS_PIPELINES.md` Claude LLM-judge example from `claude-opus-4-7` to `claude-opus-4-8` (current Opus-tier default as of June 2026).
+
 ## [2026-06-16] created — OKF lint in GitHub Actions
 
 Wired OKF bundle lint into [`.github/workflows/docs-lint.yml`](../.github/workflows/docs-lint.yml): pytest `tests/test_okf_lint.py`, full gallery bundle lint, and `scripts/ci/okf_lint_changed.py` for PR/push diffs. Gallery `test-and-contract.yml` runs full OKF lint via cloned backend. Documented in [OKF_ADOPTION.md](OKF_ADOPTION.md) and [TESTING.md](TESTING.md).

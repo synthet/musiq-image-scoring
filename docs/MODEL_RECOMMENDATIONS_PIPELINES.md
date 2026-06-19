@@ -41,7 +41,7 @@ What the codebase runs **today** (see [`config.example.json`](../config.example.
 | **TOPIQ-NR** | PyTorch (`pyiqa` `topiq_nr`) | pyiqa pretrained | **On** (fused) | No-reference technical quality |
 | **QPT-V2** | PyTorch | `models/qpt_v2.pth` | **Shadow only** | Experimental unified quality+aesthetic |
 | **Cursor** (LLM judge) | API | e.g. `composer-2.5` | **Off** | Optional editorial judgment |
-| **Claude** (LLM judge) | API | e.g. `claude-opus-4-7` | **Off** | Optional editorial judgment |
+| **Claude** (LLM judge) | API | e.g. `claude-opus-4-8` | **Off** | Optional editorial judgment |
 
 **Fusion** (`scoring.fusion` in example): `general` = LIQE + AVA + SPAQ; `technical` = LIQE; `aesthetic` = AVA + SPAQ.
 
