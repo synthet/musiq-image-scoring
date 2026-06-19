@@ -11,18 +11,22 @@ Use when the user has approved a plan or given a small, explicit task.
 
 ## Steps
 
-1. Implement in **minimal diffs**; match existing style.
-2. Add or update tests when behavior changes.
+1. **Write failing test stubs** from the plan's "Failing test stubs" section; run them and confirm they fail.
+2. **Implement** in minimal diffs, matching existing style, until the stubs pass.
 3. Run **lint** and **tests** from AGENTS.md; fix failures.
 4. Summarize what changed and where.
 
 ## Done when
 
+- Test stubs were written and confirmed failing before implementation began.
 - All agreed items are implemented.
-- Lint and tests pass (or failures are explained with next steps).
+- Tests pass after implementation.
+- Lint passes (or failures explained with next steps).
 
 ## Checklist
 
+- [ ] Test stubs written and failing before implementation began
+- [ ] Tests pass after implementation
 - [ ] No unrelated refactors
 - [ ] No secrets committed
 - [ ] AGENTS.md commands run (or documented why not)

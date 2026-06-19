@@ -18,7 +18,7 @@ Use when starting non-trivial work. Produce a **spec** the team can review befor
 
 ## Done when
 
-- Criteria are testable without interpreting intent.
+- Every acceptance criterion is directly translatable to a runnable test assertion without interpretation.
 - Non-goals prevent scope creep.
 
 ## Optional

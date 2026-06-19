@@ -50,6 +50,12 @@ Markdown with fixed H2 sections (order matters for parsing):
 
 Bullet lines use `- ` prefix. Empty section: `- (none yet)`.
 
+Memory items may carry an inline staleness date suffix: `(updated: YYYY-MM-DD)`.
+The consolidation pipeline strips this suffix before normalizing/deduplicating
+text, and re-emits it after merge to track when each item was last confirmed.
+Items whose date is older than `staleness_threshold_days` (config.json) appear in
+the `## Stale / needs re-verification` section of the dream changelog.
+
 ## Dream proposal (`dreams/*.md`)
 
 YAML front matter between `---` delimiters:

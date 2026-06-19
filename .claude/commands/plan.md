@@ -14,13 +14,13 @@ Use after a spec exists (or for small tasks, a verbal agreement). Prefer **plan 
 1. **Goal** — What “done” means.
 2. **Files / areas to touch** — Paths or components.
 3. **Approach** — Steps in order; call out risky changes.
-4. **Tests** — What to run or add (map to AGENTS.md commands).
+4. **Failing test stubs to write BEFORE touching implementation** — Specific test names, files, and assertions that must be written first and confirmed failing.
 5. **Rollback / flags** — If feature-flagged or migratory.
 
 ## Done when
 
 - Another developer could execute the plan without guessing.
-- Test plan matches project conventions.
+- Failing test stubs are identified and ready to write before implementation begins.
 
 ## Note
 

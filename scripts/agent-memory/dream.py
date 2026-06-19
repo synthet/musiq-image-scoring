@@ -19,11 +19,21 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Generate dream memory proposal")
     parser.add_argument("--repo-root", type=Path, default=None)
     parser.add_argument("--max-sessions", type=int, default=None)
+    parser.add_argument(
+        "--staleness-days",
+        type=int,
+        default=None,
+        help="Override staleness_threshold_days from config.json",
+    )
     args = parser.parse_args()
 
     repo = args.repo_root or find_repo_root()
     try:
-        dream_path, changelog_path = run_dream(repo, max_sessions=args.max_sessions)
+        dream_path, changelog_path = run_dream(
+            repo,
+            max_sessions=args.max_sessions,
+            staleness_days=args.staleness_days,
+        )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 1
