@@ -11350,11 +11350,15 @@ def clear_cluster_progress():
             logging.debug(f"[Force Rescan - All Folders] Resetting culling phase for image {image_id} from running to done")
             set_image_phase_status(image_id, "culling", "done")
 
-        # Now clear stacks
+        # Now clear stacks. burst_uuid is cleared alongside stack_id because
+        # visual clustering writes a synthetic uuid4 into it (clustering.py);
+        # leaving it would make the burst pre-grouping path re-impose the old
+        # grouping on the next run and bypass the configured threshold/time_gap.
+        # Genuine camera (Apple) BurstUUIDs are re-read from metadata/EXIF.
         def _tx(tx):
             tx.execute("DELETE FROM cluster_progress")
             tx.execute("DELETE FROM stacks")
-            tx.execute("UPDATE images SET stack_id = NULL")
+            tx.execute("UPDATE images SET stack_id = NULL, burst_uuid = NULL")
         get_connector().run_transaction(_tx)
     except Exception as e:
         logging.error(f"Failed to clear cluster progress: {e}")
@@ -11399,10 +11403,17 @@ def clear_stacks_in_folder(folder_path):
                 tx.execute("DELETE FROM cluster_progress WHERE folder_path = ?", (folder_path,))
                 return 0, 0, []
 
+            # Also clear burst_uuid: visual clustering stamps each stack's images
+            # with a synthetic uuid4 (clustering.py) that the burst pre-grouping
+            # path reads back on the next run, freezing the old grouping and
+            # bypassing the configured threshold/time_gap. A force rescan must
+            # discard those synthetic ids so images re-cluster visually. Genuine
+            # camera (Apple) BurstUUIDs are re-read from metadata/EXIF, so this
+            # does not lose real burst grouping.
             if folder_row:
-                updated_count = tx.execute("UPDATE images SET stack_id = NULL WHERE folder_id = ?", (folder_row["id"],))
+                updated_count = tx.execute("UPDATE images SET stack_id = NULL, burst_uuid = NULL WHERE folder_id = ?", (folder_row["id"],))
             else:
-                updated_count = tx.execute("UPDATE images SET stack_id = NULL WHERE file_path LIKE ?", (folder_path + '%',))
+                updated_count = tx.execute("UPDATE images SET stack_id = NULL, burst_uuid = NULL WHERE file_path LIKE ?", (folder_path + '%',))
 
             deleted_stacks = 0
             for sid in affected_stacks:
