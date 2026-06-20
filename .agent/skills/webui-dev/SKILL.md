@@ -36,4 +36,4 @@ The WebUI interacts with the database via `modules/db.py`.
 
 - **Console Logs**: Check the terminal running `webui.py` for errors.
 - **Gradio Debug**: Use `debug=True` in `launch()` for detailed traceback.
-- **MCP Tools**: **`scoring`** (stdio), **`webui`** (SSE / `execute_code`). Gallery adds **`gallery`**. Optional backend-only: **`postgres`**, **`playwright`**, **`chrome`**.
+- **MCP Tools**: **`is-be-mcp`** (stdio — `search` / `dispatch`, including **`browser.*`** Playwright actions). Optional **`is-be-live`** SSE (`execute_code` when enabled). Gallery: **`is-ui-mcp`**. Legacy debug profiles: **`is-be-diag`**, **`is-be-jobs`**, etc.

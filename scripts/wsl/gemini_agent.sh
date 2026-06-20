@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
-# Bridge WSL backend WebUI -> Windows Gemini CLI (npm global on the Windows host).
-# Point culling.agent_review.agent.command at this script when run_webui.bat is used.
+# Bridge WSL/Docker backend WebUI -> Gemini CLI.
+# - Docker (DOCKER_CONTAINER=1): gemini on PATH inside the image.
+# - WSL + run_webui.bat: forward to Windows npm global via cmd.exe.
+# Point culling.agent_review.agent.command at this script (WSL: /mnt/d/.../gemini_agent.sh; Docker: /app/scripts/wsl/gemini_agent.sh).
 set -euo pipefail
+
+if [[ -n "${DOCKER_CONTAINER:-}" ]]; then
+  exec gemini "$@"
+fi
 
 CMD="/mnt/c/Windows/System32/cmd.exe"
 if [[ ! -f "$CMD" ]]; then

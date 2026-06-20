@@ -78,23 +78,34 @@ python scripts/agent-memory/context.py
 
 Prints a compact block (respects `max_context_chars` in `config.json`). Paste into chat or `@.agent-memory/memory.md`.
 
+## 5. Import Cursor transcripts (v2)
+
+Mine local chat history into staging (and optional raw-sessions):
+
+```powershell
+python scripts/agent-memory/import_transcripts.py --dry-run --cursor-projects "$env:USERPROFILE\.cursor\projects"
+python scripts/agent-memory/import_transcripts.py --write-sessions --repo image-scoring-backend --cursor-projects "$env:USERPROFILE\.cursor\projects"
+```
+
+Review `.agent/scratch/transcript-mining/<repo>/REVIEW.md` before promoting. Slash command: `/import-transcripts`.
+
 ## Safety
 
 - Scripts **reject** content that matches secret patterns (API keys, Bearer tokens, PEM, etc.).
 - Do not log `secrets.json`, `.env`, passwords, or personal image library paths unless necessary (prefer redaction).
 - Never edit `memory.md` by hand during a session; use log → dream → promote.
 
-## Limitations (v1)
+## Limitations
 
-- Does not auto-import Cursor `agent-transcripts`; sessions must be logged explicitly.
 - Consolidation merges structured `memory_candidates` deterministically (no LLM inside scripts).
+- Transcript import uses heuristic keyword rules; human review required before promote.
 - `raw-sessions/` and `dreams/` are gitignored; only approved `memory.md` and docs are shared by default.
-- No automatic sync with image-scoring-gallery.
+- Cross-repo lessons use per-repo `docs/LESSONS_LEARNED.md` (not synced into backend `memory.md`).
 
 ## Reference
 
 - Format: [schema.md](schema.md)
 - Config: [config.json](config.json)
-- Slash commands: `/log-session`, `/dream-memory`, `/promote-memory`, `/memory-context`
+- Slash commands: `/log-session`, `/dream-memory`, `/promote-memory`, `/memory-context`, `/import-transcripts`
 - Skill: `.cursor/skills/agent-memory/SKILL.md`
 - Hub doc: [docs/technical/AGENT_MEMORY.md](../docs/technical/AGENT_MEMORY.md)

@@ -12,6 +12,7 @@ Local consolidation for **image-scoring-backend** — external artifacts only (n
 - **Session start:** Read `.agent-memory/memory.md`; prefer repo evidence on conflict.
 - **Session end / milestone:** Log durable learnings with `/log-session`.
 - **Periodic:** Run `/dream-memory`, review changelog, `/promote-memory` after human approval.
+- **Bulk history:** `/import-transcripts` to mine local Cursor JSONL into staging.
 
 ## Memory candidates
 
@@ -33,10 +34,19 @@ Confidence: `low`, `medium`, `high`.
 
 ```powershell
 python scripts/agent-memory/log_session.py --summary "..." --outcome "..." --candidate "text|working_rule|high"
+python scripts/agent-memory/import_transcripts.py --dry-run --cursor-projects "$env:USERPROFILE\.cursor\projects"
 python scripts/agent-memory/dream.py
 python scripts/agent-memory/promote_dream.py --dream .agent-memory/dreams/<timestamp>.md
 python scripts/agent-memory/context.py
 ```
+
+## Transcript import (v2)
+
+- Slash command: `/import-transcripts`
+- Config: `scripts/transcript_mining/workspace_map.json`, `repo_profiles.json`
+- Staging: `.agent/scratch/transcript-mining/<repo>/REVIEW.md` (gitignored)
+- Tier A: `--write-sessions` → `dream.py` → human promote; Tier B/C: `docs/LESSONS_LEARNED.md`
+- See [docs/technical/AGENT_MEMORY.md](../../docs/technical/AGENT_MEMORY.md) § v2
 
 ## Dream review checklist
 
@@ -49,10 +59,10 @@ python scripts/agent-memory/context.py
 
 Two memory stores coexist; keep them in their lanes:
 
-- **`.agent-memory/memory.md` (this skill)** — team-shared, committed, repo-scoped, review-gated. Durable project facts useful to *any* agent or human. This is the source of truth that ships in the repo.
-- **Claude Code native `~/.claude/.../memory/MEMORY.md`** — private to this machine/account, auto-loaded each session, holds personal recall and in-flight context.
+- **`.agent-memory/memory.md` (this skill)** — team-shared, committed, repo-scoped, review-gated.
+- **Claude Code native `~/.claude/.../memory/MEMORY.md`** — private, auto-loaded, personal recall.
 
-Rule of thumb: if a learning belongs to the project, route it here via `/log-session` → `/dream-memory` → `/promote-memory`. If it is personal/ephemeral, leave it in native memory. When they conflict, committed `.agent-memory/memory.md` and live repo evidence win.
+When they conflict, committed `.agent-memory/memory.md` and live repo evidence win.
 
 ## Safety
 

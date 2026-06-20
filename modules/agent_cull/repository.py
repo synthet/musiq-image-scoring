@@ -126,6 +126,13 @@ def insert_recommendation(
     return int(rows[0]["id"])
 
 
+def get_review_group(group_id: int) -> dict[str, Any] | None:
+    return db.get_connector().query_one(
+        "SELECT * FROM agent_cull_review_groups WHERE id = ?",
+        (group_id,),
+    )
+
+
 def get_latest_group_for_unit(review_unit_key: str) -> dict[str, Any] | None:
     return db.get_connector().query_one(
         """

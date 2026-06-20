@@ -138,6 +138,68 @@ def _row_has_model_score(row: dict[str, Any], model_name: str) -> bool:
     return _model_score_normalized((row.get("model_scores") or {}).get(model_name)) is not None
 
 
+def _outlier_z_from_mean_sim(mean_sim_by_id: dict[int, float]) -> dict[int, float]:
+    """Per-image embedding outlier z-score from per-image mean cosine similarity.
+
+    Higher z = the image is *more dissimilar* to its unit siblings (i.e. more
+    visually unique). The ``block_embedding_outliers`` safety gate blocks removal
+    when ``z >= outlier_z_threshold``. Pure + side-effect-free for unit testing.
+    Needs at least 3 members for a meaningful spread; returns ``{}`` otherwise.
+    """
+    if len(mean_sim_by_id) < 3:
+        return {}
+    ids = list(mean_sim_by_id)
+    sims = [mean_sim_by_id[i] for i in ids]
+    mu = mean(sims)
+    sigma = pstdev(sims)
+    if sigma == 0:
+        return {i: 0.0 for i in ids}
+    return {i: (mu - mean_sim_by_id[i]) / sigma for i in ids}
+
+
+def _fetch_unit_mean_cosine(image_ids: list[int]) -> dict[int, float]:
+    """Per-image mean cosine similarity to the other unit members (default space).
+
+    Best-effort: returns ``{}`` when there is no Postgres connector, no default
+    embedding space, fewer than 3 members, or any query error — so packet build
+    never hard-fails and the outlier gate simply stays inert without data.
+    """
+    if len(image_ids) < 3:
+        return {}
+    try:
+        from modules import db
+        from modules.culling_analytics.embeddings import get_default_embedding_space_id
+
+        space_id = get_default_embedding_space_id()
+        if space_id is None:
+            return {}
+        placeholders = ",".join("?" * len(image_ids))
+        rows = db.get_connector().query(
+            f"""
+            SELECT a.image_id AS image_id,
+                   AVG(1 - (a.embedding <=> b.embedding)) AS mean_sim
+            FROM image_embeddings a
+            JOIN image_embeddings b
+              ON a.embedding_space_id = b.embedding_space_id
+             AND a.image_id <> b.image_id
+            WHERE a.embedding_space_id = ?
+              AND a.image_id IN ({placeholders})
+              AND b.image_id IN ({placeholders})
+            GROUP BY a.image_id
+            """,
+            (space_id, *image_ids, *image_ids),
+        ) or []
+        out: dict[int, float] = {}
+        for r in rows:
+            val = _safe_float(r.get("mean_sim"))
+            if val is not None:
+                out[int(r["image_id"])] = val
+        return out
+    except Exception:
+        logger.debug("agent cull embedding outlier fetch failed", exc_info=True)
+        return {}
+
+
 def enrich_unit_rows(rows_by_id: dict[int, dict[str, Any]], cfg: AgentCullConfig) -> list[str]:
     """Attach model_scores to rows; optionally JIT clip_quality_v0. Returns advisory warnings."""
     warnings: list[str] = []
@@ -170,6 +232,18 @@ def enrich_unit_rows(rows_by_id: dict[int, dict[str, Any]], cfg: AgentCullConfig
             except Exception as exc:
                 logger.warning("agent cull jit clip_quality failed: %s", exc)
                 warnings.append(f"jit_clip_quality_failed:{exc}")
+
+    # Embedding outlier z-score (per-image dissimilarity vs unit siblings). Only
+    # compute when not already supplied and the outlier gate is active, so packet
+    # build stays cheap. Best-effort — leaves the field unset when unavailable.
+    if cfg.local_gates.block_embedding_outliers and not any(
+        row.get("embedding_outlier_z") is not None for row in rows_by_id.values()
+    ):
+        outlier_z = _outlier_z_from_mean_sim(_fetch_unit_mean_cosine(list(rows_by_id)))
+        for iid, z in outlier_z.items():
+            row = rows_by_id.get(iid)
+            if row is not None:
+                row["embedding_outlier_z"] = z
 
     for name in cfg.agent.required_score_names:
         for iid, row in rows_by_id.items():

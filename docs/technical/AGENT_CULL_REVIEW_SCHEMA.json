@@ -36,6 +36,15 @@
       "type": "string",
       "maxLength": 4000
     },
+    "vision_used": {
+      "type": "boolean"
+    },
+    "viewed_image_ids": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    },
     "rejected_image_decisions": {
       "type": "array",
       "items": {

@@ -1,12 +1,15 @@
 {
 	"folders": [
 		{
+			"name": "image-scoring-backend",
 			"path": "."
 		},
 		{
+			"name": "image-scoring-gallery",
 			"path": "../image-scoring-gallery"
 		},
 		{
+			"name": "image-scoring-ui",
 			"path": "../image-scoring-ui"
 		}
 	],

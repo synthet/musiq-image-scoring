@@ -35,9 +35,34 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--json", action="store_true", dest="json_out")
     parser.add_argument("--no-thumbnails", action="store_true")
+    parser.add_argument("--prompt-version", dest="prompt_version")
+    parser.add_argument(
+        "--mode-profile",
+        choices=[
+            "baseline_v2",
+            "vision_strict",
+            "score_first",
+            "technical_focus",
+            "clip_gate",
+            "metadata_only",
+        ],
+    )
     args = parser.parse_args(argv)
 
     cfg = load_agent_cull_config()
+    if args.mode_profile:
+        from dataclasses import replace
+
+        from modules.agent_cull.mode_profiles import apply_mode_profile
+
+        cfg = apply_mode_profile(cfg, args.mode_profile)
+    if args.prompt_version:
+        from dataclasses import replace
+
+        cfg = replace(
+            cfg,
+            agent=replace(cfg.agent, prompt_template_version=args.prompt_version),
+        )
     if args.no_thumbnails:
         from dataclasses import replace
 

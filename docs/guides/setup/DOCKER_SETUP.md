@@ -147,6 +147,8 @@ docker compose down        # stops and removes the container (data is safe)
 docker compose build && docker compose up
 ```
 
+**Windows:** `docker_refresh_webui.bat` rebuilds the frontend SPA, runs `docker compose build webui`, recreates the container, and verifies agent-cull Gemini setup (`.env` / `GEMINI_CONFIG_SOURCE`). See [agent-cull-review-gemini-cli.md](agent-cull-review-gemini-cli.md).
+
 ### Updating Python code without rebuilding
 
 The project root is live-mounted into the container (`.:/app`). Python source changes take effect on the next `docker compose restart webui` — no rebuild needed.
@@ -175,6 +177,8 @@ These are set in `docker-compose.yml` and control the container's behaviour:
 | Variable | Value | Purpose |
 |---|---|---|
 | `PHOTOS_BIND_SOURCE` | Optional; e.g. `D:/Photos` (Compose `.env`, not `config.json`) | **Host** folder bound to `/mnt/d/Photos` in `webui`; required for correct **New Run** paths on Docker Desktop for Windows |
+| `GEMINI_CONFIG_SOURCE` | Optional; e.g. `C:/Users/you/.gemini` (Compose `.env`) | Host Gemini CLI OAuth dir mounted to `/root/.gemini` for [agent cull review](agent-cull-review-gemini-cli.md) |
+| `GEMINI_CLI_TRUST_WORKSPACE` | `true` in `docker-compose.yml` | Allows headless Gemini CLI in the `webui` container |
 | `FIREBIRD_WIN_DB_PATH` | e.g. `/app/SCORING_HISTORY.FDB` (see `docker-compose.yml`) | Host path to the FDB file when using Firebird from the container |
 | `FIREBIRD_CLIENT_LIBRARY` | `/app/FirebirdLinux/.../libfbclient.so` | Path to the bundled Linux Firebird client library |
 | `DOCKER_CONTAINER` | `1` | Tells the app it is running inside Docker |

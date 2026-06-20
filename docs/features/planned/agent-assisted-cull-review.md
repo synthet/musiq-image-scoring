@@ -120,6 +120,8 @@ All must hold:
 
 See [`config.example.json`](../../../config.example.json) → `culling.agent_review`. Full reference: [spec summary](../../specs/agent-assisted-cull-review/summary.md).
 
+**Gemini CLI:** [setup guide](../../guides/setup/agent-cull-review-gemini-cli.md) — Docker vs WSL vs Windows `agent.command` paths; `GEMINI_CONFIG_SOURCE` in Compose `.env`.
+
 
 
 ## JSON schema
@@ -159,5 +161,7 @@ See [`config.example.json`](../../../config.example.json) → `culling.agent_rev
 - [CULLING_ANALYTICS.md](../../technical/CULLING_ANALYTICS.md)
 
 - [AGENT_COORDINATION.md](../../technical/AGENT_COORDINATION.md)
+
+- [Agent cull review — Gemini CLI setup](../../guides/setup/agent-cull-review-gemini-cli.md)
 
 

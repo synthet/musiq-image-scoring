@@ -159,6 +159,8 @@ def load_unit_rows(unit: ReviewUnit, folder_id: int | None = None) -> dict[int, 
             i.id, i.pick_status, i.cull_decision, i.file_path, i.file_name, i.file_type,
             i.thumbnail_path, i.thumbnail_path_win,
             i.score_general, i.score_technical, i.score_aesthetic, i.score,
+            tf.blur, tf.overexposed, tf.underexposed,
+            ex.make, ex.model, ex.lens_model, ex.date_time_original, ex.orientation,
             COALESCE(
                 (SELECT string_agg(kd.keyword_display, ', ' ORDER BY kd.keyword_display)
                  FROM image_keywords ik
@@ -168,6 +170,8 @@ def load_unit_rows(unit: ReviewUnit, folder_id: int | None = None) -> dict[int, 
                 ''
             ) AS keywords
         FROM images i
+        LEFT JOIN image_technical_failures tf ON tf.image_id = i.id
+        LEFT JOIN image_exif ex ON ex.image_id = i.id
         WHERE i.stack_id = ?
         {sub_sql}
         {folder_sql}

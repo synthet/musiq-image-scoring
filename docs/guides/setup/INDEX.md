@@ -6,6 +6,13 @@
 |----------|-------------|
 | [DOCKER_SETUP.md](DOCKER_SETUP.md) | Docker installation (WSL2) + running the app |
 
+## Agent / IDE
+
+| Document | Description |
+|----------|-------------|
+| [mcp-compact-servers.md](mcp-compact-servers.md) | Unified Node MCP setup (is-be-mcp / is-ui-mcp), sse_status, multi-root Cursor |
+| [agent-cull-review-gemini-cli.md](agent-cull-review-gemini-cli.md) | Gemini CLI + Docker/WSL paths for agent-assisted cull review |
+
 ## GPU & CUDA
 
 | Document | Description |

@@ -1,25 +1,53 @@
+---
+type: Technical Reference
+title: MCP search + dispatch contract
+description: Compact search and dispatch workflow for is-be-mcp and is-ui-mcp, including sse_status and optional SSE proxy keys.
+resource: docs/technical/MCP_SEARCH_DISPATCH.md
+tags: [mcp, agents, api]
+timestamp: 2026-06-20T00:00:00Z
+okf_version: 0.1
+---
+
 # MCP search + dispatch contract
 
-**Authority:** Action registry [`mcp/action_registry.json`](../../mcp/action_registry.json), overlay [`mcp/actions/overlay.yaml`](../../mcp/actions/overlay.yaml). Planning: [`docs/planning/mcp-search-dispatch.md`](../planning/mcp-search-dispatch.md).
+**Authority:** Action registry [`mcp/action_registry.json`](../../mcp/action_registry.json), overlay [`mcp/actions/overlay.yaml`](../../mcp/actions/overlay.yaml). Setup: [guides/setup/mcp-compact-servers.md](../guides/setup/mcp-compact-servers.md). Planning: [planning/mcp-search-dispatch.md](../planning/mcp-search-dispatch.md).
 
 ## Preferred agent entry point
 
-| Server | Tools | Use |
-|--------|-------|-----|
-| **`is-be-mcp`** | **`search`**, **`dispatch`** | **Default** — compact stdio |
-| **`is-be-webui`** | **`search`**, **`dispatch`** | **Default SSE** when WebUI is running (same registry as `is-be-mcp`) |
+| Server | Tools | Transport | Use |
+|--------|-------|-----------|-----|
+| **`is-be-mcp`** | **`search`**, **`dispatch`**, **`sse_status`** | Node stdio → Python worker | **Default backend** — always loads |
+| **`is-be-live`** | **`search`**, **`dispatch`** | SSE when WebUI running | Optional direct attach; same registry |
+| **`is-ui-mcp`** | **`search`**, **`dispatch`**, **`sse_status`** | Node stdio | **Default gallery** — always loads |
+| **`is-ui-live`** | live IPC + CDP via dispatch | SSE when Electron running | Optional direct attach |
 
-Set **`MCP_SSE_PROFILE=full`** (or `legacy`) on the WebUI process to restore the legacy ~54-tool SSE surface during migration.
+Set **`MCP_SSE_PROFILE=full`** on the WebUI process to restore the legacy ~54-tool SSE surface. Rename note: SSE key is **`is-be-live`** (formerly documented as `is-be-webui`); URL unchanged (`/mcp/sse` on port 7860).
 
-Copy [`.cursor/mcp.example.json`](../../.cursor/mcp.example.json) → `.cursor/mcp.json`. Legacy profile stdio servers (`is-be-diag`, `is-be-jobs`, `is-be-data`, `is-be-router`, `is-be-full`) are **not** in the default config.
+Copy [`.cursor/mcp.example.json`](../../.cursor/mcp.example.json) → `.cursor/mcp.json`. Legacy profile stdio servers (`is-be-diag`, `is-be-jobs`, …) are **not** in the default config.
 
 ## Workflow
 
 ```text
-1. search("why did scoring fail")     # on is-be-mcp
-2. dispatch("diagnostics.get_error_summary", {})
-3. dispatch("jobs.get_failed_images", {"limit": 20})
+1. sse_status()                         # optional: is-be-live / is-ui-live up?
+2. search("why did scoring fail")       # on is-be-mcp
+3. dispatch("diagnostics.get_error_summary", {})
+4. dispatch("jobs.get_failed_images", {"limit": 20})
 ```
+
+## `sse_status`
+
+Read-only probe of the optional live SSE MCP endpoint.
+
+```json
+{
+  "ok": true,
+  "server": "is-be-live",
+  "url": "http://127.0.0.1:7860/mcp/sse",
+  "error": null
+}
+```
+
+Gallery returns `"server": "is-ui-live"` and default URL `http://127.0.0.1:9373/mcp/sse` (or `gallery-mcp.lock`).
 
 ## `search`
 
@@ -77,7 +105,24 @@ dispatch(
 
 ### Error envelope
 
-`status: "error"`, `code` (`unknown_action`, `validation_error`, `policy_rejected`, `confirmation_required`, `unsupported_dry_run`, …), `message`, `request_id`.
+`status: "error"`, `code` (`unknown_action`, `validation_error`, `policy_rejected`, `confirmation_required`, `webui_unavailable`, `live_unavailable`, `playwright_unavailable`, `playwright_disabled`, …), `message`, `request_id`.
+
+### Playwright proxy (live browser dispatch)
+
+When Python validates a `handler_domain: playwright` action, it returns a delegate envelope instead of executing locally:
+
+```json
+{
+  "status": "proxy",
+  "code": "playwright_delegate",
+  "action_id": "browser.navigate",
+  "legacy_tool_name": "browser_navigate",
+  "validated_args": { "url": "http://127.0.0.1:7860/ui/" },
+  "request_id": "…"
+}
+```
+
+Node **`is-be-mcp`** calls the Playwright MCP child with `legacy_tool_name` and wraps the result in a normal success envelope. Disable with `MCP_PLAYWRIGHT_ENABLED=0`.
 
 ## Dispatchable actions
 
@@ -126,7 +171,7 @@ dispatch(
 
 ## Common agent workflows
 
-Attach **`is-be-mcp`** or **`is-be-webui`**, then **`search`** → **`dispatch`**. If `low_confidence` is true, refine the query. For legacy raw tools not in the action registry, set **`MCP_SSE_PROFILE=full`** on WebUI.
+Attach **`is-be-mcp`** or **`is-ui-mcp`**, then **`search`** → **`dispatch`**. If `low_confidence` is true, refine the query. For legacy raw tools not in the action registry, set **`MCP_SSE_PROFILE=full`** on WebUI.
 
 ### Scoring failure triage
 
@@ -155,14 +200,13 @@ dispatch("diagnostics.run_doctor", {"no_gpu": true})
 ```text
 search("export debug bundle")
 dispatch("support.export_debug_bundle", {}, confirmed=True)
-# optional: {"output_path": "exports/debug-bundles/my-bundle.zip"}
 ```
 
 Review the zip before sharing. `secrets.json` is never included.
 
 ### `unknown_action` errors
 
-Compact dispatch returns `code: unknown_action` with `details.suggestions` (nearby registry actions) and `details.hint`. **Do not** call raw legacy tool names from AGENTS.md unless they appear in the registry or you use full SSE profile.
+Compact dispatch returns `code: unknown_action` with `details.suggestions`. **Do not** call raw legacy tool names from AGENTS.md unless they appear in the registry or you use full SSE profile.
 
 Bare legacy names registered in the overlay (e.g. `execute_sql`) resolve automatically to `data.execute_sql`.
 
@@ -172,7 +216,26 @@ Bare legacy names registered in the overlay (e.g. `execute_sql`) resolve automat
 
 ## Gallery
 
-Gallery **`is-ui-mcp`** exposes the same **`search`** + **`dispatch`** workflow over gallery-local, API, and live actions. Attach **`is-ui-live`** (SSE) when Electron dev is running for CDP/live IPC actions.
+Gallery **`is-ui-mcp`** uses the same **`search`** + **`dispatch`** + **`sse_status`** tools. Live CDP interaction actions (`live.cdp_click`, …) are documented in gallery [05-mcp-compact-servers.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/guides/05-mcp-compact-servers.md).
+
+## Browser automation (Playwright via is-be-mcp)
+
+No separate **`playwright`** MCP server — use **`browser.*`** actions on **`is-be-mcp`**. Registry: [`mcp/actions/playwright_registry.json`](../../mcp/actions/playwright_registry.json).
+
+| action_id | Example arguments | Notes |
+|-----------|-------------------|-------|
+| `browser.navigate` | `{"url": "http://127.0.0.1:7860/ui/"}` | Open WebUI or any URL |
+| `browser.snapshot` | `{}` | Accessibility tree (preferred over screenshot for agents) |
+| `browser.click` | `{"target": "…"}` | Requires snapshot ref or selector |
+| `browser.take_screenshot` | `{}` | PNG capture |
+| `browser.wait_for` | `{"text": "…"}` or selector fields per schema | Wait for page state |
+| `browser.run_code_unsafe` | `{"code": "async (page) => …"}` | **`confirmed=True`** required; RCE-equivalent |
+
+```text
+search("browser snapshot webui")
+dispatch("browser.navigate", {"url": "http://127.0.0.1:7860/ui/"}, dry_run=true)
+dispatch("browser.snapshot", {})
+```
 
 ## Vocabulary (do not use)
 

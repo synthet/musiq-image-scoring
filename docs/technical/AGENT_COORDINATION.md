@@ -104,14 +104,14 @@ Local pointers (not authoritative): [design/DESIGN_SYSTEM.md](../design/DESIGN_S
 
 ## 🔍 Troubleshooting with MCP
 
-Agents use the same **`search` → `dispatch`** workflow on both repos:
+Agents use the same **`search` → `dispatch`** workflow on both repos (plus **`sse_status`** to probe live SSE):
 
-| Repo | Default MCP | Notes |
-|------|-------------|-------|
-| **image-scoring-backend** | **`is-be-mcp`** (stdio), optional **`is-be-webui`** (SSE) | Action registry in `mcp/action_registry.json` |
-| **image-scoring-gallery** | **`is-ui-mcp`** (stdio), optional **`is-ui-live`** (SSE) | Action registry in `mcp-server/action_registry.json` |
+| Repo | Default MCP | Optional SSE | Notes |
+|------|-------------|--------------|-------|
+| **image-scoring-backend** | **`is-be-mcp`** (Node stdio) | **`is-be-live`** | Registry: `mcp/action_registry.json`; setup: [guides/setup/mcp-compact-servers.md](../guides/setup/mcp-compact-servers.md) |
+| **image-scoring-gallery** | **`is-ui-mcp`** (Node stdio) | **`is-ui-live`** | Registry: `mcp-server/action_registry.json`; [gallery guide](https://github.com/synthet/image-scoring-gallery/blob/main/docs/guides/05-mcp-compact-servers.md) |
 
-For legacy raw tools not yet in the registry, set **`MCP_SSE_PROFILE=full`** on the backend WebUI process. For **`execute_code`**, use full SSE profile with **`ENABLE_MCP_EXECUTE_CODE=1`**.
+For legacy raw tools not yet in the registry, set **`MCP_SSE_PROFILE=full`** on the backend WebUI process. For **`execute_code`**, use full SSE profile with **`ENABLE_MCP_EXECUTE_CODE=1`** on **`is-be-live`**.
 
 Example backend dispatch for cross-project checks:
 

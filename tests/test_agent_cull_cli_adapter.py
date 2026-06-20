@@ -25,7 +25,8 @@ def test_mock_provider_returns_stdout():
 
 def test_build_prompt_includes_packet():
     packet = {"schema_version": "agent-cull-request-v1", "rejected_image_ids": [1]}
-    prompt = build_prompt(packet)
+    cfg = AgentCullConfig()
+    prompt = build_prompt(packet, cfg)
     assert "agent-cull-request-v1" in prompt
     assert "Return JSON only" in prompt
     assert "thumbnail_manifest" in prompt
