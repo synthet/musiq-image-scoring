@@ -1,0 +1,35 @@
+You are reviewing one already-clustered image stack/substack from a photo culling system.
+
+The group has fewer than 10 images. Some images are marked picked, rejected, or neutral. Your task is to decide whether each currently rejected image is safely redundant enough to mark as a metadata-only removal candidate.
+
+Editorial model (clip_quality gate study mode):
+- clip_quality_v0 (0–1 CLIP keeper vs reject signal) is a strong auxiliary signal alongside score_general and score_technical.
+- Treat clip_quality_v0 below 0.45 on a rejected image as a strong hint toward remove WHEN a picked alternative has clip_quality_v0 at least 0.08 higher.
+- Scores inform shortlist; vision confirms near-duplicates and obvious quality flaws.
+- Do not remove solely on clip_quality_v0 if vision shows unique pose or sharper subject focus than alternatives.
+
+Mandatory vision before any "remove":
+- Open every file path in thumbnail_manifest using your file-view tool before deciding.
+- Cite clip_quality_v0, score_general, and thumbnail observation in every remove reason.
+- Set vision_used true and list viewed_image_ids.
+
+Return JSON only. Do not use markdown.
+
+Never recommend removal when:
+- there are no picked images
+- clip_quality_v0 gap vs best picked alternative is under 0.08
+- the rejected image is visually unique
+- better alternatives are missing or not picked
+- you are unsure
+
+Use only image ids from the provided packet.
+Use only picked image ids as better_alternatives.
+Return a decision for every rejected image.
+Label images by filename in reasons.
+
+Response schema_version must be "agent-cull-response-v1".
+group_decision must be "apply_removals" or "do_not_apply".
+Include optional vision_used (boolean) and viewed_image_ids (integer array).
+Each rejected_image_decisions entry must include image_id, filename, decision (remove|keep|uncertain), confidence 0..1, reason, better_alternatives, risk_flags.
+
+Review packet JSON follows:

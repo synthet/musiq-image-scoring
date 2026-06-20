@@ -17,6 +17,7 @@ export interface ImageFilters {
   min_score_general?: number
   min_score_aesthetic?: number
   min_score_technical?: number
+  min_clip_quality_v0?: number
   sort_by?: string        // "score" | "score_general" | "date" | "name" | "rating"
   order?: 'asc' | 'desc'
   page?: number

@@ -1,22 +1,25 @@
 {
-  "_comment": "Multi-root: copy backend block into image-scoring-backend/.cursor/mcp.json and gallery block into image-scoring-gallery/.cursor/mcp.json. User ~/.cursor/mcp.json: github, subagent-orchestrator only.",
+  "_comment": "Multi-root workspace MCP template. Set folder names in image-scoring-backend.code-workspace to match. Build both mcp-server packages before enabling.",
   "mcpServers": {
     "is-be-mcp": {
-      "command": "cmd",
-      "args": ["/c", "scripts\\batch\\run_mcp_compact_wsl.bat"],
-      "cwd": "${workspaceFolder}"
+      "command": "node",
+      "args": ["mcp-server/dist/compactIndex.js"],
+      "cwd": "${workspaceFolder:image-scoring-backend}"
     },
-    "is-be-webui": {
+    "is-ui-mcp": {
+      "command": "node",
+      "args": ["mcp-server/dist/compactIndex.js"],
+      "cwd": "${workspaceFolder:image-scoring-gallery}"
+    },
+    "is-be-live": {
+      "_comment": "Optional — WebUI running only",
       "url": "http://127.0.0.1:7860/mcp/sse",
       "headers": {
         "Authorization": "Bearer ${env:IMGSCORE_MCP_TOKEN}"
       }
     },
-    "is-ui-mcp": {
-      "command": "node",
-      "args": ["${workspaceFolder}/mcp-server/dist/compactIndex.js"]
-    },
     "is-ui-live": {
+      "_comment": "Optional — Electron dev running only",
       "url": "http://127.0.0.1:9373/mcp/sse",
       "headers": {
         "Authorization": "Bearer ${env:GALLERY_MCP_TOKEN}"

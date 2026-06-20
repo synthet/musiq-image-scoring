@@ -46,8 +46,9 @@ Compact **search + dispatch** is the default agent surface. **Naming:** `is-` = 
 ### Setup
 
 1. Copy [`.cursor/mcp.example.json`](.cursor/mcp.example.json) → `.cursor/mcp.json` (gitignored).
-2. Attach **`is-be-mcp`** (stdio) — **`search`**, **`dispatch`** only.
-3. Optional **`is-be-webui`** (SSE) when WebUI is running.
+2. `cd mcp-server && npm install && npm run build`
+3. Attach **`is-be-mcp`** (stdio Node) — **`search`**, **`dispatch`**, **`sse_status`**. Browser automation (`browser.*` actions) is built in; no separate Playwright MCP key.
+4. Optional **`is-be-live`** (SSE) when WebUI is running.
 
 Templates: [`.cursor/mcp.pair.example.json`](.cursor/mcp.pair.example.json) (multi-root), gallery [`.cursor/mcp.example.json`](https://github.com/synthet/image-scoring-gallery/blob/main/.cursor/mcp.example.json).
 
@@ -65,8 +66,8 @@ Side-effecting dispatch (e.g. **`support.export_debug_bundle`**) requires **`con
 
 | Cursor server key | Transport | Tools / notes |
 |-------------------|-----------|---------------|
-| **`is-be-mcp`** | stdio | **`search`**, **`dispatch`** — **use this** |
-| **`is-be-webui`** | SSE | **`search`**, **`dispatch`** (same registry as `is-be-mcp`); set **`MCP_SSE_PROFILE=full`** for legacy ~54-tool SSE |
+| **`is-be-mcp`** | stdio | **`search`**, **`dispatch`**, **`sse_status`** — always loads; Playwright `browser.*` via lazy child; optional proxy to **`is-be-live`** |
+| **`is-be-live`** | SSE | **`search`**, **`dispatch`** (same registry as `is-be-mcp`); set **`MCP_SSE_PROFILE=full`** for legacy ~54-tool SSE |
 
 **Debug-only (not in default mcp.json):** `scripts/batch/run_mcp_server_windows.bat` with `MCP_TOOL_PROFILE=diagnostics|jobs|data|maintenance|full`.
 
@@ -74,8 +75,10 @@ Side-effecting dispatch (e.g. **`support.export_debug_bundle`**) requires **`con
 
 | Cursor server key | Transport | Requires running app? |
 |-------------------|-----------|------------------------|
-| **`is-ui-mcp`** | stdio | No — **`search`**, **`dispatch`** over gallery actions |
+| **`is-ui-mcp`** | stdio | No — **`search`**, **`dispatch`**, **`sse_status`**; proxies **`live.*` IPC** to SSE when Electron is up |
 | **`is-ui-live`** | SSE | Yes — Electron dev / `ENABLE_GALLERY_MCP_SSE` (CDP + live IPC via dispatch) |
+
+**Resilient stdio proxy (both repos):** attach only **`is-be-mcp`** / **`is-ui-mcp`** for tool registration. Optional SSE keys (**`is-be-live`**, **`is-ui-live`**) add direct attach when the app is running. Stdio servers proxy selected `dispatch` calls to SSE when reachable; otherwise return stable error envelopes (`webui_unavailable` / `live_unavailable`) without breaking MCP load. Gallery: `live_cdp` runs CDP locally when Electron CDP is up; `live_ipc` always proxies. Backend: local dispatch first; proxy on env allowlist or `unknown_action`. Env: `MCP_WEBUI_PROXY_*` (backend), `MCP_LIVE_PROXY_*` (gallery).
 
 **Not in default config:** `is-ui-router`, `is-ui-local`, `is-ui-api` (gallery debug entrypoints only).
 

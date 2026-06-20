@@ -18,6 +18,7 @@ READ_ONLY = "read_only"
 ALLOWED_SIDE_EFFECT_ACTIONS = frozenset(
     {
         "support.export_debug_bundle",
+        "browser.run_code_unsafe",
     }
 )
 

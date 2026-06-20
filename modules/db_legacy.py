@@ -774,10 +774,38 @@ ALLOWED_SORT_COLUMNS = {
     "date_time_original", "make", "model", "lens_model", "iso",
 }
 ALLOWED_SORT_ORDERS = {"asc", "desc"}
+_MODEL_SORT_PREFIX = "model:"
+_MODEL_SORT_NAME_RE = re.compile(r"^[a-z0-9_]+$")
+
+
+def _parse_model_sort_key(sort_by: str) -> str | None:
+    """Return model name for ``model:<name>`` sort keys, or None."""
+    if not sort_by or not sort_by.startswith(_MODEL_SORT_PREFIX):
+        return None
+    name = sort_by[len(_MODEL_SORT_PREFIX):]
+    if not _MODEL_SORT_NAME_RE.match(name):
+        return None
+    return name
+
+
+def _clip_quality_min_filter_sql(tbl_prefix: str) -> str:
+    return (
+        f"EXISTS (SELECT 1 FROM image_model_scores ims_cq "
+        f"WHERE ims_cq.image_id = {tbl_prefix}id "
+        f"AND ims_cq.model_name = 'clip_quality_v0' "
+        f"AND ims_cq.is_shadow = FALSE "
+        f"AND ims_cq.status = 'success' "
+        f"AND COALESCE(ims_cq.normalized, ims_cq.raw_score) >= ?)"
+    )
+
 
 def _validate_sort(sort_by: str, order: str) -> tuple:
     """Validate and sanitize ORDER BY parameters to prevent SQL injection."""
-    if sort_by not in ALLOWED_SORT_COLUMNS and sort_by not in _VIRTUAL_SORT_KEYS:
+    if (
+        _parse_model_sort_key(sort_by) is None
+        and sort_by not in ALLOWED_SORT_COLUMNS
+        and sort_by not in _VIRTUAL_SORT_KEYS
+    ):
         sort_by = "score_general"
     if order.lower() not in ALLOWED_SORT_ORDERS:
         order = "desc"
@@ -1537,7 +1565,7 @@ def get_connector():
     return _gc()
 
 
-def get_image_count(rating_filter=None, label_filter=None, keyword_filter=None, min_score_general=0, min_score_aesthetic=0, min_score_technical=0, date_range=None, folder_path=None, stack_id=None):
+def get_image_count(rating_filter=None, label_filter=None, keyword_filter=None, min_score_general=0, min_score_aesthetic=0, min_score_technical=0, min_clip_quality_v0=0, date_range=None, folder_path=None, stack_id=None):
     query = "SELECT COUNT(*) FROM images"
     params = []
     conditions = []
@@ -1578,6 +1606,10 @@ def get_image_count(rating_filter=None, label_filter=None, keyword_filter=None, 
         conditions.append("score_technical >= ?")
         params.append(min_score_technical)
 
+    if min_clip_quality_v0 > 0:
+        conditions.append(_clip_quality_min_filter_sql(""))
+        params.append(min_clip_quality_v0)
+
     # Date Filter
     if date_range:
         start_date, end_date = date_range
@@ -1604,7 +1636,7 @@ def get_image_count(rating_filter=None, label_filter=None, keyword_filter=None, 
     row = get_connector().query_one(query, tuple(params) if params else None)
     return (row.get("count") or row.get("COUNT(*)") or 0) if row else 0
 
-def get_images_paginated(page=1, page_size=None, sort_by="score", order="desc", rating_filter=None, label_filter=None, keyword_filter=None, min_score_general=0, min_score_aesthetic=0, min_score_technical=0, date_range=None, folder_path=None, stack_id=None):
+def get_images_paginated(page=1, page_size=None, sort_by="score", order="desc", rating_filter=None, label_filter=None, keyword_filter=None, min_score_general=0, min_score_aesthetic=0, min_score_technical=0, min_clip_quality_v0=0, date_range=None, folder_path=None, stack_id=None):
     # Load page_size from config if not provided
     if page_size is None:
         ui_config = config.get_config_section('ui')
@@ -1658,6 +1690,10 @@ def get_images_paginated(page=1, page_size=None, sort_by="score", order="desc", 
     if min_score_technical > 0:
         conditions.append("score_technical >= ?")
         params.append(min_score_technical)
+
+    if min_clip_quality_v0 > 0:
+        conditions.append(_clip_quality_min_filter_sql(""))
+        params.append(min_clip_quality_v0)
 
     # Date Filter
     if date_range:
@@ -1909,6 +1945,7 @@ def _build_image_query_components(
     min_score_general=0,
     min_score_aesthetic=0,
     min_score_technical=0,
+    min_clip_quality_v0=0,
     date_range=None,
     folder_path=None,
     stack_id=None,
@@ -1927,6 +1964,7 @@ def _build_image_query_components(
     """
     sort_by, order = _validate_sort(sort_by, order)
     exif_sort_cols = {"date_time_original", "make", "model", "lens_model", "iso"}
+    model_sort_name = _parse_model_sort_key(sort_by)
     
     need_exif_join = (
         use_exif_date and date_range
@@ -1944,6 +1982,15 @@ def _build_image_query_components(
     else:
         from_clause = " images"
         tbl_prefix = ""
+
+    if model_sort_name:
+        ims_alias = "ims_sort"
+        from_clause = (
+            f"{from_clause} LEFT JOIN image_model_scores {ims_alias} "
+            f"ON images.id = {ims_alias}.image_id "
+            f"AND {ims_alias}.model_name = '{model_sort_name}' "
+            f"AND {ims_alias}.is_shadow = FALSE"
+        )
 
     # Build base query components
     params = []
@@ -1987,6 +2034,10 @@ def _build_image_query_components(
     if min_score_technical > 0:
         conditions.append(f"{tbl_prefix}score_technical >= ?")
         params.append(min_score_technical)
+
+    if min_clip_quality_v0 > 0:
+        conditions.append(_clip_quality_min_filter_sql(tbl_prefix))
+        params.append(min_clip_quality_v0)
 
     # Date Filter
     if date_range:
@@ -2048,7 +2099,12 @@ def _build_image_query_components(
         where_clause = " WHERE " + " AND ".join(conditions)
 
     # ORDER BY - Handle phases sort and EXIF columns
-    if sort_by == "phases":
+    if model_sort_name:
+        ims_alias = "ims_sort"
+        sort_expr = f"COALESCE({ims_alias}.normalized, {ims_alias}.raw_score)"
+        nulls = " NULLS LAST" if order == "DESC" else " NULLS FIRST"
+        order_by = f"{sort_expr} {order}{nulls}, images.id {order}"
+    elif sort_by == "phases":
         sort_expr = (
             "(SELECT COALESCE(SUM(CASE WHEN ips.status IN ('done', 'skipped') THEN 1 ELSE 0 END), 0)"
             " FROM image_phase_status ips WHERE ips.image_id = images.id)"
@@ -2204,7 +2260,7 @@ def get_image_neighbors(image_id, **kwargs):
 
     return prev_id, next_id
 
-def get_filtered_paths(rating_filter=None, label_filter=None, keyword_filter=None, min_score_general=0, min_score_aesthetic=0, min_score_technical=0, date_range=None, folder_path=None, stack_id=None):
+def get_filtered_paths(rating_filter=None, label_filter=None, keyword_filter=None, min_score_general=0, min_score_aesthetic=0, min_score_technical=0, min_clip_quality_v0=0, date_range=None, folder_path=None, stack_id=None):
     """
     Returns a list of file_paths matching the filters (No pagination).
     """
@@ -2247,6 +2303,10 @@ def get_filtered_paths(rating_filter=None, label_filter=None, keyword_filter=Non
     if min_score_technical > 0:
         conditions.append("score_technical >= ?")
         params.append(min_score_technical)
+
+    if min_clip_quality_v0 > 0:
+        conditions.append(_clip_quality_min_filter_sql(""))
+        params.append(min_clip_quality_v0)
 
     # Date Filter
     if date_range:
@@ -5694,16 +5754,20 @@ def job_type_for_phase_dispatch(phase_code: str) -> str:
 def get_running_job_for_phase_continuation():
     """Return a job row plus active ``job_phases`` code for multi-phase continuation (dispatcher).
 
-    Picks the oldest ``jobs.id`` with ``status='running'`` and a ``job_phases`` row in ``running`` state.
+    Picks the oldest ``jobs.id`` with ``status='running'`` and a ``job_phases`` row in
+    ``running`` (preferred) or ``queued`` (resumable after phantom reconciliation).
     """
     row = get_connector().query_one(
         """
         SELECT j.*, jp.phase_code AS _active_phase_code
         FROM jobs j
-        INNER JOIN job_phases jp ON jp.job_id = j.id AND jp.state = 'running'
+        INNER JOIN job_phases jp ON jp.job_id = j.id AND jp.state IN ('running', 'queued')
         WHERE j.status = 'running'
           AND j.job_type != 'ui_pipeline'
-        ORDER BY j.id ASC, jp.phase_order ASC
+        ORDER BY
+          CASE jp.state WHEN 'running' THEN 0 ELSE 1 END,
+          j.id ASC,
+          jp.phase_order ASC
         FETCH FIRST 1 ROWS ONLY
         """
     )
@@ -6056,8 +6120,9 @@ def enqueue_job(input_path, phase_code=None, job_type=None, queue_payload=None, 
     else:
         payload_json = json.dumps(queue_payload)
 
-    priority = int((payload_dict or {}).get("priority", 100))
-    priority = max(1, min(priority, 999))
+    from modules.job_priority import resolve_job_enqueue_priority
+
+    priority = resolve_job_enqueue_priority(payload_dict, job_type=job_type)
     target_scope = None
     if payload_dict:
         target_scope = payload_dict.get("target_scope") or payload_dict.get("scope")
@@ -6126,8 +6191,9 @@ def enqueue_job_with_phases(input_path, phase_code=None, job_type=None, queue_pa
     else:
         payload_json = json.dumps(queue_payload)
 
-    priority = int((payload_dict or {}).get("priority", 100))
-    priority = max(1, min(priority, 999))
+    from modules.job_priority import resolve_job_enqueue_priority
+
+    priority = resolve_job_enqueue_priority(payload_dict, job_type=job_type)
     target_scope = None
     if payload_dict:
         target_scope = payload_dict.get("target_scope") or payload_dict.get("scope")
@@ -6369,6 +6435,125 @@ def force_reset_job_phase_to_queued(job_id: int, phase_code: str):
             (job_id, phase_code),
         )
     get_connector().run_transaction(_tx)
+
+
+PHASE_CODE_TO_RUNNER_KEY = {
+    "indexing": "indexing",
+    "metadata": "metadata",
+    "scoring": "scoring",
+    "score": "scoring",
+    "keywords": "tagging",
+    "tagging": "tagging",
+    "tag": "tagging",
+    "culling": "selection",
+    "selection": "selection",
+    "clustering": "clustering",
+    "cluster": "clustering",
+    "bird_species": "bird_species",
+    "bird-species": "bird_species",
+    "maintenance": "maintenance",
+}
+
+
+def _phase_runner_key(phase_code: str) -> str:
+    pc = (phase_code or "").strip().lower()
+    return PHASE_CODE_TO_RUNNER_KEY.get(pc, pc)
+
+
+def count_running_pipeline_jobs(*, exclude_maintenance: bool = True) -> int:
+    """Count jobs with status=running (optionally excluding maintenance)."""
+    try:
+        sql = "SELECT COUNT(*) AS cnt FROM jobs WHERE status = 'running'"
+        if exclude_maintenance:
+            sql += " AND COALESCE(job_type, '') != 'maintenance'"
+        row = get_connector().query_one(sql)
+        if not row:
+            return 0
+        return int(row.get("cnt") or 0)
+    except Exception:
+        return 0
+
+
+def list_phantom_running_job_phases(
+    busy_runner_keys=None,
+    *,
+    grace_seconds: int = 120,
+) -> list[dict]:
+    """Return job_phases rows stuck in running while their runner family is idle."""
+    busy = {str(k).strip().lower() for k in (busy_runner_keys or ()) if str(k).strip()}
+    grace_seconds = max(0, int(grace_seconds or 0))
+    now = datetime.datetime.now()
+    rows = get_connector().query(
+        """
+        SELECT jp.job_id, jp.phase_code, jp.started_at, jp.state
+        FROM job_phases jp
+        INNER JOIN jobs j ON j.id = jp.job_id
+        WHERE j.status = 'running' AND jp.state = 'running'
+        ORDER BY jp.job_id ASC, jp.phase_order ASC
+        """
+    )
+    out: list[dict] = []
+    for row in rows or []:
+        pc = (row.get("phase_code") or "").strip().lower()
+        runner_key = _phase_runner_key(pc)
+        if runner_key in busy:
+            continue
+        started = row.get("started_at")
+        if started is not None and grace_seconds > 0:
+            if not isinstance(started, datetime.datetime):
+                try:
+                    started = datetime.datetime.fromisoformat(str(started).replace("Z", "+00:00"))
+                except Exception:
+                    started = None
+            if isinstance(started, datetime.datetime):
+                age = (now - started.replace(tzinfo=None)).total_seconds()
+                if age < grace_seconds:
+                    continue
+        out.append(
+            {
+                "job_id": int(row["job_id"]),
+                "phase_code": pc,
+                "runner_key": runner_key,
+                "started_at": str(started) if started is not None else None,
+            }
+        )
+    return out
+
+
+def reconcile_phantom_running_job_phases(
+    busy_runner_keys=None,
+    *,
+    grace_seconds: int = 120,
+    error_message: str = "stale_phase_reconciled",
+) -> list[dict]:
+    """Demote phantom running job_phases and reset in-flight IPS for resumption."""
+    candidates = list_phantom_running_job_phases(
+        busy_runner_keys, grace_seconds=grace_seconds
+    )
+    demoted: list[dict] = []
+    for item in candidates:
+        job_id = int(item["job_id"])
+        pc = str(item["phase_code"])
+        try:
+            force_reset_job_phase_to_queued(job_id, pc)
+            reconcile_stale_running_phases_for_jobs(
+                [job_id],
+                error_message=error_message,
+                in_flight_to="not_started",
+            )
+            demoted.append(item)
+        except Exception:
+            logger.exception(
+                "reconcile_phantom_running_job_phases: failed job_id=%s phase=%s",
+                job_id,
+                pc,
+            )
+    if demoted:
+        logger.info(
+            "reconcile_phantom_running_job_phases: demoted %s phantom phase(s)",
+            len(demoted),
+        )
+    return demoted
 
 
 def adjust_job_priority(job_id, delta):

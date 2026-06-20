@@ -190,3 +190,37 @@ def test_dispatch_get_image_details_mocked():
         result = dispatch_action("data.get_image_details", {"file_path": "/a.jpg"})
     assert result.get("status") == "success"
     mock_fn.assert_called_once_with(file_path="/a.jpg")
+
+
+def test_dispatch_browser_navigate_dry_run():
+    result = dispatch_action(
+        "browser.navigate",
+        {"url": "http://127.0.0.1:7860/ui/"},
+        dry_run=True,
+    )
+    assert result.get("status") == "success"
+    assert result.get("dry_run") is True
+    assert result.get("action_id") == "browser.navigate"
+    data = result.get("data") or {}
+    validated = data.get("validated_arguments") or {}
+    assert validated.get("url") == "http://127.0.0.1:7860/ui/"
+
+
+def test_dispatch_browser_navigate_live_delegate():
+    result = dispatch_action(
+        "browser.navigate",
+        {"url": "http://127.0.0.1:7860/ui/"},
+    )
+    assert result.get("status") == "proxy"
+    assert result.get("code") == "playwright_delegate"
+    assert result.get("legacy_tool_name") == "browser_navigate"
+    assert (result.get("validated_args") or {}).get("url") == "http://127.0.0.1:7860/ui/"
+
+
+def test_dispatch_browser_run_code_unsafe_requires_confirmation():
+    result = dispatch_action(
+        "browser.run_code_unsafe",
+        {"code": "async (page) => page.title()"},
+    )
+    assert result.get("status") == "error"
+    assert result.get("code") == "confirmation_required"

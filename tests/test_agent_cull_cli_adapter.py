@@ -1,9 +1,17 @@
 """Tests for agent cull CLI adapter (mocked)."""
 
+import json
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from modules.agent_cull.cli_adapter import MockAgentCullProvider, SubprocessAgentCullProvider, build_prompt
+from modules.agent_cull.cli_adapter import (
+    MockAgentCullProvider,
+    SubprocessAgentCullProvider,
+    build_prompt,
+    classify_cli_process_failure,
+    normalize_antigravity_stdout,
+    normalize_gemini_stdout,
+)
 from modules.agent_cull.config import AgentCullAgentConfig, AgentCullConfig
 
 
@@ -20,6 +28,8 @@ def test_build_prompt_includes_packet():
     prompt = build_prompt(packet)
     assert "agent-cull-request-v1" in prompt
     assert "Return JSON only" in prompt
+    assert "thumbnail_manifest" in prompt
+    assert "clip_quality_v0" in prompt
 
 
 def test_subprocess_never_uses_shell():
@@ -105,3 +115,112 @@ def test_subprocess_does_not_retry_when_stdout_present():
         result = provider.run_review("{}", cfg)
         assert result.ok is False
         assert run.call_count == 1
+
+
+def test_normalize_gemini_stdout_unwraps_envelope():
+    envelope = '{"response": "{\\"schema_version\\": \\"agent-cull-response-v1\\"}", "stats": {}}'
+    assert '"agent-cull-response-v1"' in normalize_gemini_stdout(envelope)
+
+
+def test_classify_cli_process_failure_maps_auth_tier():
+    stderr = (
+        "Error authenticating: IneligibleTierError: unsupported client. "
+        "Migrate to Antigravity."
+    )
+    code, message = classify_cli_process_failure(1, stderr)
+    assert code == "agent_cli_auth_tier"
+    assert "Antigravity" in message
+
+
+def test_classify_cli_process_failure_maps_quota():
+    code, _ = classify_cli_process_failure(1, "Resource has been exhausted (e.g. check quota).")
+    assert code == "agent_cli_quota_exhausted"
+
+
+def test_subprocess_maps_auth_tier_without_retry():
+    provider = SubprocessAgentCullProvider(
+        name="gemini",
+        command="echo",
+        args=(),
+        supports_vision=True,
+    )
+    cfg = replace(AgentCullConfig(), agent=replace(AgentCullAgentConfig(), max_retries=2))
+    with patch("modules.agent_cull.cli_adapter.subprocess.run") as run:
+        run.return_value.returncode = 1
+        run.return_value.stdout = ""
+        run.return_value.stderr = "Error authenticating: IneligibleTierError: UNSUPPORTED_CLIENT"
+        result = provider.run_review("{}", cfg)
+        assert result.ok is False
+        assert result.error == "agent_cli_auth_tier"
+        assert run.call_count == 1
+
+
+def test_classify_cli_process_failure_maps_antigravity_auth_timeout():
+    stdout = "Waiting for authentication (timeout 30s)...\nError: authentication timed out."
+    code, message = classify_cli_process_failure(0, "", stdout=stdout)
+    assert code == "agent_cli_auth_failed"
+    assert "Antigravity" in message
+
+
+def test_subprocess_antigravity_auth_prompt_with_exit_zero():
+    provider = SubprocessAgentCullProvider(
+        name="antigravity",
+        command="/app/scripts/wsl/antigravity_agent.sh",
+        args=(),
+        supports_vision=True,
+    )
+    cfg = replace(AgentCullConfig(), agent=replace(AgentCullAgentConfig(), provider="antigravity"))
+    stdout = (
+        "Authentication required. Please visit the URL to log in:\n"
+        "Waiting for authentication (timeout 30s)...\n"
+    )
+    with patch("modules.agent_cull.cli_adapter.subprocess.run") as run:
+        run.return_value.returncode = 0
+        run.return_value.stdout = stdout
+        run.return_value.stderr = ""
+        result = provider.run_review("{}", cfg)
+    assert result.ok is False
+    assert result.error == "agent_cli_auth_failed"
+
+
+def test_normalize_antigravity_stdout_extracts_json():
+    raw = 'Here is the result:\n```json\n{"schema_version":"agent-cull-response-v1"}\n```'
+    out = normalize_antigravity_stdout(raw)
+    assert "agent-cull-response-v1" in out
+
+
+def test_subprocess_antigravity_invokes_bridge_script_with_prompt():
+    provider = SubprocessAgentCullProvider(
+        name="antigravity",
+        command="/app/scripts/wsl/antigravity_agent.sh",
+        args=(),
+        supports_vision=True,
+    )
+    cfg = replace(AgentCullConfig(), agent=replace(AgentCullAgentConfig(), provider="antigravity"))
+    with patch("modules.agent_cull.cli_adapter.subprocess.run") as run:
+        run.return_value.returncode = 0
+        run.return_value.stdout = '{"schema_version":"agent-cull-response-v1"}'
+        run.return_value.stderr = ""
+        provider.run_review("{}", cfg)
+        cmd_args, kwargs = run.call_args
+        assert cmd_args[0] == ["/app/scripts/wsl/antigravity_agent.sh", "{}"]
+        assert kwargs.get("shell") is False
+
+
+def test_subprocess_gemini_unwraps_json_envelope():
+    provider = SubprocessAgentCullProvider(
+        name="gemini",
+        command="echo",
+        args=(),
+        supports_vision=True,
+    )
+    cfg = AgentCullConfig()
+    inner = '{"schema_version":"agent-cull-response-v1"}'
+    wrapped = json.dumps({"response": inner, "session_id": "x"})
+    with patch("modules.agent_cull.cli_adapter.subprocess.run") as run:
+        run.return_value.returncode = 0
+        run.return_value.stdout = wrapped
+        run.return_value.stderr = ""
+        result = provider.run_review("{}", cfg)
+        assert result.ok is True
+        assert result.stdout == inner

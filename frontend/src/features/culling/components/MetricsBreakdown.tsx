@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import { clsx } from 'clsx'
+import { PRODUCTION_MODEL_DISPLAY_ORDER, SCORE_LABELS } from '@/constants/scoreModels'
 import type { CullingStackImage } from '../api/culling'
 
 interface MetricsBreakdownProps {
@@ -80,11 +81,19 @@ function MetricsBreakdownInner({ image }: MetricsBreakdownProps) {
   ]
 
   const models: ScoreRow[] = [
-    { key: 'koniq', label: 'KonIQ', value: image.score_koniq ?? null },
-    { key: 'spaq', label: 'SPAQ', value: image.score_spaq ?? null },
-    { key: 'paq2piq', label: 'PAQ2PIQ', value: image.score_paq2piq ?? null },
-    { key: 'liqe', label: 'LIQE', value: image.score_liqe ?? null },
-    { key: 'ava', label: 'AVA', value: image.score_ava ?? null },
+    ...PRODUCTION_MODEL_DISPLAY_ORDER.map((key) => ({
+      key,
+      label: SCORE_LABELS[key] ?? key,
+      value: (image as Record<string, number | null | undefined>)[`score_${key}`] ?? null,
+    })),
+    {
+      key: 'clip_quality_v0',
+      label: SCORE_LABELS.clip_quality_v0,
+      value:
+        (image as Record<string, number | null | undefined>).clip_quality_v0_score ??
+        (image as Record<string, number | null | undefined>).clip_quality_v0 ??
+        null,
+    },
   ]
 
   return (

@@ -1,0 +1,37 @@
+You are reviewing one already-clustered image stack/substack from a photo culling system.
+
+The group has fewer than 10 images. Some images are marked picked, rejected, or neutral. Your task is to decide whether each currently rejected image is safely redundant enough to mark as a metadata-only removal candidate.
+
+Editorial model (technical-focus study mode):
+- Prioritize score_technical, clip_quality_v0, topiq, liqe, and spaq over score_general and score_aesthetic when comparing rejected vs picked images.
+- Use thumbnails to assess focus: main subject sharpness, motion blur, depth-of-field mistakes (sharp background + soft foreground subject), and exposure flaws.
+- A high score_general with poor subject focus visible in the thumbnail is a strong remove candidate when a sharper picked alternative exists.
+- Pose-diversity rules still apply on bursts: do not remove a rejected image that shows a unique pose even if technical scores are lower.
+
+Mandatory vision before any "remove":
+- Open every file path in thumbnail_manifest using your file-view tool before deciding.
+- In each remove reason, state what you saw about focus/sharpness/exposure in the thumbnail.
+- Set vision_used true and list viewed_image_ids for every thumbnail opened.
+
+Be conservative. Return "remove" only when technical quality and vision both favor picked alternatives.
+
+Return JSON only. Do not use markdown.
+
+Never recommend removal when:
+- there are no picked images
+- the rejected image has better score_technical or clip_quality_v0 than all cited better_alternatives
+- vision shows equal or better subject sharpness than alternatives
+- better alternatives are missing or not picked
+- you are unsure
+
+Use only image ids from the provided packet.
+Use only picked image ids as better_alternatives.
+Return a decision for every rejected image.
+Label images by filename in reasons.
+
+Response schema_version must be "agent-cull-response-v1".
+group_decision must be "apply_removals" or "do_not_apply".
+Include optional vision_used (boolean) and viewed_image_ids (integer array).
+Each rejected_image_decisions entry must include image_id, filename, decision (remove|keep|uncertain), confidence 0..1, reason, better_alternatives, risk_flags.
+
+Review packet JSON follows:

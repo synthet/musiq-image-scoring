@@ -13,6 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.8.0] - 2026-06-20
+
+### Added
+
+- **`clip_quality_v0` as a first-class score in the Web UI**: Inspector roster, culling metrics breakdown, and gallery min-score filter via new API query param `min_clip_quality_v0`; sort by `model:clip_quality_v0` through `image_model_scores` joins. Deprecated IQA models (KonIQ, PAQ2PIQ, MUSIQ, Q-Align) are hidden instead of shown as gray “off” rows.
+- **Agent-assisted cull review expansion**: Richer payload/schema, CLI adapter hardening, safety gates, repository/service coverage, and optional Gemini CLI operator guide.
+- **MCP compact dispatch growth**: Playwright `browser.*` actions in the action registry, compact tools/proxy server for resilient stdio→SSE routing, and expanded dispatch tests.
+- **Job dispatcher**: Multi-phase continuation dequeue, phantom running-phase reconciliation, and configurable job priority helper.
+
+### Changed
+
+- **OpenAPI**: Documents `min_clip_quality_v0` on image list endpoints.
+
+### Fixed
+
+- **`JobDispatcher._tick` unit tests**: Bird-species dispatcher tests mock phase-continuation DB calls so they no longer require a live Postgres pool.
+- **Sort validation**: Allow sanitized `model:<name>` sort keys (e.g. `model:clip_quality_v0`).
+
 ## [8.7.0] - 2026-06-16
 
 ### Added

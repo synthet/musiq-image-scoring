@@ -6,10 +6,15 @@ import logging
 from typing import Any
 
 from modules.agent_cull.apply import persist_failed_review, persist_validated_review
-from modules.agent_cull.cli_adapter import AgentCullProvider, build_prompt, get_provider
+from modules.agent_cull.cli_adapter import (
+    AgentCullProvider,
+    build_prompt,
+    classify_cli_process_failure,
+    get_provider,
+)
 from modules.agent_cull.config import AgentCullConfig, load_agent_cull_config
 from modules.agent_cull.discovery import ReviewUnit
-from modules.agent_cull.payload import build_review_packet
+from modules.agent_cull.payload import build_review_packet, enrich_unit_rows
 from modules.agent_cull.safety import apply_safety_gates
 from modules.agent_cull.schema import validate_raw_agent_response
 
@@ -28,22 +33,37 @@ def run_agent_review_for_unit(
     cfg = cfg or load_agent_cull_config()
     dry_run = cfg.dry_run_default if dry_run is None else dry_run
 
-    packet = build_review_packet(unit, rows_by_id, cfg)
+    packet = build_review_packet(
+        unit,
+        rows_by_id,
+        cfg,
+        score_warnings=enrich_unit_rows(rows_by_id, cfg),
+    )
     if provider is None:
         provider = get_provider(cfg, override=provider_override)
 
-    prompt = build_prompt(packet)
+    prompt = build_prompt(packet, cfg)
     raw = provider.run_review(prompt, cfg)
-    if not raw.ok and not raw.stdout:
+    if not raw.ok:
+        error_code, error_message = classify_cli_process_failure(
+            int(raw.exit_code),
+            raw.stderr or "",
+            stdout=raw.stdout or "",
+        )
         group_id = persist_failed_review(
             unit=unit,
             packet=packet,
             dry_run=dry_run,
-            error_code=raw.error or "agent_failed",
-            error_message=raw.stderr or "agent invocation failed",
+            error_code=error_code,
+            error_message=error_message[:4000],
             raw_response=raw.stdout,
         )
-        return {"ok": False, "group_id": group_id, "error": raw.error or "agent_failed"}
+        return {
+            "ok": False,
+            "group_id": group_id,
+            "error": error_code,
+            "error_message": error_message[:4000],
+        }
 
     validation = validate_raw_agent_response(
         raw.stdout,
@@ -51,6 +71,7 @@ def run_agent_review_for_unit(
         sub_stack_id=unit.sub_stack_id,
         rejected_image_ids=set(unit.rejected_ids),
         picked_image_ids=set(unit.picked_ids),
+        all_image_ids=set(unit.image_ids),
     )
     if not validation.ok or validation.data is None:
         group_id = persist_failed_review(

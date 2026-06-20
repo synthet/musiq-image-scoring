@@ -1,6 +1,8 @@
 """Tests for agent cull local safety gates."""
 
-from modules.agent_cull.config import AgentCullConfig
+from dataclasses import replace
+
+from modules.agent_cull.config import AgentCullAgentConfig, AgentCullConfig
 from modules.agent_cull.safety import apply_safety_gates
 
 
@@ -158,3 +160,44 @@ def test_unusable_picked_alternative_blocks_remove():
     assert decision.final_decision == "keep"
     gates = {o.gate for o in decision.safety_overrides}
     assert "alternative_unusable" in gates
+
+
+def test_require_vision_evidence_blocks_without_viewed_ids():
+    cfg = AgentCullConfig(agent=replace(AgentCullAgentConfig(), require_vision_evidence=True))
+    safety = apply_safety_gates(
+        cfg=cfg,
+        validated_response=_response(),
+        rows_by_id={
+            100: {"score_general": 0.2, "usable": True},
+            101: {"score_general": 0.9, "usable": True},
+        },
+        picked_ids={101},
+        rejected_ids={100},
+        dry_run=True,
+        provider_supports_vision=True,
+    )
+    assert safety.group_blocked is True
+    assert safety.image_decisions[0].final_decision == "keep"
+    group_gates = {o.gate for o in safety.overrides if o.scope == "group"}
+    assert "vision_not_used" in group_gates
+
+
+def test_require_vision_evidence_allows_when_viewed():
+    cfg = AgentCullConfig(agent=replace(AgentCullAgentConfig(), require_vision_evidence=True))
+    resp = _response()
+    resp["vision_used"] = True
+    resp["viewed_image_ids"] = [100, 101]
+    safety = apply_safety_gates(
+        cfg=cfg,
+        validated_response=resp,
+        rows_by_id={
+            100: {"score_general": 0.2, "usable": True},
+            101: {"score_general": 0.9, "usable": True},
+        },
+        picked_ids={101},
+        rejected_ids={100},
+        dry_run=True,
+        provider_supports_vision=True,
+    )
+    assert safety.group_blocked is False
+    assert safety.image_decisions[0].final_decision == "remove"

@@ -1132,6 +1132,49 @@
       "action_id": "jobs.get_runner_status"
     },
     {
+      "title": "Pipeline stats",
+      "description": "Runner status, queue sizes, dispatcher state, and active job snapshot.",
+      "category": "jobs",
+      "tags": [
+        "pipeline",
+        "queue",
+        "dispatcher",
+        "stats"
+      ],
+      "aliases": [
+        "pipeline stats",
+        "queue depth"
+      ],
+      "intent_examples": [
+        "dispatcher state",
+        "pipeline queue depth"
+      ],
+      "side_effect_level": "read_only",
+      "confirmation_required": false,
+      "dry_run_supported": false,
+      "dispatch_enabled": true,
+      "review_required": false,
+      "compact_profile_exposure": true,
+      "version": 1,
+      "deprecated": false,
+      "canonical_docs": [
+        "docs/technical/MCP_DEBUGGING_TOOLS.md"
+      ],
+      "api_contract_refs": [],
+      "auth_or_policy_requirements": [],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "canonical_backend_handler": {
+        "kind": "python_function",
+        "module": "modules.mcp_server",
+        "function": "get_pipeline_stats"
+      },
+      "legacy_tool_name": "get_pipeline_stats",
+      "action_id": "jobs.get_pipeline_stats"
+    },
+    {
       "title": "Server log tail",
       "description": "Tail webui.log and/or debug.log.",
       "category": "logs",

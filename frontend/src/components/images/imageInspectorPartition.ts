@@ -43,6 +43,7 @@ export const INSPECTOR_KNOWN_KEYS = new Set([
   'topiq_score',
   'arniqa_score',
   'qalign_score',
+  'clip_quality_v0_score',
   'composite_score',
   'rating',
   'label',
@@ -126,6 +127,7 @@ export function isScoreKey(k: string): boolean {
     k === 'topiq_score' ||
     k === 'arniqa_score' ||
     k === 'qalign_score' ||
+    k === 'clip_quality_v0_score' ||
     k === 'composite_score'
   )
 }

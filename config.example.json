@@ -116,17 +116,27 @@
       "min_group_confidence": 0.70,
       "decision_source": "pick_status",
       "allow_metadata_only_remove": false,
-      "agent": {
-        "provider": "gemini",
-        "_comment_command": "CLI on PATH for the WebUI process (WSL if using run_webui.bat). On WSL+Windows npm, use scripts/wsl/gemini_agent.sh (full /mnt/... path).",
-        "command": "gemini",
+            "agent": {
+                "provider": "antigravity",
+                "_comment_provider": "antigravity (recommended after June 2026) or gemini (API key / legacy OAuth).",
+                "_comment_command": "Docker: /app/scripts/wsl/antigravity_agent.sh (agy in image + GEMINI_CONFIG_SOURCE or API key). WSL: /mnt/d/.../antigravity_agent.sh. Legacy gemini: gemini_agent.sh.",
+                "command": "/app/scripts/wsl/antigravity_agent.sh",
         "args": [],
         "timeout_seconds": 120,
         "max_retries": 1,
         "supports_vision": true,
         "include_thumbnails": true,
         "thumbnail_mode": "path",
-        "max_thumbnail_edge_px": 512
+        "max_thumbnail_edge_px": 512,
+        "include_all_model_scores": true,
+        "flatten_model_scores": ["clip_quality_v0"],
+        "required_score_names": ["clip_quality_v0"],
+        "jit_clip_quality": true,
+        "require_vision_evidence": false,
+        "prompt_template_version": "cull_redundancy_v2",
+        "_comment_prompt_template_version": "Override for study A/B: cull_redundancy_v3_vision_strict, etc.",
+        "codex_sandbox": "read-only",
+        "_comment_codex_sandbox": "Use workspace for study runs if read-only blocks thumbnail reads."
       },
       "local_gates": {
         "block_if_rejected_scores_higher": true,

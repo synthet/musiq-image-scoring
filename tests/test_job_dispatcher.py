@@ -26,6 +26,18 @@ def _stub_jit_replan_without_db(monkeypatch):
     monkeypatch.setattr("modules.job_dispatcher.db.update_job_payload", lambda *a, **k: None)
     # Unit tests mock dequeue_next_job; do not reload queue_payload from a live DB row.
     monkeypatch.setattr("modules.job_dispatcher.db.get_job_by_id", lambda job_id: None)
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.get_running_job_for_phase_continuation",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.reconcile_phantom_running_job_phases",
+        lambda **kw: [],
+    )
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.count_running_pipeline_jobs",
+        lambda **kw: 0,
+    )
 
 
 class DummyRunner:
@@ -651,3 +663,101 @@ def test_dispatcher_compute_phase_scope_handles_empty_resolved():
     in_scope, targeted = JobDispatcher._compute_phase_scope(payload, resolved=None)
     assert in_scope == 0
     assert targeted == 0
+
+
+def test_dispatcher_continues_before_dequeue(monkeypatch):
+    tagging_runner = DummyRunner()
+    dispatcher = JobDispatcher(tagging_runner=tagging_runner)
+
+    def _should_not_dequeue():
+        raise AssertionError("dequeue_next_job should not run when continuation is available")
+
+    cont_job = {
+        "id": 4162,
+        "job_type": "tagging",
+        "input_path": "/mnt/d/foo",
+        "queue_payload": json.dumps({"resolved_image_ids": [1, 2]}),
+        "_active_phase_code": "keywords",
+    }
+
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", _should_not_dequeue)
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.get_running_job_for_phase_continuation",
+        lambda: dict(cont_job),
+    )
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.reconcile_phantom_running_job_phases",
+        lambda **kw: [],
+    )
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *a, **k: None)
+
+    dispatcher._tick()
+
+    assert len(tagging_runner.calls) == 1
+    _, kwargs = tagging_runner.calls[0]
+    assert kwargs["job_id"] == 4162
+
+
+def test_dispatcher_defers_dequeue_when_in_flight_cap_reached(monkeypatch):
+    scoring_runner = DummyRunner()
+    dispatcher = JobDispatcher(scoring_runner=scoring_runner)
+
+    dequeue_calls = []
+
+    def _dequeue():
+        dequeue_calls.append(True)
+        return {
+            "id": 99,
+            "job_type": "scoring",
+            "input_path": "/mnt/d/new",
+            "queue_payload": json.dumps({}),
+        }
+
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", _dequeue)
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.get_running_job_for_phase_continuation",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.reconcile_phantom_running_job_phases",
+        lambda **kw: [],
+    )
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.count_running_pipeline_jobs",
+        lambda **kw: 2,
+    )
+    monkeypatch.setattr(
+        JobDispatcher,
+        "_max_in_flight_jobs",
+        staticmethod(lambda: 1),
+    )
+
+    dispatcher._tick()
+
+    assert dequeue_calls == []
+    assert scoring_runner.calls == []
+
+
+def test_dispatcher_reconciles_phantom_phases_before_continue(monkeypatch):
+    tagging_runner = DummyRunner()
+    dispatcher = JobDispatcher(tagging_runner=tagging_runner)
+    reconciled = []
+
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.reconcile_phantom_running_job_phases",
+        lambda **kw: reconciled.append(kw) or [{"job_id": 1, "phase_code": "keywords"}],
+    )
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.get_running_job_for_phase_continuation",
+        lambda: None,
+    )
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: None)
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.count_running_pipeline_jobs",
+        lambda **kw: 0,
+    )
+
+    dispatcher._tick()
+
+    assert reconciled
+    assert reconciled[0]["grace_seconds"] == JobDispatcher._stale_phase_grace_sec()

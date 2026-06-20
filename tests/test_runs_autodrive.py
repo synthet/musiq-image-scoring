@@ -657,6 +657,51 @@ def test_auto_drive_loop_guard_blocks_third_enqueue_when_two_in_flight(monkeypat
     assert result["loop_detected"] == 1
 
 
+def test_auto_drive_skips_enqueue_when_in_flight_cap(monkeypatch):
+    folder = "/mnt/d/Photos/in-flight-cap"
+    monkeypatch.setattr(
+        runs_autodrive,
+        "build_folder_buckets_for_autodrive",
+        lambda **_kwargs: {
+            "items": [
+                {
+                    "path": folder,
+                    "bucket": "awaiting_metadata",
+                    "next_phases": ["metadata"],
+                    "plan_key": "cap_plan",
+                    "overall_percent": 80.0,
+                }
+            ],
+            "total": 1,
+            "bucket_counts": {"awaiting_metadata": 1},
+            "phase_counts": {"metadata": 1},
+        },
+    )
+    monkeypatch.setattr(runs_autodrive, "_recent_auto_attempt_counts", lambda *_a, **_k: {})
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda _path: (folder, [folder]),
+    )
+    monkeypatch.setattr(
+        runs_autodrive,
+        "resolve_auto_drive_enqueue_phases",
+        lambda *_a, **_k: ["metadata"],
+    )
+    monkeypatch.setattr(runs_autodrive.db, "count_running_pipeline_jobs", lambda **kw: 2)
+
+    def _boom(*_a, **_k):
+        raise AssertionError("enqueue should be blocked by in_flight_cap")
+
+    monkeypatch.setattr(runs_autodrive, "_enqueue_auto_bucket", _boom)
+
+    result = runs_autodrive.auto_drive_runs(dry_run=False, limit=10, max_repeats=2)
+
+    assert result["scheduled"] == []
+    assert result["skipped"]
+    assert result["skipped"][0]["reason"] == "in_flight_cap"
+
+
 def test_auto_drive_passes_limit_to_build_folder_buckets(monkeypatch):
     captured = {}
 

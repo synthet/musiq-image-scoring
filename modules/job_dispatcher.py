@@ -98,38 +98,58 @@ class JobDispatcher:
             return
 
         idle = False
+        tick_continuation: Optional[int] = None
+        tick_dequeued: Optional[int] = None
+        tick_stale_demotions = 0
         with self._dispatch_lock:
             if self._any_runner_busy():
                 return
-            
-            queue_depth = db.get_queued_jobs_count()
-            if queue_depth > 0:
-                logger.debug(f"[DISPATCHER] Found {queue_depth} jobs in queue. Attempting dequeue.")
-                
-            job = db.dequeue_next_job()
-            if job:
-                payload = self._parse_queue_payload(job)
-                started, err = self._start_job(job, payload)
-                if not started:
-                    reason = err or "Dispatcher failed to start job (unknown reason)"
-                    logger.warning("Dispatcher: job %s failed to start: %s", job.get("id"), reason)
-                    db.update_job_status(job["id"], "failed", reason)
-                return
+
+            busy_runner_keys: List[str] = []
+            active_runner = self._get_active_runner()
+            if active_runner:
+                busy_runner_keys.append(active_runner)
+
+            tick_stale_demotions = len(
+                self._reconcile_phantom_job_phases(busy_runner_keys=busy_runner_keys)
+            )
 
             cont = db.get_running_job_for_phase_continuation()
-            if not cont:
-                idle = True
-            else:
+            if cont:
                 phase_code = (cont.pop("_active_phase_code", None) or "").strip().lower()
                 if not phase_code:
                     logger.warning("Dispatcher: continuation job %s missing active phase code", cont.get("id"))
                 else:
                     payload = self._parse_queue_payload(cont)
                     started, err = self._start_job(cont, payload, phase_override=phase_code)
+                    tick_continuation = int(cont.get("id"))
                     if not started:
                         reason = err or "Dispatcher failed to continue multi-phase job (unknown reason)"
                         logger.warning("Dispatcher: continuation job %s failed to start: %s", cont.get("id"), reason)
                         db.update_job_status(cont["id"], "failed", reason)
+                    self._log_tick_summary(tick_continuation, tick_dequeued, tick_stale_demotions, start_tick)
+                    return
+
+            if not self._may_dequeue_new_job():
+                idle = True
+            else:
+                queue_depth = db.get_queued_jobs_count()
+                if queue_depth > 0:
+                    logger.debug(f"[DISPATCHER] Found {queue_depth} jobs in queue. Attempting dequeue.")
+
+                job = db.dequeue_next_job()
+                if job:
+                    payload = self._parse_queue_payload(job)
+                    started, err = self._start_job(job, payload)
+                    tick_dequeued = int(job.get("id"))
+                    if not started:
+                        reason = err or "Dispatcher failed to start job (unknown reason)"
+                        logger.warning("Dispatcher: job %s failed to start: %s", job.get("id"), reason)
+                        db.update_job_status(job["id"], "failed", reason)
+                    self._log_tick_summary(tick_continuation, tick_dequeued, tick_stale_demotions, start_tick)
+                    return
+
+            idle = True
 
         # When the pipeline is fully idle, top up the queue from the durable
         # auto-drive loop (no-op unless a drive is active). Done outside the
@@ -137,8 +157,68 @@ class JobDispatcher:
         if idle:
             self._maybe_drive_tick()
 
+        self._log_tick_summary(tick_continuation, tick_dequeued, tick_stale_demotions, start_tick)
+
+    @staticmethod
+    def _stale_phase_grace_sec() -> int:
+        try:
+            from modules.config import get_config_value
+
+            return max(0, int(get_config_value("dispatcher.stale_phase_grace_sec", default=120)))
+        except (TypeError, ValueError):
+            return 120
+
+    @staticmethod
+    def _max_in_flight_jobs() -> int:
+        try:
+            from modules.config import get_config_value
+
+            return max(1, int(get_config_value("dispatcher.max_in_flight_jobs", default=1)))
+        except (TypeError, ValueError):
+            return 1
+
+    def _reconcile_phantom_job_phases(self, busy_runner_keys: List[str]) -> list:
+        try:
+            return db.reconcile_phantom_running_job_phases(
+                busy_runner_keys=busy_runner_keys,
+                grace_seconds=self._stale_phase_grace_sec(),
+            )
+        except Exception:
+            logger.debug("Dispatcher: phantom phase reconciliation failed", exc_info=True)
+            return []
+
+    def _may_dequeue_new_job(self) -> bool:
+        try:
+            in_flight = db.count_running_pipeline_jobs(exclude_maintenance=True)
+        except Exception:
+            in_flight = 0
+        cap = self._max_in_flight_jobs()
+        if in_flight >= cap:
+            logger.debug(
+                "[DISPATCHER] Deferring dequeue: %s running pipeline job(s) (cap=%s)",
+                in_flight,
+                cap,
+            )
+            return False
+        return True
+
+    @staticmethod
+    def _log_tick_summary(
+        continuation: Optional[int],
+        dequeued: Optional[int],
+        stale_demotions: int,
+        start_tick: float,
+    ) -> None:
         tick_duration = time.perf_counter() - start_tick
-        if tick_duration > 1.0:
+        if continuation is not None or dequeued is not None or stale_demotions:
+            logger.info(
+                "[DISPATCHER] tick continuation=%s dequeued=%s stale_demotions=%s duration=%.3fs",
+                continuation,
+                dequeued,
+                stale_demotions,
+                tick_duration,
+            )
+        elif tick_duration > 1.0:
             logger.warning(f"[DISPATCHER] Slow tick detected: {tick_duration:.3f}s")
 
     def _maybe_drive_tick(self) -> None:

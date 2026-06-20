@@ -203,6 +203,23 @@ class _DummyRunner:
         pass
 
 
+def _patch_dispatcher_db_no_pg(monkeypatch):
+    """Avoid live Postgres in unit tests that call JobDispatcher._tick()."""
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.get_running_job_for_phase_continuation",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.reconcile_phantom_running_job_phases",
+        lambda **kw: [],
+    )
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.count_running_pipeline_jobs",
+        lambda **kw: 0,
+    )
+    monkeypatch.setattr("modules.job_dispatcher.db.get_queued_jobs_count", lambda: 0)
+
+
 def test_dispatcher_routes_bird_species(monkeypatch):
     from modules.job_dispatcher import JobDispatcher
 
@@ -229,6 +246,7 @@ def test_dispatcher_routes_bird_species(monkeypatch):
         "_jit_replan_phase",
         lambda self, job_id, payload, queue_key, input_path: (payload, [1], False),
     )
+    _patch_dispatcher_db_no_pg(monkeypatch)
 
     dispatcher._tick()
 
@@ -397,6 +415,7 @@ def test_dispatcher_bird_species_default_top_k_is_one(monkeypatch):
         "_jit_replan_phase",
         lambda self, job_id, payload, queue_key, input_path: (payload, [1], False),
     )
+    _patch_dispatcher_db_no_pg(monkeypatch)
 
     dispatcher._tick()
 

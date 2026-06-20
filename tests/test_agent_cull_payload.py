@@ -133,3 +133,54 @@ def test_build_review_packet_no_downscale_passthrough(tmp_path):
         assert entry["path"] == thumb
         assert "source_path" not in entry
         assert (entry["width"], entry["height"]) == (400, 300)
+
+
+def test_build_review_packet_resolves_host_db_thumbnail_path(tmp_path, monkeypatch):
+    from modules import thumbnails
+
+    thumb_name = "abcdef0123456789abcdef0123456789.jpg"
+    thumb_dir = tmp_path / "thumbnails" / "ab"
+    thumb_dir.mkdir(parents=True)
+    thumb_file = thumb_dir / thumb_name
+    _write_image(str(thumb_file), (400, 300))
+    monkeypatch.setattr(thumbnails, "THUMB_DIR", str(tmp_path / "thumbnails"))
+
+    host_path = f"/mnt/d/Projects/image-scoring-backend/thumbnails/ab/{thumb_name}"
+    rows = {
+        10: {"id": 10, "pick_status": 1, "thumbnail_path": host_path, "score_general": 0.8},
+        11: {"id": 11, "pick_status": -1, "thumbnail_path": host_path, "score_general": 0.4},
+    }
+    cfg = AgentCullConfig()
+
+    packet = payload.build_review_packet(_unit((10, 11), [10], [11]), rows, cfg)
+
+    assert len(packet["thumbnail_manifest"]) == 2
+    for entry in packet["thumbnail_manifest"]:
+        assert entry["path"] == str(thumb_file)
+        assert os.path.isfile(entry["path"])
+
+
+def test_enrich_unit_rows_adds_model_scores(monkeypatch):
+    rows = {
+        10: {"id": 10, "pick_status": 1},
+        11: {"id": 11, "pick_status": -1},
+    }
+    cfg = AgentCullConfig()
+
+    def _fake_batch(ids, *, include_shadow=False):
+        return {
+            10: {"clip_quality_v0": {"normalized": 0.61, "raw_score": 0.61, "status": "success"}},
+            11: {"clip_quality_v0": {"normalized": 0.55, "raw_score": 0.55, "status": "success"}},
+        }
+
+    monkeypatch.setattr(payload, "get_batch_image_model_scores", _fake_batch)
+
+    warnings = payload.enrich_unit_rows(rows, cfg)
+
+    assert rows[10]["model_scores"]["clip_quality_v0"]["normalized"] == 0.61
+    assert not warnings
+
+    packet = payload.build_review_packet(_unit((10, 11), [10], [11]), rows, cfg)
+    img10 = next(i for i in packet["images"] if i["id"] == 10)
+    assert img10["scores"]["clip_quality_v0"] == 0.61
+    assert img10["model_scores"]["clip_quality_v0"]["normalized"] == 0.61

@@ -62,6 +62,13 @@ describe('partitionScalars', () => {
     expect(keys(parts.scores)).toContain('arniqa_score')
     expect(keys(parts.unmapped)).not.toContain('arniqa_score')
   })
+
+  it('routes clip_quality_v0_score to scores, not unmapped', () => {
+    const row = { ...sample, clip_quality_v0_score: 0.62 } as ImageDetail
+    const parts = partitionScalars(row)
+    expect(keys(parts.scores)).toContain('clip_quality_v0_score')
+    expect(keys(parts.unmapped)).not.toContain('clip_quality_v0_score')
+  })
 })
 
 describe('buildPathsTableEntries', () => {

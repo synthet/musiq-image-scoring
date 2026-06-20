@@ -17,7 +17,7 @@ def insert_review_group(
     status: str = "discovered",
     request_json: dict[str, Any] | None = None,
 ) -> int:
-    row = db.get_connector().query_one(
+    rows = db.get_connector().execute_returning(
         """
         INSERT INTO agent_cull_review_groups (
             stack_id, sub_stack_id, review_unit_key, status, dry_run, request_json
@@ -33,7 +33,9 @@ def insert_review_group(
             json.dumps(request_json) if request_json is not None else None,
         ),
     )
-    return int(row["id"])
+    if not rows:
+        raise RuntimeError("insert_review_group: INSERT returned no row")
+    return int(rows[0]["id"])
 
 
 def update_review_group(group_id: int, **fields: Any) -> None:
@@ -94,7 +96,7 @@ def insert_recommendation(
     prior_cull_decision: str | None,
     prior_candidate_status: str | None = None,
 ) -> int:
-    row = db.get_connector().query_one(
+    rows = db.get_connector().execute_returning(
         """
         INSERT INTO agent_cull_recommendations (
             review_group_id, image_id, agent_decision, final_decision, confidence,
@@ -119,7 +121,9 @@ def insert_recommendation(
             prior_candidate_status,
         ),
     )
-    return int(row["id"])
+    if not rows:
+        raise RuntimeError("insert_recommendation: INSERT returned no row")
+    return int(rows[0]["id"])
 
 
 def get_latest_group_for_unit(review_unit_key: str) -> dict[str, Any] | None:
