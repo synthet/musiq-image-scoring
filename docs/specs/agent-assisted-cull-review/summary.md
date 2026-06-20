@@ -1,10 +1,12 @@
 # Agent-assisted cull review — summary
 
-*Last updated: 2026-06-12*
+*Last updated: 2026-06-20*
 
 ## Goal
 
 Conservative AI-assisted redundancy review for **small stack/substack groups** (<10 images). An external vision-capable CLI returns JSON-only verdicts for **rejected** images; the backend validates locally, applies hard safety gates, and persists **metadata-only** removal candidates. **No physical deletion in MVP.**
+
+**Editorial alignment:** Prompt template `cull_redundancy_v2` follows the same principles as [carousel-pick curation](https://github.com/synthet/image-scoring-skills/blob/main/.cursor/skills/photo-carousel/SKILL.md) in **image-scoring-skills**: ML scores (0–1) inform the shortlist; **visual duplicate and pose-diversity rules override pure score rank**; every reject rationale cites filename, scores, and what was seen in thumbnails.
 
 ## Hard rules (non-negotiable)
 
@@ -41,9 +43,17 @@ Discovery (discovery.py + discovery_db.py)
 
 `config.json` → `culling.agent_review` (see `config.example.json`). Default **`enabled: false`**, **`dry_run_default: true`**.
 
+**Gemini CLI (operator):** When the WebUI runs in Docker, use container path `/app/scripts/wsl/gemini_agent.sh`, bake Gemini into the image, and mount host `~/.gemini` via `GEMINI_CONFIG_SOURCE`. Full matrix (Docker / WSL / Windows): [guides/setup/agent-cull-review-gemini-cli.md](../guides/setup/agent-cull-review-gemini-cli.md).
+
 ## Payload thumbnails
 
-When `agent.include_thumbnails=true`, `payload.py` adds a `thumbnail_manifest` entry per image (only for images whose stored thumbnail exists on disk). Each entry carries `path`, `mode`, `max_edge_px`, `width`, `height`, and `downscaled`.
+When `agent.include_thumbnails=true`, `payload.py` resolves DB thumbnail paths via `modules.thumbnails._resolve_thumbnail_filesystem_path` (so Docker host WSL paths in Postgres map to `/app/thumbnails/...` inside the container), then adds a `thumbnail_manifest` entry per image. Each entry carries `path`, `mode`, `max_edge_px`, `width`, `height`, and `downscaled`.
+
+**Vision:** Prompt v2 instructs the agent to open every manifest path before recommending `remove`. Optional response fields `vision_used` and `viewed_image_ids` are validated when present; set `agent.require_vision_evidence=true` to block removals without them.
+
+## Payload scores
+
+When `agent.include_all_model_scores=true` (default), each image includes a `model_scores` map from `image_model_scores` (including auxiliary **`clip_quality_v0`**). Names in `agent.flatten_model_scores` are also copied into `scores` for prompt readability. Missing required scores can trigger JIT `clip_quality_v0` when `agent.jit_clip_quality=true`.
 
 `agent.max_thumbnail_edge_px` (default **512**) bounds the longest edge sent to the agent to control vision token cost/latency:
 
@@ -69,9 +79,9 @@ OpenAPI: `docs/reference/api/openapi.yaml`
 
 ## Gallery (sibling repo)
 
-- `AgentCullReviewPanel` — list groups, per-rec approve/reject/rollback, clear pick flag
+- `AgentCullReviewPanel` — list groups, per-rec approve/reject/rollback, clear pick flag, **Run dry-run review**
 - Dry-run groups: **Mark safe candidates** hidden
-- **Not yet:** run review from UI, stale-state UX, regenerated API types
+- Operator setup when UI shows “Gemini CLI not found”: [gallery guide](https://github.com/synthet/image-scoring-gallery/blob/main/docs/guides/04-agent-cull-review.md) → backend [Gemini CLI setup](../guides/setup/agent-cull-review-gemini-cli.md)
 
 ## Test coverage
 

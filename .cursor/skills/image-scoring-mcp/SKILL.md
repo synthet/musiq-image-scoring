@@ -57,6 +57,10 @@ Regenerate from overlay: `python scripts/generate_mcp_tool_inventory.py --update
 | `data.execute_sql` | Read-only `SELECT` / `WITH … SELECT` (`query`, optional `params`) |
 | `data.get_embedding_stats` | Embedding coverage |
 | `support.export_debug_bundle` | Redacted zip — `confirmed=True` |
+| `browser.navigate` | Playwright — open URL (e.g. WebUI `http://127.0.0.1:7860/ui/`) |
+| `browser.snapshot` | Playwright — accessibility page snapshot |
+| `browser.click` | Playwright — click element (`target` from snapshot) |
+| `browser.run_code_unsafe` | Playwright RCE — **`confirmed=True`** only |
 
 ### Common mistakes
 
@@ -112,6 +116,18 @@ dispatch("data.execute_sql", {"query": "SELECT COUNT(*) FROM images WHERE …", 
 search("export debug bundle")
 dispatch("support.export_debug_bundle", {}, confirmed=True)
 ```
+
+### Browser automation (Playwright via is-be-mcp)
+
+No separate **`playwright`** MCP server — use **`browser.*`** actions:
+
+```text
+search("browser navigate webui")
+dispatch("browser.navigate", {"url": "http://127.0.0.1:7860/ui/"}, dry_run=true)
+dispatch("browser.snapshot", {})
+```
+
+Disable with `MCP_PLAYWRIGHT_ENABLED=0`. Regenerate registry: `node scripts/generate_playwright_registry.mjs`.
 
 ### Gallery + backend
 

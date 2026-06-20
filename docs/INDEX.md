@@ -70,6 +70,8 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | [reference/api/API_SCHEMA_IMPLEMENTATION.md](reference/api/API_SCHEMA_IMPLEMENTATION.md) | API schema implementation notes. |
 | [reference/api/API_SCHEMA_LLM.md](reference/api/API_SCHEMA_LLM.md) | LLM-oriented API schema summary. |
 | [technical/MCP_DEBUGGING_TOOLS.md](technical/MCP_DEBUGGING_TOOLS.md) | MCP debugging tools reference. |
+| [technical/MCP_SEARCH_DISPATCH.md](technical/MCP_SEARCH_DISPATCH.md) | Compact search/dispatch/sse_status contract. |
+| [guides/setup/mcp-compact-servers.md](guides/setup/mcp-compact-servers.md) | Node stdio MCP setup (both repos). |
 | [../AGENTS.md](../AGENTS.md) | Agent/MCP configuration and tool inventory. |
 | [technical/AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md) | Cross-repo integration protocol. |
 | [technical/AGENT_MEMORY.md](technical/AGENT_MEMORY.md) | Agent memory workflow (log-session, dream, promote). |
@@ -132,6 +134,7 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Local development environment. |
 | [guides/setup/INDEX.md](guides/setup/INDEX.md) | Setup guide index. |
 | [guides/setup/DOCKER_SETUP.md](guides/setup/DOCKER_SETUP.md) | Docker setup. |
+| [guides/setup/agent-cull-review-gemini-cli.md](guides/setup/agent-cull-review-gemini-cli.md) | Agent cull review Gemini CLI (Docker/WSL). |
 | [guides/setup/GPU_SETUP.md](guides/setup/GPU_SETUP.md) | GPU setup. |
 | [guides/setup/ENVIRONMENTS.md](guides/setup/ENVIRONMENTS.md) | Environment and venv notes. |
 | [guides/setup/PYTHON_VERSION_CAVEATS.md](guides/setup/PYTHON_VERSION_CAVEATS.md) | Python dependency caveats. |

@@ -1,0 +1,19 @@
+{
+    "name": "image-scoring-backend-mcp",
+    "version": "2.1.0",
+    "description": "Compact stdio MCP for Vexlum Scoring (is-be-mcp): search, dispatch, sse_status via Python worker bridge",
+    "main": "dist/compactIndex.js",
+    "type": "module",
+    "scripts": {
+        "build": "tsc && node ../scripts/generate_playwright_registry.mjs",
+        "test:unit": "npm run build && node --test dist/names.test.js dist/utils/pythonBridge.test.js dist/utils/proxyDispatch.test.js dist/utils/playwrightBridge.test.js",
+        "start": "node dist/compactIndex.js"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.0.1"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.0.0"
+    }
+}

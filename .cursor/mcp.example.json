@@ -1,16 +1,10 @@
 {
-  "_comment": "Copy to .cursor/mcp.json (gitignored). is-be-mcp uses WSL + ~/.venvs/tf (canonical for DB/modules). Windows-native fallback: run_mcp_compact_windows.bat + .venv. is-be-webui SSE defaults to compact; MCP_SSE_PROFILE=full for legacy tools.",
+  "_comment": "Copy to .cursor/mcp.json (gitignored). Browser automation is built into is-be-mcp (browser.* actions via search/dispatch). Uses workspaceFolder:image-scoring-backend for multi-root workspaces. Build: cd mcp-server && npm install && npm run build.",
   "mcpServers": {
     "is-be-mcp": {
-      "command": "cmd",
-      "args": ["/c", "scripts\\batch\\run_mcp_compact_wsl.bat"],
-      "cwd": "${workspaceFolder}"
-    },
-    "is-be-webui": {
-      "url": "http://127.0.0.1:7860/mcp/sse",
-      "headers": {
-        "Authorization": "Bearer ${env:IMGSCORE_MCP_TOKEN}"
-      }
+      "command": "node",
+      "args": ["mcp-server/dist/compactIndex.js"],
+      "cwd": "${workspaceFolder:image-scoring-backend}"
     }
   }
 }

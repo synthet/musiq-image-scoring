@@ -63,15 +63,35 @@ Nothing runs until the dispatcher dequeues that row.
 ## 4. How a queued job becomes active work
 
 1. **`JobDispatcher`** (background thread, started when the API registers runners) wakes on an interval.
-2. If no runner is busy, it calls **`db.dequeue_next_job()`**:
-   - Picks the next **`queued`** job (priority, `queue_position`, `enqueued_at`, `id`).
-   - Atomically sets that row to **`running`** and sets **`started_at`**.
+2. When no runner is busy, each tick:
+   - **Reconciles phantom phases** — `job_phases.state='running'` while the matching runner family is idle for longer than **`dispatcher.stale_phase_grace_sec`** (default 120s) is demoted to **`queued`** via **`db.reconcile_phantom_running_job_phases`**.
+   - **Continues multi-phase runs first** — **`db.get_running_job_for_phase_continuation()`** picks the oldest **`running`** job with a **`running`** or **`queued`** phase and starts that stage.
+   - **Dequeues new work only when** **`db.count_running_pipeline_jobs()`** is below **`dispatcher.max_in_flight_jobs`** (default **1**) and no continuation was started. Then **`db.dequeue_next_job()`**:
+     - Picks the next **`queued`** job (`priority` DESC, then `queue_position`, `enqueued_at`, `id`).
+     - Atomically sets that row to **`running`** and sets **`started_at`**.
 3. **`_start_job`** reads **`job_type`** and **`queue_payload`**:
    - **`queue_payload`** is parsed as JSON; if the DB stored **double-encoded** JSON (string containing JSON), a second parse is applied so the dict is usable.
 4. The matching runner’s **`start_batch(..., job_id=...)`** runs in a **worker thread**.
 5. The runner updates **`jobs`** / emits WebSocket events as it progresses; when finished, it sets terminal status (**`completed`** / **`failed`**, etc.).
 
 **Work items** (per image, per folder, etc.) are handled **inside** that runner using the same **`job_id`** and the persisted payload + database state—not by creating a new `jobs` row for each item.
+
+### Queue priority lanes (config-gated)
+
+When **`dispatcher.priority_lanes_enabled`** is true (default), enqueue resolves priority via **`modules/job_priority.resolve_job_enqueue_priority`**:
+
+| Lane | Signal | Default effect |
+|------|--------|----------------|
+| Interactive | `tool_id` such as **`run_submit`**, **`pipeline_submit`**, legacy `*_start` | +200 priority |
+| Auto-drive | `tool_id=runs_auto_drive` or `auto_drive_plan_key` on payload | base 100 |
+| Maintenance | `job_type=maintenance` or heal tool ids | −50 priority |
+| Small batch | `resolved_image_ids` length ≤ **`dispatcher.small_batch_image_threshold`** | +50 priority |
+
+Manual override: set **`priority`** on `queue_payload` or **`POST /api/jobs/{id}/priority`**.
+
+### Auto-drive in-flight cap
+
+**`runs_autodrive.auto_drive_runs`** skips new enqueues while **`db.count_running_pipeline_jobs()`** ≥ **`auto_drive.max_in_flight_jobs`** (default **1**), recording skip reason **`in_flight_cap`**. Candidate folders are sorted by descending **`overall_percent`** (finish nearly-complete folders first).
 
 ---
 

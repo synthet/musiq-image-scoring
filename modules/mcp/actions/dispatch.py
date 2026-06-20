@@ -115,6 +115,31 @@ def dispatch_action(
         if action_id == "support.export_debug_bundle":
             return _dispatch_export_debug_bundle(record, validated, request_id=rid, warnings=warnings)
 
+        if record.get("handler_domain") == "playwright":
+            if dry_run:
+                return dry_run_envelope(
+                    record,
+                    request_id=rid,
+                    validated_args=validated,
+                    warnings=warnings + ["dry_run has no effect for read-only actions"],
+                )
+            legacy_tool = str(record.get("legacy_tool_name") or "")
+            if not legacy_tool:
+                raise McpActionError(
+                    "Playwright action missing legacy_tool_name",
+                    details={"action_id": action_id},
+                )
+            return {
+                "status": "proxy",
+                "code": "playwright_delegate",
+                "action_id": action_id,
+                "action_version": record.get("version"),
+                "request_id": rid,
+                "legacy_tool_name": legacy_tool,
+                "validated_args": validated,
+                "side_effect_level": record.get("side_effect_level"),
+            }
+
         raw = invoke_handler(record, validated)
         data = _sanitize(raw)
         summary = f"{record.get('title') or action_id} completed."

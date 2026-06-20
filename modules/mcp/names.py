@@ -9,6 +9,9 @@ BE_DIAG = "is-be-diag"
 BE_JOBS = "is-be-jobs"
 BE_DATA = "is-be-data"
 BE_MAINT = "is-be-maint"
+# WebUI-attached live SSE server key (preferred)
+BE_LIVE = "is-be-live"
+# Back-compat alias (deprecated): older configs used this name for WebUI SSE.
 BE_WEBUI = "is-be-webui"
 BE_FULL = "is-be-full"
 BE_PG = "is-be-pg"
@@ -16,6 +19,7 @@ BE_PG = "is-be-pg"
 # Compact MCP tools
 SEARCH = "search"
 DISPATCH = "dispatch"
+SSE_STATUS = "sse_status"
 
 # Router meta-tools exposed to agents
 BE_FIND = "be_find"

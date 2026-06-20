@@ -122,6 +122,23 @@ export function GalleryPage() {
             </div>
           </FilterSection>
 
+          <FilterSection label="Min CLIP Quality">
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={baseFilters.min_clip_quality_v0 ?? 0}
+              onChange={(e) =>
+                updateFilter({ min_clip_quality_v0: parseFloat(e.target.value) || undefined })
+              }
+              className="w-full"
+            />
+            <div className="text-xs text-[#6d6d6d] text-right">
+              {((baseFilters.min_clip_quality_v0 ?? 0) * 100).toFixed(0)}%
+            </div>
+          </FilterSection>
+
           <FilterSection label="Keyword">
             <input
               value={baseFilters.keyword ?? ''}

@@ -41,6 +41,19 @@ Use `--wsl-gateway` when Python runs in WSL but FastAPI is listening on Windows.
 
 Implementation: [scripts/watch_run_http.py](../scripts/watch_run_http.py).
 
+### Runs / auto-drive monitoring
+
+| Need | Command / endpoint |
+|------|-------------------|
+| Active job + queue | `GET /api/tasks/active` |
+| Drive loop health | `GET /api/runs/drive/status` |
+| Run stages | `GET /api/runs/{id}/stages` |
+| Phantom phase cleanup | `python scripts/reconcile_phantom_job_phases.py` |
+| Dispatcher tick logs | MCP `logs.search_logs` pattern `DISPATCHER` |
+| Pipeline snapshot | MCP `dispatch("jobs.get_pipeline_stats", {})` |
+
+See [RUNS_WALKTHROUGH.md](technical/RUNS_WALKTHROUGH.md) and [reports/RUNS_MONITORING_SNAPSHOT_2026-06-17.md](reports/RUNS_MONITORING_SNAPSHOT_2026-06-17.md).
+
 ## Redacted Debug Bundle
 
 Generate a support bundle:

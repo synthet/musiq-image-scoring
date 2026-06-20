@@ -87,3 +87,33 @@ def test_markdown_fenced_json_parses():
         picked_image_ids={11},
     )
     assert result.ok is True
+
+
+def test_optional_vision_fields_accepted():
+    data = _valid_response()
+    data["vision_used"] = True
+    data["viewed_image_ids"] = [10, 11]
+    result = validate_agent_response(
+        data,
+        stack_id=1,
+        sub_stack_id=None,
+        rejected_image_ids={10},
+        picked_image_ids={11},
+        all_image_ids={10, 11},
+    )
+    assert result.ok is True
+
+
+def test_viewed_unknown_image_id_rejected():
+    data = _valid_response()
+    data["viewed_image_ids"] = [99]
+    result = validate_agent_response(
+        data,
+        stack_id=1,
+        sub_stack_id=None,
+        rejected_image_ids={10},
+        picked_image_ids={11},
+        all_image_ids={10, 11},
+    )
+    assert result.ok is False
+    assert any("viewed_unknown_image_id" in e for e in result.errors)

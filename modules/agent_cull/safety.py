@@ -102,6 +102,31 @@ def apply_safety_gates(
         overrides.append(SafetyOverride("metadata_only_remove_disabled", "group"))
         group_blocked = True
 
+    if cfg.agent.require_vision_evidence and provider_supports_vision:
+        vision_used = validated_response.get("vision_used")
+        viewed_ids: set[int] = set()
+        raw_viewed = validated_response.get("viewed_image_ids")
+        if isinstance(raw_viewed, list):
+            for vid in raw_viewed:
+                try:
+                    viewed_ids.add(int(vid))
+                except (TypeError, ValueError):
+                    pass
+        if vision_used is not True:
+            overrides.append(SafetyOverride("vision_not_used", "group"))
+            group_blocked = True
+        else:
+            for item in validated_response.get("rejected_image_decisions") or []:
+                if str(item.get("decision") or "") != "remove":
+                    continue
+                try:
+                    iid = int(item.get("image_id"))
+                except (TypeError, ValueError):
+                    continue
+                if iid not in viewed_ids:
+                    overrides.append(SafetyOverride("image_not_viewed", "group", image_id=iid))
+                    group_blocked = True
+
     if dry_run:
         overrides.append(SafetyOverride("dry_run", "group"))
 

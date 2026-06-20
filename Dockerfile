@@ -42,6 +42,16 @@ RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 && \
     ln -sf /usr/bin/python3.11 /usr/local/bin/python3 && \
     ln -sf /usr/bin/python3.11 /usr/local/bin/python
 
+# Node.js + Gemini CLI (legacy) and Antigravity CLI for agent-assisted cull review
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs bsdutils && \
+    rm -rf /var/lib/apt/lists/* && \
+    npm install -g @google/gemini-cli && \
+    curl -fsSL https://antigravity.google/cli/install.sh | bash
+
+ENV PATH="/root/.local/bin:${PATH}"
+
 # Set working directory
 WORKDIR /app
 
@@ -49,14 +59,14 @@ WORKDIR /app
 COPY requirements/requirements_wsl_gpu.txt /tmp/requirements.txt
 # Pip uses BuildKit cache mount so wheels stay on the daemon between builds even if this step reruns
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m pip install --upgrade pip \
-    && python3 -m pip install -r /tmp/requirements.txt
+    python3 -m pip install --retries 10 --timeout 120 --upgrade pip \
+    && python3 -m pip install --retries 10 --timeout 120 -r /tmp/requirements.txt
 
 # Copy source code
 COPY . .
 
 # Ensure entrypoint scripts are executable
-RUN chmod +x scripts/docker_entrypoint.sh scripts/docker_inference_e2e.sh
+RUN chmod +x scripts/docker_entrypoint.sh scripts/docker_inference_e2e.sh scripts/wsl/gemini_agent.sh scripts/wsl/antigravity_agent.sh
 
 # Expose WebUI port
 EXPOSE 7860

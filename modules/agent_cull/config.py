@@ -7,7 +7,7 @@ from typing import Any
 
 from modules import config
 
-PROMPT_TEMPLATE_VERSION = "cull_redundancy_v1"
+PROMPT_TEMPLATE_VERSION = "cull_redundancy_v2"
 RESPONSE_SCHEMA_VERSION = "agent-cull-response-v1"
 REQUEST_SCHEMA_VERSION = "agent-cull-request-v1"
 
@@ -23,6 +23,13 @@ class AgentCullAgentConfig:
     include_thumbnails: bool = True
     thumbnail_mode: str = "path"
     max_thumbnail_edge_px: int = 512
+    include_all_model_scores: bool = True
+    flatten_model_scores: tuple[str, ...] = ("clip_quality_v0",)
+    required_score_names: tuple[str, ...] = ("clip_quality_v0",)
+    jit_clip_quality: bool = True
+    require_vision_evidence: bool = False
+    prompt_template_version: str = ""
+    codex_sandbox: str = "read-only"
 
 
 @dataclass(frozen=True)
@@ -69,6 +76,16 @@ def _coerce_float(value: Any, default: float) -> float:
         return default
 
 
+def _coerce_str_tuple(value: Any, default: tuple[str, ...]) -> tuple[str, ...]:
+    if value is None:
+        return default
+    if isinstance(value, str):
+        value = [value]
+    if isinstance(value, list):
+        return tuple(str(v).strip() for v in value if str(v).strip())
+    return default
+
+
 def _coerce_int(value: Any, default: int) -> int:
     if value is None:
         return default
@@ -103,6 +120,13 @@ def load_agent_cull_config(overrides: dict[str, Any] | None = None) -> AgentCull
         include_thumbnails=_coerce_bool(agent_raw.get("include_thumbnails"), True),
         thumbnail_mode=str(agent_raw.get("thumbnail_mode") or "path"),
         max_thumbnail_edge_px=_coerce_int(agent_raw.get("max_thumbnail_edge_px"), 512),
+        include_all_model_scores=_coerce_bool(agent_raw.get("include_all_model_scores"), True),
+        flatten_model_scores=_coerce_str_tuple(agent_raw.get("flatten_model_scores"), ("clip_quality_v0",)),
+        required_score_names=_coerce_str_tuple(agent_raw.get("required_score_names"), ("clip_quality_v0",)),
+        jit_clip_quality=_coerce_bool(agent_raw.get("jit_clip_quality"), True),
+        require_vision_evidence=_coerce_bool(agent_raw.get("require_vision_evidence"), False),
+        prompt_template_version=str(agent_raw.get("prompt_template_version") or "").strip(),
+        codex_sandbox=str(agent_raw.get("codex_sandbox") or "read-only").strip() or "read-only",
     )
     gates = AgentCullLocalGatesConfig(
         block_if_rejected_scores_higher=_coerce_bool(

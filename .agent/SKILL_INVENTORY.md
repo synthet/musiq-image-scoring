@@ -17,7 +17,10 @@ Central list of **first-party** `SKILL.md` files in this repository for governan
 
 | Skill `name` | Path | Purpose (short) | Risk | Mirror under `.claude/skills/` | Last reviewed |
 |--------------|------|-----------------|------|-------------------------------|---------------|
+| agent-memory | `.cursor/skills/agent-memory/SKILL.md` | Log/dream/promote + transcript import v2 | L2 | Yes | 2026-06-17 |
 | backlog-queue | `.cursor/skills/backlog-queue/SKILL.md` | Cross-repo GitHub Project board contract (claim, transition, file) | L1 | Yes | 2026-04-28 |
+| backlog-housekeeping | `.cursor/skills/backlog-housekeeping/SKILL.md` | GitHub Project board hygiene | L2 | Yes | 2026-06-16 |
+| image-scoring-mcp | `.cursor/skills/image-scoring-mcp/SKILL.md` | Compact MCP search/dispatch | L2 | — (Cursor only) | 2026-05-31 |
 | backup-db | `.cursor/skills/backup-db/SKILL.md` | Postgres backup workflow | L2 | — (Cursor only) | 2026-04-25 |
 | commit-conventions | `.cursor/skills/commit-conventions/SKILL.md` | Conventional Commits / PR titles | L1 | Yes | 2026-04-25 |
 | critical-commit-audit | `.cursor/skills/critical-commit-audit/SKILL.md` | High-severity post-commit review; trace paths, PR bar | L2 | Yes | 2026-04-26 |

@@ -844,6 +844,15 @@ def _bird_backlog_quota_threshold() -> int:
         return BIRD_BACKLOG_QUOTA_THRESHOLD
 
 
+def _max_in_flight_jobs_autodrive() -> int:
+    try:
+        from modules.config import get_config_value
+
+        return max(1, _as_int(get_config_value("auto_drive.max_in_flight_jobs", default=1)))
+    except (TypeError, ValueError):
+        return 1
+
+
 def _bird_backlog_reserved_slots(*, batch_limit: int, bird_backlog: int) -> int:
     try:
         from modules.config import get_config_value
@@ -1060,7 +1069,14 @@ def _select_autodrive_candidates(
 ) -> list[dict[str, Any]]:
     """Pick up to ``limit`` leaf-ready folders with fair share for large bird backlogs."""
     limit = max(1, min(_as_int(limit, 50), AUTODRIVE_CANDIDATE_SCAN_CAP))
-    items = list(schedulable)
+    items = sorted(
+        list(schedulable),
+        key=lambda i: (
+            -float(i.get("overall_percent") or 0),
+            _as_int(i.get("image_count")),
+            str(i.get("path_key") or _path_key(str(i.get("path") or ""))),
+        ),
+    )
     if len(items) <= limit:
         return items
 
@@ -1621,6 +1637,20 @@ def auto_drive_runs(
     skipped: list[dict[str, Any]] = []
     loop_detected = 0
 
+    in_flight_cap = _max_in_flight_jobs_autodrive()
+    in_flight = 0
+    try:
+        in_flight = db.count_running_pipeline_jobs(exclude_maintenance=True)
+    except Exception:
+        in_flight = 0
+    enqueue_blocked = (not dry_run) and in_flight >= in_flight_cap
+    if enqueue_blocked:
+        logger.info(
+            "runs_autodrive: deferring enqueue (%s pipeline job(s) running, cap=%s)",
+            in_flight,
+            in_flight_cap,
+        )
+
     for prep in prepared:
         item = prep["item"]
         plan_key = str(prep["plan_key"] or "")
@@ -1714,6 +1744,15 @@ def auto_drive_runs(
                 "bucket": item.get("bucket"),
                 "plan_key": plan_key,
                 "dry_run": True,
+            })
+            continue
+        if enqueue_blocked:
+            skipped.append({
+                "folder_path": item.get("path"),
+                "phases": item.get("next_phases") or [],
+                "reason": "in_flight_cap",
+                "in_flight": in_flight,
+                "cap": in_flight_cap,
             })
             continue
         try:

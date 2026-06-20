@@ -1,4 +1,4 @@
-"""Compact SSE MCP surface (is-be-webui default)."""
+"""Compact SSE MCP surface (is-be-live default)."""
 
 from __future__ import annotations
 

@@ -483,6 +483,7 @@ def _images_list_payload(
     min_score_general: float,
     min_score_aesthetic: float,
     min_score_technical: float,
+    min_clip_quality_v0: float,
     folder_path: Optional[str],
     stack_id: Optional[int],
     phase_status_filter: Optional[str] = None,
@@ -506,6 +507,7 @@ def _images_list_payload(
             min_score_general=min_score_general,
             min_score_aesthetic=min_score_aesthetic,
             min_score_technical=min_score_technical,
+            min_clip_quality_v0=min_clip_quality_v0,
             folder_path=folder_path,
             stack_id=stack_id,
             phase_status_filter=phase_status_filter,
@@ -579,6 +581,7 @@ def _image_neighbors_payload(
     min_score_general: float,
     min_score_aesthetic: float,
     min_score_technical: float,
+    min_clip_quality_v0: float,
     folder_path: Optional[str],
     stack_id: Optional[int],
 ) -> dict:
@@ -596,6 +599,7 @@ def _image_neighbors_payload(
             min_score_general=min_score_general,
             min_score_aesthetic=min_score_aesthetic,
             min_score_technical=min_score_technical,
+            min_clip_quality_v0=min_clip_quality_v0,
             folder_path=folder_path,
             stack_id=stack_id,
         )
@@ -677,6 +681,7 @@ def create_public_api_router() -> APIRouter:
         min_score_general: float = Query(0, ge=0, le=1),
         min_score_aesthetic: float = Query(0, ge=0, le=1),
         min_score_technical: float = Query(0, ge=0, le=1),
+        min_clip_quality_v0: float = Query(0, ge=0, le=1),
         folder_path: Optional[str] = Query(None),
         stack_id: Optional[int] = Query(None),
     ):
@@ -691,6 +696,7 @@ def create_public_api_router() -> APIRouter:
             min_score_general=min_score_general,
             min_score_aesthetic=min_score_aesthetic,
             min_score_technical=min_score_technical,
+            min_clip_quality_v0=min_clip_quality_v0,
             folder_path=folder_path,
             stack_id=stack_id,
             keyword_exact=keyword_exact,
@@ -738,6 +744,7 @@ def create_public_api_router() -> APIRouter:
         min_score_general: float = Query(0, ge=0, le=1),
         min_score_aesthetic: float = Query(0, ge=0, le=1),
         min_score_technical: float = Query(0, ge=0, le=1),
+        min_clip_quality_v0: float = Query(0, ge=0, le=1),
         folder_path: Optional[str] = Query(None),
         stack_id: Optional[int] = Query(None),
     ):
@@ -751,6 +758,7 @@ def create_public_api_router() -> APIRouter:
             min_score_general=min_score_general,
             min_score_aesthetic=min_score_aesthetic,
             min_score_technical=min_score_technical,
+            min_clip_quality_v0=min_clip_quality_v0,
             folder_path=folder_path,
             stack_id=stack_id,
         )
@@ -4667,6 +4675,7 @@ def create_api_router() -> APIRouter:
         min_score_general: float = Query(0, ge=0, le=1, description="Minimum general score"),
         min_score_aesthetic: float = Query(0, ge=0, le=1, description="Minimum aesthetic score"),
         min_score_technical: float = Query(0, ge=0, le=1, description="Minimum technical score"),
+        min_clip_quality_v0: float = Query(0, ge=0, le=1, description="Minimum CLIP quality score (clip_quality_v0)"),
         folder_path: Optional[str] = Query(None, description="Filter by folder path"),
         stack_id: Optional[int] = Query(None, description="Filter by stack ID"),
         phase_status: Optional[str] = Query(
@@ -4694,6 +4703,7 @@ def create_api_router() -> APIRouter:
             min_score_general=min_score_general,
             min_score_aesthetic=min_score_aesthetic,
             min_score_technical=min_score_technical,
+            min_clip_quality_v0=min_clip_quality_v0,
             folder_path=folder_path,
             stack_id=stack_id,
             phase_status_filter=phase_status,
@@ -4814,6 +4824,7 @@ def create_api_router() -> APIRouter:
         min_score_general: float = Query(0, ge=0, le=1),
         min_score_aesthetic: float = Query(0, ge=0, le=1),
         min_score_technical: float = Query(0, ge=0, le=1),
+        min_clip_quality_v0: float = Query(0, ge=0, le=1),
         folder_path: Optional[str] = Query(None),
         stack_id: Optional[int] = Query(None),
     ):
@@ -4827,6 +4838,7 @@ def create_api_router() -> APIRouter:
             min_score_general=min_score_general,
             min_score_aesthetic=min_score_aesthetic,
             min_score_technical=min_score_technical,
+            min_clip_quality_v0=min_clip_quality_v0,
             folder_path=folder_path,
             stack_id=stack_id,
         )
@@ -5196,7 +5208,8 @@ def create_api_router() -> APIRouter:
 
         try:
             require_postgres()
-            result = run_review_action(
+            result = await asyncio.to_thread(
+                run_review_action,
                 stack_id=request.stack_id,
                 sub_stack_id=request.sub_stack_id,
                 dry_run=request.dry_run,

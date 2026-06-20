@@ -69,6 +69,7 @@ def validate_agent_response(
     sub_stack_id: int | None,
     rejected_image_ids: set[int],
     picked_image_ids: set[int],
+    all_image_ids: set[int] | None = None,
 ) -> ValidationResult:
     errors: list[str] = []
 
@@ -103,6 +104,24 @@ def validate_agent_response(
 
     if len(decisions) != len(rejected_image_ids):
         errors.append("rejected_decision_count_mismatch")
+
+    viewed = data.get("viewed_image_ids")
+    if viewed is not None:
+        if not isinstance(viewed, list):
+            errors.append("viewed_image_ids_not_array")
+        elif all_image_ids is not None:
+            for idx, vid in enumerate(viewed):
+                try:
+                    iid = int(vid)
+                except (TypeError, ValueError):
+                    errors.append(f"viewed_image_ids_{idx}_invalid")
+                    continue
+                if iid not in all_image_ids:
+                    errors.append(f"viewed_unknown_image_id:{iid}")
+
+    vision_used = data.get("vision_used")
+    if vision_used is not None and not isinstance(vision_used, bool):
+        errors.append("vision_used_not_boolean")
 
     seen: set[int] = set()
     for idx, item in enumerate(decisions):
@@ -165,6 +184,7 @@ def validate_raw_agent_response(
     sub_stack_id: int | None,
     rejected_image_ids: set[int],
     picked_image_ids: set[int],
+    all_image_ids: set[int] | None = None,
 ) -> ValidationResult:
     try:
         data = parse_agent_response(raw)
@@ -181,4 +201,5 @@ def validate_raw_agent_response(
         sub_stack_id=sub_stack_id,
         rejected_image_ids=rejected_image_ids,
         picked_image_ids=picked_image_ids,
+        all_image_ids=all_image_ids,
     )

@@ -8,7 +8,8 @@ import logging
 from typing import Any
 
 from modules import audit, db
-from modules.agent_cull.config import PROMPT_TEMPLATE_VERSION, AgentCullConfig
+from modules.agent_cull.config import AgentCullConfig
+from modules.agent_cull.mode_profiles import resolve_prompt_template_version
 from modules.agent_cull.discovery import ReviewUnit
 from modules.agent_cull.repository import (
     insert_recommendation,
@@ -69,7 +70,7 @@ def persist_validated_review(
         group_id,
         agent_name=provider_name,
         agent_supports_vision=provider_supports_vision,
-        prompt_template_version=PROMPT_TEMPLATE_VERSION,
+        prompt_template_version=resolve_prompt_template_version(cfg),
         prompt_hash=prompt_hash(packet),
         response_raw=raw_response[:500_000],
         response_validated=validated,

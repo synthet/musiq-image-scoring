@@ -1,3 +1,20 @@
 {
+  "_comment": "Claude Code MCP: copy .mcp.json.example → .mcp.json. Enable compact tools only (search/dispatch/sse_status). Browser automation uses browser.* dispatch on is-be-mcp — no separate playwright server.",
+  "permissions": {
+    "allow": [
+      "mcp__is-be-mcp__search",
+      "mcp__is-be-mcp__dispatch",
+      "mcp__is-be-mcp__sse_status"
+    ]
+  },
+  "enabledMcpjsonServers": ["is-be-mcp"],
+  "disabledMcpjsonServers": [
+    "playwright",
+    "is-be-webui",
+    "is-be-live",
+    "is-be-maint",
+    "is-be-full",
+    "is-be-pg"
+  ],
   "hooks": {}
 }

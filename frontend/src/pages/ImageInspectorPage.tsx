@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { ArrowLeft, Play } from 'lucide-react'
-import { clsx } from 'clsx'
 import { galleryApi } from '@/api/gallery'
 import { runsApi } from '@/api/runs'
 import { dbExplorerImagePath, folderPath, imageInspectorPath, stackPath } from '@/utils/routes'
@@ -27,7 +26,6 @@ import {
 import { statusLabel } from '@/components/ui/badge'
 import { PhaseStatusIcon, normalizeLegacyPhaseStatus } from '@/components/status/PhaseStatusIcon'
 import type { ImageDetail, ImagePhaseStatusRow, ModelScoreEntry } from '@/types/api'
-import type { ModelMembership } from '@/api/config'
 
 function detailPreviewSrc(image: ImageDetail): string | null {
   const full = image.resolved_path || image.file_path
@@ -38,38 +36,11 @@ function detailPreviewSrc(image: ImageDetail): string | null {
   return null
 }
 
-// Friendly display names for score keys / model names. Keyed by the bare model
-// name (after stripping `score_` / `_score`).
-const SCORE_LABELS: Record<string, string> = {
-  topiq: 'TOPIQ-NR',
-  musiq: 'MUSIQ',
-  qalign: 'Q-Align',
-  cursor: 'Cursor (LLM)',
-  claude: 'Claude (LLM)',
-  liqe: 'LIQE',
-  spaq: 'SPAQ',
-  ava: 'AVA',
-  paq2piq: 'PAQ2PIQ',
-  koniq: 'KonIQ',
-  arniqa: 'ARNIQA',
-  composite: 'Composite',
-  general: 'General',
-  technical: 'Technical',
-  aesthetic: 'Aesthetic',
-}
-
-function scoreLabel(key: string): string {
-  if (key === 'score') return 'Score'
-  const base = key.replace(/^score_/, '').replace(/_score$/, '')
-  return SCORE_LABELS[base] ?? key
-}
-
-// Canonical IQA models shown in the inspector roster. A model renders normally
-// when it is active (enabled/shadow in scoring.models config, or it has a stored
-// value); otherwise it is grayed out as "off". Values resolve from
-// image_model_scores, then a legacy `score_{name}` column, then a flat
-// `{name}_score` field.
-const KNOWN_MODELS = ['spaq', 'ava', 'liqe', 'paq2piq', 'koniq', 'musiq', 'topiq', 'arniqa', 'qalign', 'cursor', 'claude']
+import {
+  resolveModelValue,
+  resolveVisibleModels,
+  scoreLabel,
+} from '@/constants/scoreModels'
 
 const INSPECTOR_NAV: { id: string; label: string }[] = [
   { id: 'identity', label: 'Identity' },
@@ -126,48 +97,28 @@ function InspectorSectionNav({
   )
 }
 
-function resolveModelValue(
-  raw: Record<string, unknown>,
-  entry: ModelScoreEntry | undefined,
-  name: string,
-): number | null {
-  const fromBlock = entry ? entry.normalized ?? entry.raw_score : null
-  if (typeof fromBlock === 'number') return fromBlock
-  const legacy = raw[`score_${name}`]
-  if (typeof legacy === 'number') return legacy
-  const flat = raw[`${name}_score`]
-  if (typeof flat === 'number') return flat
-  return null
-}
-
 function ModelScoresTable({
   data,
   modelScores,
-  scoringModels,
+  visibleModels,
 }: {
   data: ImageDetail
   modelScores: Record<string, ModelScoreEntry>
-  scoringModels: Record<string, ModelMembership>
+  visibleModels: string[]
 }) {
   const raw = data as unknown as Record<string, unknown>
   return (
     <div className="border border-[var(--color-border-muted)] rounded overflow-hidden mt-2 text-[11px]">
       <table className="w-full border-collapse">
         <tbody>
-          {KNOWN_MODELS.map((name) => {
+          {visibleModels.map((name) => {
             const entry = modelScores[name]
-            const value = resolveModelValue(raw, entry, name)
-            const membership = scoringModels[name]
-            const configActive = !!(membership && (membership.enabled || membership.shadow))
-            const isActive = value != null || configActive
-            const isShadow = !!(entry?.is_shadow || membership?.shadow)
+            const value = resolveModelValue(raw, modelScores, name)
+            const isShadow = !!entry?.is_shadow
             return (
               <tr
                 key={name}
-                className={clsx(
-                  'border-b border-[var(--color-border-muted)] last:border-b-0 hover:bg-[var(--color-bg-tertiary)]',
-                  !isActive && 'opacity-45',
-                )}
+                className="border-b border-[var(--color-border-muted)] last:border-b-0 hover:bg-[var(--color-bg-tertiary)]"
               >
                 <td className="align-top text-[var(--color-text-secondary)] px-2 py-1 w-[38%] border-r border-[var(--color-border-muted)] font-mono shrink-0">
                   <span className="inline-flex items-center gap-1 flex-wrap">
@@ -175,14 +126,6 @@ function ModelScoresTable({
                     {isShadow && (
                       <span className="text-[9px] px-1 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)]">
                         shadow
-                      </span>
-                    )}
-                    {!isActive && (
-                      <span
-                        className="text-[9px] px-1 rounded bg-[var(--color-bg-tertiary)] text-[var(--color-text-muted)]"
-                        aria-label="model off"
-                      >
-                        off
                       </span>
                     )}
                   </span>
@@ -475,10 +418,11 @@ export function ImageInspectorPage() {
   const src = detailPreviewSrc(data)
   const parts = partitionScalars(data)
   const scoringModels = config?.scoring_models ?? {}
-  const knownModelSet = new Set(KNOWN_MODELS)
+  const visibleModels = resolveVisibleModels(scoringModels)
+  const visibleModelSet = new Set(visibleModels)
   // Per-model keys are rendered by the roster; keep only aggregates here.
   const aggregateScores = parts.scores.filter(
-    ([k]) => !knownModelSet.has(k.replace(/^score_/, '').replace(/_score$/, '')),
+    ([k]) => !visibleModelSet.has(k.replace(/^score_/, '').replace(/_score$/, '')),
   )
 
   const extraNav = [
@@ -605,7 +549,7 @@ export function ImageInspectorPage() {
 
             <CollapsibleInspectorSection
               title="Scores"
-              badge={`${KNOWN_MODELS.length}`}
+              badge={`${visibleModels.length}`}
               defaultOpen
               sectionId="scores"
               collapseAllToken={collapseAllToken}
@@ -621,7 +565,7 @@ export function ImageInspectorPage() {
               <ModelScoresTable
                 data={data}
                 modelScores={data.model_scores ?? {}}
-                scoringModels={scoringModels}
+                visibleModels={visibleModels}
               />
             </CollapsibleInspectorSection>
 

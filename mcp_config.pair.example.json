@@ -1,0 +1,15 @@
+{
+  "_comment": "Antigravity multi-root (sibling clones): copy to mcp_config.json. Adjust cwd paths if your layout differs.",
+  "mcpServers": {
+    "is-be-mcp": {
+      "command": "node",
+      "args": ["mcp-server/dist/compactIndex.js"],
+      "cwd": "."
+    },
+    "is-ui-mcp": {
+      "command": "node",
+      "args": ["mcp-server/dist/compactIndex.js"],
+      "cwd": "../image-scoring-gallery"
+    }
+  }
+}

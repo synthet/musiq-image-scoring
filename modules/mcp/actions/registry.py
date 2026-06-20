@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_REGISTRY_PATH = ROOT / "mcp" / "action_registry.json"
+PLAYWRIGHT_REGISTRY_PATH = ROOT / "mcp" / "actions" / "playwright_registry.json"
 OVERLAY_PATH = ROOT / "mcp" / "actions" / "overlay.yaml"
 
 
@@ -79,6 +81,46 @@ def clear_registry_cache() -> None:
     _registry_cache_path = None
 
 
+def _playwright_enabled() -> bool:
+    return os.environ.get("MCP_PLAYWRIGHT_ENABLED", "1").strip() != "0"
+
+
+def _merge_playwright_registry(data: dict[str, Any]) -> dict[str, Any]:
+    if not _playwright_enabled():
+        return data
+    if not PLAYWRIGHT_REGISTRY_PATH.exists():
+        return data
+
+    pw = json.loads(PLAYWRIGHT_REGISTRY_PATH.read_text(encoding="utf-8"))
+    if not isinstance(pw, dict):
+        raise ValueError(f"Invalid playwright registry format: {PLAYWRIGHT_REGISTRY_PATH}")
+
+    pw_actions = pw.get("actions") or []
+    if not isinstance(pw_actions, list):
+        raise ValueError("playwright_registry.actions must be a list")
+
+    merged = dict(data)
+    base_actions = list(merged.get("actions") or [])
+    existing_ids = {str(a.get("action_id")) for a in base_actions if a.get("action_id")}
+    for entry in pw_actions:
+        if not isinstance(entry, dict):
+            continue
+        aid = str(entry.get("action_id") or "")
+        if aid and aid not in existing_ids:
+            base_actions.append(entry)
+            existing_ids.add(aid)
+
+    merged["actions"] = base_actions
+    categories: dict[str, int] = {}
+    for entry in base_actions:
+        if not isinstance(entry, dict):
+            continue
+        cat = str(entry.get("category") or "unknown")
+        categories[cat] = categories.get(cat, 0) + 1
+    merged["categories"] = categories
+    return merged
+
+
 def load_action_registry(path: Path | None = None) -> dict[str, Any]:
     global _registry_cache, _registry_cache_mtime, _registry_cache_path
     registry_path = path or DEFAULT_REGISTRY_PATH
@@ -97,6 +139,8 @@ def load_action_registry(path: Path | None = None) -> dict[str, Any]:
             raise ValueError(f"Invalid registry format: {registry_path}")
     else:
         data = build_registry_from_overlay(load_overlay())
+
+    data = _merge_playwright_registry(data)
 
     if path is None:
         if _registry_cache_mtime is not None and _registry_cache_mtime != mtime:

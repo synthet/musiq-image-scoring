@@ -113,6 +113,12 @@ Session-based culling UI and selection pipeline. Duplicates **`default_threshold
 | `clip_quality.enabled` | `selection.py` — **default false**. When true, the CLIP B/32 prompt-quality score (`clip_quality_v0`) is JIT-computed for stacked images (`modules/clip_quality.py`) and blended into the within-stack ranking. See [CULLING_ANALYTICS.md](CULLING_ANALYTICS.md#clip-prompt-quality-signal). |
 | `clip_quality.weight` | Blend weight (default **0.15**, clamped 0–1): `(1-w)·score_general + w·clip_quality_v0` for within-stack ranking. |
 | `clip_quality.reject_below` | Optional float (default `null` = off). Frames with `clip_quality_v0` below this are downgraded to `reject` — conservative (never strips a stack's last pick). |
+| `agent_review.*` | Agent-assisted cull review (`modules/agent_cull/`). See [agent-assisted cull review summary](../specs/agent-assisted-cull-review/summary.md). |
+| `agent_review.agent.include_all_model_scores` | Attach full `image_model_scores` map to review packets (default **true**). |
+| `agent_review.agent.flatten_model_scores` | Model names copied into packet `scores` for the prompt (default `["clip_quality_v0"]`). |
+| `agent_review.agent.required_score_names` | Scores that must be present; missing names emit `score_warnings` on the packet. |
+| `agent_review.agent.jit_clip_quality` | When true, compute missing `clip_quality_v0` before review (default **true**). |
+| `agent_review.agent.require_vision_evidence` | When true, block `remove` unless response includes `vision_used=true` and `viewed_image_ids` (default **false**). |
 | `analytics.*` | `culling_analytics/composite.py` |
 
 ### `tagging`

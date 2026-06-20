@@ -33,8 +33,9 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Virtual Environments
-venv/
+# MCP server build output (built locally; not committed)
+mcp-server/node_modules/
+mcp-server/dist/
 env/
 ENV/
 env.bak/

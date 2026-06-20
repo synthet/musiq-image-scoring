@@ -2910,6 +2910,17 @@ paths:
           default: 0
           title: Min Score Technical
         description: Minimum technical score
+      - name: min_clip_quality_v0
+        in: query
+        required: false
+        schema:
+          type: number
+          maximum: 1
+          minimum: 0
+          description: Minimum CLIP quality score (clip_quality_v0 from image_model_scores)
+          default: 0
+          title: Min Clip Quality V0
+        description: Minimum CLIP quality score (clip_quality_v0)
       - name: folder_path
         in: query
         required: false

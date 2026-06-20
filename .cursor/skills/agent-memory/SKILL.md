@@ -33,10 +33,19 @@ Confidence: `low`, `medium`, `high`.
 
 ```powershell
 python scripts/agent-memory/log_session.py --summary "..." --outcome "..." --candidate "text|working_rule|high"
+python scripts/agent-memory/import_transcripts.py --dry-run --cursor-projects "$env:USERPROFILE\.cursor\projects"
 python scripts/agent-memory/dream.py
 python scripts/agent-memory/promote_dream.py --dream .agent-memory/dreams/<timestamp>.md
 python scripts/agent-memory/context.py
 ```
+
+## Transcript import (v2)
+
+- Slash command: `/import-transcripts`
+- Config: `scripts/transcript_mining/workspace_map.json`, `repo_profiles.json`
+- Staging: `.agent/scratch/transcript-mining/<repo>/REVIEW.md` (gitignored)
+- Tier A: `--write-sessions` → `dream.py` → human promote; Tier B/C: `docs/LESSONS_LEARNED.md`
+- See [docs/technical/AGENT_MEMORY.md](../../docs/technical/AGENT_MEMORY.md) § v2
 
 ## Dream review checklist
 

@@ -30,13 +30,62 @@ Improve AI coding sessions over time via **external** memory artifacts — not m
 
 - Rule: `.cursor/rules/agent-memory.mdc` (mirrored `.claude/rules/`)
 - Skill: `.cursor/skills/agent-memory/SKILL.md` (mirrored `.claude/skills/`)
-- Commands: `/log-session`, `/dream-memory`, `/promote-memory`, `/memory-context`
+- Commands: `/log-session`, `/dream-memory`, `/promote-memory`, `/memory-context`, `/import-transcripts`
 
-## v1 limitations
+## v1 limitations (superseded for transcripts — see v2)
 
-- No automatic import of Cursor agent transcripts.
 - Consolidation merges explicit `memory_candidates` from session logs (no LLM inside scripts).
-- No cross-repo sync with image-scoring-gallery.
+- No automatic cross-repo sync with image-scoring-gallery (use per-repo `docs/LESSONS_LEARNED.md`).
+
+## v2 — Cursor transcript import (human-gated)
+
+**Status:** Shipped 2026-06-17. Mines local Cursor `agent-transcripts/*.jsonl` into staging and optional `.agent-memory/raw-sessions/`.
+
+### Flow
+
+```mermaid
+flowchart LR
+  TX[Cursor JSONL transcripts] --> IMP[import_transcripts.py]
+  IMP --> STG[".agent/scratch/transcript-mining/"]
+  IMP --> RAW[raw-sessions YAML tier A]
+  RAW --> DREAM[dream.py]
+  DREAM --> PROMOTE[promote_dream.py human gate]
+  PROMOTE --> MEM[memory.md]
+  STG --> LESSONS["docs/LESSONS_LEARNED.md tier B/C"]
+```
+
+### Commands
+
+| Step | Command |
+|------|---------|
+| Dry-run all repos | `python scripts/agent-memory/import_transcripts.py --dry-run --cursor-projects "%USERPROFILE%\.cursor\projects"` |
+| Backend sessions | `python scripts/agent-memory/import_transcripts.py --write-sessions --repo image-scoring-backend` |
+| Consolidate + dream | `/dream-memory` then review changelog |
+| Promote | `/promote-memory` after human review |
+
+### Config
+
+- [`scripts/transcript_mining/workspace_map.json`](../../scripts/transcript_mining/workspace_map.json) — Cursor workspace → repo names
+- [`scripts/transcript_mining/repo_profiles.json`](../../scripts/transcript_mining/repo_profiles.json) — tier A/B/C per repo
+- Package: [`scripts/agent_memory/transcripts.py`](../../scripts/agent_memory/transcripts.py)
+- Tests: [`tests/test_transcript_mining.py`](../../tests/test_transcript_mining.py)
+
+### Repo tiers
+
+| Tier | Promotion target |
+|------|------------------|
+| **A** (backend) | `.agent-memory` log → dream → promote |
+| **B** (gallery, nwn-modules, …) | `docs/LESSONS_LEARNED.md` + skills |
+| **C** (ui, tax, …) | `AGENTS.md` stub + `docs/LESSONS_LEARNED.md` |
+
+### Safety
+
+- UUID dedup across overlapping workspaces (e.g. four image-scoring Cursor roots).
+- `secrets.py` scan on all written YAML and candidates.
+- Authority stack dedupe against `memory.md`, `CLAUDE.md`, `AGENTS.md`, existing `SKILL.md`.
+- Subagent JSONL attached to parent UUID; off-topic chats scored low and skipped.
+
+Slash command: `/import-transcripts`
 
 ## Related
 

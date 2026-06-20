@@ -356,10 +356,55 @@ class ClusteringEngine(IClusteringEngine):
         
         return np.array(features_list), valid_indices
 
+    def _load_capture_times(self, rows):
+        """Batch-attach EXIF capture time (epoch) to rows as ``_capture_ts``.
+
+        The ``images.metadata`` JSON is frequently empty (capture time lives in
+        the structured ``image_exif`` table instead), which would force
+        ``_get_image_time`` to fall back to filesystem mtime — and mtime reflects
+        copy/download time, not capture order, wrecking time-batch grouping.
+        Pre-loading the real ``date_time_original`` keeps clustering keyed on
+        when shots were actually taken. Postgres-only; best-effort.
+        """
+        if db._get_db_engine() != "postgres":
+            return
+        ids = [r["id"] for r in rows if r.get("id") is not None]
+        if not ids:
+            return
+        try:
+            from modules import db_postgres
+
+            placeholders = ",".join(["%s"] * len(ids))
+            exif_rows = db_postgres.execute_select(
+                f"SELECT image_id, date_time_original, create_date "
+                f"FROM image_exif WHERE image_id IN ({placeholders})",
+                tuple(ids),
+            )
+            by_id = {}
+            for er in exif_rows:
+                dt = er.get("date_time_original") or er.get("create_date")
+                if dt is not None:
+                    by_id[er["image_id"]] = dt
+            for r in rows:
+                dt = by_id.get(r.get("id"))
+                if dt is not None:
+                    try:
+                        r["_capture_ts"] = dt.timestamp()
+                    except (AttributeError, OSError, ValueError):
+                        pass
+        except Exception as e:
+            logger.debug("[Clustering] capture-time enrichment skipped: %s", e)
+
     def _get_image_time(self, row):
         """
-        Returns timestamp for image. Tries metadata, falls back to file mtime.
+        Returns timestamp for image. Prefers EXIF capture time (``_capture_ts``,
+        pre-loaded via ``_load_capture_times``), then metadata, then file mtime.
         """
+        # Preferred: structured EXIF capture time (epoch seconds)
+        ts = row.get('_capture_ts')
+        if ts:
+            return ts
+
         # Try metadata
         if row['metadata']:
             try:
@@ -557,6 +602,14 @@ class ClusteringEngine(IClusteringEngine):
                     yield update_status(f"Force Rescan: {msg}", 0, len(images_rows))
                 else:
                     yield update_status(f"Warning: {msg}", 0, len(images_rows))
+                # These rows were loaded BEFORE clear_stacks_in_folder nulled the
+                # DB burst_uuid, so the in-memory copies still hold the synthetic
+                # uuid4 from a prior visual-clustering run. Clear them too, or the
+                # burst pre-grouping below re-imposes the old grouping and skips
+                # visual clustering entirely (genuine Apple BurstUUIDs are re-read
+                # from metadata/EXIF, so this only drops synthetic ids).
+                for _r in images_rows:
+                    _r["burst_uuid"] = None
             
             target_norm = os.path.normpath(target_folder)
             if target_norm in by_folder:
@@ -614,6 +667,7 @@ class ClusteringEngine(IClusteringEngine):
             if stop_event and stop_event.is_set():
                 break
             rows = by_folder[folder]
+            self._load_capture_times(rows)
             runnable_rows = []
             for r in rows:
                 decision = explain_phase_run_decision(

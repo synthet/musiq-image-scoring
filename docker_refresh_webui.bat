@@ -26,8 +26,16 @@ echo     DOCKER_READY_TIMEOUT_SEC=N max seconds to wait for Docker daemon (defau
 echo     SKIP_DOCKER_START=1        fail if Docker is down; do not auto-start Desktop
 echo   Docker: Dockerfile uses BuildKit cache mounts for apt and pip — normal
 echo   builds reuse downloaded packages. Ensure DOCKER_BUILDKIT=1 (Docker Desktop default).
+echo   Agent cull review: Antigravity CLI (agy) + GEMINI_CONFIG_SOURCE or API key in .env.
+echo   See docs/guides/setup/agent-cull-review-gemini-cli.md
 echo ========================================================
 echo.
+
+call :ensure_compose_env
+if errorlevel 1 (
+    pause
+    exit /b 1
+)
 
 docker info >nul 2>&1
 if errorlevel 1 (
@@ -104,12 +112,63 @@ if errorlevel 1 (
 
 call :webui_open_ui
 
+call :verify_agent_cull_docker
+
 echo.
 echo [SUCCESS] Docker webui refreshed. Containers are running detached.
 echo           Logs: docker compose logs -f webui
 echo.
 pause
 goto :eof
+
+:ensure_compose_env
+REM Keep agent-cull Gemini OAuth mount valid across refreshes (.env is gitignored).
+if not exist ".env" (
+    if exist ".env.example" (
+        echo [INFO] Creating .env from .env.example...
+        copy /Y ".env.example" ".env" >nul
+    )
+)
+if not exist ".env" goto :ensure_compose_env_done
+findstr /B /I /C:"GEMINI_CONFIG_SOURCE=" ".env" >nul 2>&1
+if not errorlevel 1 goto :ensure_compose_env_done
+if exist "%USERPROFILE%\.gemini\oauth_creds.json" goto :append_gemini_config
+if exist "%USERPROFILE%\.gemini\antigravity-cli" goto :append_gemini_config
+goto :ensure_compose_env_warn
+:append_gemini_config
+for /f "delims=" %%G in ('powershell -NoProfile -Command "($env:USERPROFILE -replace '\\\\','/') + '/.gemini'"') do (
+    echo [INFO] Appending GEMINI_CONFIG_SOURCE=%%G to .env ^(host CLI auth^).
+    echo GEMINI_CONFIG_SOURCE=%%G>> ".env"
+)
+goto :ensure_compose_env_done
+:ensure_compose_env_warn
+echo [WARNING] GEMINI_CONFIG_SOURCE not set in .env and host %%USERPROFILE%%\.gemini not found.
+echo           Agent cull review: install Antigravity CLI, sign in once on the host, then add
+echo           GEMINI_CONFIG_SOURCE=C:/Users/you/.gemini to .env ^(or set GEMINI_API_KEY^).
+:ensure_compose_env_done
+exit /b 0
+
+:verify_agent_cull_docker
+docker exec image-scoring-webui agy --version >nul 2>&1
+if errorlevel 1 (
+    echo [WARNING] agy ^(Antigravity CLI^) missing in webui container — rebuild image after Dockerfile change.
+    exit /b 0
+)
+docker exec image-scoring-webui test -x /app/scripts/wsl/antigravity_agent.sh >nul 2>&1
+if errorlevel 1 (
+    echo [WARNING] /app/scripts/wsl/antigravity_agent.sh not executable in container.
+    exit /b 0
+)
+docker exec image-scoring-webui test -d /root/.gemini >nul 2>&1
+if errorlevel 1 (
+    findstr /B /I /C:"GEMINI_API_KEY=" ".env" >nul 2>&1
+    if errorlevel 1 (
+        echo [WARNING] No /root/.gemini mount and no GEMINI_API_KEY in .env — agy may not authenticate.
+        exit /b 0
+    )
+)
+echo [INFO] Agent cull review: Antigravity CLI, bridge script, and auth mount/API key OK.
+exit /b 0
 
 :webui_open_ui
 if /I "%WEBUI_OPEN_UI%"=="none" (

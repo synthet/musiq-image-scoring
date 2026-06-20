@@ -6,9 +6,21 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-20] updated — Playwright via is-be-mcp; multi-agent MCP examples
+
+Playwright **`browser.*`** actions integrated into **`is-be-mcp`** (`search`/`dispatch`); removed standalone Playwright MCP from Cursor examples. Added Claude Code (`.mcp.json.example`), Antigravity (`mcp_config.example.json`), and Codex (`.codex/config.example.toml`) templates in both repos; updated [guides/setup/mcp-compact-servers.md](guides/setup/mcp-compact-servers.md) § Other agents, [`.claude/settings.json.example`](../../.claude/settings.json.example), [technical/MCP_SEARCH_DISPATCH.md](technical/MCP_SEARCH_DISPATCH.md). Gallery mirror: [05-mcp-compact-servers.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/guides/05-mcp-compact-servers.md).
+
+## [2026-06-20] ingest — Unified compact MCP servers (Node stdio)
+
+Documented Node `mcp-server/dist/compactIndex.js` entry for **`is-be-mcp`** and **`is-ui-mcp`**, **`sse_status`** probe, SSE proxy/degradation, and multi-root Cursor `cwd` pattern. Added [guides/setup/mcp-compact-servers.md](guides/setup/mcp-compact-servers.md); updated [technical/MCP_SEARCH_DISPATCH.md](technical/MCP_SEARCH_DISPATCH.md), [features/implemented/08-mcp-and-agents.md](features/implemented/08-mcp-and-agents.md), [technical/AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md), [guides/setup/INDEX.md](guides/setup/INDEX.md), [INDEX.md](INDEX.md). Gallery mirror: [05-mcp-compact-servers.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/guides/05-mcp-compact-servers.md).
+
 ## [2026-06-19] updated — bump LLM judge example model ID
 
 Updated `MODEL_RECOMMENDATIONS_PIPELINES.md` Claude LLM-judge example from `claude-opus-4-7` to `claude-opus-4-8` (current Opus-tier default as of June 2026).
+
+## [2026-06-18] ingest — Agent cull review Gemini CLI (Docker)
+
+Added [guides/setup/agent-cull-review-gemini-cli.md](guides/setup/agent-cull-review-gemini-cli.md) (Docker/WSL/Windows `agent.command` matrix, Compose `GEMINI_CONFIG_SOURCE`, verification). Updated [specs/agent-assisted-cull-review/summary.md](specs/agent-assisted-cull-review/summary.md), [features/planned/agent-assisted-cull-review.md](features/planned/agent-assisted-cull-review.md), [guides/setup/INDEX.md](guides/setup/INDEX.md), [guides/setup/DOCKER_SETUP.md](guides/setup/DOCKER_SETUP.md). Gallery mirror: [04-agent-cull-review.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/guides/04-agent-cull-review.md).
 
 ## [2026-06-16] created — OKF lint in GitHub Actions
 

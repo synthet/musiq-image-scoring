@@ -133,3 +133,129 @@ def test_build_review_packet_no_downscale_passthrough(tmp_path):
         assert entry["path"] == thumb
         assert "source_path" not in entry
         assert (entry["width"], entry["height"]) == (400, 300)
+
+
+def test_build_review_packet_resolves_host_db_thumbnail_path(tmp_path, monkeypatch):
+    from modules import thumbnails
+
+    thumb_name = "abcdef0123456789abcdef0123456789.jpg"
+    thumb_dir = tmp_path / "thumbnails" / "ab"
+    thumb_dir.mkdir(parents=True)
+    thumb_file = thumb_dir / thumb_name
+    _write_image(str(thumb_file), (400, 300))
+    monkeypatch.setattr(thumbnails, "THUMB_DIR", str(tmp_path / "thumbnails"))
+
+    host_path = f"/mnt/d/Projects/image-scoring-backend/thumbnails/ab/{thumb_name}"
+    rows = {
+        10: {"id": 10, "pick_status": 1, "thumbnail_path": host_path, "score_general": 0.8},
+        11: {"id": 11, "pick_status": -1, "thumbnail_path": host_path, "score_general": 0.4},
+    }
+    cfg = AgentCullConfig()
+
+    packet = payload.build_review_packet(_unit((10, 11), [10], [11]), rows, cfg)
+
+    assert len(packet["thumbnail_manifest"]) == 2
+    for entry in packet["thumbnail_manifest"]:
+        assert entry["path"] == str(thumb_file)
+        assert os.path.isfile(entry["path"])
+
+
+def test_enrich_unit_rows_adds_model_scores(monkeypatch):
+    rows = {
+        10: {"id": 10, "pick_status": 1},
+        11: {"id": 11, "pick_status": -1},
+    }
+    cfg = AgentCullConfig()
+
+    def _fake_batch(ids, *, include_shadow=False):
+        return {
+            10: {"clip_quality_v0": {"normalized": 0.61, "raw_score": 0.61, "status": "success"}},
+            11: {"clip_quality_v0": {"normalized": 0.55, "raw_score": 0.55, "status": "success"}},
+        }
+
+    monkeypatch.setattr(payload, "get_batch_image_model_scores", _fake_batch)
+
+    warnings = payload.enrich_unit_rows(rows, cfg)
+
+    assert rows[10]["model_scores"]["clip_quality_v0"]["normalized"] == 0.61
+    assert not warnings
+
+    packet = payload.build_review_packet(_unit((10, 11), [10], [11]), rows, cfg)
+    img10 = next(i for i in packet["images"] if i["id"] == 10)
+    assert img10["scores"]["clip_quality_v0"] == 0.61
+    assert img10["model_scores"]["clip_quality_v0"]["normalized"] == 0.61
+
+
+def test_build_review_packet_surfaces_technical_and_exif():
+    # blur/exif columns now loaded by discovery_db.load_unit_rows flow through.
+    rows = {
+        10: {
+            "id": 10, "pick_status": 1, "score_general": 0.8,
+            "blur": 0.12, "overexposed": 0.0, "underexposed": 0.03,
+            "make": "NIKON", "model": "Z9", "lens_model": "200mm",
+            "orientation": 1,
+        },
+        11: {"id": 11, "pick_status": -1, "score_general": 0.4},
+    }
+    packet = payload.build_review_packet(_unit((10, 11), [10], [11]), rows, AgentCullConfig())
+    img10 = next(i for i in packet["images"] if i["id"] == 10)
+    assert img10["technical"] == {"blur": 0.12, "overexposed": 0.0, "underexposed": 0.03}
+    assert img10["exif"]["make"] == "NIKON"
+    assert img10["exif"]["lens_model"] == "200mm"
+    # Missing columns degrade to null, never raise.
+    img11 = next(i for i in packet["images"] if i["id"] == 11)
+    assert img11["technical"]["blur"] is None
+
+
+def test_outlier_z_from_mean_sim_flags_dissimilar_member():
+    # image 12 is far less similar to siblings -> high positive outlier z.
+    z = payload._outlier_z_from_mean_sim({10: 0.95, 11: 0.94, 12: 0.60})
+    assert z[12] > z[10] and z[12] > z[11]
+    assert z[12] > 0
+
+
+def test_outlier_z_from_mean_sim_needs_three_members():
+    assert payload._outlier_z_from_mean_sim({10: 0.9, 11: 0.8}) == {}
+
+
+def test_outlier_z_from_mean_sim_zero_variance():
+    assert payload._outlier_z_from_mean_sim({10: 0.9, 11: 0.9, 12: 0.9}) == {10: 0.0, 11: 0.0, 12: 0.0}
+
+
+def test_enrich_attaches_embedding_outlier_z(monkeypatch):
+    rows = {
+        10: {"id": 10, "pick_status": 1},
+        11: {"id": 11, "pick_status": -1},
+        12: {"id": 12, "pick_status": -1},
+    }
+    cfg = AgentCullConfig()  # block_embedding_outliers True by default
+    monkeypatch.setattr(payload, "get_batch_image_model_scores", lambda ids, **k: {})
+    monkeypatch.setattr(
+        payload, "_fetch_unit_mean_cosine", lambda ids: {10: 0.95, 11: 0.94, 12: 0.60}
+    )
+
+    payload.enrich_unit_rows(rows, cfg)
+
+    assert rows[12]["embedding_outlier_z"] > rows[10]["embedding_outlier_z"]
+    packet = payload.build_review_packet(_unit((10, 11, 12), [10], [11, 12]), rows, cfg)
+    img12 = next(i for i in packet["images"] if i["id"] == 12)
+    assert img12["similarity"]["embedding_outlier_z"] == rows[12]["embedding_outlier_z"]
+
+
+def test_enrich_outlier_skipped_when_gate_disabled(monkeypatch):
+    import dataclasses
+
+    rows = {10: {"id": 10}, 11: {"id": 11}, 12: {"id": 12}}
+    base = AgentCullConfig()
+    cfg = dataclasses.replace(
+        base,
+        local_gates=dataclasses.replace(base.local_gates, block_embedding_outliers=False),
+    )
+    monkeypatch.setattr(payload, "get_batch_image_model_scores", lambda ids, **k: {})
+
+    def _boom(ids):  # must not be called when the gate is off
+        raise AssertionError("mean cosine fetched despite disabled gate")
+
+    monkeypatch.setattr(payload, "_fetch_unit_mean_cosine", _boom)
+    payload.enrich_unit_rows(rows, cfg)
+    assert all("embedding_outlier_z" not in r for r in rows.values())

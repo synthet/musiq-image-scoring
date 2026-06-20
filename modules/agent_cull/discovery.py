@@ -182,10 +182,21 @@ def build_review_unit(
 
 def default_is_usable(row: dict[str, Any]) -> bool:
     """True when source file or thumbnail path exists on disk."""
-    for key in ("file_path", "thumbnail_path", "thumbnail_path_win"):
-        path = row.get(key)
-        if path and os.path.isfile(str(path)):
-            return True
+    path = row.get("file_path")
+    if path and os.path.isfile(str(path)):
+        return True
+    try:
+        from modules import thumbnails
+
+        resolved = thumbnails._resolve_thumbnail_filesystem_path(
+            row.get("thumbnail_path"), row.get("thumbnail_path_win")
+        )
+        return bool(resolved and os.path.isfile(resolved))
+    except Exception:
+        for key in ("thumbnail_path", "thumbnail_path_win"):
+            thumb = row.get(key)
+            if thumb and os.path.isfile(str(thumb)):
+                return True
     return False
 
 

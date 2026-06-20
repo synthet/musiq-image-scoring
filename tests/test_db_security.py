@@ -59,3 +59,11 @@ class TestValidateSort:
         col, order = _validate_sort("", "")
         assert col == "score_general"
         assert order == "DESC"
+
+    def test_model_sort_key_allowed(self):
+        col, _ = _validate_sort("model:clip_quality_v0", "desc")
+        assert col == "model:clip_quality_v0"
+
+    def test_invalid_model_sort_key_rejected(self):
+        col, _ = _validate_sort("model:clip;drop", "desc")
+        assert col == "score_general"

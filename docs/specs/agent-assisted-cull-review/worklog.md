@@ -4,6 +4,12 @@ Append-only session log. Newest entries at top (below this paragraph).
 
 ---
 
+## [2026-06-18] Gemini CLI Docker setup + headless adapter
+
+- Documented operator path in [guides/setup/agent-cull-review-gemini-cli.md](../../guides/setup/agent-cull-review-gemini-cli.md): Docker `webui` uses `/app/...` not host `/mnt/d/...`; image includes `@google/gemini-cli`; Compose `GEMINI_CONFIG_SOURCE` + `GEMINI_CLI_TRUST_WORKSPACE`.
+- Code: `Dockerfile` (Node + gemini-cli), `docker-compose.yml` (OAuth mount, trust env), `scripts/wsl/gemini_agent.sh` (`DOCKER_CONTAINER` branch), `cli_adapter.py` (`--skip-trust`, unwrap JSON `response` envelope).
+- Gallery error `agent_cli_not_found` resolved when WebUI runs in Docker with updated config; see gallery [04-agent-cull-review.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/guides/04-agent-cull-review.md).
+
 ## [2026-06-13] branch + #256 thumbnail downscale
 
 - Created branch `feat/agent-cull-review-mvp`; committed the MVP (42 files) separately from unrelated working-tree work (stack-hierarchy normalize, backlog housekeeping, two-level culling, frontend).

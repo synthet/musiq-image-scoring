@@ -4,17 +4,124 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 from modules.agent_cull.config import AgentCullConfig
+from modules.agent_cull.mode_profiles import resolve_prompt_template_version
+from modules.agent_cull.schema import extract_json_object
 
 logger = logging.getLogger(__name__)
 
 MAX_RESPONSE_BYTES = 512_000
 AGENT_CLI_NOT_FOUND = "agent_cli_not_found"
+_ANSI_ESCAPE = re.compile(r"\x1B\[[0-9;]*[A-Za-z]")
+
+
+def normalize_gemini_stdout(stdout: str) -> str:
+    """Unwrap Gemini CLI ``--output-format json`` envelope to agent payload text."""
+    text = (stdout or "").strip()
+    if not text:
+        return text
+    try:
+        envelope = json.loads(text)
+    except json.JSONDecodeError:
+        return text
+    if not isinstance(envelope, dict):
+        return text
+    inner = envelope.get("response")
+    if isinstance(inner, str):
+        return inner.strip()
+    if isinstance(inner, dict):
+        return json.dumps(inner, ensure_ascii=False)
+    return text
+
+
+def strip_ansi(text: str) -> str:
+    return _ANSI_ESCAPE.sub("", text or "")
+
+
+def normalize_antigravity_stdout(stdout: str) -> str:
+    """Strip terminal noise and return agent JSON payload text from agy -p output."""
+    text = strip_ansi((stdout or "").strip())
+    if not text:
+        return text
+    try:
+        return extract_json_object(text)
+    except ValueError:
+        return normalize_gemini_stdout(text)
+
+
+def classify_cli_process_failure(exit_code: int, stderr: str, *, stdout: str = "") -> tuple[str, str]:
+    """Map non-zero CLI exit codes and stderr to stable operator-facing codes."""
+    text = strip_ansi((stderr or "").strip())
+    if not text:
+        text = strip_ansi((stdout or "").strip())
+    lower = text.lower()
+    if (
+        "authentication required" in lower
+        or "authentication timed out" in lower
+        or "waiting for authentication" in lower
+        or "paste the authorization code" in lower
+    ):
+        return (
+            "agent_cli_auth_failed",
+            "Antigravity CLI is not authenticated in the WebUI process. Run agy once on the host "
+            "(https://antigravity.google/download#antigravity-cli), mount credentials via "
+            "GEMINI_CONFIG_SOURCE in .env, or set GEMINI_API_KEY / ANTIGRAVITY_API_KEY for the webui container.",
+        )
+    if "ineligibletiererror" in lower or "unsupported_client" in lower:
+        return (
+            "agent_cli_auth_tier",
+            "Gemini CLI rejected this client tier. Re-authenticate or migrate to a supported "
+            "Gemini/Antigravity plan, then restart the WebUI.",
+        )
+    if "error authenticating" in lower or "authentication failed" in lower:
+        return (
+            "agent_cli_auth_failed",
+            "Gemini CLI authentication failed. Run `gemini auth` on the WebUI host (or refresh "
+            "OAuth in Docker via GEMINI_CONFIG_SOURCE), then restart the WebUI.",
+        )
+    if "resource has been exhausted" in lower or "quota" in lower:
+        return (
+            "agent_cli_quota_exhausted",
+            "Gemini CLI reported quota exhaustion. Check billing/limits or retry later.",
+        )
+    if "no such file or directory" in lower and "bash" in lower:
+        return (
+            "exit_code_127",
+            "Agent bridge script has Windows CRLF line endings or a bad shebang. "
+            "Run `git add --renormalize scripts/wsl/*.sh` and restart the WebUI container.",
+        )
+    if text:
+        first_line = next((line.strip() for line in text.splitlines() if line.strip()), text)
+        if len(first_line) > 240:
+            first_line = first_line[:237] + "..."
+        return f"exit_code_{exit_code}", first_line
+    return f"exit_code_{exit_code}", f"Agent CLI exited with code {exit_code}."
+
+
+def detect_cli_auth_failure(stdout: str, stderr: str) -> tuple[str, str] | None:
+    """Detect auth prompts even when agy exits 0 after a headless OAuth timeout."""
+    text = strip_ansi(f"{stderr or ''}\n{stdout or ''}").lower()
+    if (
+        "authentication required" in text
+        or "authentication timed out" in text
+        or "waiting for authentication" in text
+        or "paste the authorization code" in text
+        or "ineligibletiererror" in text
+        or "unsupported_client" in text
+        or "error authenticating" in text
+        or "authentication failed" in text
+    ):
+        code, message = classify_cli_process_failure(1, stderr, stdout=stdout)
+        if code.startswith("exit_code_"):
+            return ("agent_cli_auth_failed", message)
+        return code, message
+    return None
 
 
 def classify_cli_os_error(exc: OSError, command: str) -> tuple[str, str]:
@@ -91,6 +198,20 @@ class SubprocessAgentCullProvider:
         haystack = f"{raw.error or ''} {raw.stderr or ''}".lower()
         if any(token in haystack for token in ("502", "503", "504", "timeout", "temporarily unavailable")):
             return True
+        if any(
+            token in haystack
+            for token in (
+                "agent_cli_auth_tier",
+                "agent_cli_auth_failed",
+                "agent_cli_quota_exhausted",
+                "ineligibletiererror",
+                "unsupported_client",
+                "error authenticating",
+                "authentication timed out",
+                "waiting for authentication",
+            )
+        ):
+            return False
         return raw.exit_code != 0 and not (raw.stdout or "").strip()
 
     def _run_once(self, prompt: str, cfg: AgentCullConfig) -> AgentCullRawResponse:
@@ -99,9 +220,21 @@ class SubprocessAgentCullProvider:
         cmd = [self.command, *self.args]
         provider = cfg.agent.provider.lower()
         if provider == "gemini":
-            cmd = [self.command, "--output-format", "json", "-p", prompt]
+            cmd = [self.command, "--skip-trust", "--output-format", "json", "-p", prompt]
+        elif provider == "antigravity":
+            cmd = [self.command, prompt]
         elif provider == "codex":
-            cmd = [self.command, "exec", "--sandbox", "read-only", "--ask-for-approval", "never", "--json", prompt]
+            sandbox = (cfg.agent.codex_sandbox or "read-only").strip() or "read-only"
+            cmd = [
+                self.command,
+                "exec",
+                "--sandbox",
+                sandbox,
+                "--ask-for-approval",
+                "never",
+                "--json",
+                prompt,
+            ]
         else:
             cmd = [self.command, *self.args, prompt]
 
@@ -116,8 +249,46 @@ class SubprocessAgentCullProvider:
                 check=False,
             )
             duration_ms = int((time.monotonic() - start) * 1000)
-            stdout = (proc.stdout or "")[:MAX_RESPONSE_BYTES]
-            stderr = (proc.stderr or "")[:MAX_RESPONSE_BYTES]
+            raw_stdout = (proc.stdout or "")[:MAX_RESPONSE_BYTES]
+            raw_stderr = (proc.stderr or "")[:MAX_RESPONSE_BYTES]
+            auth_failure = detect_cli_auth_failure(raw_stdout, raw_stderr)
+            if auth_failure:
+                error_code, error_message = auth_failure
+                return AgentCullRawResponse(
+                    ok=False,
+                    stdout=raw_stdout,
+                    stderr=error_message,
+                    exit_code=int(proc.returncode or 1),
+                    duration_ms=duration_ms,
+                    provider=self.name,
+                    supports_vision=self.supports_vision,
+                    error=error_code,
+                )
+            stdout = raw_stdout
+            stderr = raw_stderr
+            if provider == "gemini" and stdout:
+                stdout = normalize_gemini_stdout(stdout)
+            elif provider == "antigravity" and stdout:
+                stdout = normalize_antigravity_stdout(stdout)
+            error_code: str | None = None
+            if proc.returncode != 0:
+                error_code, _ = classify_cli_process_failure(
+                    int(proc.returncode),
+                    stderr,
+                    stdout=stdout,
+                )
+            elif provider == "antigravity" and not stdout.strip():
+                error_code, stderr = classify_cli_process_failure(1, stderr, stdout=stdout)
+                return AgentCullRawResponse(
+                    ok=False,
+                    stdout=stdout,
+                    stderr=stderr,
+                    exit_code=1,
+                    duration_ms=duration_ms,
+                    provider=self.name,
+                    supports_vision=self.supports_vision,
+                    error=error_code,
+                )
             return AgentCullRawResponse(
                 ok=proc.returncode == 0,
                 stdout=stdout,
@@ -126,7 +297,7 @@ class SubprocessAgentCullProvider:
                 duration_ms=duration_ms,
                 provider=self.name,
                 supports_vision=self.supports_vision,
-                error=None if proc.returncode == 0 else f"exit_code_{proc.returncode}",
+                error=error_code,
             )
         except subprocess.TimeoutExpired as exc:
             duration_ms = int((time.monotonic() - start) * 1000)
@@ -176,8 +347,16 @@ class SubprocessAgentCullProvider:
         return last  # pragma: no cover
 
 
-def build_prompt(packet: dict[str, Any]) -> str:
-    template_path = Path(__file__).resolve().parent / "prompts" / "cull_redundancy_v1.txt"
+def build_prompt(
+    packet: dict[str, Any],
+    cfg: AgentCullConfig | None = None,
+    *,
+    template_version: str | None = None,
+) -> str:
+    version = resolve_prompt_template_version(cfg or AgentCullConfig(), override=template_version)
+    template_path = Path(__file__).resolve().parent / "prompts" / f"{version}.txt"
+    if not template_path.is_file():
+        raise FileNotFoundError(f"agent cull prompt template not found: {template_path}")
     template = template_path.read_text(encoding="utf-8")
     return template + "\n" + json.dumps(packet, ensure_ascii=False)
 
