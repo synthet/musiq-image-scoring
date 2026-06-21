@@ -42,6 +42,7 @@ User **`~/.cursor/mcp.json`**: **`github`**, **`subagent-orchestrator`**, etc. o
 | `/task-claim` | Claim GitHub Project board issue |
 | `/release`, `/release-notes` | Semver release (backend) |
 | `/backup-db` | Postgres backup workflow |
+| `/windows-keep-awake on`, `/windows-keep-awake off` | Detached Windows sleep/display lock |
 | `/critical-commit-audit` | High-severity post-commit review |
 | `/wiki-ingest`, `/wiki-lint`, `/wiki-query` | Docs wiki maintenance |
 | `/log-session`, `/dream-memory`, `/promote-memory`, `/memory-context` | Agent memory log → consolidate → promote |

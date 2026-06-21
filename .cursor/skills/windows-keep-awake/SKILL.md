@@ -56,3 +56,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\powershell\Keep-Aw
 - **Windows only** — do not use on WSL/Linux/macOS.
 - Stop the worker when the user no longer needs wake lock (battery, overnight, etc.).
 - Do not commit transient `.keep-awake.ps1` at repo root; the canonical script is under `scripts/powershell/`.
+
+## Keep in sync
+
+Cursor slash commands **`.cursor/commands/windows-keep-awake/on.md`** and **`.cursor/commands/windows-keep-awake/off.md`** should match this workflow.

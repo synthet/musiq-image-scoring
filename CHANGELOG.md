@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.9.1] - 2026-06-21
+
+### Changed
+
+- **Windows keep-awake slash commands**: `/windows-keep-awake on` and `/windows-keep-awake off` documented in AGENTS.md and `.cursor/README.md`; skill sync note and command stubs under `.cursor/commands/windows-keep-awake/`.
+
 ## [8.9.0] - 2026-06-21
 
 ### Added
