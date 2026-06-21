@@ -5169,10 +5169,12 @@ def create_api_router() -> APIRouter:
     )
     async def get_agent_cull_schema():
         from modules.agent_cull.config import PROMPT_TEMPLATE_VERSION, RESPONSE_SCHEMA_VERSION
+        from modules.agent_cull.vocab import output_vocabulary
 
         return {
             "response_schema_version": RESPONSE_SCHEMA_VERSION,
             "prompt_template_version": PROMPT_TEMPLATE_VERSION,
+            "output_vocabulary": output_vocabulary(),
         }
 
     @router.post(
