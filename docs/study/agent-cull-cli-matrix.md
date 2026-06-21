@@ -7,7 +7,7 @@ created: 2026-06-20
 
 # Agent cull CLI scoring & vision study
 
-Repeatable harness comparing **Antigravity (`agy`)**, **Codex**, and **Gemini** CLI agents across carousel-pick-aligned prompt modes, with explicit pre/post vision verification on **Docker**, **WSL**, and **host** runtimes.
+Repeatable harness comparing **Antigravity (`agy`)**, **Codex**, **Gemini**, **Claude** (Claude Code CLI), and **Cursor** (`cursor-agent`) CLI agents across carousel-pick-aligned prompt modes, with explicit pre/post vision verification on **Docker**, **WSL**, and **host** runtimes. Opt the new providers into a run with `--providers claude,cursor` (default remains `antigravity`).
 
 ## Questions
 
@@ -146,7 +146,8 @@ Fixes applied during live re-run: JSON-safe datetime in packets, response field 
 
 ### 4. Provider delta
 
-- Matrix default provider: **antigravity**. Codex: set `agent.codex_sandbox: "workspace"` for study (`read-only` blocks `/app/thumbnails`). Gemini: see [agent-cull-review-gemini-cli](../guides/setup/agent-cull-review-gemini-cli.md).
+- Matrix default provider: **antigravity**. Codex: set `agent.codex_sandbox: "workspace"` for study (`read-only` blocks `/app/thumbnails`). Gemini / Claude / Cursor: see [agent-cull-review-gemini-cli](../guides/setup/agent-cull-review-gemini-cli.md).
+- **Claude** (`claude -p --output-format json --dangerously-skip-permissions`) and **Cursor** (`cursor-agent -p --output-format json`) both unwrap a `.result` JSON envelope and read thumbnails from packet image paths. They need only to be authenticated on PATH (Docker image must ship the binary).
 
 ### 5. Runtime delta
 
