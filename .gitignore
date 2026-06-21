@@ -88,6 +88,7 @@ reports/model-score-quality/
 
 # Debug and verification scripts (dev artifacts)
 dumps/
+.agent/tmp/
 debug_*.py
 debug_*.txt
 debug_*.html

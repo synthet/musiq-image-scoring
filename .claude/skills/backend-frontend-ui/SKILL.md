@@ -23,9 +23,9 @@ description: >-
 
 ## Read first
 
-1. [docs/design/UX_UI_CONSTITUTION.md](../../docs/design/UX_UI_CONSTITUTION.md) — backend binding
+1. [docs/design/UX_UI_CONSTITUTION.md](../../../docs/design/UX_UI_CONSTITUTION.md) — backend binding
 2. [image-scoring-ui UX_UI_CONSTITUTION.md](https://github.com/synthet/image-scoring-ui/blob/main/docs/UX_UI_CONSTITUTION.md) — shared articles
-3. [docs/design/FRONTEND_VISUAL_SPEC.md](../../docs/design/FRONTEND_VISUAL_SPEC.md) — typography, Leaflet, density
+3. [docs/design/FRONTEND_VISUAL_SPEC.md](../../../docs/design/FRONTEND_VISUAL_SPEC.md) — typography, Leaflet, density
 4. [image-scoring-ui DESIGN_SYSTEM.md](https://github.com/synthet/image-scoring-ui/blob/main/docs/DESIGN_SYSTEM.md) — palette and icons
 
 ## Import map
@@ -68,7 +68,7 @@ If sibling **image-scoring-ui** `tokens.json` changed:
 3. `npm run design:sync && npm run design:check`
 4. Visual smoke on `/ui/`
 
-See [AGENT_COORDINATION §6](../../docs/technical/AGENT_COORDINATION.md).
+See [AGENT_COORDINATION §6](../../../docs/technical/AGENT_COORDINATION.md).
 
 ## Deliverable format
 

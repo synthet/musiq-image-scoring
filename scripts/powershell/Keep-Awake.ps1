@@ -60,11 +60,14 @@ function Start-KeepAwakeWorker {
         return
     }
 
+    # Start-Process joins ArgumentList into one command line. Preserve quotes
+    # around the script path so repositories under paths with spaces work.
+    $quotedScriptPath = '"{0}"' -f $ScriptPath
     $args = @(
         '-NoProfile',
         '-WindowStyle', 'Hidden',
         '-ExecutionPolicy', 'Bypass',
-        '-File', $ScriptPath,
+        '-File', $quotedScriptPath,
         '-Action', 'Worker'
     )
 
