@@ -31,6 +31,7 @@ Central list of **first-party** `SKILL.md` files in this repository for governan
 | security-review | `.cursor/skills/security-review/SKILL.md` | Pre-merge security sanity | L1 | Yes | 2026-04-25 |
 | wsl-tf-python-runner | `.cursor/skills/wsl-tf-python-runner/SKILL.md` | WSL / venv / pytest commands | L2 | Yes | 2026-04-25 |
 | wsl-environment | `.cursor/skills/wsl-environment/SKILL.md` | WSL2 lifecycle — venv provision, long GPU jobs, recovery, disk | L2 | Yes | 2026-05-30 |
+| windows-keep-awake | `.cursor/skills/windows-keep-awake/SKILL.md` | Detached Windows sleep/display lock via SetThreadExecutionState | L2 | — (Cursor only) | 2026-06-21 |
 | docs-wiki | `.cursor/skills/docs-wiki/SKILL.md` | Backend docs wiki maintenance | L1 | — (Cursor only; `.agent/skills/docs-wiki` is thin alias) | 2026-05-31 |
 | subagent-review | `.cursor/skills/subagent-review/SKILL.md` | External Codex/Gemini review via subagent-orchestrator MCP | L2 | Yes | 2026-05-26 |
 
