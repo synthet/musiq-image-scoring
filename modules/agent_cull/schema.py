@@ -140,6 +140,13 @@ def validate_agent_response(
     vision_used = data.get("vision_used")
     if vision_used is not None and not isinstance(vision_used, bool):
         errors.append("vision_used_not_boolean")
+    if require_vision_evidence:
+        if vision_used is not True:
+            errors.append("picked_audit_vision_not_used")
+        missing_picked_views = picked_image_ids - viewed_set
+        if missing_picked_views:
+            missing = ",".join(str(iid) for iid in sorted(missing_picked_views))
+            errors.append(f"picked_audit_images_not_viewed:{missing}")
 
     seen: set[int] = set()
     for idx, item in enumerate(decisions):
@@ -223,6 +230,8 @@ def validate_agent_response(
                                 break
                             if sid not in picked_image_ids:
                                 errors.append(f"advisory_suggested_not_picked:{sid}")
+                            elif sid == aid:
+                                errors.append(f"advisory_suggested_self:{sid}")
                 if (
                     require_vision_evidence
                     and issue in VISUAL_ADVISORY_ISSUES

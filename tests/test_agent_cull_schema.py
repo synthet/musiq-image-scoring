@@ -173,6 +173,20 @@ def test_picked_advisory_suggested_must_be_picked():
     assert any("advisory_suggested_not_picked" in e for e in result.errors)
 
 
+def test_picked_advisory_cannot_suggest_itself():
+    data = _valid_response()
+    data["picked_image_advisories"] = [_advisory(image_id=11, alts=(11,))]
+    result = validate_agent_response(
+        data,
+        stack_id=1,
+        sub_stack_id=None,
+        rejected_image_ids={10},
+        picked_image_ids={11},
+    )
+    assert result.ok is False
+    assert any("advisory_suggested_self" in e for e in result.errors)
+
+
 def test_picked_advisory_invalid_issue():
     data = _valid_response()
     data["picked_image_advisories"] = [_advisory(image_id=11, issue="banana", alts=())]
@@ -205,10 +219,46 @@ def test_picked_advisory_visual_issue_requires_viewed_when_enforced():
     assert any("advisory_image_not_viewed" in e for e in result.errors)
 
 
+def test_picked_audit_requires_vision_used_when_enforced():
+    data = _valid_response()
+    data["vision_used"] = False
+    data["viewed_image_ids"] = [10, 11]
+    data["picked_image_advisories"] = []
+    result = validate_agent_response(
+        data,
+        stack_id=1,
+        sub_stack_id=None,
+        rejected_image_ids={10},
+        picked_image_ids={11},
+        all_image_ids={10, 11},
+        require_vision_evidence=True,
+    )
+    assert result.ok is False
+    assert any("picked_audit_vision_not_used" in e for e in result.errors)
+
+
+def test_picked_audit_requires_every_pick_viewed_even_without_advisories():
+    data = _valid_response(picked=(11, 12))
+    data["vision_used"] = True
+    data["viewed_image_ids"] = [10, 11]
+    data["picked_image_advisories"] = []
+    result = validate_agent_response(
+        data,
+        stack_id=1,
+        sub_stack_id=None,
+        rejected_image_ids={10},
+        picked_image_ids={11, 12},
+        all_image_ids={10, 11, 12},
+        require_vision_evidence=True,
+    )
+    assert result.ok is False
+    assert any("picked_audit_images_not_viewed:12" in e for e in result.errors)
+
+
 def test_picked_advisory_other_issue_skips_viewed_rule():
     data = _valid_response()
     data["vision_used"] = True
-    data["viewed_image_ids"] = [10]
+    data["viewed_image_ids"] = [10, 11]
     data["picked_image_advisories"] = [_advisory(image_id=11, issue="other", alts=())]
     result = validate_agent_response(
         data,

@@ -2,8 +2,9 @@
 
 | Document | Description |
 |----------|-------------|
-| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Pointer to **image-scoring-ui** canonical palette/icons (`@synthet/image-scoring-design` 1.0.0) |
-| [FRONTEND_VISUAL_SPEC.md](FRONTEND_VISUAL_SPEC.md) | UX/UI Visual Specification for the React frontend |
+| [UX_UI_CONSTITUTION.md](UX_UI_CONSTITUTION.md) | Mandatory UX/UI rules for backend `/ui/` and Gradio `/app` (binding doc; shared principles in image-scoring-ui) |
+| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Pointer to **image-scoring-ui** canonical palette/icons (`@synthet/image-scoring-design` 1.2.x) |
+| [FRONTEND_VISUAL_SPEC.md](FRONTEND_VISUAL_SPEC.md) | Typography, Leaflet, density — backend SPA implementation annex |
 | [ui-pipeline-redesign.md](../features/planned/ui-pipeline-redesign.md) | Pipeline-centric UI redesign proposal |
 
 ## UI surfaces (where tokens apply)

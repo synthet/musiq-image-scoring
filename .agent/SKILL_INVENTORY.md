@@ -25,6 +25,7 @@ Central list of **first-party** `SKILL.md` files in this repository for governan
 | commit-conventions | `.cursor/skills/commit-conventions/SKILL.md` | Conventional Commits / PR titles | L1 | Yes | 2026-04-25 |
 | critical-commit-audit | `.cursor/skills/critical-commit-audit/SKILL.md` | High-severity post-commit review; trace paths, PR bar | L2 | Yes | 2026-04-26 |
 | imgscore-backend-implementer | `.cursor/skills/imgscore-backend-implementer/SKILL.md` | Scoped backend implementation | L1 | Yes | 2026-04-25 |
+| backend-frontend-ui | `.cursor/skills/backend-frontend-ui/SKILL.md` | React `/ui/` SPA, design tokens, Gradio CSS sync | L1 | Yes | 2026-06-21 |
 | imgscore-mcp-debug | `.cursor/skills/imgscore-mcp-debug/SKILL.md` | MCP read-only triage | L2 | Yes | 2026-04-25 |
 | mcp-debugging-workflow | `.cursor/skills/mcp-debugging-workflow/SKILL.md` | MCP debugging workflow | L2 | Yes | 2026-04-25 |
 | security-review | `.cursor/skills/security-review/SKILL.md` | Pre-merge security sanity | L1 | Yes | 2026-04-25 |

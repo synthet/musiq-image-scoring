@@ -1,0 +1,21 @@
+---
+description: Frontend SPA styling — design tokens, constitution, no new hex literals
+globs: frontend/**/*.{tsx,css,ts}
+alwaysApply: false
+---
+
+# Frontend UI (backend SPA)
+
+When editing files under **`frontend/`**, follow the UX/UI constitution and design-token package.
+
+## Read first
+
+- [docs/design/UX_UI_CONSTITUTION.md](../../docs/design/UX_UI_CONSTITUTION.md)
+- [image-scoring-ui UX_UI_CONSTITUTION.md](https://github.com/synthet/image-scoring-ui/blob/main/docs/UX_UI_CONSTITUTION.md)
+- Skill: `.cursor/skills/backend-frontend-ui/SKILL.md`
+
+## Rules
+
+- Use `@synthet/image-scoring-design` CSS variables or Tailwind `@theme` utilities — **no new hex literals**
+- Reuse `frontend/src/components/ui/` and `PhaseStatusIcon` for new chrome
+- After token package changes: `cd frontend && npm run design:sync && npm run design:check`

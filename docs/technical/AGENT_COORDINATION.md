@@ -84,7 +84,8 @@ The same workflow also runs when `frontend/package.json` changes the `@synthet/i
 
 | Concern | Owner | Canonical source |
 |---------|-------|------------------|
-| Palette, status colors, Lucide icon contract, npm token package | **image-scoring-ui** | [`docs/DESIGN_SYSTEM.md`](https://github.com/synthet/image-scoring-ui/blob/main/docs/DESIGN_SYSTEM.md), package `@synthet/image-scoring-design` (currently **1.0.0**) |
+| UX/UI principles (constitution) | **image-scoring-ui** | [`docs/UX_UI_CONSTITUTION.md`](https://github.com/synthet/image-scoring-ui/blob/main/docs/UX_UI_CONSTITUTION.md); app bindings: [backend `docs/design/UX_UI_CONSTITUTION.md`](../design/UX_UI_CONSTITUTION.md), [gallery `docs/design/UX_UI_CONSTITUTION.md`](https://github.com/synthet/image-scoring-gallery/blob/main/docs/design/UX_UI_CONSTITUTION.md) |
+| Palette, status colors, Lucide icon contract, npm token package | **image-scoring-ui** | [`docs/DESIGN_SYSTEM.md`](https://github.com/synthet/image-scoring-ui/blob/main/docs/DESIGN_SYSTEM.md), package `@synthet/image-scoring-design` (currently **1.2.x**) |
 | User-facing stage labels (`STAGE_DISPLAY`, Discovery → Tagging) | **image-scoring-ui** + mirrored in consumers | UI package / backend [`frontend/src/types/api.ts`](../../frontend/src/types/api.ts); gallery [`pipelineLabels.ts`](https://github.com/synthet/image-scoring-gallery/blob/main/src/constants/pipelineLabels.ts) |
 | `phase_code`, REST `job_type`, DB phase rows | **image-scoring-backend** | [PIPELINE_TERMINOLOGY.md](PIPELINE_TERMINOLOGY.md), [`modules/phases.py`](../../modules/phases.py) |
 
@@ -100,7 +101,9 @@ The same workflow also runs when `frontend/package.json` changes the `@synthet/i
 3. Rebuild/sync generated CSS in both apps; run visual smoke on `/ui/` and gallery shell.
 4. Append both repos' `docs/log.md` and mention the version in the PR.
 
-Local pointers (not authoritative): [design/DESIGN_SYSTEM.md](../design/DESIGN_SYSTEM.md) in backend and gallery.
+**Agent skills:** `design-tokens` (image-scoring-ui), `backend-frontend-ui` (backend `frontend/`), `gallery-ui` (gallery `src/`).
+
+Local pointers (not authoritative): [design/DESIGN_SYSTEM.md](../design/DESIGN_SYSTEM.md), [design/UX_UI_CONSTITUTION.md](../design/UX_UI_CONSTITUTION.md) in backend and gallery.
 
 ## 🔍 Troubleshooting with MCP
 

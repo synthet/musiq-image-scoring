@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-21] created — UX/UI constitution and design-token agent skills
+
+Three-tier UX/UI governance: shared [image-scoring-ui UX_UI_CONSTITUTION.md](https://github.com/synthet/image-scoring-ui/blob/main/docs/UX_UI_CONSTITUTION.md); backend binding [design/UX_UI_CONSTITUTION.md](design/UX_UI_CONSTITUTION.md), `backend-frontend-ui` skill, `frontend-ui.mdc` rule; updated [design/INDEX.md](design/INDEX.md), [CANONICAL_SOURCES.md](CANONICAL_SOURCES.md), [AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md) §6 (package **1.2.x**). Gallery mirror: [UX_UI_CONSTITUTION.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/design/UX_UI_CONSTITUTION.md), `gallery-ui` skill.
+
 ## [2026-06-20] updated — Playwright via is-be-mcp; multi-agent MCP examples
 
 Playwright **`browser.*`** actions integrated into **`is-be-mcp`** (`search`/`dispatch`); removed standalone Playwright MCP from Cursor examples. Added Claude Code (`.mcp.json.example`), Antigravity (`mcp_config.example.json`), and Codex (`.codex/config.example.toml`) templates in both repos; updated [guides/setup/mcp-compact-servers.md](guides/setup/mcp-compact-servers.md) § Other agents, [`.claude/settings.json.example`](../../.claude/settings.json.example), [technical/MCP_SEARCH_DISPATCH.md](technical/MCP_SEARCH_DISPATCH.md). Gallery mirror: [05-mcp-compact-servers.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/guides/05-mcp-compact-servers.md).
