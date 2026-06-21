@@ -310,7 +310,15 @@
       "Bash(gh auth *)",
       "PowerShell(git log --oneline -3; git status --short | Select-Object -First 5; gh pr view 285 --json state,mergedAt -q '.state + \" \" + .mergedAt')",
       "PowerShell(Get-ChildItem -Force .agent/tmp | Select-Object Name; Write-Output \"--- nested .git check ---\"; Get-ChildItem -Recurse -Force -Directory -Filter \".git\" .agent/tmp -ErrorAction SilentlyContinue | Select-Object FullName; Write-Output \"--- sizes of report dirs ---\"; foreach \\($d in @\\('.agent/study','docs/study','scripts/study','reports/clip-culling/prompt-quality/e2e','reports/clip-culling/prompt-quality/folders_prod'\\)\\) { if \\(Test-Path $d\\) { $s = \\(Get-ChildItem -Recurse -File $d | Measure-Object Length -Sum\\).Sum/1MB; \"{0,-50} {1:N2} MB\" -f $d, $s } })",
-      "PowerShell(git *)"
+      "PowerShell(git *)",
+      "PowerShell(gh pr *)",
+      "PowerShell(gh repo *)",
+      "PowerShell(& D:\\\\Projects\\\\image-scoring-backend\\\\.venv\\\\Scripts\\\\python.exe -c \"import importlib; [importlib.import_module\\(m\\) for m in ['modules.agent_cull.json_util','modules.agent_cull.repository','modules.agent_cull.apply','modules.agent_cull.cli_adapter','modules.agent_cull.payload']]; from modules.agent_cull.repository import insert_review_group, update_review_group; print\\('imports OK'\\)\"; & D:\\\\Projects\\\\image-scoring-backend\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests/test_agent_cull_payload.py tests/test_agent_cull_discovery_db.py -q 2>&1 | Select-Object -Last 15)",
+      "PowerShell(& D:\\\\Projects\\\\image-scoring-backend\\\\.venv\\\\Scripts\\\\python.exe -m ruff check modules/agent_cull/json_util.py modules/agent_cull/repository.py modules/agent_cull/apply.py modules/agent_cull/cli_adapter.py modules/agent_cull/payload.py 2>&1)",
+      "PowerShell(& D:\\\\Projects\\\\image-scoring-backend\\\\.venv\\\\Scripts\\\\python.exe -m ruff check modules/agent_cull/json_util.py modules/agent_cull/repository.py modules/agent_cull/apply.py modules/agent_cull/cli_adapter.py modules/agent_cull/payload.py 2>&1; Write-Output \"=== quick re-test ===\"; & D:\\\\Projects\\\\image-scoring-backend\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests/test_agent_cull_payload.py -q 2>&1 | Select-Object -Last 3)",
+      "PowerShell(Copy-Item *)",
+      "PowerShell(Move-Item *)",
+      "PowerShell($sha = git hash-object -w .claude/settings.local.json; Write-Output \"recreated SHA: $sha\"; Write-Output \"expected:      edfb5eac994c9447618a37fc7f01f179c0cfd49f\"; if \\($sha -eq 'edfb5eac994c9447618a37fc7f01f179c0cfd49f'\\) { Write-Output \"MATCH — object healed\" } else { Write-Output \"MISMATCH — working tree differs from committed blob\" })"
     ]
   },
   "enableAllProjectMcpServers": true,
