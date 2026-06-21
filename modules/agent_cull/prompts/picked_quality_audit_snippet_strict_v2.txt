@@ -1,0 +1,15 @@
+Picked-image quality audit (advisory only — MANDATORY checklist):
+- After deciding rejected images, inspect EVERY picked thumbnail listed in picked_image_ids.
+- For EACH picked image you opened, record subject_focus_pass (true/false). If score_technical >= 0.75 on a pick, you MUST assess subject focus; do not skip high-scoring picks.
+- Flag any pick where ML scores disagree with what you see (e.g. high score_technical but main subject soft while background deer are sharp).
+
+Worked example (pattern only — use real ids/filenames from the packet):
+- Pick DSC_xxxx.NEF has score_technical 0.83 but thumbnail shows soft foreground fawn with sharp adult deer behind → issue "misfocus", risk_flags ["foreground_soft", "score_technical_mismatch"], suggested_alternatives [sharper picked id if any].
+
+- For each flagged pick add picked_image_advisories entry citing filename and visual observation.
+- ADVISORY ONLY: do NOT change pick status or add picks to rejected_image_decisions.
+- Return [] only when EVERY picked thumbnail passes subject-focus inspection.
+
+picked_image_advisories entry fields:
+- image_id, filename, issue (misfocus|blur|exposure|composition|other), confidence 0..1, reason, suggested_alternatives (picked ids), risk_flags.
+- Include flagged pick ids in viewed_image_ids.

@@ -22,8 +22,13 @@ AGENT_CLI_NOT_FOUND = "agent_cli_not_found"
 _ANSI_ESCAPE = re.compile(r"\x1B\[[0-9;]*[A-Za-z]")
 
 
-def normalize_gemini_stdout(stdout: str) -> str:
-    """Unwrap Gemini CLI ``--output-format json`` envelope to agent payload text."""
+def _unwrap_json_field(stdout: str, field: str) -> str:
+    """Unwrap a CLI ``--output-format json`` envelope to the agent payload text.
+
+    Returns the value of ``field`` when stdout is a JSON object carrying it
+    (str returned verbatim, dict re-serialized); otherwise returns stdout
+    unchanged so callers can fall back to direct JSON-object extraction.
+    """
     text = (stdout or "").strip()
     if not text:
         return text
@@ -33,12 +38,22 @@ def normalize_gemini_stdout(stdout: str) -> str:
         return text
     if not isinstance(envelope, dict):
         return text
-    inner = envelope.get("response")
+    inner = envelope.get(field)
     if isinstance(inner, str):
         return inner.strip()
     if isinstance(inner, dict):
         return json.dumps(inner, ensure_ascii=False)
     return text
+
+
+def normalize_gemini_stdout(stdout: str) -> str:
+    """Unwrap Gemini CLI ``--output-format json`` envelope (``.response``)."""
+    return _unwrap_json_field(stdout, "response")
+
+
+def normalize_result_envelope(stdout: str) -> str:
+    """Unwrap Claude / Cursor CLI ``--output-format json`` envelope (``.result``)."""
+    return _unwrap_json_field(stdout, "result")
 
 
 def strip_ansi(text: str) -> str:
@@ -236,6 +251,19 @@ class SubprocessAgentCullProvider:
                 "--json",
                 prompt,
             ]
+        elif provider == "claude":
+            # Headless print mode; --dangerously-skip-permissions allows the
+            # unattended WebUI process to read thumbnail files for vision review.
+            cmd = [
+                self.command,
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                prompt,
+            ]
+        elif provider == "cursor":
+            cmd = [self.command, "-p", "--output-format", "json", prompt]
         else:
             cmd = [self.command, *self.args, prompt]
 
@@ -271,6 +299,8 @@ class SubprocessAgentCullProvider:
                 stdout = normalize_gemini_stdout(stdout)
             elif provider == "antigravity" and stdout:
                 stdout = normalize_antigravity_stdout(stdout)
+            elif provider in ("claude", "cursor") and stdout:
+                stdout = normalize_result_envelope(stdout)
             error_code: str | None = None
             if proc.returncode != 0:
                 error_code, _ = classify_cli_process_failure(
@@ -362,7 +392,8 @@ def build_prompt(
         raise FileNotFoundError(f"agent cull prompt template not found: {template_path}")
     template = template_path.read_text(encoding="utf-8")
     if cfg.review_picked_quality:
-        snippet_path = prompts_dir / "picked_quality_audit_snippet.txt"
+        snippet_name = (cfg.picked_audit_snippet or "picked_quality_audit_snippet.txt").strip()
+        snippet_path = prompts_dir / snippet_name
         if snippet_path.is_file():
             snippet = snippet_path.read_text(encoding="utf-8").strip()
             sentinel = "Review packet JSON follows:"

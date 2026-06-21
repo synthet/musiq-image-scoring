@@ -399,6 +399,19 @@ def build_review_packet(
             "Inspect every picked_image_ids thumbnail for subject focus/blur/exposure/"
             "composition; emit picked_image_advisories (advisory only, never removes picks)."
         )
+    if cfg.review_picked_quality and cfg.picked_quality_hints:
+        from modules.agent_cull.picked_quality_hints import build_picked_quality_hints
+
+        hints = build_picked_quality_hints(
+            picked_ids=list(unit.picked_ids),
+            rows_by_id=rows_by_id,
+            images_payload=images_payload,
+            score_technical_threshold=cfg.picked_quality_hints_threshold,
+            clip_mid_low=cfg.picked_quality_clip_mid_low,
+            clip_mid_high=cfg.picked_quality_clip_mid_high,
+        )
+        if hints:
+            packet["picked_quality_hints"] = hints
     if score_warnings:
         packet["score_warnings"] = list(score_warnings)
     return packet

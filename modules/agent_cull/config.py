@@ -54,6 +54,11 @@ class AgentCullConfig:
     decision_source: str = "pick_status"
     allow_metadata_only_remove: bool = False
     review_picked_quality: bool = True
+    picked_audit_snippet: str = "picked_quality_audit_snippet_strict_v2.txt"
+    picked_quality_hints: bool = False
+    picked_quality_hints_threshold: float = 0.75
+    picked_quality_clip_mid_low: float = 0.45
+    picked_quality_clip_mid_high: float = 0.60
     agent: AgentCullAgentConfig = field(default_factory=AgentCullAgentConfig)
     local_gates: AgentCullLocalGatesConfig = field(default_factory=AgentCullLocalGatesConfig)
 
@@ -150,6 +155,13 @@ def load_agent_cull_config(overrides: dict[str, Any] | None = None) -> AgentCull
         decision_source=str(raw.get("decision_source") or "pick_status"),
         allow_metadata_only_remove=_coerce_bool(raw.get("allow_metadata_only_remove"), False),
         review_picked_quality=_coerce_bool(raw.get("review_picked_quality"), True),
+        picked_audit_snippet=str(
+            raw.get("picked_audit_snippet") or "picked_quality_audit_snippet_strict_v2.txt"
+        ).strip(),
+        picked_quality_hints=_coerce_bool(raw.get("picked_quality_hints"), False),
+        picked_quality_hints_threshold=_coerce_float(raw.get("picked_quality_hints_threshold"), 0.75),
+        picked_quality_clip_mid_low=_coerce_float(raw.get("picked_quality_clip_mid_low"), 0.45),
+        picked_quality_clip_mid_high=_coerce_float(raw.get("picked_quality_clip_mid_high"), 0.60),
         agent=agent,
         local_gates=gates,
     )

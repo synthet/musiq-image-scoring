@@ -7,7 +7,6 @@ import argparse
 import json
 import os
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -46,6 +45,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("image_path")
     parser.add_argument("provider", nargs="?", default="antigravity")
     parser.add_argument("image_id", nargs="?", type=int, default=0)
+    parser.add_argument(
+        "--advisory-prompt",
+        action="store_true",
+        help="Use production picked_image_advisories JSON schema (isolated audit smoke)",
+    )
     args = parser.parse_args(argv)
 
     path = args.image_path
@@ -56,12 +60,25 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"ok": False, "error": "path_not_found", "path": path}, indent=2))
         return 2
 
-    prompt = (
-        f"Read the image file at this exact path: {path}\n"
-        "Reply with JSON only (no markdown): "
-        f'{{"image_id": {image_id}, "species": "...", "focus_ok": true/false, '
-        f'"blur_foreground": true/false, "visual_note": "one sentence"}}'
-    )
+    if args.advisory_prompt:
+        prompt = (
+            f"Read the image file at this exact path: {path}\n"
+            "You are auditing subject focus on a PICKED image. Reply with JSON only (no markdown):\n"
+            f'{{"image_id": {image_id}, "filename": "...", "issue": "misfocus|blur|none", '
+            '"confidence": 0.0-1.0, "reason": "filename + what you saw", '
+            '"blur_foreground": true/false, "focus_ok": true/false, '
+            '"picked_image_advisories": [{{"image_id": ..., "issue": "misfocus", "reason": "..."}}]}}\n'
+            "If subject is soft/out of focus while background is sharp, issue must be misfocus and "
+            "picked_image_advisories must contain one entry. If focus is fine, issue is none and "
+            "picked_image_advisories is []."
+        )
+    else:
+        prompt = (
+            f"Read the image file at this exact path: {path}\n"
+            "Reply with JSON only (no markdown): "
+            f'{{"image_id": {image_id}, "species": "...", "focus_ok": true/false, '
+            f'"blur_foreground": true/false, "visual_note": "one sentence"}}'
+        )
 
     if provider == "antigravity":
         cmd = _antigravity_cmd(prompt)
@@ -74,6 +91,14 @@ def main(argv: list[str] | None = None) -> int:
             cmd = [bridge, "--skip-trust", "-p", prompt]
         else:
             cmd = ["gemini", "--skip-trust", "--output-format", "json", "-p", prompt]
+    elif provider == "claude":
+        bridge = "/app/scripts/wsl/claude_agent.sh"
+        base = [bridge] if os.path.isfile(bridge) and os.access(bridge, os.X_OK) else ["claude"]
+        cmd = [*base, "-p", "--output-format", "json", "--dangerously-skip-permissions", prompt]
+    elif provider == "cursor":
+        bridge = "/app/scripts/wsl/cursor_agent.sh"
+        base = [bridge] if os.path.isfile(bridge) and os.access(bridge, os.X_OK) else ["cursor-agent"]
+        cmd = [*base, "-p", "--output-format", "json", prompt]
     else:
         print(json.dumps({"ok": False, "error": "unknown_provider", "provider": provider}, indent=2))
         return 2

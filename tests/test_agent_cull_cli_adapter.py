@@ -11,6 +11,7 @@ from modules.agent_cull.cli_adapter import (
     classify_cli_process_failure,
     normalize_antigravity_stdout,
     normalize_gemini_stdout,
+    normalize_result_envelope,
 )
 from modules.agent_cull.config import AgentCullAgentConfig, AgentCullConfig
 
@@ -218,6 +219,82 @@ def test_subprocess_gemini_unwraps_json_envelope():
     cfg = AgentCullConfig()
     inner = '{"schema_version":"agent-cull-response-v1"}'
     wrapped = json.dumps({"response": inner, "session_id": "x"})
+    with patch("modules.agent_cull.cli_adapter.subprocess.run") as run:
+        run.return_value.returncode = 0
+        run.return_value.stdout = wrapped
+        run.return_value.stderr = ""
+        result = provider.run_review("{}", cfg)
+        assert result.ok is True
+        assert result.stdout == inner
+
+
+def test_normalize_result_envelope_unwraps():
+    inner = '{"schema_version":"agent-cull-response-v1"}'
+    wrapped = json.dumps({"type": "result", "subtype": "success", "result": inner})
+    assert normalize_result_envelope(wrapped) == inner
+    # Non-envelope text passes through unchanged.
+    assert normalize_result_envelope(inner) == inner
+
+
+def test_subprocess_claude_builds_print_json_cmd():
+    provider = SubprocessAgentCullProvider(
+        name="claude",
+        command="/app/scripts/wsl/claude_agent.sh",
+        args=(),
+        supports_vision=True,
+    )
+    cfg = replace(AgentCullConfig(), agent=replace(AgentCullAgentConfig(), provider="claude"))
+    with patch("modules.agent_cull.cli_adapter.subprocess.run") as run:
+        run.return_value.returncode = 0
+        run.return_value.stdout = '{"result":"{}"}'
+        run.return_value.stderr = ""
+        provider.run_review("{}", cfg)
+        cmd_args, kwargs = run.call_args
+        assert cmd_args[0] == [
+            "/app/scripts/wsl/claude_agent.sh",
+            "-p",
+            "--output-format",
+            "json",
+            "--dangerously-skip-permissions",
+            "{}",
+        ]
+        assert kwargs.get("shell") is False
+
+
+def test_subprocess_cursor_builds_print_json_cmd():
+    provider = SubprocessAgentCullProvider(
+        name="cursor",
+        command="/app/scripts/wsl/cursor_agent.sh",
+        args=(),
+        supports_vision=True,
+    )
+    cfg = replace(AgentCullConfig(), agent=replace(AgentCullAgentConfig(), provider="cursor"))
+    with patch("modules.agent_cull.cli_adapter.subprocess.run") as run:
+        run.return_value.returncode = 0
+        run.return_value.stdout = '{"result":"{}"}'
+        run.return_value.stderr = ""
+        provider.run_review("{}", cfg)
+        cmd_args, kwargs = run.call_args
+        assert cmd_args[0] == [
+            "/app/scripts/wsl/cursor_agent.sh",
+            "-p",
+            "--output-format",
+            "json",
+            "{}",
+        ]
+        assert kwargs.get("shell") is False
+
+
+def test_subprocess_claude_unwraps_result_envelope():
+    provider = SubprocessAgentCullProvider(
+        name="claude",
+        command="claude",
+        args=(),
+        supports_vision=True,
+    )
+    cfg = replace(AgentCullConfig(), agent=replace(AgentCullAgentConfig(), provider="claude"))
+    inner = '{"schema_version":"agent-cull-response-v1"}'
+    wrapped = json.dumps({"type": "result", "subtype": "success", "result": inner})
     with patch("modules.agent_cull.cli_adapter.subprocess.run") as run:
         run.return_value.returncode = 0
         run.return_value.stdout = wrapped

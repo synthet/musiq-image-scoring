@@ -143,6 +143,134 @@ def test_mode_profile_metadata_ab_differs_from_baseline():
     assert base.agent.include_thumbnails != meta.agent.include_thumbnails
 
 
+def test_build_prompt_uses_picked_audit_snippet_override():
+    cfg = replace(
+        apply_mode_profile(AgentCullConfig(), "vision_strict"),
+        picked_audit_snippet="picked_quality_audit_snippet_strict_v1.txt",
+    )
+    prompt = build_prompt({"schema_version": "agent-cull-request-v1"}, cfg)
+    assert "MANDATORY checklist" in prompt
+
+
+def test_apply_mode_profile_strict_picks():
+    cfg = apply_mode_profile(AgentCullConfig(), "technical_focus_strict_picks")
+    assert cfg.picked_audit_snippet == "picked_quality_audit_snippet_strict_v2.txt"
+    assert cfg.agent.prompt_template_version == "cull_redundancy_v3_technical_focus"
+    assert cfg.agent.require_vision_evidence is True
+
+
+def test_build_picked_quality_hints_watchlist():
+    from modules.agent_cull.picked_quality_hints import build_picked_quality_hints
+
+    rows = {
+        195193: {"score_technical": 0.834, "model_scores": {"clip_quality_v0": 0.551}},
+        195199: {"score_technical": 0.72, "model_scores": {"clip_quality_v0": 0.62}},
+    }
+    images = [
+        {
+            "id": 195193,
+            "file_name": "DSC_8825.NEF",
+            "scores": {"score_technical": 0.834, "clip_quality_v0": 0.551, "topiq": 0.55},
+        },
+        {
+            "id": 195199,
+            "file_name": "DSC_8831.NEF",
+            "scores": {"score_technical": 0.72, "clip_quality_v0": 0.62, "topiq": 0.68},
+        },
+    ]
+    hints = build_picked_quality_hints(
+        picked_ids=[195193, 195199],
+        rows_by_id=rows,
+        images_payload=images,
+    )
+    assert hints is not None
+    assert 195193 in hints["score_technical_watchlist"]
+    assert "195193" in hints.get("pairwise_sharper_picked", {})
+
+
+def test_packet_includes_picked_quality_hints_when_enabled():
+    unit = ReviewUnit(
+        review_unit_key="stack_29157",
+        stack_id=29157,
+        sub_stack_id=72253,
+        image_ids=(195193, 195199),
+        picked_ids=(195193, 195199),
+        rejected_ids=(),
+        neutral_ids=(),
+        usable_ids=(195193, 195199),
+        hierarchy_tier="stack",
+    )
+    rows = {
+        195193: {
+            "id": 195193,
+            "file_name": "a.NEF",
+            "score_technical": 0.834,
+            "score_general": 0.8,
+            "model_scores": {"clip_quality_v0": 0.551},
+            "pick_status": 1,
+        },
+        195199: {
+            "id": 195199,
+            "file_name": "b.NEF",
+            "score_technical": 0.72,
+            "score_general": 0.78,
+            "model_scores": {"clip_quality_v0": 0.62},
+            "pick_status": 1,
+        },
+    }
+    cfg = replace(AgentCullConfig(), review_picked_quality=True, picked_quality_hints=True)
+    enrich_unit_rows(rows, cfg)
+    packet = build_review_packet(unit, rows, cfg)
+    assert "picked_quality_hints" in packet
+    assert 195193 in packet["picked_quality_hints"]["score_technical_watchlist"]
+
+
+def test_build_picked_only_packet():
+    from modules.agent_cull.picked_audit import build_picked_only_packet
+
+    unit = ReviewUnit(
+        review_unit_key="stack_1",
+        stack_id=1,
+        sub_stack_id=None,
+        image_ids=(10, 20),
+        picked_ids=(10,),
+        rejected_ids=(20,),
+        neutral_ids=(),
+        usable_ids=(10, 20),
+        hierarchy_tier="stack",
+    )
+    rows = {
+        10: {"id": 10, "file_name": "pick.NEF", "score_general": 0.8, "pick_status": 1},
+        20: {"id": 20, "file_name": "rej.NEF", "score_general": 0.7, "pick_status": 0},
+    }
+    cfg = AgentCullConfig(agent=AgentCullAgentConfig(include_thumbnails=False))
+    packet = build_picked_only_packet(unit, rows, cfg)
+    assert packet["rejected_image_ids"] == []
+    assert packet["picked_image_ids"] == [10]
+    assert len(packet["images"]) == 1
+    assert packet["images"][0]["id"] == 10
+
+
+def test_score_picked_advisory_metrics():
+    from modules.agent_cull.study_evidence import score_picked_advisory_metrics
+
+    live = {
+        "picked_image_advisories": [
+            {"image_id": 195193, "issue": "misfocus", "reason": "soft fawn foreground"},
+        ],
+        "watchlist": [195193],
+    }
+    m = score_picked_advisory_metrics(live)
+    assert m["advisory_count"] == 1
+    assert m["195193_advised"] is True
+    assert m["195193_misfocus"] is True
+    assert m["watchlist_hit"] is True
+    assert m["advisory_gap"] is False
+
+    gap = score_picked_advisory_metrics({"watchlist": [195193], "picked_image_advisories": []})
+    assert gap["advisory_gap"] is True
+
+
 def test_matrix_vision_evidence_scoring():
     from modules.agent_cull.study_evidence import score_vision_evidence
 

@@ -13,6 +13,10 @@ STUDY_MODE_IDS = (
     "technical_focus",
     "clip_gate",
     "metadata_only",
+    "technical_focus_strict_picks",
+    "vision_strict_strict_picks",
+    "technical_focus_compare_picks",
+    "vision_strict_compare_picks",
 )
 
 
@@ -86,6 +90,52 @@ def apply_mode_profile(cfg: AgentCullConfig, mode_id: str) -> AgentCullConfig:
                 prompt_template_version="cull_redundancy_v3_vision_strict",
                 require_vision_evidence=True,
                 include_thumbnails=False,
+            ),
+        )
+    if mode == "technical_focus_strict_picks":
+        return replace(
+            cfg,
+            picked_audit_snippet="picked_quality_audit_snippet_strict_v2.txt",
+            agent=replace(
+                cfg.agent,
+                prompt_template_version="cull_redundancy_v3_technical_focus",
+                require_vision_evidence=True,
+                include_thumbnails=True,
+                flatten_model_scores=("clip_quality_v0", "topiq", "liqe", "spaq"),
+            ),
+        )
+    if mode == "vision_strict_strict_picks":
+        return replace(
+            cfg,
+            picked_audit_snippet="picked_quality_audit_snippet_strict_v2.txt",
+            agent=replace(
+                cfg.agent,
+                prompt_template_version="cull_redundancy_v3_vision_strict",
+                require_vision_evidence=True,
+                include_thumbnails=True,
+            ),
+        )
+    if mode == "technical_focus_compare_picks":
+        return replace(
+            cfg,
+            picked_audit_snippet="picked_quality_audit_snippet_compare.txt",
+            agent=replace(
+                cfg.agent,
+                prompt_template_version="cull_redundancy_v3_technical_focus",
+                require_vision_evidence=True,
+                include_thumbnails=True,
+                flatten_model_scores=("clip_quality_v0", "topiq", "liqe", "spaq"),
+            ),
+        )
+    if mode == "vision_strict_compare_picks":
+        return replace(
+            cfg,
+            picked_audit_snippet="picked_quality_audit_snippet_compare.txt",
+            agent=replace(
+                cfg.agent,
+                prompt_template_version="cull_redundancy_v3_vision_strict",
+                require_vision_evidence=True,
+                include_thumbnails=True,
             ),
         )
     raise ValueError(f"unknown study mode: {mode_id!r}; expected one of {STUDY_MODE_IDS}")

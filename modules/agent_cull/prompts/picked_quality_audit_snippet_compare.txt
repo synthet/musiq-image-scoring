@@ -1,0 +1,11 @@
+Picked-image quality audit (advisory only — pairwise comparison required):
+- After deciding rejected images, open EVERY picked thumbnail in picked_image_ids.
+- Compare subject sharpness PAIRWISE across all picked images: for each pick, ask whether another picked image shows the same moment/subject with sharper focus on the main subject.
+- Flag any picked image that is WORSE on subject focus than another picked alternative for the same subject/moment, even if its score_technical is higher.
+- Typical failure: foreground subject soft with sharp background while another pick has the subject in focus.
+- For each flagged pick add picked_image_advisories with suggested_alternatives listing the sharper picked id(s).
+- ADVISORY ONLY: do NOT change pick status or add picks to rejected_image_decisions.
+- Return [] only when no picked image is clearly worse on subject focus than another pick.
+
+picked_image_advisories entry fields:
+- image_id, filename, issue (misfocus|blur|exposure|composition|other), confidence 0..1, reason (must cite pairwise comparison), suggested_alternatives (picked ids), risk_flags.

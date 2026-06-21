@@ -23,6 +23,8 @@ Repeatable harness comparing **Antigravity (`agy`)**, **Codex**, and **Gemini** 
 | `scripts/study/agent_cull_vision_smoke.py` | Layer 2 direct CLI read (canonical; cross-platform) |
 | `scripts/study/agent_cull_vision_smoke.sh` / `.ps1` | Shell wrappers (prefer Python on WSL; `.sh` needs LF line endings) |
 | `scripts/study/agent_cull_matrix.py` | Full grid: probe → smoke (once per stack/runtime) → optional live review |
+| `scripts/study/agent_cull_forensics.py` | Picked advisory gap forensics (groups 99/100, isolated advisory smoke) |
+| `scripts/study/agent_cull_picked_audit.py` | Pass-2 picked-only advisory audit (study / two-pass) |
 
 ### Example commands
 
@@ -72,6 +74,12 @@ Study mode profiles live in `modules/agent_cull/mode_profiles.py`. Operator flag
 | `technical_focus` | `cull_redundancy_v3_technical_focus` | false | yes (+ flattened TOPIQ/LIQE/SPAQ/clip) |
 | `clip_gate` | `cull_redundancy_v3_clip_gate` | false | yes |
 | `metadata_only` | same as vision_strict | true | **no** (A/B control) |
+| `technical_focus_strict_picks` | `cull_redundancy_v3_technical_focus` + **strict_v2** picked snippet | **true** | yes (+ flattened TOPIQ/LIQE/SPAQ/clip) |
+| `vision_strict_strict_picks` | `cull_redundancy_v3_vision_strict` + **strict_v2** picked snippet | **true** | yes |
+| `technical_focus_compare_picks` | `cull_redundancy_v3_technical_focus` + **compare** picked snippet | **true** | yes |
+| `vision_strict_compare_picks` | `cull_redundancy_v3_vision_strict` + **compare** picked snippet | **true** | yes |
+
+Matrix flags: `--picked-quality-hints` (packet watchlist), `--two-pass-picked-audit` (pass-2 picked-only CLI).
 
 ## Matrix run results (2026-06-20)
 
@@ -171,11 +179,65 @@ Applied as production defaults on **2026-06-21** (see `config.example.json` → 
 
 **Operator workflow for misfocus stacks:** run `scripts/agent_cull_review.py --mode-profile technical_focus --stack-id 29157 --sub-stack-id 72253` (or matrix) before trusting ML technical score alone.
 
+### Picked-image quality advisory gap (195193 research, 2026-06-21)
+
+**Root cause (forensics):** Isolated advisory vision smoke on 195193 returns `misfocus` with `picked_image_advisories` populated (~11s Docker Antigravity). Full-packet live runs (groups 99/100) had `vision_used: true`, viewed **195193**, but returned `picked_image_advisories: []`. The gap was **agent compliance / prompt wording**, not wiring.
+
+**Picked set on stack #29157** (sub-stack 72253):
+
+| image_id | file_name | score_technical | clip_quality_v0 | topiq | Notes |
+|----------|-----------|-----------------|-----------------|-------|-------|
+| 195201 | DSC_8828.NEF | 0.851 | 0.548 | 0.649 | Highest technical among picks |
+| **195193** | **DSC_8825.NEF** | **0.834** | **0.551** | 0.633 | **Hero misfocus case** — soft foreground fawn |
+| 195199 | DSC_8829.NEF | 0.824 | 0.648 | 0.632 | Sharper alternative candidate |
+
+**A/B matrix** (`.agent/study/runs/2026-06-21-picked-ab/`, Docker Antigravity):
+
+| stack | mode | advisories | 195193 misfocus | false-positive note |
+|-------|------|------------|-----------------|---------------------|
+| 29157 misfocus | `technical_focus_strict_picks` | **1** | **yes** | cites foreground softness + suggests 195201/195199 |
+| 29157 misfocus | `vision_strict_strict_picks` | **1** | **yes** | same |
+| 29160 deer burst | both strict modes | **0** | — | clean |
+| 29154 deer burst | `technical_focus_strict_picks` | 1 | — | acceptable (≤1) |
+| 29154 deer burst | `vision_strict_strict_picks` | 0 | — | clean |
+
+**Hints run** (`--picked-quality-hints`, stack 29157): watchlist hit all three picks; **3 advisories** (195193/195199/195201) — useful for research but **over-flags** vs strict_v2 alone. Keep `picked_quality_hints: false` in production defaults.
+
+**Two-pass picked-only audit** (`agent_cull_picked_audit.py`): pass-2 alone emits **1** advisory on 195193 with suggested alternative 195201 (~26s). Study-only unless single-pass strict_v2 regresses.
+
+**Production promotion:**
+
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| `picked_audit_snippet` | **`picked_quality_audit_snippet_strict_v2.txt`** | Mandatory checklist + worked example closes advisory gap on 29157 |
+| `picked_quality_hints` | **`false`** | Hints run over-advised (3 picks on same stack) |
+| `review_picked_quality` | **`true`** | unchanged |
+
+Forensics artifact: `.agent/study/runs/2026-06-20-forensics/forensics.json`
+
+```bash
+# Re-run A/B (Docker)
+docker exec image-scoring-webui env PYTHONPATH=/app python3 \
+  /app/scripts/study/agent_cull_matrix.py \
+  --output /app/.agent/study/runs/2026-06-21-picked-ab \
+  --stacks-file /app/.agent/study/fixtures/picked_ab_stacks.json \
+  --modes technical_focus_strict_picks,vision_strict_strict_picks \
+  --live-modes technical_focus_strict_picks,vision_strict_strict_picks \
+  --runtimes docker --skip-vision-smoke
+
+# Isolated advisory smoke
+docker exec image-scoring-webui env PYTHONPATH=/app python3 \
+  /app/scripts/study/agent_cull_vision_smoke.py \
+  /app/thumbnails/5f/5f568345394cc5d1913cd36eaa3fe1d0.jpg antigravity 195193 --advisory-prompt
+```
+
 ### Picked-image quality advisory gap (closed 2026-06-21)
 
-The live matrix confirmed that picked hero **195193** has a misleading `score_technical` (~83%) and vision-detectable foreground blur, but rejected-only review never inspects picks — so misfocus on a **pick** was invisible. With `review_picked_quality=true`, `build_prompt()` appends `prompts/picked_quality_audit_snippet.txt` instructing the agent to audit every picked thumbnail and emit an optional `picked_image_advisories` array. These persist as **advisory-only** rows (`agent_decision='advisory'`, `candidate_status='pick_quality_advisory'`) that never remove or demote picks.
+The live matrix confirmed that picked hero **195193** has a misleading `score_technical` (~83%) and vision-detectable foreground blur, but rejected-only review never inspects picks — so misfocus on a **pick** was invisible. With `review_picked_quality=true`, `build_prompt()` appends the picked audit snippet instructing the agent to audit every picked thumbnail and emit an optional `picked_image_advisories` array. These persist as **advisory-only** rows (`agent_decision='advisory'`, `candidate_status='pick_quality_advisory'`) that never remove or demote picks.
 
 **Post-change expectation (re-run target):** the validated group for stack #29157 includes a `pick_quality_advisory` on image **195193** citing foreground blur and (optionally) a sharper picked alternative such as 195199.
+
+**Status:** Met with `picked_quality_audit_snippet_strict_v2.txt` (see A/B table above).
 
 ## Success criteria (plan)
 
@@ -185,7 +247,7 @@ The live matrix confirmed that picked hero **195193** has a misleading `score_te
 | Layer 2 visual JSON on 195193 | **Met** (Docker Antigravity) |
 | `vision_strict` blocks metadata-only removes | **Unit-tested** (`test_agent_cull_safety`); live pending |
 | `metadata_only` diverges from thumbnail runs | **Harness ready**; live pending |
-| Picked advisory on 195193 (`pick_quality_advisory`) | **Schema/persist/validation unit-tested**; live re-run pending (see command below) |
+| Picked advisory on 195193 (`pick_quality_advisory`) | **Met** (strict_v2 A/B, Docker 2026-06-21) |
 | Written report + default recommendation | **This document** |
 
 **Live verification re-run (operator, Docker — requires Antigravity auth):**

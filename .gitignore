@@ -79,6 +79,7 @@ logs/
 
 # Generated score quality reports (local analysis output)
 reports/model-score-quality/
+reports/clip-culling/rollout_recluster.checkpoint.json
 
 *.tmp
 *.temp
@@ -89,6 +90,7 @@ reports/model-score-quality/
 # Debug and verification scripts (dev artifacts)
 dumps/
 .agent/tmp/
+.agent/study/runs/
 debug_*.py
 debug_*.txt
 debug_*.html

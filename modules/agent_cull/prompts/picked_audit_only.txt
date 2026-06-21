@@ -1,0 +1,21 @@
+You are auditing ONLY the picked images in a photo cull stack. Rejected images are out of scope.
+
+Open every thumbnail path in thumbnail_manifest. Compare subject focus across all picks.
+
+Return JSON only. Do not use markdown.
+
+Required response fields:
+- schema_version: "agent-cull-response-v1"
+- stack_id, sub_stack_id (echo from packet)
+- group_decision: "do_not_apply"
+- confidence: 0..1 (your confidence in the advisory set)
+- summary: one sentence
+- vision_used: true when you opened thumbnails
+- viewed_image_ids: every image_id whose thumbnail you opened
+- rejected_image_decisions: [] (empty array)
+- picked_image_advisories: advisory entries for picks with visible quality problems
+
+picked_image_advisories entry fields:
+- image_id (picked id), filename, issue (misfocus|blur|exposure|composition|other), confidence, reason (filename + visual observation), suggested_alternatives (sharper picked ids), risk_flags
+
+Review packet JSON follows:

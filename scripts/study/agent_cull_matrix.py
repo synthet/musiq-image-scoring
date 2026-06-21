@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from modules.agent_cull.study_evidence import score_vision_evidence
+from modules.agent_cull.study_evidence import score_picked_advisory_metrics, score_vision_evidence
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -160,6 +160,12 @@ def _provider_command(provider: str):
         agent = replace(agent, provider="gemini", command=cmd)
     elif provider == "codex":
         agent = replace(agent, provider="codex", command="codex", codex_sandbox="workspace")
+    elif provider == "claude":
+        cmd = agent.command if "claude" in agent.command else "/app/scripts/wsl/claude_agent.sh"
+        agent = replace(agent, provider="claude", command=cmd)
+    elif provider == "cursor":
+        cmd = agent.command if "cursor" in agent.command else "/app/scripts/wsl/cursor_agent.sh"
+        agent = replace(agent, provider="cursor", command=cmd)
     else:
         raise ValueError(f"unknown provider: {provider}")
     return provider, replace(cfg, enabled=True, agent=agent)
@@ -170,14 +176,22 @@ def _run_live_review(
     sub_stack_id: int | None,
     mode: str,
     provider: str,
+    *,
+    two_pass_picked_audit: bool = False,
+    picked_quality_hints: bool = False,
 ) -> dict[str, Any]:
+    from dataclasses import replace
+
     from modules.agent_cull.discovery_db import inspect_review_unit_for_run, load_unit_rows
     from modules.agent_cull.mode_profiles import apply_mode_profile
+    from modules.agent_cull.picked_audit import run_picked_audit_pass
     from modules.agent_cull.repository import get_review_group
     from modules.agent_cull.service import run_agent_review_for_unit
 
     _, cfg = _provider_command(provider)
     cfg = apply_mode_profile(cfg, mode)
+    if picked_quality_hints:
+        cfg = replace(cfg, picked_quality_hints=True)
     unit = inspect_review_unit_for_run(cfg, stack_id=stack_id, sub_stack_id=sub_stack_id)
     if unit is None:
         return {"ok": False, "error": "no_unit"}
@@ -211,10 +225,20 @@ def _run_live_review(
         result["vision_used"] = response.get("vision_used")
         result["viewed_image_ids"] = response.get("viewed_image_ids")
         result["manifest_count"] = len(request.get("thumbnail_manifest") or [])
+        result["picked_image_advisories"] = response.get("picked_image_advisories") or []
+        hints = request.get("picked_quality_hints") or {}
+        result["watchlist"] = hints.get("score_technical_watchlist") or []
         result["decisions"] = {
             str(d.get("image_id")): d.get("decision")
             for d in (response.get("rejected_image_decisions") or [])
         }
+    if two_pass_picked_audit and unit is not None:
+        pass2_start = time.monotonic()
+        pass2 = run_picked_audit_pass(unit, rows, cfg, provider_override=provider)
+        result["picked_audit_pass2"] = pass2
+        result["picked_audit_pass2_ms"] = int((time.monotonic() - pass2_start) * 1000)
+        if pass2.get("ok") and not result.get("picked_image_advisories"):
+            result["picked_image_advisories"] = pass2.get("picked_image_advisories") or []
     return result
 
 
@@ -224,16 +248,17 @@ def _write_summary_md(out_dir: Path, artifacts: list[dict[str, Any]]) -> None:
         "",
         f"Generated: {_utc_now()}",
         "",
-        "| stack | mode | provider | runtime | manifest_ok | smoke_visual | vision_used | verified |",
-        "|-------|------|----------|---------|-------------|--------------|-------------|----------|",
+        "| stack | mode | provider | runtime | manifest_ok | smoke_visual | vision_used | advisories | 195193 | gap | verified |",
+        "|-------|------|----------|---------|-------------|--------------|-------------|------------|--------|-----|----------|",
     ]
     for art in artifacts:
         probe = art.get("probe") or {}
         smoke = art.get("vision_smoke")
         live = art.get("live_review")
         ev = art.get("vision_evidence") or {}
+        adv = art.get("picked_advisory_metrics") or {}
         lines.append(
-            "| {stack} | {mode} | {provider} | {runtime} | {mo} | {sv} | {vu} | {ver} |".format(
+            "| {stack} | {mode} | {provider} | {runtime} | {mo} | {sv} | {vu} | {ac} | {t195} | {gap} | {ver} |".format(
                 stack=art.get("stack_label", art.get("stack_id")),
                 mode=art.get("mode"),
                 provider=art.get("provider"),
@@ -241,6 +266,9 @@ def _write_summary_md(out_dir: Path, artifacts: list[dict[str, Any]]) -> None:
                 mo=probe.get("ok"),
                 sv=(smoke or {}).get("has_visual_language"),
                 vu=(live or {}).get("vision_used"),
+                ac=adv.get("advisory_count", "—"),
+                t195=adv.get("195193_misfocus", adv.get("195193_advised", "—")),
+                gap=adv.get("advisory_gap", "—"),
                 ver=ev.get("verified"),
             )
         )
@@ -258,6 +286,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--skip-vision-smoke", action="store_true")
     parser.add_argument("--skip-live-cli", action="store_true", help="Preflight + smoke only (no LLM review)")
     parser.add_argument("--live-modes", default="baseline_v2,vision_strict", help="Modes that trigger live CLI when not skipped")
+    parser.add_argument(
+        "--picked-quality-hints",
+        action="store_true",
+        help="Enable picked_quality_hints in live review packets",
+    )
+    parser.add_argument(
+        "--two-pass-picked-audit",
+        action="store_true",
+        help="Run pass-2 picked-only advisory audit after full review",
+    )
     args = parser.parse_args(argv)
 
     stacks = DEFAULT_STACKS
@@ -279,6 +317,8 @@ def main(argv: list[str] | None = None) -> int:
         "runtimes": runtimes,
         "stacks": stacks,
         "skip_live_cli": args.skip_live_cli,
+        "picked_quality_hints": args.picked_quality_hints,
+        "two_pass_picked_audit": args.two_pass_picked_audit,
     }
     (out_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
@@ -337,11 +377,19 @@ def main(argv: list[str] | None = None) -> int:
                     artifact["provider"] = providers[0]
                 if not args.skip_live_cli and mode in live_modes and artifact.get("provider"):
                     try:
-                        live = _run_live_review(stack_id, sub_stack_id, mode, artifact["provider"])
+                        live = _run_live_review(
+                            stack_id,
+                            sub_stack_id,
+                            mode,
+                            artifact["provider"],
+                            two_pass_picked_audit=args.two_pass_picked_audit,
+                            picked_quality_hints=args.picked_quality_hints,
+                        )
                     except Exception as exc:
                         live = {"ok": False, "error": str(exc)}
                     artifact["live_review"] = live
                 artifact["vision_evidence"] = score_vision_evidence(probe, smoke, live)
+                artifact["picked_advisory_metrics"] = score_picked_advisory_metrics(live)
                 slug = f"{label}_{mode}_{artifact.get('provider','na')}_{runtime}"
                 (out_dir / f"{slug}.json").write_text(json.dumps(artifact, indent=2, default=str), encoding="utf-8")
                 artifacts.append(artifact)
