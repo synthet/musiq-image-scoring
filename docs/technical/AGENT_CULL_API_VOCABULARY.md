@@ -66,7 +66,13 @@ through the same field.
 
 ### `status`
 
-`validated` · `proposed` · `failed` · `applied` · `rolled_back`
+`discovered` · `validated` · `proposed` · `failed` · `applied` · `rolled_back`
+
+`discovered` is the column default (`db_postgres.py`) a group carries before its
+first status update. The gallery's `AgentCullGroupStatus` additionally lists
+`payload_built`, `agent_pending`, and `agent_done` — these are **not emitted by
+the backend** (no code path writes them); they are inert union members and can be
+dropped from the gallery type when convenient.
 
 ### `group_decision`
 
@@ -74,8 +80,17 @@ through the same field.
 
 ## Gallery type-sync checklist (per `agent_cull_ux` plan, Phase 1d)
 
-- [ ] Add `pick_quality_advisory` to `AgentCullCandidateStatus`.
-- [ ] Add `operator_approved` / `operator_rejected` if not already present.
-- [ ] Add `advisory` to the **`agent_decision`** union **only** — not `final_decision`.
+Reconciled against `src/types/agentCullReview.ts` as of this review:
+
+- [ ] **Add** `pick_quality_advisory` to `AgentCullCandidateStatus` (missing).
+- [ ] **Add** `advisory` to the **`agent_decision`** union **only** — not
+      `final_decision` (missing).
+- [ ] **Remove** `rolled_back` from `AgentCullCandidateStatus` — the backend
+      never emits it as a recommendation status (rollback restores the prior
+      value); it is only a *group* status. Inert today, but misleading.
+- [ ] **Remove** `payload_built` / `agent_pending` / `agent_done` from
+      `AgentCullGroupStatus` — no backend path emits them. `discovered` stays.
 - [ ] Advisory cards: info styling, no Approve/Mark-safe; optional "View
       alternatives" from `better_alternatives`.
+- ✓ `operator_approved` / `operator_rejected` already present — no change.
+- ✓ `final_decision` union already correct (`remove`/`keep`/`uncertain`).

@@ -51,3 +51,20 @@ def test_decision_vocab_supersets_agent_schema():
 
 def test_group_decisions_match_schema():
     assert set(vocab.GROUP_DECISIONS) == set(ALLOWED_GROUP_DECISIONS)
+
+
+def test_group_statuses_cover_emitters():
+    import inspect
+
+    from modules.agent_cull import apply, repository, rollback
+
+    # The insert default (``discovered``) plus every literal status written by
+    # the apply/rollback paths must be in GROUP_STATUSES.
+    default = inspect.signature(repository.insert_review_group).parameters["status"].default
+    emitted = {default}
+    for mod in (apply, rollback):
+        src = inspect.getsource(mod)
+        for token in ("validated", "proposed", "failed", "applied", "rolled_back"):
+            if f'status="{token}"' in src or f"status='{token}'" in src:
+                emitted.add(token)
+    assert emitted <= set(vocab.GROUP_STATUSES), emitted - set(vocab.GROUP_STATUSES)

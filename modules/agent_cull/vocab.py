@@ -49,8 +49,11 @@ FINAL_DECISIONS: tuple[str, ...] = (
     "uncertain",
 )
 
-# ``agent_cull_review_groups.status`` lifecycle.
+# ``agent_cull_review_groups.status`` lifecycle. ``discovered`` is the column
+# default (``db_postgres.py`` / ``repository.insert_review_group``) a row carries
+# before the first status update; the rest are written by apply / rollback.
 GROUP_STATUSES: tuple[str, ...] = (
+    "discovered",
     "validated",
     "proposed",
     "failed",
