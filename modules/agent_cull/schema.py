@@ -177,6 +177,36 @@ def validate_agent_response(
     return ValidationResult(ok=True, data=data)
 
 
+def _coerce_response_context(
+    data: dict[str, Any],
+    *,
+    stack_id: int,
+    sub_stack_id: int | None,
+) -> dict[str, Any]:
+    """Fill stack echo fields CLI agents often omit."""
+    out = dict(data)
+    out.setdefault("stack_id", stack_id)
+    out.setdefault("sub_stack_id", sub_stack_id)
+    if out.get("confidence") is None:
+        decisions = out.get("rejected_image_decisions") or []
+        confs: list[float] = []
+        for item in decisions:
+            if isinstance(item, dict):
+                try:
+                    confs.append(float(item.get("confidence")))
+                except (TypeError, ValueError):
+                    continue
+        out["confidence"] = sum(confs) / len(confs) if confs else 0.75
+    if not out.get("summary"):
+        snippets: list[str] = []
+        for item in out.get("rejected_image_decisions") or []:
+            if isinstance(item, dict) and item.get("reason"):
+                snippets.append(str(item["reason"])[:240])
+        out["summary"] = "; ".join(snippets)[:4000] if snippets else "Agent cull review"
+    out.setdefault("schema_version", RESPONSE_SCHEMA_VERSION)
+    return out
+
+
 def validate_raw_agent_response(
     raw: str,
     *,
@@ -187,7 +217,11 @@ def validate_raw_agent_response(
     all_image_ids: set[int] | None = None,
 ) -> ValidationResult:
     try:
-        data = parse_agent_response(raw)
+        data = _coerce_response_context(
+            parse_agent_response(raw),
+            stack_id=stack_id,
+            sub_stack_id=sub_stack_id,
+        )
     except (ValueError, json.JSONDecodeError) as exc:
         return ValidationResult(
             ok=False,

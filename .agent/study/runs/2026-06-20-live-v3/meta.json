@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-06-21T00:23:43.715986+00:00",
+  "modes": [
+    "baseline_v2",
+    "vision_strict",
+    "technical_focus",
+    "metadata_only"
+  ],
+  "providers": [
+    "antigravity"
+  ],
+  "runtimes": [
+    "docker"
+  ],
+  "stacks": [
+    {
+      "stack_id": 29157,
+      "sub_stack_id": 72253,
+      "label": "misfocus_fawn_195193"
+    }
+  ],
+  "skip_live_cli": false
+}
