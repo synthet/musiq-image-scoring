@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 from typing import Any
+
+from modules.agent_cull.json_util import json_dumps
 
 from modules import audit, db
 from modules.agent_cull.config import AgentCullConfig
@@ -35,7 +36,7 @@ def _coerce_dry_run(value: Any) -> bool:
 
 
 def prompt_hash(packet: dict[str, Any]) -> str:
-    blob = json.dumps(packet, sort_keys=True, ensure_ascii=False)
+    blob = json_dumps(packet, sort_keys=True)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 

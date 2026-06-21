@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from modules.agent_cull.config import AgentCullConfig
+from modules.agent_cull.json_util import json_dumps
 from modules.agent_cull.mode_profiles import resolve_prompt_template_version
 from modules.agent_cull.schema import extract_json_object
 
@@ -358,7 +359,7 @@ def build_prompt(
     if not template_path.is_file():
         raise FileNotFoundError(f"agent cull prompt template not found: {template_path}")
     template = template_path.read_text(encoding="utf-8")
-    return template + "\n" + json.dumps(packet, ensure_ascii=False)
+    return template + "\n" + json_dumps(packet)
 
 
 def get_provider(cfg: AgentCullConfig, *, override: str | None = None) -> AgentCullProvider:

@@ -63,6 +63,17 @@ def _display_path(file_path: str | None) -> str | None:
     return os.path.basename(str(file_path))
 
 
+def _json_safe(value: Any) -> Any:
+    """Coerce DB values (e.g. datetime) for JSON packet persistence."""
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
 def _keywords_list(row: dict[str, Any]) -> list[str]:
     raw = row.get("keywords") or []
     if isinstance(raw, str):
@@ -309,7 +320,7 @@ def build_review_packet(
                 "make": row.get("make"),
                 "model": row.get("model"),
                 "lens_model": row.get("lens_model"),
-                "date_time_original": row.get("date_time_original"),
+                "date_time_original": _json_safe(row.get("date_time_original")),
                 "orientation": row.get("orientation"),
             },
             "file_type": row.get("file_type"),

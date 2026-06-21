@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from modules import db
+from modules.agent_cull.json_util import json_dumps
 
 
 def insert_review_group(
@@ -30,7 +30,7 @@ def insert_review_group(
             review_unit_key,
             status,
             dry_run,
-            json.dumps(request_json) if request_json is not None else None,
+            json_dumps(request_json) if request_json is not None else None,
         ),
     )
     if not rows:
@@ -66,7 +66,7 @@ def update_review_group(group_id: int, **fields: Any) -> None:
             continue
         if key in ("request_json", "response_validated", "safety_overrides") and value is not None:
             sets.append(f"{key} = ?::jsonb")
-            params.append(json.dumps(value))
+            params.append(json_dumps(value))
         else:
             sets.append(f"{key} = ?")
             params.append(value)
@@ -112,9 +112,9 @@ def insert_recommendation(
             final_decision,
             confidence,
             reason[:4000] if reason else None,
-            json.dumps(better_alternatives),
-            json.dumps(risk_flags),
-            json.dumps(safety_overrides),
+            json_dumps(better_alternatives),
+            json_dumps(risk_flags),
+            json_dumps(safety_overrides),
             candidate_status,
             prior_pick_status,
             prior_cull_decision,
