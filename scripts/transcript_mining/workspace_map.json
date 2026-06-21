@@ -1,0 +1,70 @@
+{
+  "cursor_projects_root": "C:/Users/dmnsy/.cursor/projects",
+  "projects_root": "D:/Projects",
+  "workspaces": {
+    "d-Projects-image-scoring-backend": {
+      "repos": [
+        "image-scoring-backend",
+        "image-scoring-gallery",
+        "image-scoring-ui"
+      ]
+    },
+    "d-Projects-image-scoring-backend-image-scoring-backend-code-workspace": {
+      "repos": ["image-scoring-backend"]
+    },
+    "d-Projects-image-scoring": {
+      "repos": ["image-scoring-backend", "image-scoring-gallery"]
+    },
+    "d-Projects-image-scoring-image-scoring-code-workspace": {
+      "repos": ["image-scoring-backend", "image-scoring-gallery"]
+    },
+    "d-Projects-electron-image-scoring": {
+      "repos": ["image-scoring-gallery"]
+    },
+    "d-Projects-image-scoring-skills": {
+      "repos": ["image-scoring-skills"]
+    },
+    "d-Projects-image-scoring-model": {
+      "repos": ["image-scoring-model"]
+    },
+    "d-Projects-birdweather-telegram-bot": {
+      "repos": ["birdweather-telegram-bot"]
+    },
+    "d-Projects-cursor-telegram-bot": {
+      "repos": ["cursor-telegram-bot"]
+    },
+    "d-Projects-heroes-templates": {
+      "repos": ["heroes-templates"]
+    },
+    "d-Projects-nwn-modules": {
+      "repos": ["nwn-modules"]
+    },
+    "d-Projects-win-gui-mcp": {
+      "repos": ["win-gui-mcp"]
+    },
+    "d-Projects-video-gallery": {
+      "repos": ["video-gallery"]
+    },
+    "d-Projects-assisted-culling": {
+      "repos": ["assisted-culling"]
+    },
+    "d-Projects-agent-sdlc": {
+      "repos": ["agent-sdlc"]
+    },
+    "d-Projects-subagent-orchestrator": {
+      "repos": ["subagent-orchestrator"]
+    },
+    "d-Projects-tax": {
+      "repos": ["tax"]
+    },
+    "d-Projects-hetzner-mcp": {
+      "repos": ["hetzner-mcp"]
+    },
+    "d-Projects-images": {
+      "repos": ["images"]
+    },
+    "d-Projects-workspace": {
+      "repos": []
+    }
+  }
+}

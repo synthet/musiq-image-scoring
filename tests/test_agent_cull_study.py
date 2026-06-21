@@ -1,0 +1,134 @@
+"""Tests for agent cull study harness (mode profiles, probe, prompt selection)."""
+
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import replace
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from modules.agent_cull.cli_adapter import build_prompt
+from modules.agent_cull.config import AgentCullAgentConfig, AgentCullConfig, load_agent_cull_config
+from modules.agent_cull.mode_profiles import (
+    STUDY_MODE_IDS,
+    apply_mode_profile,
+    resolve_prompt_template_version,
+)
+from modules.agent_cull.payload import build_review_packet, enrich_unit_rows
+from modules.agent_cull.discovery import ReviewUnit
+
+
+def test_study_mode_ids_complete():
+    assert "baseline_v2" in STUDY_MODE_IDS
+    assert "metadata_only" in STUDY_MODE_IDS
+
+
+def test_apply_mode_profile_vision_strict():
+    cfg = apply_mode_profile(AgentCullConfig(), "vision_strict")
+    assert cfg.agent.prompt_template_version == "cull_redundancy_v3_vision_strict"
+    assert cfg.agent.require_vision_evidence is True
+
+
+def test_apply_mode_profile_metadata_only_disables_thumbnails():
+    cfg = apply_mode_profile(AgentCullConfig(), "metadata_only")
+    assert cfg.agent.include_thumbnails is False
+
+
+def test_apply_mode_profile_technical_focus_flattens_models():
+    cfg = apply_mode_profile(AgentCullConfig(), "technical_focus")
+    assert "topiq" in cfg.agent.flatten_model_scores
+    assert "spaq" in cfg.agent.flatten_model_scores
+
+
+def test_resolve_prompt_template_version_override():
+    cfg = AgentCullConfig(agent=AgentCullAgentConfig(prompt_template_version="cull_redundancy_v3_clip_gate"))
+    assert resolve_prompt_template_version(cfg, override=None) == "cull_redundancy_v3_clip_gate"
+    assert resolve_prompt_template_version(cfg, override="cull_redundancy_v2") == "cull_redundancy_v2"
+
+
+def test_build_prompt_loads_v3_template():
+    cfg = apply_mode_profile(AgentCullConfig(), "score_first")
+    prompt = build_prompt({"schema_version": "agent-cull-request-v1"}, cfg)
+    assert "score-first study mode" in prompt.lower() or "score-first" in prompt.lower()
+    assert "agent-cull-request-v1" in prompt
+
+
+def test_build_prompt_unknown_template_raises():
+    cfg = replace(
+        AgentCullConfig(),
+        agent=replace(AgentCullAgentConfig(), prompt_template_version="does_not_exist"),
+    )
+    with pytest.raises(FileNotFoundError):
+        build_prompt({}, cfg)
+
+
+def test_packet_uses_resolved_thumbnail_path_for_manifest(tmp_path, monkeypatch):
+    thumb = tmp_path / "t.jpg"
+    thumb.write_bytes(b"\xff\xd8\xff\xd9")
+    wsl_path = "/mnt/d/Projects/image-scoring-backend/thumbnails/x/y.jpg"
+
+    import modules.thumbnails as thumb_mod
+
+    monkeypatch.setattr(thumb_mod, "THUMB_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        thumb_mod,
+        "_resolve_thumbnail_filesystem_path",
+        lambda tp, tw=None: str(thumb) if tp == wsl_path else tp,
+    )
+
+    unit = ReviewUnit(
+        review_unit_key="stack_1",
+        stack_id=1,
+        sub_stack_id=None,
+        image_ids=(10,),
+        picked_ids=(10,),
+        rejected_ids=(),
+        neutral_ids=(),
+        usable_ids=(10,),
+        hierarchy_tier="stack",
+    )
+    rows = {
+        10: {
+            "id": 10,
+            "file_name": "DSC_0001.NEF",
+            "thumbnail_path": wsl_path,
+            "score_general": 0.8,
+            "score_technical": 0.8,
+            "score_aesthetic": 0.8,
+            "score": 0.8,
+            "pick_status": 1,
+        }
+    }
+    cfg = AgentCullConfig(agent=AgentCullAgentConfig(include_thumbnails=True, include_all_model_scores=False))
+    enrich_unit_rows(rows, cfg)
+    packet = build_review_packet(unit, rows, cfg)
+    assert len(packet["thumbnail_manifest"]) == 1
+    assert packet["thumbnail_manifest"][0]["path"] == str(thumb)
+    assert os.path.isfile(packet["thumbnail_manifest"][0]["path"])
+
+
+def test_probe_script_importable():
+    script = Path(__file__).resolve().parents[1] / "scripts/study/agent_cull_probe.py"
+    assert script.is_file()
+
+
+def test_mode_profile_metadata_ab_differs_from_baseline():
+    base = apply_mode_profile(AgentCullConfig(), "baseline_v2")
+    meta = apply_mode_profile(AgentCullConfig(), "metadata_only")
+    assert base.agent.include_thumbnails != meta.agent.include_thumbnails
+
+
+def test_matrix_vision_evidence_scoring():
+    from modules.agent_cull.study_evidence import score_vision_evidence
+
+    probe = {"ok": True}
+    smoke = {"ok": True, "has_visual_language": True}
+    live = {"vision_used": True, "viewed_image_ids": [1, 2]}
+    ev = score_vision_evidence(probe, smoke, live)
+    assert ev["verified"] is True
+
+    ev2 = score_vision_evidence({"ok": False}, None, None)
+    assert ev2["verified"] is False

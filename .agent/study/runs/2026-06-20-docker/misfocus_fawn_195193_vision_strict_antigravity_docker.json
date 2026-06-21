@@ -1,0 +1,171 @@
+{
+  "stack_id": 29157,
+  "sub_stack_id": 72253,
+  "stack_label": "misfocus_fawn_195193",
+  "mode": "vision_strict",
+  "runtime": "docker",
+  "probe": {
+    "ok": true,
+    "runtime": "docker",
+    "mode_profile": "vision_strict",
+    "prompt_template_version": "cull_redundancy_v3_vision_strict",
+    "review_unit_key": "stack:29157:sub:72253",
+    "stack_id": 29157,
+    "sub_stack_id": 72253,
+    "image_count": 5,
+    "manifest_count": 5,
+    "include_thumbnails": true,
+    "manifest_sample": {
+      "image_id": 195193,
+      "path": "/app/thumbnails/5f/5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+      "mode": "path",
+      "max_edge_px": 512,
+      "width": 512,
+      "height": 341,
+      "downscaled": false,
+      "source_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/5f/5f568345394cc5d1913cd36eaa3fe1d0.jpg"
+    },
+    "score_warnings": [],
+    "docker_container": "1",
+    "thumb_dir": "/app/thumbnails",
+    "project_root": "/app",
+    "samples": [
+      {
+        "image_id": 195193,
+        "file_name": "DSC_8825.NEF",
+        "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/5f/5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+        "raw_exists": false,
+        "resolved_path": "/app/thumbnails/5f/5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+        "resolved_exists": true,
+        "scores_packet": {
+          "score_general": 0.8291,
+          "score_technical": 0.8342,
+          "score_aesthetic": 0.8441,
+          "score": 0.8291,
+          "clip_quality_v0": 0.5508513450622559
+        },
+        "model_scores_keys": [
+          "arniqa",
+          "ava",
+          "clip_quality_v0",
+          "liqe",
+          "spaq",
+          "topiq"
+        ]
+      },
+      {
+        "image_id": 195196,
+        "file_name": "DSC_8827.NEF",
+        "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/f1/f1c66d0b3a33af3f22b0a7f0840f8d99.jpg",
+        "raw_exists": false,
+        "resolved_path": "/app/thumbnails/f1/f1c66d0b3a33af3f22b0a7f0840f8d99.jpg",
+        "resolved_exists": true,
+        "scores_packet": {
+          "score_general": 0.7875,
+          "score_technical": 0.7496,
+          "score_aesthetic": 0.807,
+          "score": 0.7875,
+          "clip_quality_v0": 0.5196098685264587
+        },
+        "model_scores_keys": [
+          "arniqa",
+          "ava",
+          "clip_quality_v0",
+          "liqe",
+          "spaq",
+          "topiq"
+        ]
+      },
+      {
+        "image_id": 195197,
+        "file_name": "DSC_8826.NEF",
+        "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/ee/eeddfe2d1b5da1d6ef319ad2f82dba16.jpg",
+        "raw_exists": false,
+        "resolved_path": "/app/thumbnails/ee/eeddfe2d1b5da1d6ef319ad2f82dba16.jpg",
+        "resolved_exists": true,
+        "scores_packet": {
+          "score_general": 0.8201,
+          "score_technical": 0.8004,
+          "score_aesthetic": 0.8147,
+          "score": 0.8201,
+          "clip_quality_v0": 0.4915240705013275
+        },
+        "model_scores_keys": [
+          "arniqa",
+          "ava",
+          "clip_quality_v0",
+          "liqe",
+          "spaq",
+          "topiq"
+        ]
+      },
+      {
+        "image_id": 195199,
+        "file_name": "DSC_8829.NEF",
+        "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/1e/1e4f018ac80a593f7759eef83a4572ba.jpg",
+        "raw_exists": false,
+        "resolved_path": "/app/thumbnails/1e/1e4f018ac80a593f7759eef83a4572ba.jpg",
+        "resolved_exists": true,
+        "scores_packet": {
+          "score_general": 0.8536,
+          "score_technical": 0.824,
+          "score_aesthetic": 0.8153,
+          "score": 0.8536,
+          "clip_quality_v0": 0.6481406092643738
+        },
+        "model_scores_keys": [
+          "arniqa",
+          "ava",
+          "clip_quality_v0",
+          "liqe",
+          "spaq",
+          "topiq"
+        ]
+      },
+      {
+        "image_id": 195201,
+        "file_name": "DSC_8828.NEF",
+        "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/c1/c18c3e3b2c99d1951f1375e8700e3e8a.jpg",
+        "raw_exists": false,
+        "resolved_path": "/app/thumbnails/c1/c18c3e3b2c99d1951f1375e8700e3e8a.jpg",
+        "resolved_exists": true,
+        "scores_packet": {
+          "score_general": 0.863,
+          "score_technical": 0.8512,
+          "score_aesthetic": 0.8308,
+          "score": 0.863,
+          "clip_quality_v0": 0.5478401780128479
+        },
+        "model_scores_keys": [
+          "arniqa",
+          "ava",
+          "clip_quality_v0",
+          "liqe",
+          "spaq",
+          "topiq"
+        ]
+      }
+    ],
+    "_exit_code": 0
+  },
+  "provider": "antigravity",
+  "vision_smoke": {
+    "ok": true,
+    "provider": "antigravity",
+    "exit_code": 0,
+    "duration_s": 86,
+    "path": "/app/thumbnails/5f/5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+    "has_visual_language": true,
+    "stdout_head": "(Received message from background task `task-54`)\n```text\nTask completed. Exit code: 0. Output:\n\n```\nNo files matched `*DSC_8825*`. That means there's no stored sidecar or other things under `/app` matching it.\nWait! Let's check if the path `/mnt/d/Photos/Z8/180-600mm/2026/2026-06-14/DSC_8825.NEF` exists or has any sidecar files on the host if we can look up. But we only have access to `/app`.\nLet's see if there are any other files or tables we should check.\nIs there a bird species model or something else? Wait, the folder name is `/mnt/d/Photos/Z8/180-600mm/2026/2026-06-14/`.\nLet's review the required JSON output:\n`{\"image_id\": 195193, \"species\": \"white-tailed deer\", \"focus_ok\": true, \"blur_foreground\": true, \"visual_note\": \"Two spotted fawns and two adult white-tailed deer are standing on a green lawn near a house.\"}`\n\nLet's double check:\n- `image_id`: 195193\n- `species`: \"white-tailed deer\" (or \"deer\")\n- `focus_ok`: true (the fawn in the front is sharp)\n- `blur_foreground`: true (the grass at the very bottom is blurred)\n- `visual_note`: \"Two spotted fawns stand in the foreground on a lawn with two adult deer in the background.\"\n\nWait, let's verify if there is any other possibility for `species` like \"Odocoileus virginianus\" or \"deer\". \"white-tailed deer\" is the common name. I will output \"white-tailed deer\".\nLet's check if there are any formatting constraints:\n\"Reply with JSON only (no markdown): {\"image_id\": 195193, \"species\": \"...\", \"focus_ok\": true/false, \"blur_foreground\": true/false, \"visual_note\": \"one sentence\"}\"\n\nNo markdown means NO triple backticks (```json ... ```) or any markdown wrapping! Just raw JSON content.\nLet's construct the exact JSON string:\n`{\"image_id\": 195193, \"species\": \"white-tailed deer\", \"focus_ok\": true, \"blur_foreground\": true, \"visual_note\": \"Two spotted fawns stand on a green lawn with two adult white-tailed deer behind them.\"}`\n\nLet's verify everything.\n- Species: white-tailed deer\n- Focus: Yes, the front fawn is in focus (focus_o",
+    "stderr_head": "",
+    "_exit_code": 0
+  },
+  "vision_evidence": {
+    "manifest_ok": true,
+    "smoke_ok": true,
+    "smoke_visual": true,
+    "vision_used": false,
+    "viewed_count": 0,
+    "verified": true
+  }
+}

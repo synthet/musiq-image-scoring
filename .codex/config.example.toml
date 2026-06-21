@@ -1,0 +1,11 @@
+# Codex: copy to .codex/config.toml in this repo (trusted project) or merge into ~/.codex/config.toml.
+# Tools: search, dispatch, sse_status only. Browser automation: dispatch("browser.navigate", …) — no separate playwright server.
+# Build first: cd mcp-server && npm install && npm run build
+
+[mcp_servers.is-be-mcp]
+command = "node"
+args = ["mcp-server/dist/compactIndex.js"]
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+enabled_tools = ["search", "dispatch", "sse_status"]

@@ -1,0 +1,87 @@
+{
+  "image-scoring-backend": {
+    "tier": "A",
+    "display_name": "Vexlum Scoring backend",
+    "has_agent_memory": true
+  },
+  "image-scoring-gallery": {
+    "tier": "B",
+    "display_name": "Driftara Gallery",
+    "has_agent_memory": false
+  },
+  "image-scoring-ui": {
+    "tier": "C",
+    "display_name": "Design tokens package",
+    "has_agent_memory": false
+  },
+  "image-scoring-skills": {
+    "tier": "B",
+    "display_name": "Photo workflow skills",
+    "has_agent_memory": false
+  },
+  "image-scoring-model": {
+    "tier": "C",
+    "display_name": "Model research",
+    "has_agent_memory": false
+  },
+  "birdweather-telegram-bot": {
+    "tier": "B",
+    "display_name": "BirdWeather Telegram bot",
+    "has_agent_memory": false
+  },
+  "cursor-telegram-bot": {
+    "tier": "B",
+    "display_name": "Cursor Telegram bot",
+    "has_agent_memory": false
+  },
+  "heroes-templates": {
+    "tier": "B",
+    "display_name": "Heroes templates",
+    "has_agent_memory": false
+  },
+  "nwn-modules": {
+    "tier": "B",
+    "display_name": "NWN modules",
+    "has_agent_memory": false
+  },
+  "win-gui-mcp": {
+    "tier": "B",
+    "display_name": "Win GUI MCP",
+    "has_agent_memory": false
+  },
+  "video-gallery": {
+    "tier": "B",
+    "display_name": "Video gallery",
+    "has_agent_memory": false
+  },
+  "assisted-culling": {
+    "tier": "C",
+    "display_name": "Assisted culling",
+    "has_agent_memory": false
+  },
+  "agent-sdlc": {
+    "tier": "B",
+    "display_name": "agent-sdlc kit",
+    "has_agent_memory": false
+  },
+  "subagent-orchestrator": {
+    "tier": "B",
+    "display_name": "Subagent orchestrator",
+    "has_agent_memory": false
+  },
+  "tax": {
+    "tier": "C",
+    "display_name": "Tax",
+    "has_agent_memory": false
+  },
+  "hetzner-mcp": {
+    "tier": "C",
+    "display_name": "Hetzner MCP",
+    "has_agent_memory": false
+  },
+  "images": {
+    "tier": "C",
+    "display_name": "Images",
+    "has_agent_memory": false
+  }
+}

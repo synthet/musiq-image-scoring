@@ -1,0 +1,33 @@
+{
+  "generated_at": "2026-06-20T20:20:59.943071+00:00",
+  "modes": [
+    "baseline_v2",
+    "vision_strict",
+    "technical_focus",
+    "metadata_only"
+  ],
+  "providers": [
+    "antigravity"
+  ],
+  "runtimes": [
+    "wsl"
+  ],
+  "stacks": [
+    {
+      "stack_id": 29157,
+      "sub_stack_id": 72253,
+      "label": "misfocus_fawn_195193"
+    },
+    {
+      "stack_id": 29160,
+      "sub_stack_id": null,
+      "label": "deer_burst_agent_ok"
+    },
+    {
+      "stack_id": 28794,
+      "sub_stack_id": 72076,
+      "label": "auth_repro_historical"
+    }
+  ],
+  "skip_live_cli": true
+}

@@ -1,0 +1,17 @@
+{
+  "last_stack_id": 28737,
+  "stacks_done": 8365,
+  "stacks_total": 8365,
+  "resume_after_stack_id": 28737,
+  "write_sidecars": true,
+  "only_policy_version": null,
+  "folder": null,
+  "counts": {
+    "pick": 19692,
+    "reject": 15652,
+    "neutral": 4537
+  },
+  "sidecar_ok": 39019,
+  "sidecar_err": 862,
+  "updated_at": "2026-06-13T02:58:45Z"
+}
