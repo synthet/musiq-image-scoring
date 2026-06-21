@@ -141,12 +141,15 @@ Use when you prefer `gemini` over `agy` (still supported).
 
 Implementation: [`modules/agent_cull/cli_adapter.py`](../../../modules/agent_cull/cli_adapter.py)
 
-| `provider` | Invocation |
-|------------|------------|
-| `antigravity` | `antigravity_agent.sh <prompt>` → `agy -p …` |
-| `gemini` | `gemini --skip-trust --output-format json -p <prompt>` |
+| `provider` | Invocation | stdout unwrap |
+|------------|------------|---------------|
+| `antigravity` | `antigravity_agent.sh <prompt>` → `agy -p …` | ANSI strip + JSON extract |
+| `gemini` | `gemini --skip-trust --output-format json -p <prompt>` | `.response` envelope |
+| `codex` | `codex exec --sandbox <read-only\|workspace> --ask-for-approval never --json <prompt>` | raw JSON |
+| `claude` | `claude_agent.sh -p --output-format json --dangerously-skip-permissions <prompt>` | `.result` envelope |
+| `cursor` | `cursor_agent.sh -p --output-format json <prompt>` | `.result` envelope |
 
-Both normalize stdout to agent JSON before schema validation.
+All normalize stdout to agent JSON before schema validation. `codex` runs as the bare `codex` binary (no bridge script). `claude` / `cursor` use the thin `scripts/wsl/{claude,cursor}_agent.sh` bridges (Docker exec + WSL `cmd.exe` forward, like `gemini_agent.sh`); both read thumbnail files for vision via the image paths in the packet, so the CLI only needs to be **authenticated on PATH** for the WebUI process (claude additionally runs `--dangerously-skip-permissions` so the unattended process may read those files). For the **Docker** runtime the `claude` / `cursor-agent` binary must be installed in the image and pre-authenticated, exactly as `agy` / `gemini` are today.
 
 Operator debug:
 
