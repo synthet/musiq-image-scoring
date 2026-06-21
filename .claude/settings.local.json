@@ -307,7 +307,10 @@
       "Bash(sort -t: -k2 -n)",
       "Bash(awk ' *)",
       "mcp__github__issue_write",
-      "Bash(gh auth *)"
+      "Bash(gh auth *)",
+      "PowerShell(git log --oneline -3; git status --short | Select-Object -First 5; gh pr view 285 --json state,mergedAt -q '.state + \" \" + .mergedAt')",
+      "PowerShell(Get-ChildItem -Force .agent/tmp | Select-Object Name; Write-Output \"--- nested .git check ---\"; Get-ChildItem -Recurse -Force -Directory -Filter \".git\" .agent/tmp -ErrorAction SilentlyContinue | Select-Object FullName; Write-Output \"--- sizes of report dirs ---\"; foreach \\($d in @\\('.agent/study','docs/study','scripts/study','reports/clip-culling/prompt-quality/e2e','reports/clip-culling/prompt-quality/folders_prod'\\)\\) { if \\(Test-Path $d\\) { $s = \\(Get-ChildItem -Recurse -File $d | Measure-Object Length -Sum\\).Sum/1MB; \"{0,-50} {1:N2} MB\" -f $d, $s } })",
+      "PowerShell(git *)"
     ]
   },
   "enableAllProjectMcpServers": true,

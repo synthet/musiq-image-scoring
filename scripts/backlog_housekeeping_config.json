@@ -1,0 +1,13 @@
+{
+  "promote_ready": {
+    "synthet/image-scoring-backend": [253, 254, 255, 256, 257, 258],
+    "synthet/image-scoring-gallery": [134, 135, 136, 137]
+  },
+  "tier1_closes": [
+    {
+      "repo": "synthet/image-scoring-backend",
+      "number": 114,
+      "comment": "Closing as superseded by agent-assisted cull review epic #253 (backend MVP + gallery #134). The original Gradio-era request is now tracked under the structured agent cull program with API, safety gates, and gallery panel work."
+    }
+  ]
+}

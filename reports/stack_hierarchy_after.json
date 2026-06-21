@@ -1,0 +1,156 @@
+{
+  "scope": "library",
+  "folder_id": null,
+  "folder_path": null,
+  "generated_at": "2026-06-13T03:17:52.134358+00:00",
+  "overall": {
+    "flags": {
+      "scope": "library",
+      "flag_layer": "images.pick_status",
+      "total_images": 62967,
+      "pick_count": 27369,
+      "reject_count": 22792,
+      "neutral_count": 12806,
+      "pick_pct": 43.47,
+      "reject_pct": 36.2,
+      "neutral_pct": 20.34,
+      "by_cull_decision": {
+        "reject": 22792,
+        "pick": 27369,
+        "neutral": 12806
+      },
+      "auto_cull": {
+        "flag_layer": "images.cull_decision",
+        "pick_count": 27369,
+        "reject_count": 22792,
+        "neutral_count": 12806,
+        "unset_count": 0,
+        "pick_pct": 43.47,
+        "reject_pct": 36.2,
+        "neutral_pct": 20.34
+      },
+      "auto_cull_stacks": {
+        "stacks_with_exactly_one_pick": 0,
+        "stacks_with_multiple_picks": 7815,
+        "stacks_over_pick_cap_20": 0
+      },
+      "auto_cull_substacks": {
+        "total_substacks": 7877,
+        "singleton_leaves": 4975,
+        "singleton_leaf_pct": 63.2,
+        "substacks_picks_over_m3": 0,
+        "giant_leaves_over_50": 33
+      },
+      "stacks_with_exactly_one_pick": 0,
+      "stacks_with_multiple_picks": 7815,
+      "stacks_with_no_picks": 1433,
+      "stacks_all_reject": 0,
+      "stacks_mixed_pick_status": 3144,
+      "stacks_needing_review": 10959,
+      "pick_status_cull_decision_disagree": 0
+    },
+    "hierarchy": {
+      "min_populated_stack": 4,
+      "level2_embedding_space": "openclip_l14_laion2b_image",
+      "singleton_root_stacks": 0,
+      "single_leaf_stacks": 0,
+      "flat_stacks": 6006,
+      "populated_multi_leaf_stacks": 3242,
+      "other_stacks": 0,
+      "expected_singleton_leaves": 4975,
+      "total_substacks": 7877,
+      "singleton_leaves_all": 4975,
+      "singleton_leaf_pct": 63.2,
+      "tiers": {
+        "degenerate": {
+          "singleton_root": {
+            "stacks": 0,
+            "images": 0
+          },
+          "single_leaf": {
+            "stacks": 0,
+            "images": 0
+          },
+          "samples": []
+        },
+        "populated": {
+          "multi_leaf": {
+            "stacks": 3242,
+            "images": 21632
+          },
+          "flat": {
+            "stacks": 6006,
+            "images": 22532
+          }
+        }
+      },
+      "decisions_by_level": {
+        "library": {
+          "pick": 27369,
+          "reject": 22792,
+          "neutral": 12806,
+          "unset": 0
+        },
+        "per_stack_avg": {
+          "pick": 2.364294982698962,
+          "reject": 1.8732698961937717,
+          "neutral": 0.5379541522491349
+        },
+        "per_substack_avg": {
+          "pick": 0.9320807413990098,
+          "reject": 1.1825568109686428,
+          "neutral": 0.6315856290465913
+        }
+      }
+    }
+  },
+  "per_stack_tier": {
+    "degenerate": {
+      "singleton_root": {
+        "stacks": 0,
+        "images": 0
+      },
+      "single_leaf": {
+        "stacks": 0,
+        "images": 0
+      },
+      "samples": []
+    },
+    "populated": {
+      "multi_leaf": {
+        "stacks": 3242,
+        "images": 21632
+      },
+      "flat": {
+        "stacks": 6006,
+        "images": 22532
+      }
+    }
+  },
+  "per_substack_tier": {
+    "total_substacks": 7877,
+    "singleton_leaves_all": 4975,
+    "singleton_leaf_pct": 63.2,
+    "expected_singleton_leaves": 4975,
+    "decisions_avg": {
+      "pick": 0.9320807413990098,
+      "reject": 1.1825568109686428,
+      "neutral": 0.6315856290465913
+    }
+  },
+  "degenerate": {
+    "stack_ids": [],
+    "count": 0,
+    "samples": []
+  },
+  "populated": {
+    "multi_leaf": {
+      "stacks": 3242,
+      "images": 21632
+    },
+    "flat": {
+      "stacks": 6006,
+      "images": 22532
+    }
+  }
+}

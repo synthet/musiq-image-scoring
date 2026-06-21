@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "provider": "antigravity",
+  "exit_code": 0,
+  "duration_s": 60,
+  "path": "/app/thumbnails/5f/5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+  "image_id": 195193,
+  "stack_id": 29157,
+  "has_visual_language": true,
+  "stdout_head": "{\"image_id\": 195193, \"species\": \"white-tailed deer\", \"focus_ok\": true, \"blur_foreground\": true, \"visual_note\": \"Two adult white-tailed deer stand in focus on a grassy lawn with two blurry fawns in the foreground.\"}\n",
+  "runtime": "docker",
+  "recorded_at": "2026-06-20"
+}

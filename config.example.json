@@ -133,8 +133,10 @@
         "required_score_names": ["clip_quality_v0"],
         "jit_clip_quality": true,
         "require_vision_evidence": false,
+        "_comment_require_vision_evidence": "Set true with cull_redundancy_v3_vision_strict when Layer 2 vision smoke passes in your runtime (Docker recommended). See docs/study/agent-cull-cli-matrix.md.",
         "prompt_template_version": "cull_redundancy_v2",
-        "_comment_prompt_template_version": "Override for study A/B: cull_redundancy_v3_vision_strict, etc.",
+        "_comment_prompt_template_version": "Production default v2. Study A/B: cull_redundancy_v3_vision_strict, v3_technical_focus, v3_score_first, v3_clip_gate via --mode-profile or matrix.",
+        "_comment_study_upgrade_path": "After live matrix confirms vision on Docker: prompt_template_version=cull_redundancy_v3_vision_strict + require_vision_evidence=true.",
         "codex_sandbox": "read-only",
         "_comment_codex_sandbox": "Use workspace for study runs if read-only blocks thumbnail reads."
       },

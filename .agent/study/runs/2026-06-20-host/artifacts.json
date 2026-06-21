@@ -1,0 +1,1388 @@
+[
+  {
+    "stack_id": 29157,
+    "sub_stack_id": 72253,
+    "stack_label": "misfocus_fawn_195193",
+    "mode": "baseline_v2",
+    "runtime": "host",
+    "probe": {
+      "ok": true,
+      "runtime": "host",
+      "mode_profile": "baseline_v2",
+      "prompt_template_version": "cull_redundancy_v2",
+      "review_unit_key": "stack:29157:sub:72253",
+      "stack_id": 29157,
+      "sub_stack_id": 72253,
+      "image_count": 5,
+      "manifest_count": 5,
+      "include_thumbnails": true,
+      "manifest_sample": {
+        "image_id": 195193,
+        "path": "D:\\Projects\\image-scoring-backend\\thumbnails\\5f\\5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+        "mode": "path",
+        "max_edge_px": 512,
+        "width": 512,
+        "height": 341,
+        "downscaled": false,
+        "source_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/5f/5f568345394cc5d1913cd36eaa3fe1d0.jpg"
+      },
+      "score_warnings": [],
+      "docker_container": null,
+      "thumb_dir": "D:\\Projects\\image-scoring-backend\\thumbnails",
+      "project_root": "D:\\Projects\\image-scoring-backend",
+      "samples": [
+        {
+          "image_id": 195193,
+          "file_name": "DSC_8825.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/5f/5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\5f\\5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.8291,
+            "score_technical": 0.8342,
+            "score_aesthetic": 0.8441,
+            "score": 0.8291,
+            "clip_quality_v0": 0.5508513450622559
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195196,
+          "file_name": "DSC_8827.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/f1/f1c66d0b3a33af3f22b0a7f0840f8d99.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\f1\\f1c66d0b3a33af3f22b0a7f0840f8d99.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.7875,
+            "score_technical": 0.7496,
+            "score_aesthetic": 0.807,
+            "score": 0.7875,
+            "clip_quality_v0": 0.5196098685264587
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195197,
+          "file_name": "DSC_8826.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/ee/eeddfe2d1b5da1d6ef319ad2f82dba16.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\ee\\eeddfe2d1b5da1d6ef319ad2f82dba16.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.8201,
+            "score_technical": 0.8004,
+            "score_aesthetic": 0.8147,
+            "score": 0.8201,
+            "clip_quality_v0": 0.4915240705013275
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195199,
+          "file_name": "DSC_8829.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/1e/1e4f018ac80a593f7759eef83a4572ba.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\1e\\1e4f018ac80a593f7759eef83a4572ba.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.8536,
+            "score_technical": 0.824,
+            "score_aesthetic": 0.8153,
+            "score": 0.8536,
+            "clip_quality_v0": 0.6481406092643738
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195201,
+          "file_name": "DSC_8828.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/c1/c18c3e3b2c99d1951f1375e8700e3e8a.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\c1\\c18c3e3b2c99d1951f1375e8700e3e8a.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.863,
+            "score_technical": 0.8512,
+            "score_aesthetic": 0.8308,
+            "score": 0.863,
+            "clip_quality_v0": 0.5478401780128479
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        }
+      ],
+      "_exit_code": 0
+    },
+    "provider": "antigravity",
+    "vision_evidence": {
+      "manifest_ok": true,
+      "smoke_ok": false,
+      "smoke_visual": false,
+      "vision_used": false,
+      "viewed_count": 0,
+      "verified": false
+    }
+  },
+  {
+    "stack_id": 29157,
+    "sub_stack_id": 72253,
+    "stack_label": "misfocus_fawn_195193",
+    "mode": "technical_focus",
+    "runtime": "host",
+    "probe": {
+      "ok": true,
+      "runtime": "host",
+      "mode_profile": "technical_focus",
+      "prompt_template_version": "cull_redundancy_v3_technical_focus",
+      "review_unit_key": "stack:29157:sub:72253",
+      "stack_id": 29157,
+      "sub_stack_id": 72253,
+      "image_count": 5,
+      "manifest_count": 5,
+      "include_thumbnails": true,
+      "manifest_sample": {
+        "image_id": 195193,
+        "path": "D:\\Projects\\image-scoring-backend\\thumbnails\\5f\\5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+        "mode": "path",
+        "max_edge_px": 512,
+        "width": 512,
+        "height": 341,
+        "downscaled": false,
+        "source_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/5f/5f568345394cc5d1913cd36eaa3fe1d0.jpg"
+      },
+      "score_warnings": [],
+      "docker_container": null,
+      "thumb_dir": "D:\\Projects\\image-scoring-backend\\thumbnails",
+      "project_root": "D:\\Projects\\image-scoring-backend",
+      "samples": [
+        {
+          "image_id": 195193,
+          "file_name": "DSC_8825.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/5f/5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\5f\\5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.8291,
+            "score_technical": 0.8342,
+            "score_aesthetic": 0.8441,
+            "score": 0.8291,
+            "clip_quality_v0": 0.5508513450622559,
+            "topiq": 0.633,
+            "liqe": 0.849,
+            "spaq": 0.726
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195196,
+          "file_name": "DSC_8827.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/f1/f1c66d0b3a33af3f22b0a7f0840f8d99.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\f1\\f1c66d0b3a33af3f22b0a7f0840f8d99.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.7875,
+            "score_technical": 0.7496,
+            "score_aesthetic": 0.807,
+            "score": 0.7875,
+            "clip_quality_v0": 0.5196098685264587,
+            "topiq": 0.597,
+            "liqe": 0.882,
+            "spaq": 0.655
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195197,
+          "file_name": "DSC_8826.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/ee/eeddfe2d1b5da1d6ef319ad2f82dba16.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\ee\\eeddfe2d1b5da1d6ef319ad2f82dba16.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.8201,
+            "score_technical": 0.8004,
+            "score_aesthetic": 0.8147,
+            "score": 0.8201,
+            "clip_quality_v0": 0.4915240705013275,
+            "topiq": 0.63,
+            "liqe": 0.906,
+            "spaq": 0.661
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195199,
+          "file_name": "DSC_8829.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/1e/1e4f018ac80a593f7759eef83a4572ba.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\1e\\1e4f018ac80a593f7759eef83a4572ba.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.8536,
+            "score_technical": 0.824,
+            "score_aesthetic": 0.8153,
+            "score": 0.8536,
+            "clip_quality_v0": 0.6481406092643738,
+            "topiq": 0.632,
+            "liqe": 0.971,
+            "spaq": 0.672
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195201,
+          "file_name": "DSC_8828.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/c1/c18c3e3b2c99d1951f1375e8700e3e8a.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\c1\\c18c3e3b2c99d1951f1375e8700e3e8a.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.863,
+            "score_technical": 0.8512,
+            "score_aesthetic": 0.8308,
+            "score": 0.863,
+            "clip_quality_v0": 0.5478401780128479,
+            "topiq": 0.649,
+            "liqe": 0.946,
+            "spaq": 0.693
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        }
+      ],
+      "_exit_code": 0
+    },
+    "provider": "antigravity",
+    "vision_evidence": {
+      "manifest_ok": true,
+      "smoke_ok": false,
+      "smoke_visual": false,
+      "vision_used": false,
+      "viewed_count": 0,
+      "verified": false
+    }
+  },
+  {
+    "stack_id": 29157,
+    "sub_stack_id": 72253,
+    "stack_label": "misfocus_fawn_195193",
+    "mode": "metadata_only",
+    "runtime": "host",
+    "probe": {
+      "ok": true,
+      "runtime": "host",
+      "mode_profile": "metadata_only",
+      "prompt_template_version": "cull_redundancy_v3_vision_strict",
+      "review_unit_key": "stack:29157:sub:72253",
+      "stack_id": 29157,
+      "sub_stack_id": 72253,
+      "image_count": 5,
+      "manifest_count": 0,
+      "include_thumbnails": false,
+      "manifest_sample": null,
+      "score_warnings": [],
+      "docker_container": null,
+      "thumb_dir": "D:\\Projects\\image-scoring-backend\\thumbnails",
+      "project_root": "D:\\Projects\\image-scoring-backend",
+      "samples": [
+        {
+          "image_id": 195193,
+          "file_name": "DSC_8825.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/5f/5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\5f\\5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.8291,
+            "score_technical": 0.8342,
+            "score_aesthetic": 0.8441,
+            "score": 0.8291,
+            "clip_quality_v0": 0.5508513450622559
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195196,
+          "file_name": "DSC_8827.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/f1/f1c66d0b3a33af3f22b0a7f0840f8d99.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\f1\\f1c66d0b3a33af3f22b0a7f0840f8d99.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.7875,
+            "score_technical": 0.7496,
+            "score_aesthetic": 0.807,
+            "score": 0.7875,
+            "clip_quality_v0": 0.5196098685264587
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195197,
+          "file_name": "DSC_8826.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/ee/eeddfe2d1b5da1d6ef319ad2f82dba16.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\ee\\eeddfe2d1b5da1d6ef319ad2f82dba16.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.8201,
+            "score_technical": 0.8004,
+            "score_aesthetic": 0.8147,
+            "score": 0.8201,
+            "clip_quality_v0": 0.4915240705013275
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195199,
+          "file_name": "DSC_8829.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/1e/1e4f018ac80a593f7759eef83a4572ba.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\1e\\1e4f018ac80a593f7759eef83a4572ba.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.8536,
+            "score_technical": 0.824,
+            "score_aesthetic": 0.8153,
+            "score": 0.8536,
+            "clip_quality_v0": 0.6481406092643738
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195201,
+          "file_name": "DSC_8828.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/c1/c18c3e3b2c99d1951f1375e8700e3e8a.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\c1\\c18c3e3b2c99d1951f1375e8700e3e8a.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.863,
+            "score_technical": 0.8512,
+            "score_aesthetic": 0.8308,
+            "score": 0.863,
+            "clip_quality_v0": 0.5478401780128479
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        }
+      ],
+      "_exit_code": 0
+    },
+    "provider": "antigravity",
+    "vision_evidence": {
+      "manifest_ok": true,
+      "smoke_ok": false,
+      "smoke_visual": false,
+      "vision_used": false,
+      "viewed_count": 0,
+      "verified": false
+    }
+  },
+  {
+    "stack_id": 29160,
+    "sub_stack_id": null,
+    "stack_label": "deer_burst_agent_ok",
+    "mode": "baseline_v2",
+    "runtime": "host",
+    "probe": {
+      "ok": true,
+      "runtime": "host",
+      "mode_profile": "baseline_v2",
+      "prompt_template_version": "cull_redundancy_v2",
+      "review_unit_key": "stack:29160:sub:72256",
+      "stack_id": 29160,
+      "sub_stack_id": null,
+      "image_count": 3,
+      "manifest_count": 3,
+      "include_thumbnails": true,
+      "manifest_sample": {
+        "image_id": 195212,
+        "path": "D:\\Projects\\image-scoring-backend\\thumbnails\\10\\10f3461d4f56ee0423bc4bca38cec2c9.jpg",
+        "mode": "path",
+        "max_edge_px": 512,
+        "width": 512,
+        "height": 341,
+        "downscaled": false,
+        "source_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/10/10f3461d4f56ee0423bc4bca38cec2c9.jpg"
+      },
+      "score_warnings": [],
+      "docker_container": null,
+      "thumb_dir": "D:\\Projects\\image-scoring-backend\\thumbnails",
+      "project_root": "D:\\Projects\\image-scoring-backend",
+      "samples": [
+        {
+          "image_id": 195212,
+          "file_name": "DSC_8844.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/10/10f3461d4f56ee0423bc4bca38cec2c9.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\10\\10f3461d4f56ee0423bc4bca38cec2c9.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9265,
+            "score_technical": 0.8747,
+            "score_aesthetic": 0.9472,
+            "score": 0.9265,
+            "clip_quality_v0": 0.643671452999115
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195214,
+          "file_name": "DSC_8843.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/5d/5d718826fdccd041e96879b331963f8f.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\5d\\5d718826fdccd041e96879b331963f8f.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.914,
+            "score_technical": 0.8513,
+            "score_aesthetic": 0.9487,
+            "score": 0.914,
+            "clip_quality_v0": 0.6459609270095825
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195240,
+          "file_name": "DSC_8865.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/9b/9b46cf802edcf258af4d270919801607.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\9b\\9b46cf802edcf258af4d270919801607.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9262,
+            "score_technical": 0.8546,
+            "score_aesthetic": 0.9714,
+            "score": 0.9262,
+            "clip_quality_v0": 0.6890069842338562
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        }
+      ],
+      "_exit_code": 0
+    },
+    "provider": "antigravity",
+    "vision_evidence": {
+      "manifest_ok": true,
+      "smoke_ok": false,
+      "smoke_visual": false,
+      "vision_used": false,
+      "viewed_count": 0,
+      "verified": false
+    }
+  },
+  {
+    "stack_id": 29160,
+    "sub_stack_id": null,
+    "stack_label": "deer_burst_agent_ok",
+    "mode": "technical_focus",
+    "runtime": "host",
+    "probe": {
+      "ok": true,
+      "runtime": "host",
+      "mode_profile": "technical_focus",
+      "prompt_template_version": "cull_redundancy_v3_technical_focus",
+      "review_unit_key": "stack:29160:sub:72256",
+      "stack_id": 29160,
+      "sub_stack_id": null,
+      "image_count": 3,
+      "manifest_count": 3,
+      "include_thumbnails": true,
+      "manifest_sample": {
+        "image_id": 195212,
+        "path": "D:\\Projects\\image-scoring-backend\\thumbnails\\10\\10f3461d4f56ee0423bc4bca38cec2c9.jpg",
+        "mode": "path",
+        "max_edge_px": 512,
+        "width": 512,
+        "height": 341,
+        "downscaled": false,
+        "source_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/10/10f3461d4f56ee0423bc4bca38cec2c9.jpg"
+      },
+      "score_warnings": [],
+      "docker_container": null,
+      "thumb_dir": "D:\\Projects\\image-scoring-backend\\thumbnails",
+      "project_root": "D:\\Projects\\image-scoring-backend",
+      "samples": [
+        {
+          "image_id": 195212,
+          "file_name": "DSC_8844.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/10/10f3461d4f56ee0423bc4bca38cec2c9.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\10\\10f3461d4f56ee0423bc4bca38cec2c9.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9265,
+            "score_technical": 0.8747,
+            "score_aesthetic": 0.9472,
+            "score": 0.9265,
+            "clip_quality_v0": 0.643671452999115,
+            "topiq": 0.647,
+            "liqe": 0.997,
+            "spaq": 0.707
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195214,
+          "file_name": "DSC_8843.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/5d/5d718826fdccd041e96879b331963f8f.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\5d\\5d718826fdccd041e96879b331963f8f.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.914,
+            "score_technical": 0.8513,
+            "score_aesthetic": 0.9487,
+            "score": 0.914,
+            "clip_quality_v0": 0.6459609270095825,
+            "topiq": 0.636,
+            "liqe": 0.987,
+            "spaq": 0.71
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195240,
+          "file_name": "DSC_8865.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/9b/9b46cf802edcf258af4d270919801607.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\9b\\9b46cf802edcf258af4d270919801607.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9262,
+            "score_technical": 0.8546,
+            "score_aesthetic": 0.9714,
+            "score": 0.9262,
+            "clip_quality_v0": 0.6890069842338562,
+            "topiq": 0.627,
+            "liqe": 0.993,
+            "spaq": 0.732
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        }
+      ],
+      "_exit_code": 0
+    },
+    "provider": "antigravity",
+    "vision_evidence": {
+      "manifest_ok": true,
+      "smoke_ok": false,
+      "smoke_visual": false,
+      "vision_used": false,
+      "viewed_count": 0,
+      "verified": false
+    }
+  },
+  {
+    "stack_id": 29160,
+    "sub_stack_id": null,
+    "stack_label": "deer_burst_agent_ok",
+    "mode": "metadata_only",
+    "runtime": "host",
+    "probe": {
+      "ok": true,
+      "runtime": "host",
+      "mode_profile": "metadata_only",
+      "prompt_template_version": "cull_redundancy_v3_vision_strict",
+      "review_unit_key": "stack:29160:sub:72256",
+      "stack_id": 29160,
+      "sub_stack_id": null,
+      "image_count": 3,
+      "manifest_count": 0,
+      "include_thumbnails": false,
+      "manifest_sample": null,
+      "score_warnings": [],
+      "docker_container": null,
+      "thumb_dir": "D:\\Projects\\image-scoring-backend\\thumbnails",
+      "project_root": "D:\\Projects\\image-scoring-backend",
+      "samples": [
+        {
+          "image_id": 195212,
+          "file_name": "DSC_8844.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/10/10f3461d4f56ee0423bc4bca38cec2c9.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\10\\10f3461d4f56ee0423bc4bca38cec2c9.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9265,
+            "score_technical": 0.8747,
+            "score_aesthetic": 0.9472,
+            "score": 0.9265,
+            "clip_quality_v0": 0.643671452999115
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195214,
+          "file_name": "DSC_8843.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/5d/5d718826fdccd041e96879b331963f8f.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\5d\\5d718826fdccd041e96879b331963f8f.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.914,
+            "score_technical": 0.8513,
+            "score_aesthetic": 0.9487,
+            "score": 0.914,
+            "clip_quality_v0": 0.6459609270095825
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195240,
+          "file_name": "DSC_8865.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/9b/9b46cf802edcf258af4d270919801607.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\9b\\9b46cf802edcf258af4d270919801607.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9262,
+            "score_technical": 0.8546,
+            "score_aesthetic": 0.9714,
+            "score": 0.9262,
+            "clip_quality_v0": 0.6890069842338562
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        }
+      ],
+      "_exit_code": 0
+    },
+    "provider": "antigravity",
+    "vision_evidence": {
+      "manifest_ok": true,
+      "smoke_ok": false,
+      "smoke_visual": false,
+      "vision_used": false,
+      "viewed_count": 0,
+      "verified": false
+    }
+  },
+  {
+    "stack_id": 29154,
+    "sub_stack_id": 72249,
+    "stack_label": "deer_burst_29154",
+    "mode": "baseline_v2",
+    "runtime": "host",
+    "probe": {
+      "ok": true,
+      "runtime": "host",
+      "mode_profile": "baseline_v2",
+      "prompt_template_version": "cull_redundancy_v2",
+      "review_unit_key": "stack:29154:sub:72249",
+      "stack_id": 29154,
+      "sub_stack_id": 72249,
+      "image_count": 6,
+      "manifest_count": 6,
+      "include_thumbnails": true,
+      "manifest_sample": {
+        "image_id": 195130,
+        "path": "D:\\Projects\\image-scoring-backend\\thumbnails\\22\\2232c8d2058be0ff78428fe7663fb83d.jpg",
+        "mode": "path",
+        "max_edge_px": 512,
+        "width": 512,
+        "height": 341,
+        "downscaled": false,
+        "source_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/22/2232c8d2058be0ff78428fe7663fb83d.jpg"
+      },
+      "score_warnings": [],
+      "docker_container": null,
+      "thumb_dir": "D:\\Projects\\image-scoring-backend\\thumbnails",
+      "project_root": "D:\\Projects\\image-scoring-backend",
+      "samples": [
+        {
+          "image_id": 195130,
+          "file_name": "DSC_8765.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/22/2232c8d2058be0ff78428fe7663fb83d.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\22\\2232c8d2058be0ff78428fe7663fb83d.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9227,
+            "score_technical": 0.889,
+            "score_aesthetic": 0.9252,
+            "score": 0.9227,
+            "clip_quality_v0": 0.6061041951179504
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195132,
+          "file_name": "DSC_8764.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/ae/ae2ffe8326e2cd22cb64934ae2ae82ee.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\ae\\ae2ffe8326e2cd22cb64934ae2ae82ee.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.8976,
+            "score_technical": 0.8583,
+            "score_aesthetic": 0.8925,
+            "score": 0.8976,
+            "clip_quality_v0": 0.6023114919662476
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195136,
+          "file_name": "DSC_8766.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/e4/e40351bce31cf3fc8447d8e7d3a3188a.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\e4\\e40351bce31cf3fc8447d8e7d3a3188a.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9404,
+            "score_technical": 0.9072,
+            "score_aesthetic": 0.9483,
+            "score": 0.9404,
+            "clip_quality_v0": 0.6724191308021545
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195137,
+          "file_name": "DSC_8768.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/84/84685cb6cf9a928a5656bd71946f7421.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\84\\84685cb6cf9a928a5656bd71946f7421.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9355,
+            "score_technical": 0.9048,
+            "score_aesthetic": 0.9394,
+            "score": 0.9355,
+            "clip_quality_v0": 0.620245635509491
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195140,
+          "file_name": "DSC_8769.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/40/40e07bff1476fd4251b1792d72de4e72.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\40\\40e07bff1476fd4251b1792d72de4e72.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9425,
+            "score_technical": 0.8854,
+            "score_aesthetic": 0.9781,
+            "score": 0.9425,
+            "clip_quality_v0": 0.6333017349243164
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195141,
+          "file_name": "DSC_8767.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/82/82481fe42df74efd4f14bc70cf938cb5.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\82\\82481fe42df74efd4f14bc70cf938cb5.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.941,
+            "score_technical": 0.9151,
+            "score_aesthetic": 0.9373,
+            "score": 0.941,
+            "clip_quality_v0": 0.634049117565155
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        }
+      ],
+      "_exit_code": 0
+    },
+    "provider": "antigravity",
+    "vision_evidence": {
+      "manifest_ok": true,
+      "smoke_ok": false,
+      "smoke_visual": false,
+      "vision_used": false,
+      "viewed_count": 0,
+      "verified": false
+    }
+  },
+  {
+    "stack_id": 29154,
+    "sub_stack_id": 72249,
+    "stack_label": "deer_burst_29154",
+    "mode": "technical_focus",
+    "runtime": "host",
+    "probe": {
+      "ok": true,
+      "runtime": "host",
+      "mode_profile": "technical_focus",
+      "prompt_template_version": "cull_redundancy_v3_technical_focus",
+      "review_unit_key": "stack:29154:sub:72249",
+      "stack_id": 29154,
+      "sub_stack_id": 72249,
+      "image_count": 6,
+      "manifest_count": 6,
+      "include_thumbnails": true,
+      "manifest_sample": {
+        "image_id": 195130,
+        "path": "D:\\Projects\\image-scoring-backend\\thumbnails\\22\\2232c8d2058be0ff78428fe7663fb83d.jpg",
+        "mode": "path",
+        "max_edge_px": 512,
+        "width": 512,
+        "height": 341,
+        "downscaled": false,
+        "source_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/22/2232c8d2058be0ff78428fe7663fb83d.jpg"
+      },
+      "score_warnings": [],
+      "docker_container": null,
+      "thumb_dir": "D:\\Projects\\image-scoring-backend\\thumbnails",
+      "project_root": "D:\\Projects\\image-scoring-backend",
+      "samples": [
+        {
+          "image_id": 195130,
+          "file_name": "DSC_8765.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/22/2232c8d2058be0ff78428fe7663fb83d.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\22\\2232c8d2058be0ff78428fe7663fb83d.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9227,
+            "score_technical": 0.889,
+            "score_aesthetic": 0.9252,
+            "score": 0.9227,
+            "clip_quality_v0": 0.6061041951179504,
+            "topiq": 0.636,
+            "liqe": 0.996,
+            "spaq": 0.685
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195132,
+          "file_name": "DSC_8764.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/ae/ae2ffe8326e2cd22cb64934ae2ae82ee.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\ae\\ae2ffe8326e2cd22cb64934ae2ae82ee.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.8976,
+            "score_technical": 0.8583,
+            "score_aesthetic": 0.8925,
+            "score": 0.8976,
+            "clip_quality_v0": 0.6023114919662476,
+            "topiq": 0.631,
+            "liqe": 0.997,
+            "spaq": 0.652
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195136,
+          "file_name": "DSC_8766.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/e4/e40351bce31cf3fc8447d8e7d3a3188a.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\e4\\e40351bce31cf3fc8447d8e7d3a3188a.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9404,
+            "score_technical": 0.9072,
+            "score_aesthetic": 0.9483,
+            "score": 0.9404,
+            "clip_quality_v0": 0.6724191308021545,
+            "topiq": 0.653,
+            "liqe": 0.998,
+            "spaq": 0.708
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195137,
+          "file_name": "DSC_8768.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/84/84685cb6cf9a928a5656bd71946f7421.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\84\\84685cb6cf9a928a5656bd71946f7421.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9355,
+            "score_technical": 0.9048,
+            "score_aesthetic": 0.9394,
+            "score": 0.9355,
+            "clip_quality_v0": 0.620245635509491,
+            "topiq": 0.64,
+            "liqe": 0.998,
+            "spaq": 0.699
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195140,
+          "file_name": "DSC_8769.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/40/40e07bff1476fd4251b1792d72de4e72.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\40\\40e07bff1476fd4251b1792d72de4e72.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9425,
+            "score_technical": 0.8854,
+            "score_aesthetic": 0.9781,
+            "score": 0.9425,
+            "clip_quality_v0": 0.6333017349243164,
+            "topiq": 0.615,
+            "liqe": 0.998,
+            "spaq": 0.738
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195141,
+          "file_name": "DSC_8767.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/82/82481fe42df74efd4f14bc70cf938cb5.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\82\\82481fe42df74efd4f14bc70cf938cb5.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.941,
+            "score_technical": 0.9151,
+            "score_aesthetic": 0.9373,
+            "score": 0.941,
+            "clip_quality_v0": 0.634049117565155,
+            "topiq": 0.652,
+            "liqe": 0.999,
+            "spaq": 0.715
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        }
+      ],
+      "_exit_code": 0
+    },
+    "provider": "antigravity",
+    "vision_evidence": {
+      "manifest_ok": true,
+      "smoke_ok": false,
+      "smoke_visual": false,
+      "vision_used": false,
+      "viewed_count": 0,
+      "verified": false
+    }
+  },
+  {
+    "stack_id": 29154,
+    "sub_stack_id": 72249,
+    "stack_label": "deer_burst_29154",
+    "mode": "metadata_only",
+    "runtime": "host",
+    "probe": {
+      "ok": true,
+      "runtime": "host",
+      "mode_profile": "metadata_only",
+      "prompt_template_version": "cull_redundancy_v3_vision_strict",
+      "review_unit_key": "stack:29154:sub:72249",
+      "stack_id": 29154,
+      "sub_stack_id": 72249,
+      "image_count": 6,
+      "manifest_count": 0,
+      "include_thumbnails": false,
+      "manifest_sample": null,
+      "score_warnings": [],
+      "docker_container": null,
+      "thumb_dir": "D:\\Projects\\image-scoring-backend\\thumbnails",
+      "project_root": "D:\\Projects\\image-scoring-backend",
+      "samples": [
+        {
+          "image_id": 195130,
+          "file_name": "DSC_8765.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/22/2232c8d2058be0ff78428fe7663fb83d.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\22\\2232c8d2058be0ff78428fe7663fb83d.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9227,
+            "score_technical": 0.889,
+            "score_aesthetic": 0.9252,
+            "score": 0.9227,
+            "clip_quality_v0": 0.6061041951179504
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195132,
+          "file_name": "DSC_8764.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/ae/ae2ffe8326e2cd22cb64934ae2ae82ee.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\ae\\ae2ffe8326e2cd22cb64934ae2ae82ee.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.8976,
+            "score_technical": 0.8583,
+            "score_aesthetic": 0.8925,
+            "score": 0.8976,
+            "clip_quality_v0": 0.6023114919662476
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195136,
+          "file_name": "DSC_8766.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/e4/e40351bce31cf3fc8447d8e7d3a3188a.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\e4\\e40351bce31cf3fc8447d8e7d3a3188a.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9404,
+            "score_technical": 0.9072,
+            "score_aesthetic": 0.9483,
+            "score": 0.9404,
+            "clip_quality_v0": 0.6724191308021545
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195137,
+          "file_name": "DSC_8768.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/84/84685cb6cf9a928a5656bd71946f7421.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\84\\84685cb6cf9a928a5656bd71946f7421.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9355,
+            "score_technical": 0.9048,
+            "score_aesthetic": 0.9394,
+            "score": 0.9355,
+            "clip_quality_v0": 0.620245635509491
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195140,
+          "file_name": "DSC_8769.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/40/40e07bff1476fd4251b1792d72de4e72.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\40\\40e07bff1476fd4251b1792d72de4e72.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.9425,
+            "score_technical": 0.8854,
+            "score_aesthetic": 0.9781,
+            "score": 0.9425,
+            "clip_quality_v0": 0.6333017349243164
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        },
+        {
+          "image_id": 195141,
+          "file_name": "DSC_8767.NEF",
+          "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/82/82481fe42df74efd4f14bc70cf938cb5.jpg",
+          "raw_exists": false,
+          "resolved_path": "D:\\Projects\\image-scoring-backend\\thumbnails\\82\\82481fe42df74efd4f14bc70cf938cb5.jpg",
+          "resolved_exists": true,
+          "scores_packet": {
+            "score_general": 0.941,
+            "score_technical": 0.9151,
+            "score_aesthetic": 0.9373,
+            "score": 0.941,
+            "clip_quality_v0": 0.634049117565155
+          },
+          "model_scores_keys": [
+            "arniqa",
+            "ava",
+            "clip_quality_v0",
+            "liqe",
+            "spaq",
+            "topiq"
+          ]
+        }
+      ],
+      "_exit_code": 0
+    },
+    "provider": "antigravity",
+    "vision_evidence": {
+      "manifest_ok": true,
+      "smoke_ok": false,
+      "smoke_visual": false,
+      "vision_used": false,
+      "viewed_count": 0,
+      "verified": false
+    }
+  }
+]

@@ -1,0 +1,123 @@
+{
+  "stack_id": 29160,
+  "sub_stack_id": null,
+  "stack_label": "deer_burst_agent_ok",
+  "mode": "technical_focus",
+  "runtime": "docker",
+  "probe": {
+    "ok": true,
+    "runtime": "docker",
+    "mode_profile": "technical_focus",
+    "prompt_template_version": "cull_redundancy_v3_technical_focus",
+    "review_unit_key": "stack:29160:sub:72256",
+    "stack_id": 29160,
+    "sub_stack_id": null,
+    "image_count": 3,
+    "manifest_count": 3,
+    "include_thumbnails": true,
+    "manifest_sample": {
+      "image_id": 195212,
+      "path": "/app/thumbnails/10/10f3461d4f56ee0423bc4bca38cec2c9.jpg",
+      "mode": "path",
+      "max_edge_px": 512,
+      "width": 512,
+      "height": 341,
+      "downscaled": false,
+      "source_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/10/10f3461d4f56ee0423bc4bca38cec2c9.jpg"
+    },
+    "score_warnings": [],
+    "docker_container": "1",
+    "thumb_dir": "/app/thumbnails",
+    "project_root": "/app",
+    "samples": [
+      {
+        "image_id": 195212,
+        "file_name": "DSC_8844.NEF",
+        "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/10/10f3461d4f56ee0423bc4bca38cec2c9.jpg",
+        "raw_exists": false,
+        "resolved_path": "/app/thumbnails/10/10f3461d4f56ee0423bc4bca38cec2c9.jpg",
+        "resolved_exists": true,
+        "scores_packet": {
+          "score_general": 0.9265,
+          "score_technical": 0.8747,
+          "score_aesthetic": 0.9472,
+          "score": 0.9265,
+          "clip_quality_v0": 0.643671452999115,
+          "topiq": 0.647,
+          "liqe": 0.997,
+          "spaq": 0.707
+        },
+        "model_scores_keys": [
+          "arniqa",
+          "ava",
+          "clip_quality_v0",
+          "liqe",
+          "spaq",
+          "topiq"
+        ]
+      },
+      {
+        "image_id": 195214,
+        "file_name": "DSC_8843.NEF",
+        "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/5d/5d718826fdccd041e96879b331963f8f.jpg",
+        "raw_exists": false,
+        "resolved_path": "/app/thumbnails/5d/5d718826fdccd041e96879b331963f8f.jpg",
+        "resolved_exists": true,
+        "scores_packet": {
+          "score_general": 0.914,
+          "score_technical": 0.8513,
+          "score_aesthetic": 0.9487,
+          "score": 0.914,
+          "clip_quality_v0": 0.6459609270095825,
+          "topiq": 0.636,
+          "liqe": 0.987,
+          "spaq": 0.71
+        },
+        "model_scores_keys": [
+          "arniqa",
+          "ava",
+          "clip_quality_v0",
+          "liqe",
+          "spaq",
+          "topiq"
+        ]
+      },
+      {
+        "image_id": 195240,
+        "file_name": "DSC_8865.NEF",
+        "raw_thumbnail_path": "/mnt/d/Projects/image-scoring-backend/thumbnails/9b/9b46cf802edcf258af4d270919801607.jpg",
+        "raw_exists": false,
+        "resolved_path": "/app/thumbnails/9b/9b46cf802edcf258af4d270919801607.jpg",
+        "resolved_exists": true,
+        "scores_packet": {
+          "score_general": 0.9262,
+          "score_technical": 0.8546,
+          "score_aesthetic": 0.9714,
+          "score": 0.9262,
+          "clip_quality_v0": 0.6890069842338562,
+          "topiq": 0.627,
+          "liqe": 0.993,
+          "spaq": 0.732
+        },
+        "model_scores_keys": [
+          "arniqa",
+          "ava",
+          "clip_quality_v0",
+          "liqe",
+          "spaq",
+          "topiq"
+        ]
+      }
+    ],
+    "_exit_code": 0
+  },
+  "provider": "antigravity",
+  "vision_evidence": {
+    "manifest_ok": true,
+    "smoke_ok": false,
+    "smoke_visual": false,
+    "vision_used": false,
+    "viewed_count": 0,
+    "verified": false
+  }
+}

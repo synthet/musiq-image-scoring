@@ -1,0 +1,38 @@
+{
+  "folder_path": "/mnt/d/Photos/Z8/180-600mm/2026/2026-06-14",
+  "folder_id": 72078,
+  "pilot_ran_at": "2026-06-20",
+  "config_used": {
+    "clustering.default_threshold": 0.18,
+    "clustering.default_time_gap": 600,
+    "culling.two_level.level2.distance_threshold": 0.04
+  },
+  "before": {
+    "root_stacks": 60,
+    "substacks": 62,
+    "stacked_images": 214,
+    "single_leaf_stacks": 57,
+    "multi_leaf_stacks": 2
+  },
+  "after": {
+    "root_stacks": 73,
+    "substacks": 84,
+    "stacked_images": 242,
+    "single_leaf_stacks": 64,
+    "multi_leaf_stacks": 9,
+    "leaf_count_distribution": {
+      "1_substack": 64,
+      "2_substacks": 8,
+      "4_substacks": 1
+    }
+  },
+  "clustering_log": {
+    "burst_stacks_created": 59,
+    "total_stacks_created": 73,
+    "note": "59/73 root stacks came from BurstUUID bypass, not visual threshold"
+  },
+  "backfill_log": {
+    "embedding_coverage_pct": 88.4,
+    "leaves_written": 84
+  }
+}

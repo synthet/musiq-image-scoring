@@ -1,0 +1,9 @@
+{
+  "_comment": "Claude Code: copy to .mcp.json (gitignored). Browser automation via search/dispatch (browser.*). Build: cd mcp-server && npm install && npm run build.",
+  "mcpServers": {
+    "is-be-mcp": {
+      "command": "node",
+      "args": ["mcp-server/dist/compactIndex.js"]
+    }
+  }
+}
