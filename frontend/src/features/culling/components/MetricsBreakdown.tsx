@@ -80,19 +80,19 @@ function MetricsBreakdownInner({ image }: MetricsBreakdownProps) {
     { key: 'aesthetic', label: 'Aesthetic', value: image.score_aesthetic ?? null },
   ]
 
+  // CullingStackImage has no index signature; route the dynamic score lookups
+  // through `unknown` to satisfy TS2352.
+  const scores = image as unknown as Record<string, number | null | undefined>
   const models: ScoreRow[] = [
     ...PRODUCTION_MODEL_DISPLAY_ORDER.map((key) => ({
       key,
       label: SCORE_LABELS[key] ?? key,
-      value: (image as Record<string, number | null | undefined>)[`score_${key}`] ?? null,
+      value: scores[`score_${key}`] ?? null,
     })),
     {
       key: 'clip_quality_v0',
       label: SCORE_LABELS.clip_quality_v0,
-      value:
-        (image as Record<string, number | null | undefined>).clip_quality_v0_score ??
-        (image as Record<string, number | null | undefined>).clip_quality_v0 ??
-        null,
+      value: scores.clip_quality_v0_score ?? scores.clip_quality_v0 ?? null,
     },
   ]
 
