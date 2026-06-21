@@ -46,6 +46,65 @@ def candidate_status_for_decision(final_decision: str, *, dry_run: bool) -> str:
     return "proposed" if dry_run else "agent_remove_candidate"
 
 
+PICK_QUALITY_ADVISORY_STATUS = "pick_quality_advisory"
+
+
+def _persist_picked_advisories(
+    *,
+    group_id: int,
+    validated: dict[str, Any],
+    rows_by_id: dict[int, dict[str, Any]],
+    picked_ids: set[int],
+) -> int:
+    """Persist picked-image quality advisories as advisory-only recommendations.
+
+    Advisories never become remove candidates: they carry ``agent_decision``
+    ``advisory`` / ``final_decision`` ``keep`` / ``candidate_status``
+    ``pick_quality_advisory`` so the apply/remove gates always skip them.
+    """
+    inserted = 0
+    for adv in validated.get("picked_image_advisories") or []:
+        if not isinstance(adv, dict):
+            continue
+        try:
+            adv_id = int(adv.get("image_id"))
+        except (TypeError, ValueError):
+            continue
+        if adv_id not in picked_ids:
+            continue
+        row = rows_by_id.get(adv_id) or {}
+        issue = str(adv.get("issue") or "other")
+        reason = str(adv.get("reason") or "")
+        try:
+            adv_conf = float(adv["confidence"]) if adv.get("confidence") is not None else None
+        except (TypeError, ValueError):
+            adv_conf = None
+        suggested: list[int] = []
+        for alt in adv.get("suggested_alternatives") or []:
+            try:
+                suggested.append(int(alt))
+            except (TypeError, ValueError):
+                continue
+        risk_flags = [str(r) for r in (adv.get("risk_flags") or [])]
+        insert_recommendation(
+            review_group_id=group_id,
+            image_id=adv_id,
+            agent_decision="advisory",
+            final_decision="keep",
+            confidence=adv_conf,
+            reason=f"[{issue}] {reason}".strip(),
+            better_alternatives=suggested,
+            risk_flags=risk_flags,
+            safety_overrides=[],
+            candidate_status=PICK_QUALITY_ADVISORY_STATUS,
+            prior_pick_status=row.get("pick_status"),
+            prior_cull_decision=row.get("cull_decision"),
+            prior_candidate_status="none",
+        )
+        inserted += 1
+    return inserted
+
+
 def persist_validated_review(
     *,
     unit: ReviewUnit,
@@ -98,6 +157,14 @@ def persist_validated_review(
             prior_pick_status=row.get("pick_status"),
             prior_cull_decision=row.get("cull_decision"),
             prior_candidate_status="none",
+        )
+
+    if cfg.review_picked_quality:
+        _persist_picked_advisories(
+            group_id=group_id,
+            validated=validated,
+            rows_by_id=rows_by_id,
+            picked_ids=set(unit.picked_ids),
         )
     return group_id
 
@@ -153,6 +220,9 @@ def apply_agent_remove_candidates(
     updated = 0
     with audit.audit_context(source="agent_cull", phase_code="culling"):
         for rec in recs:
+            # Picked-quality advisories are informational only — never promote.
+            if rec.get("candidate_status") == PICK_QUALITY_ADVISORY_STATUS:
+                continue
             if rec.get("final_decision") != "remove":
                 continue
             if rec.get("candidate_status") not in ("proposed", "none"):

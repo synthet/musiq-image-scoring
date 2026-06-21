@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
 from modules.agent_cull.cli_adapter import build_prompt
-from modules.agent_cull.config import AgentCullAgentConfig, AgentCullConfig, load_agent_cull_config
+from modules.agent_cull.config import AgentCullAgentConfig, AgentCullConfig
 from modules.agent_cull.mode_profiles import (
     STUDY_MODE_IDS,
     apply_mode_profile,
@@ -30,6 +28,30 @@ def test_apply_mode_profile_vision_strict():
     cfg = apply_mode_profile(AgentCullConfig(), "vision_strict")
     assert cfg.agent.prompt_template_version == "cull_redundancy_v3_vision_strict"
     assert cfg.agent.require_vision_evidence is True
+
+
+def test_production_defaults_v3_vision_and_picked_quality():
+    from modules.agent_cull.config import PROMPT_TEMPLATE_VERSION
+
+    assert PROMPT_TEMPLATE_VERSION == "cull_redundancy_v3_vision_strict"
+    cfg = AgentCullConfig()
+    assert cfg.review_picked_quality is True
+    assert cfg.agent.require_vision_evidence is True
+    assert cfg.agent.timeout_seconds == 180
+    assert resolve_prompt_template_version(cfg) == "cull_redundancy_v3_vision_strict"
+
+
+def test_build_prompt_includes_picked_audit_when_enabled():
+    cfg = apply_mode_profile(AgentCullConfig(), "vision_strict")
+    prompt = build_prompt({"schema_version": "agent-cull-request-v1"}, cfg)
+    assert "picked_image_advisories" in prompt
+    assert "Picked-image quality audit" in prompt
+
+
+def test_build_prompt_omits_picked_audit_when_disabled():
+    cfg = replace(apply_mode_profile(AgentCullConfig(), "vision_strict"), review_picked_quality=False)
+    prompt = build_prompt({"schema_version": "agent-cull-request-v1"}, cfg)
+    assert "picked_image_advisories" not in prompt
 
 
 def test_apply_mode_profile_metadata_only_disables_thumbnails():

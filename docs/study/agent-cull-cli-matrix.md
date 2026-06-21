@@ -157,19 +157,25 @@ Fixes applied during live re-run: JSON-safe datetime in packets, response field 
 
 ## Production recommendations
 
-See `config.example.json` → `culling.agent_review.agent`:
+Applied as production defaults on **2026-06-21** (see `config.example.json` → `culling.agent_review`):
 
-| Setting | Recommended value | Rationale |
+| Setting | Production default | Rationale |
 |---------|-------------------|-----------|
-| `prompt_template_version` | **`cull_redundancy_v2`** (current production) | Stable; vision language present |
-| Next upgrade (after live matrix) | **`cull_redundancy_v3_vision_strict`** | Strongest carousel alignment |
-| `require_vision_evidence` | **`false`** default; **`true`** when on v3 vision_strict in Docker | Layer 2 smoke passes in Docker; WSL not yet reliable — enable evidence gate only where vision smoke passes |
+| `prompt_template_version` | **`cull_redundancy_v3_vision_strict`** | Live matrix v4 passed; strongest carousel alignment + mandatory vision language |
+| `require_vision_evidence` | **`true`** | Docker vision smoke + live v4 verified thumbnail reads; blocks metadata-only removes (and visual picked advisories) without `viewed_image_ids` |
+| `timeout_seconds` | **`180`** | Antigravity vision ~60s; headroom for full-stack review |
+| `review_picked_quality` | **`true`** (new key) | Enables picked-image advisories so misfocus on picks (195193 case) is surfaced |
 | `include_thumbnails` | **`true`** | Required for vision |
 | `flatten_model_scores` | `["clip_quality_v0"]` production; add TOPIQ/LIQE/SPAQ for misfocus stacks via **`technical_focus`** profile | 195193 case |
 | `codex_sandbox` | **`read-only`** production; **`workspace`** for study only | Read-only may block thumbnail paths |
-| `timeout_seconds` | **120–180** | Antigravity vision reads ~60s in Docker |
 
 **Operator workflow for misfocus stacks:** run `scripts/agent_cull_review.py --mode-profile technical_focus --stack-id 29157 --sub-stack-id 72253` (or matrix) before trusting ML technical score alone.
+
+### Picked-image quality advisory gap (closed 2026-06-21)
+
+The live matrix confirmed that picked hero **195193** has a misleading `score_technical` (~83%) and vision-detectable foreground blur, but rejected-only review never inspects picks — so misfocus on a **pick** was invisible. With `review_picked_quality=true`, `build_prompt()` appends `prompts/picked_quality_audit_snippet.txt` instructing the agent to audit every picked thumbnail and emit an optional `picked_image_advisories` array. These persist as **advisory-only** rows (`agent_decision='advisory'`, `candidate_status='pick_quality_advisory'`) that never remove or demote picks.
+
+**Post-change expectation (re-run target):** the validated group for stack #29157 includes a `pick_quality_advisory` on image **195193** citing foreground blur and (optionally) a sharper picked alternative such as 195199.
 
 ## Success criteria (plan)
 
@@ -179,7 +185,22 @@ See `config.example.json` → `culling.agent_review.agent`:
 | Layer 2 visual JSON on 195193 | **Met** (Docker Antigravity) |
 | `vision_strict` blocks metadata-only removes | **Unit-tested** (`test_agent_cull_safety`); live pending |
 | `metadata_only` diverges from thumbnail runs | **Harness ready**; live pending |
+| Picked advisory on 195193 (`pick_quality_advisory`) | **Schema/persist/validation unit-tested**; live re-run pending (see command below) |
 | Written report + default recommendation | **This document** |
+
+**Live verification re-run (operator, Docker — requires Antigravity auth):**
+
+```bash
+docker exec image-scoring-webui env PYTHONPATH=/app python3 \
+  /app/scripts/study/agent_cull_matrix.py \
+  --output /app/.agent/study/runs/2026-06-21-live-picks \
+  --stacks-file /app/.agent/study/fixtures/misfocus_stack.json \
+  --modes technical_focus,vision_strict \
+  --live-modes technical_focus,vision_strict \
+  --skip-vision-smoke
+```
+
+Success: the group for stack #29157 includes a `pick_quality_advisory` on image **195193** citing foreground blur.
 
 ## Related
 

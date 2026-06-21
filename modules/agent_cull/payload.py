@@ -387,11 +387,18 @@ def build_review_packet(
             "conservative_when_picked_lt_rejected": True,
         },
         "images": images_payload,
+        "review_picked_quality": bool(cfg.review_picked_quality),
         "picked_image_ids": list(unit.picked_ids),
         "rejected_image_ids": list(unit.rejected_ids),
         "thumbnail_manifest": thumbnail_manifest,
         "scores_normalized": True,
     }
+    if cfg.review_picked_quality:
+        packet["policy"]["audit_picked_image_quality"] = True
+        packet["policy"]["picked_audit_note"] = (
+            "Inspect every picked_image_ids thumbnail for subject focus/blur/exposure/"
+            "composition; emit picked_image_advisories (advisory only, never removes picks)."
+        )
     if score_warnings:
         packet["score_warnings"] = list(score_warnings)
     return packet

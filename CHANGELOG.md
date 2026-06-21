@@ -13,6 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.9.0] - 2026-06-21
+
+### Added
+
+- **Agent cull packet context (#280)**: Technical and EXIF context in review payloads; embedding-outlier gate activation for redundancy review.
+- **Picked-image quality advisories**: `picked_image_advisories` in the review schema, advisory-only persistence (`pick_quality_advisory`), `review_picked_quality` config, and prompt snippet for misfocus/blur audit on picked heroes.
+- **Agent cull CLI matrix study tooling**: `scripts/study/agent_cull_matrix.py`, vision smoke scripts, Docker/WSL/host matrix runs, and expanded `docs/study/agent-cull-cli-matrix.md`.
+- **Transcript mining and backlog housekeeping**: `import_transcripts.py`, `housekeeping_backlog.py`, and `/backlog-housekeeping` + `/import-transcripts` slash commands.
+- **Alembic 0032**: Widen `agent_cull_prompt_version` for longer prompt template version strings.
+
+### Changed
+
+- **Production agent-cull defaults**: `cull_redundancy_v3_vision_strict` prompt, `require_vision_evidence=true`, and 180s CLI timeout in `config.example.json`.
+- **Schema and serialization**: Widened `prompt_template_version` validation, datetime-safe EXIF serialization via shared `json_util`, and CLI adapter schema coercion hardening.
+- **Docker and MCP docs**: Antigravity auth refresh script, optional Docker Gemini stub, and expanded MCP compact proxy documentation.
+
 ## [8.8.0] - 2026-06-20
 
 ### Added

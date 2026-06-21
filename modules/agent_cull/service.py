@@ -72,6 +72,9 @@ def run_agent_review_for_unit(
         rejected_image_ids=set(unit.rejected_ids),
         picked_image_ids=set(unit.picked_ids),
         all_image_ids=set(unit.image_ids),
+        require_vision_evidence=(
+            cfg.review_picked_quality and cfg.agent.require_vision_evidence
+        ),
     )
     if not validation.ok or validation.data is None:
         group_id = persist_failed_review(

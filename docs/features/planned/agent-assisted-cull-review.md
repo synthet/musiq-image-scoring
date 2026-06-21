@@ -110,7 +110,9 @@ All must hold:
 
 
 
-**Recommendation (`agent_cull_recommendations.candidate_status`):** `none`, `proposed`, `agent_remove_candidate`, `operator_approved`, `operator_rejected`, `rolled_back`
+**Recommendation (`agent_cull_recommendations.candidate_status`):** `none`, `proposed`, `agent_remove_candidate`, `operator_approved`, `operator_rejected`, `rolled_back`, `pick_quality_advisory`
+
+> `pick_quality_advisory` rows are emitted for **picked** images when `review_picked_quality=true` (e.g. a misfocused pick whose `score_technical` overstates quality). They carry `agent_decision='advisory'` / `final_decision='keep'`, are **informational only**, and are explicitly skipped by `apply-candidates`/remove gates — they never delete files or change `pick_status`. `suggested_alternatives` (sharper picked ids) are stored in `better_alternatives`.
 
 
 

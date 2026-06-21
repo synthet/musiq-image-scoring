@@ -354,11 +354,22 @@ def build_prompt(
     *,
     template_version: str | None = None,
 ) -> str:
-    version = resolve_prompt_template_version(cfg or AgentCullConfig(), override=template_version)
-    template_path = Path(__file__).resolve().parent / "prompts" / f"{version}.txt"
+    cfg = cfg or AgentCullConfig()
+    version = resolve_prompt_template_version(cfg, override=template_version)
+    prompts_dir = Path(__file__).resolve().parent / "prompts"
+    template_path = prompts_dir / f"{version}.txt"
     if not template_path.is_file():
         raise FileNotFoundError(f"agent cull prompt template not found: {template_path}")
     template = template_path.read_text(encoding="utf-8")
+    if cfg.review_picked_quality:
+        snippet_path = prompts_dir / "picked_quality_audit_snippet.txt"
+        if snippet_path.is_file():
+            snippet = snippet_path.read_text(encoding="utf-8").strip()
+            sentinel = "Review packet JSON follows:"
+            if sentinel in template:
+                template = template.replace(sentinel, snippet + "\n\n" + sentinel, 1)
+            else:
+                template = template.rstrip() + "\n\n" + snippet + "\n"
     return template + "\n" + json_dumps(packet)
 
 

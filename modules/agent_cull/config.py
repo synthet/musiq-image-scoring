@@ -7,7 +7,7 @@ from typing import Any
 
 from modules import config
 
-PROMPT_TEMPLATE_VERSION = "cull_redundancy_v2"
+PROMPT_TEMPLATE_VERSION = "cull_redundancy_v3_vision_strict"
 RESPONSE_SCHEMA_VERSION = "agent-cull-response-v1"
 REQUEST_SCHEMA_VERSION = "agent-cull-request-v1"
 
@@ -17,7 +17,7 @@ class AgentCullAgentConfig:
     provider: str = "gemini"
     command: str = "gemini"
     args: tuple[str, ...] = ()
-    timeout_seconds: int = 120
+    timeout_seconds: int = 180
     max_retries: int = 1
     supports_vision: bool = True
     include_thumbnails: bool = True
@@ -27,7 +27,7 @@ class AgentCullAgentConfig:
     flatten_model_scores: tuple[str, ...] = ("clip_quality_v0",)
     required_score_names: tuple[str, ...] = ("clip_quality_v0",)
     jit_clip_quality: bool = True
-    require_vision_evidence: bool = False
+    require_vision_evidence: bool = True
     prompt_template_version: str = ""
     codex_sandbox: str = "read-only"
 
@@ -53,6 +53,7 @@ class AgentCullConfig:
     min_group_confidence: float = 0.70
     decision_source: str = "pick_status"
     allow_metadata_only_remove: bool = False
+    review_picked_quality: bool = True
     agent: AgentCullAgentConfig = field(default_factory=AgentCullAgentConfig)
     local_gates: AgentCullLocalGatesConfig = field(default_factory=AgentCullLocalGatesConfig)
 
@@ -114,7 +115,7 @@ def load_agent_cull_config(overrides: dict[str, Any] | None = None) -> AgentCull
         provider=str(agent_raw.get("provider") or "gemini"),
         command=str(agent_raw.get("command") or "gemini"),
         args=args_tuple,
-        timeout_seconds=_coerce_int(agent_raw.get("timeout_seconds"), 120),
+        timeout_seconds=_coerce_int(agent_raw.get("timeout_seconds"), 180),
         max_retries=_coerce_int(agent_raw.get("max_retries"), 1),
         supports_vision=_coerce_bool(agent_raw.get("supports_vision"), True),
         include_thumbnails=_coerce_bool(agent_raw.get("include_thumbnails"), True),
@@ -124,7 +125,7 @@ def load_agent_cull_config(overrides: dict[str, Any] | None = None) -> AgentCull
         flatten_model_scores=_coerce_str_tuple(agent_raw.get("flatten_model_scores"), ("clip_quality_v0",)),
         required_score_names=_coerce_str_tuple(agent_raw.get("required_score_names"), ("clip_quality_v0",)),
         jit_clip_quality=_coerce_bool(agent_raw.get("jit_clip_quality"), True),
-        require_vision_evidence=_coerce_bool(agent_raw.get("require_vision_evidence"), False),
+        require_vision_evidence=_coerce_bool(agent_raw.get("require_vision_evidence"), True),
         prompt_template_version=str(agent_raw.get("prompt_template_version") or "").strip(),
         codex_sandbox=str(agent_raw.get("codex_sandbox") or "read-only").strip() or "read-only",
     )
@@ -148,6 +149,7 @@ def load_agent_cull_config(overrides: dict[str, Any] | None = None) -> AgentCull
         min_group_confidence=_coerce_float(raw.get("min_group_confidence"), 0.70),
         decision_source=str(raw.get("decision_source") or "pick_status"),
         allow_metadata_only_remove=_coerce_bool(raw.get("allow_metadata_only_remove"), False),
+        review_picked_quality=_coerce_bool(raw.get("review_picked_quality"), True),
         agent=agent,
         local_gates=gates,
     )

@@ -24,6 +24,10 @@ _SCHEMA_PATH = (
 
 ALLOWED_DECISIONS = frozenset({"remove", "keep", "uncertain"})
 ALLOWED_GROUP_DECISIONS = frozenset({"apply_removals", "do_not_apply"})
+ALLOWED_ADVISORY_ISSUES = frozenset({"misfocus", "blur", "exposure", "composition", "other"})
+# Visual issues that require the agent to have actually viewed the picked
+# thumbnail when vision evidence is enforced; "other" may be metadata-driven.
+VISUAL_ADVISORY_ISSUES = frozenset({"misfocus", "blur", "exposure", "composition"})
 
 
 @dataclass
@@ -41,20 +45,31 @@ def _load_schema() -> dict[str, Any]:
 
 
 def extract_json_object(raw: str) -> str:
-    """Best-effort extraction of a JSON object from agent stdout."""
+    """Best-effort extraction of a JSON object from agent stdout.
+
+    Uses ``json.JSONDecoder().raw_decode()`` anchored at the first ``{`` so a
+    valid object followed by trailing prose (e.g. a ``metadata_only`` failure
+    that appends ``Note: ...``) parses cleanly instead of failing on "Extra
+    data". Falls back to first ``{`` .. last ``}`` slicing when raw_decode
+    cannot consume the object.
+    """
     text = (raw or "").strip()
     if not text:
         raise ValueError("empty_response")
-    if text.startswith("{") and text.endswith("}"):
-        return text
     fence = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL | re.IGNORECASE)
     if fence:
-        return fence.group(1).strip()
+        text = fence.group(1).strip()
     start = text.find("{")
-    end = text.rfind("}")
-    if start >= 0 and end > start:
-        return text[start : end + 1]
-    raise ValueError("no_json_object")
+    if start < 0:
+        raise ValueError("no_json_object")
+    try:
+        _, end = json.JSONDecoder().raw_decode(text, start)
+        return text[start:end]
+    except json.JSONDecodeError:
+        end = text.rfind("}")
+        if end > start:
+            return text[start : end + 1]
+        raise ValueError("no_json_object")
 
 
 def parse_agent_response(raw: str) -> dict[str, Any]:
@@ -70,6 +85,7 @@ def validate_agent_response(
     rejected_image_ids: set[int],
     picked_image_ids: set[int],
     all_image_ids: set[int] | None = None,
+    require_vision_evidence: bool = False,
 ) -> ValidationResult:
     errors: list[str] = []
 
@@ -105,18 +121,20 @@ def validate_agent_response(
     if len(decisions) != len(rejected_image_ids):
         errors.append("rejected_decision_count_mismatch")
 
+    viewed_set: set[int] = set()
     viewed = data.get("viewed_image_ids")
     if viewed is not None:
         if not isinstance(viewed, list):
             errors.append("viewed_image_ids_not_array")
-        elif all_image_ids is not None:
+        else:
             for idx, vid in enumerate(viewed):
                 try:
                     iid = int(vid)
                 except (TypeError, ValueError):
                     errors.append(f"viewed_image_ids_{idx}_invalid")
                     continue
-                if iid not in all_image_ids:
+                viewed_set.add(iid)
+                if all_image_ids is not None and iid not in all_image_ids:
                     errors.append(f"viewed_unknown_image_id:{iid}")
 
     vision_used = data.get("vision_used")
@@ -160,6 +178,57 @@ def validate_agent_response(
                     break
                 if aid not in picked_image_ids:
                     errors.append(f"decision_{idx}_alternative_not_picked:{aid}")
+
+    advisories = data.get("picked_image_advisories")
+    if advisories is not None:
+        if not isinstance(advisories, list):
+            errors.append("picked_image_advisories_not_array")
+        else:
+            adv_seen: set[int] = set()
+            for idx, adv in enumerate(advisories):
+                if not isinstance(adv, dict):
+                    errors.append(f"advisory_{idx}_not_object")
+                    continue
+                try:
+                    aid = int(adv.get("image_id"))
+                except (TypeError, ValueError):
+                    errors.append(f"advisory_{idx}_invalid_image_id")
+                    continue
+                if aid in adv_seen:
+                    errors.append(f"duplicate_advisory_image_id:{aid}")
+                adv_seen.add(aid)
+                if aid not in picked_image_ids:
+                    errors.append(f"advisory_image_not_picked:{aid}")
+                issue = adv.get("issue")
+                if issue not in ALLOWED_ADVISORY_ISSUES:
+                    errors.append(f"advisory_{idx}_invalid_issue")
+                conf = adv.get("confidence")
+                if conf is not None:
+                    try:
+                        c = float(conf)
+                        if not (0.0 <= c <= 1.0):
+                            errors.append(f"advisory_{idx}_confidence_out_of_range")
+                    except (TypeError, ValueError):
+                        errors.append(f"advisory_{idx}_confidence_invalid")
+                sugg = adv.get("suggested_alternatives")
+                if sugg is not None:
+                    if not isinstance(sugg, list):
+                        errors.append(f"advisory_{idx}_suggested_not_array")
+                    else:
+                        for alt in sugg:
+                            try:
+                                sid = int(alt)
+                            except (TypeError, ValueError):
+                                errors.append(f"advisory_{idx}_invalid_suggested")
+                                break
+                            if sid not in picked_image_ids:
+                                errors.append(f"advisory_suggested_not_picked:{sid}")
+                if (
+                    require_vision_evidence
+                    and issue in VISUAL_ADVISORY_ISSUES
+                    and aid not in viewed_set
+                ):
+                    errors.append(f"advisory_image_not_viewed:{aid}")
 
     if jsonschema is not None:
         try:
@@ -215,6 +284,7 @@ def validate_raw_agent_response(
     rejected_image_ids: set[int],
     picked_image_ids: set[int],
     all_image_ids: set[int] | None = None,
+    require_vision_evidence: bool = False,
 ) -> ValidationResult:
     try:
         data = _coerce_response_context(
@@ -236,4 +306,5 @@ def validate_raw_agent_response(
         rejected_image_ids=rejected_image_ids,
         picked_image_ids=picked_image_ids,
         all_image_ids=all_image_ids,
+        require_vision_evidence=require_vision_evidence,
     )

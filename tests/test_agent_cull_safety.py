@@ -10,6 +10,15 @@ def _cfg() -> AgentCullConfig:
     return AgentCullConfig()
 
 
+def _cfg_no_vision_gate() -> AgentCullConfig:
+    """Default config but with the (now default-on) vision-evidence gate off,
+    so tests can isolate non-vision gates without supplying viewed_image_ids."""
+    return replace(
+        AgentCullConfig(),
+        agent=replace(AgentCullAgentConfig(), require_vision_evidence=False),
+    )
+
+
 def _response(*, group_conf=0.9, image_conf=0.9, decision="remove", alts=None):
     alts = alts if alts is not None else [101]
     return {
@@ -45,7 +54,7 @@ def test_no_picked_blocks_remove():
 
 def test_picked_lt_rejected_does_not_block_group():
     safety = apply_safety_gates(
-        cfg=_cfg(),
+        cfg=_cfg_no_vision_gate(),
         validated_response=_response(),
         rows_by_id={
             100: {"score_general": 0.2, "usable": True},
@@ -180,6 +189,37 @@ def test_require_vision_evidence_blocks_without_viewed_ids():
     assert safety.image_decisions[0].final_decision == "keep"
     group_gates = {o.gate for o in safety.overrides if o.scope == "group"}
     assert "vision_not_used" in group_gates
+
+
+def test_picked_advisories_do_not_block_group():
+    # Advisories live outside rejected_image_decisions; safety must ignore them
+    # and never let them affect the group/remove gates.
+    resp = _response()
+    resp["picked_image_advisories"] = [
+        {
+            "image_id": 101,
+            "issue": "misfocus",
+            "reason": "soft foreground",
+            "suggested_alternatives": [],
+            "risk_flags": ["foreground_soft"],
+        }
+    ]
+    safety = apply_safety_gates(
+        cfg=_cfg_no_vision_gate(),
+        validated_response=resp,
+        rows_by_id={
+            100: {"score_general": 0.2, "usable": True},
+            101: {"score_general": 0.9, "usable": True},
+        },
+        picked_ids={101},
+        rejected_ids={100},
+        dry_run=True,
+        provider_supports_vision=True,
+    )
+    assert safety.group_blocked is False
+    # Only the rejected image is gated; the advised pick is untouched.
+    assert {d.image_id for d in safety.image_decisions} == {100}
+    assert safety.image_decisions[0].final_decision == "remove"
 
 
 def test_require_vision_evidence_allows_when_viewed():

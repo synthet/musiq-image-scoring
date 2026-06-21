@@ -2,7 +2,12 @@
 
 from unittest.mock import MagicMock, patch
 
-from modules.agent_cull.apply import apply_agent_remove_candidates, candidate_status_for_decision
+from modules.agent_cull.apply import (
+    PICK_QUALITY_ADVISORY_STATUS,
+    _persist_picked_advisories,
+    apply_agent_remove_candidates,
+    candidate_status_for_decision,
+)
 
 
 def test_dry_run_proposed_only():
@@ -65,3 +70,84 @@ def test_apply_respects_recommendation_ids(
     connector.execute.assert_called_once()
     args = connector.execute.call_args[0]
     assert args[1][1] == 11
+
+
+@patch("modules.agent_cull.apply.insert_recommendation")
+def test_persist_picked_advisories_inserts_advisory_rows(mock_insert):
+    mock_insert.return_value = 1
+    validated = {
+        "picked_image_advisories": [
+            {
+                "image_id": 195193,
+                "filename": "DSC_8825.NEF",
+                "issue": "misfocus",
+                "confidence": 0.88,
+                "reason": "Foreground fawn soft; adults sharp behind.",
+                "suggested_alternatives": [195199],
+                "risk_flags": ["foreground_soft", "score_technical_mismatch"],
+            }
+        ]
+    }
+    rows = {195193: {"pick_status": 1, "cull_decision": "pick"}}
+    inserted = _persist_picked_advisories(
+        group_id=42,
+        validated=validated,
+        rows_by_id=rows,
+        picked_ids={195193, 195199},
+    )
+    assert inserted == 1
+    kwargs = mock_insert.call_args.kwargs
+    assert kwargs["image_id"] == 195193
+    assert kwargs["agent_decision"] == "advisory"
+    assert kwargs["final_decision"] == "keep"
+    assert kwargs["candidate_status"] == PICK_QUALITY_ADVISORY_STATUS
+    assert kwargs["better_alternatives"] == [195199]
+    assert "misfocus" in kwargs["reason"]
+
+
+@patch("modules.agent_cull.apply.insert_recommendation")
+def test_persist_picked_advisories_skips_non_picked(mock_insert):
+    validated = {
+        "picked_image_advisories": [
+            {"image_id": 10, "issue": "blur", "reason": "x", "suggested_alternatives": []}
+        ]
+    }
+    inserted = _persist_picked_advisories(
+        group_id=1,
+        validated=validated,
+        rows_by_id={},
+        picked_ids={11},  # 10 not picked
+    )
+    assert inserted == 0
+    mock_insert.assert_not_called()
+
+
+@patch("modules.agent_cull.apply.audit.audit_context")
+@patch("modules.agent_cull.apply.update_review_group")
+@patch("modules.agent_cull.apply.list_recommendations_for_group")
+@patch("modules.agent_cull.apply.db.get_connector")
+def test_apply_skips_pick_quality_advisory(
+    mock_get_connector,
+    mock_list_recs,
+    mock_update_group,
+    mock_audit_ctx,
+):
+    mock_audit_ctx.return_value.__enter__ = MagicMock(return_value=None)
+    mock_audit_ctx.return_value.__exit__ = MagicMock(return_value=False)
+    connector = MagicMock()
+    mock_get_connector.return_value = connector
+    connector.query_one.return_value = {"id": 1, "dry_run": False}
+    # Advisory row defensively carries a remove final_decision; must still be skipped.
+    mock_list_recs.return_value = [
+        {
+            "id": 20,
+            "final_decision": "remove",
+            "candidate_status": PICK_QUALITY_ADVISORY_STATUS,
+        },
+        {"id": 21, "final_decision": "remove", "candidate_status": "proposed"},
+    ]
+    result = apply_agent_remove_candidates(1)
+    assert result["ok"] is True
+    assert result["updated"] == 1
+    connector.execute.assert_called_once()
+    assert connector.execute.call_args[0][1][1] == 21

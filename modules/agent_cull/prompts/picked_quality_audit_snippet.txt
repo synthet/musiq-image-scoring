@@ -1,0 +1,10 @@
+Picked-image quality audit (advisory only):
+- After deciding the rejected images, inspect EVERY picked thumbnail (picked_image_ids) for subject focus, blur, exposure, and composition.
+- Flag any picked image where the ML scores — especially score_technical — disagree with what you actually see (e.g. a high score_technical on a frame whose main subject is soft / out of focus while the background is sharp).
+- For each flagged pick add an entry to picked_image_advisories citing the filename and the specific visual observation; when a sharper picked alternative exists, list its id in suggested_alternatives (picked ids only).
+- This is ADVISORY ONLY: do NOT change pick status, do NOT recommend physical removal of picks, and do NOT add picked images to rejected_image_decisions.
+- Omit picked_image_advisories or return [] when no picked image has a visible quality problem.
+
+picked_image_advisories entry fields:
+- image_id (must be a picked id), filename, issue (one of: misfocus, blur, exposure, composition, other), confidence 0..1, reason (filename + what you saw), suggested_alternatives (picked ids; [] if none), risk_flags (e.g. ["foreground_soft", "score_technical_mismatch"]).
+- Only flag a visual issue on a picked image whose thumbnail you actually opened; include those ids in viewed_image_ids.

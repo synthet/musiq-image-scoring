@@ -117,3 +117,118 @@ def test_viewed_unknown_image_id_rejected():
     )
     assert result.ok is False
     assert any("viewed_unknown_image_id" in e for e in result.errors)
+
+
+def _advisory(*, image_id=11, issue="misfocus", alts=(11,)):
+    return {
+        "image_id": image_id,
+        "filename": "DSC_8825.NEF",
+        "issue": issue,
+        "confidence": 0.88,
+        "reason": "Foreground fawn soft; adults sharp behind.",
+        "suggested_alternatives": list(alts),
+        "risk_flags": ["foreground_soft", "score_technical_mismatch"],
+    }
+
+
+def test_picked_advisory_valid():
+    data = _valid_response(picked=(11, 12))
+    data["picked_image_advisories"] = [_advisory(image_id=11, alts=(12,))]
+    result = validate_agent_response(
+        data,
+        stack_id=1,
+        sub_stack_id=None,
+        rejected_image_ids={10},
+        picked_image_ids={11, 12},
+    )
+    assert result.ok is True
+
+
+def test_picked_advisory_image_must_be_picked():
+    data = _valid_response()
+    # 10 is rejected, not picked
+    data["picked_image_advisories"] = [_advisory(image_id=10, alts=())]
+    result = validate_agent_response(
+        data,
+        stack_id=1,
+        sub_stack_id=None,
+        rejected_image_ids={10},
+        picked_image_ids={11},
+    )
+    assert result.ok is False
+    assert any("advisory_image_not_picked" in e for e in result.errors)
+
+
+def test_picked_advisory_suggested_must_be_picked():
+    data = _valid_response()
+    data["picked_image_advisories"] = [_advisory(image_id=11, alts=(99,))]
+    result = validate_agent_response(
+        data,
+        stack_id=1,
+        sub_stack_id=None,
+        rejected_image_ids={10},
+        picked_image_ids={11},
+    )
+    assert result.ok is False
+    assert any("advisory_suggested_not_picked" in e for e in result.errors)
+
+
+def test_picked_advisory_invalid_issue():
+    data = _valid_response()
+    data["picked_image_advisories"] = [_advisory(image_id=11, issue="banana", alts=())]
+    result = validate_agent_response(
+        data,
+        stack_id=1,
+        sub_stack_id=None,
+        rejected_image_ids={10},
+        picked_image_ids={11},
+    )
+    assert result.ok is False
+    assert any("invalid_issue" in e for e in result.errors)
+
+
+def test_picked_advisory_visual_issue_requires_viewed_when_enforced():
+    data = _valid_response()
+    data["vision_used"] = True
+    data["viewed_image_ids"] = [10]  # picked 11 not viewed
+    data["picked_image_advisories"] = [_advisory(image_id=11, alts=())]
+    result = validate_agent_response(
+        data,
+        stack_id=1,
+        sub_stack_id=None,
+        rejected_image_ids={10},
+        picked_image_ids={11},
+        all_image_ids={10, 11},
+        require_vision_evidence=True,
+    )
+    assert result.ok is False
+    assert any("advisory_image_not_viewed" in e for e in result.errors)
+
+
+def test_picked_advisory_other_issue_skips_viewed_rule():
+    data = _valid_response()
+    data["vision_used"] = True
+    data["viewed_image_ids"] = [10]
+    data["picked_image_advisories"] = [_advisory(image_id=11, issue="other", alts=())]
+    result = validate_agent_response(
+        data,
+        stack_id=1,
+        sub_stack_id=None,
+        rejected_image_ids={10},
+        picked_image_ids={11},
+        all_image_ids={10, 11},
+        require_vision_evidence=True,
+    )
+    assert result.ok is True
+
+
+def test_trailing_prose_after_json_parses():
+    raw = json.dumps(_valid_response()) + "\n\nNote: this stack had soft foreground frames."
+    result = validate_raw_agent_response(
+        raw,
+        stack_id=1,
+        sub_stack_id=None,
+        rejected_image_ids={10},
+        picked_image_ids={11},
+    )
+    assert result.ok is True

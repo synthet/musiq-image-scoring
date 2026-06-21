@@ -1,12 +1,22 @@
 # Agent-assisted cull review — summary
 
-*Last updated: 2026-06-20*
+*Last updated: 2026-06-21*
 
 ## Goal
 
 Conservative AI-assisted redundancy review for **small stack/substack groups** (<10 images). An external vision-capable CLI returns JSON-only verdicts for **rejected** images; the backend validates locally, applies hard safety gates, and persists **metadata-only** removal candidates. **No physical deletion in MVP.**
 
-**Editorial alignment:** Prompt template `cull_redundancy_v2` follows the same principles as [carousel-pick curation](https://github.com/synthet/image-scoring-skills/blob/main/.cursor/skills/photo-carousel/SKILL.md) in **image-scoring-skills**: ML scores (0–1) inform the shortlist; **visual duplicate and pose-diversity rules override pure score rank**; every reject rationale cites filename, scores, and what was seen in thumbnails.
+**Editorial alignment:** The production prompt template `cull_redundancy_v3_vision_strict` follows the same principles as [carousel-pick curation](https://github.com/synthet/image-scoring-skills/blob/main/.cursor/skills/photo-carousel/SKILL.md) in **image-scoring-skills**: ML scores (0–1) inform the shortlist; **visual duplicate and pose-diversity rules override pure score rank**; every reject rationale cites filename, scores, and what was seen in thumbnails.
+
+**Production defaults (post live-matrix v4, 2026-06-21):** `prompt_template_version=cull_redundancy_v3_vision_strict`, `require_vision_evidence=true`, `agent.timeout_seconds=180`, `review_picked_quality=true`. Misfocus-prone stacks (e.g. #29157) may use `--mode-profile technical_focus`.
+
+## Picked-image quality advisories
+
+The live matrix found that a **picked hero** (image 195193, stack #29157) had a misleading `score_technical` (~83%) yet a vision-detectable soft foreground — but rejected-only review never inspects picks. With `review_picked_quality=true`, the agent additionally audits **every picked** thumbnail and may return an optional `picked_image_advisories` array (response schema `agent-cull-response-v1`).
+
+- Each advisory: `image_id` (a picked id), `filename`, `issue` (`misfocus`|`blur`|`exposure`|`composition`|`other`), `confidence`, `reason`, `suggested_alternatives` (picked ids), `risk_flags`.
+- Persisted as **advisory-only** recommendations: `agent_decision='advisory'`, `final_decision='keep'`, `candidate_status='pick_quality_advisory'`. They **never** participate in `apply-candidates`/remove gates and never change `pick_status`.
+- Validation (`schema.py`): advisory `image_id` must be picked, `suggested_alternatives ⊆ picked_image_ids`, and visual issues require the pick to be in `viewed_image_ids` when `require_vision_evidence` is on.
 
 ## Hard rules (non-negotiable)
 
@@ -49,7 +59,7 @@ Discovery (discovery.py + discovery_db.py)
 
 When `agent.include_thumbnails=true`, `payload.py` resolves DB thumbnail paths via `modules.thumbnails._resolve_thumbnail_filesystem_path` (so Docker host WSL paths in Postgres map to `/app/thumbnails/...` inside the container), then adds a `thumbnail_manifest` entry per image. Each entry carries `path`, `mode`, `max_edge_px`, `width`, `height`, and `downscaled`.
 
-**Vision:** Prompt v2 instructs the agent to open every manifest path before recommending `remove`. Optional response fields `vision_used` and `viewed_image_ids` are validated when present; set `agent.require_vision_evidence=true` to block removals without them.
+**Vision:** The `cull_redundancy_v3_vision_strict` prompt instructs the agent to open every manifest path before recommending `remove`. Response fields `vision_used` and `viewed_image_ids` are validated; with the production default `agent.require_vision_evidence=true`, removals (and visual picked advisories) are blocked without them. When `review_picked_quality=true`, a shared `prompts/picked_quality_audit_snippet.txt` is appended by `build_prompt()` directing the agent to audit picked thumbnails too.
 
 ## Payload scores
 

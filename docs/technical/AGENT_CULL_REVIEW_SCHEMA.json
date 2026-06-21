@@ -50,6 +50,12 @@
       "items": {
         "$ref": "#/$defs/rejectedImageDecision"
       }
+    },
+    "picked_image_advisories": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pickedImageAdvisory"
+      }
     }
   },
   "$defs": {
@@ -87,6 +93,50 @@
           "maxLength": 4000
         },
         "better_alternatives": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "risk_flags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128
+          }
+        }
+      }
+    },
+    "pickedImageAdvisory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image_id",
+        "issue",
+        "reason"
+      ],
+      "properties": {
+        "image_id": {
+          "type": "integer"
+        },
+        "filename": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "issue": {
+          "type": "string",
+          "enum": ["misfocus", "blur", "exposure", "composition", "other"]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "suggested_alternatives": {
           "type": "array",
           "items": {
             "type": "integer"
