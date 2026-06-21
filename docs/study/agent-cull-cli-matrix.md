@@ -103,17 +103,20 @@ Docker smoke stdout (excerpt):
  "visual_note": "Two adult white-tailed deer stand in focus on a grassy lawn with two blurry fawns in the foreground."}
 ```
 
-### Layer 3/4 — Live CLI review
+### Layer 3/4 — Live CLI review (stack #29157, Docker Antigravity, 2026-06-21)
 
-Not executed in this matrix batch (`--skip-live-cli`). Re-run without that flag for `baseline_v2` + `vision_strict` when auth is stable:
+Artifacts: `.agent/study/runs/2026-06-20-live-v4/`
 
-```bash
-PYTHONPATH=. python scripts/study/agent_cull_matrix.py \
-  --output .agent/study/runs/2026-06-20-live \
-  --runtimes docker --live-modes baseline_v2,vision_strict,technical_focus
-```
+| Mode | live ok | vision_used | viewed_count | verified | Notes |
+|------|---------|-------------|--------------|----------|-------|
+| `baseline_v2` | yes | true | 5 | yes | ~20s; rejected ids 195196/195197 → keep (pose diversity) |
+| `vision_strict` | yes | true | 5 | yes | Same pattern; vision gate satisfied |
+| `technical_focus` | yes | true | 5 | yes | Flattened TOPIQ/LIQE/SPAQ in packet |
+| `metadata_only` | no | — | 0 | no | `malformed_json` (agent stdout had trailing extra data) |
 
-Compare `metadata_only` vs thumbnail runs for A/B divergence on stack 29157.
+Thumbnail modes all set `vision_used: true` and viewed all five image ids including **195193** (picked hero; decisions apply to rejected ids only).
+
+Fixes applied during live re-run: JSON-safe datetime in packets, response field coercion (`stack_id`, `confidence`, `summary`), `prompt_template_version` column widened to VARCHAR(64) (migration **0032**).
 
 ## Analysis (preflight + smoke)
 

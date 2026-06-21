@@ -148,7 +148,7 @@ def _run_vision_smoke(path: str, provider: str, image_id: int, runtime: str) -> 
 
 
 def _provider_command(provider: str):
-    from modules.agent_cull.config import AgentCullAgentConfig, AgentCullConfig, load_agent_cull_config
+    from modules.agent_cull.config import load_agent_cull_config
 
     cfg = load_agent_cull_config()
     agent = cfg.agent
@@ -171,7 +171,6 @@ def _run_live_review(
     mode: str,
     provider: str,
 ) -> dict[str, Any]:
-    from modules.agent_cull.config import load_agent_cull_config
     from modules.agent_cull.discovery_db import inspect_review_unit_for_run, load_unit_rows
     from modules.agent_cull.mode_profiles import apply_mode_profile
     from modules.agent_cull.repository import get_review_group
@@ -202,6 +201,13 @@ def _run_live_review(
             request = json.loads(request)
         if isinstance(response, str):
             response = json.loads(response)
+        if not response and group.get("response_raw"):
+            try:
+                from modules.agent_cull.schema import parse_agent_response
+
+                response = parse_agent_response(str(group["response_raw"]))
+            except Exception:
+                response = {}
         result["vision_used"] = response.get("vision_used")
         result["viewed_image_ids"] = response.get("viewed_image_ids")
         result["manifest_count"] = len(request.get("thumbnail_manifest") or [])

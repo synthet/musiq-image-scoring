@@ -318,7 +318,11 @@
       "PowerShell(& D:\\\\Projects\\\\image-scoring-backend\\\\.venv\\\\Scripts\\\\python.exe -m ruff check modules/agent_cull/json_util.py modules/agent_cull/repository.py modules/agent_cull/apply.py modules/agent_cull/cli_adapter.py modules/agent_cull/payload.py 2>&1; Write-Output \"=== quick re-test ===\"; & D:\\\\Projects\\\\image-scoring-backend\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests/test_agent_cull_payload.py -q 2>&1 | Select-Object -Last 3)",
       "PowerShell(Copy-Item *)",
       "PowerShell(Move-Item *)",
-      "PowerShell($sha = git hash-object -w .claude/settings.local.json; Write-Output \"recreated SHA: $sha\"; Write-Output \"expected:      edfb5eac994c9447618a37fc7f01f179c0cfd49f\"; if \\($sha -eq 'edfb5eac994c9447618a37fc7f01f179c0cfd49f'\\) { Write-Output \"MATCH — object healed\" } else { Write-Output \"MISMATCH — working tree differs from committed blob\" })"
+      "PowerShell($sha = git hash-object -w .claude/settings.local.json; Write-Output \"recreated SHA: $sha\"; Write-Output \"expected:      edfb5eac994c9447618a37fc7f01f179c0cfd49f\"; if \\($sha -eq 'edfb5eac994c9447618a37fc7f01f179c0cfd49f'\\) { Write-Output \"MATCH — object healed\" } else { Write-Output \"MISMATCH — working tree differs from committed blob\" })",
+      "PowerShell(git fetch *)",
+      "PowerShell(git status --short | Where-Object { $_ -notmatch 'agent/tmp' }; Write-Output \"---\"; git log --oneline -3 origin/master)",
+      "PowerShell(& D:\\\\Projects\\\\image-scoring-backend\\\\.venv\\\\Scripts\\\\python.exe -m ruff check modules/agent_cull/schema.py modules/db_postgres.py scripts/study/agent_cull_matrix.py 2>&1; Write-Output \"---\"; & D:\\\\Projects\\\\image-scoring-backend\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests/test_agent_cull_payload.py tests/test_agent_cull_discovery_db.py -q 2>&1 | Select-Object -Last 4)",
+      "PowerShell(& D:\\\\Projects\\\\image-scoring-backend\\\\.venv\\\\Scripts\\\\python.exe -m ruff check --fix modules/db_postgres.py scripts/study/agent_cull_matrix.py 2>&1; & D:\\\\Projects\\\\image-scoring-backend\\\\.venv\\\\Scripts\\\\python.exe -m ruff check modules/agent_cull/schema.py modules/db_postgres.py scripts/study/agent_cull_matrix.py 2>&1)"
     ]
   },
   "enableAllProjectMcpServers": true,

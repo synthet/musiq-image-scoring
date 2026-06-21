@@ -6,8 +6,6 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.pool import ThreadedConnectionPool
 from pgvector.psycopg2 import register_vector
-import datetime
-import json
 from modules import config
 from modules.test_db_constants import (
     POSTGRES_PRODUCTION_IN_PYTEST_ENV,
@@ -1248,7 +1246,7 @@ def _init_db_transaction():
                 agent_model             VARCHAR(128),
                 agent_version           VARCHAR(64),
                 agent_supports_vision   BOOLEAN,
-                prompt_template_version VARCHAR(32),
+                prompt_template_version VARCHAR(64),
                 prompt_hash             VARCHAR(64),
                 request_json            JSONB,
                 response_raw            TEXT,
@@ -1277,6 +1275,14 @@ def _init_db_transaction():
                 "CREATE INDEX IF NOT EXISTS idx_agent_cull_groups_status_created "
                 "ON agent_cull_review_groups(status, created_at);"
             )
+            try:
+                cur.execute(
+                    "ALTER TABLE agent_cull_review_groups "
+                    "ALTER COLUMN prompt_template_version TYPE VARCHAR(64)"
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
             cur.execute("""
             CREATE TABLE IF NOT EXISTS agent_cull_recommendations (
                 id                      BIGSERIAL PRIMARY KEY,
