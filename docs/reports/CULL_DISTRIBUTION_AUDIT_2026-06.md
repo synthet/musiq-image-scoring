@@ -78,8 +78,8 @@ Automated culling previously wrote `cull_decision` + XMP only. `batch_update_cul
 now also sets `pick_status`. One-time backfill for existing rows:
 
 ```bash
-python -m scripts.backfill_pick_status_from_cull_decision --dry-run
-python -m scripts.backfill_pick_status_from_cull_decision
+python scripts/maintenance/backfill_pick_status_from_cull_decision.py --dry-run
+python scripts/maintenance/backfill_pick_status_from_cull_decision.py
 ```
 
 ## Analytics API

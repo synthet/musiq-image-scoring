@@ -16,6 +16,8 @@ Utility scripts for the **Vexlum** backend (`image-scoring-backend`). Most scrip
 | `batch/` | Windows batch wrappers |
 | `powershell/` | PowerShell wrappers |
 | `wsl/` | WSL test runner and setup |
+| `research/` | CLIP culling experiments, rollout tools (`research/clip_culling/`) |
+| `study/` | Agent-assisted cull study scripts (`agent_cull_*.py`) |
 | `archive/` | Archived one-time/debug scripts |
 
 ## Running Scripts
@@ -39,6 +41,9 @@ python scripts/path/to/script.py
 | `backup/fix_backup_structure.py` | Reorganize backup by EXIF or mirror source |
 | `backup/fix_all_backups.py` | Orchestrate full backup drive cleanup |
 | `maintenance/backfill_exif_xmp.py` | Backfill EXIF/XMP into cache tables |
+| `maintenance/backfill_sub_stacks.py` | Recompute leaf sub-stacks on existing root stacks |
+| `maintenance/backfill_subcluster_picks.py` | Re-classify pick/reject for existing stacks |
+| `maintenance/backfill_culling_embeddings.py` | Bulk culling embedding spaces |
 | `maintenance/cleanup_orphans.py` | Remove orphan images and empty folders |
 | `maintenance/check_stacks.py` | Report folders missing stacks |
 | `maintenance/update_db_paths.py` | Update DB paths after backup reorganization |
@@ -49,6 +54,8 @@ python scripts/path/to/script.py
 | `python/keyword_extractor.py` | AI keyword extraction |
 | `analysis/score_analysis.py` | Score statistics and normalization verification |
 | `research_models.py` | Research NEF→model input parameters |
+| `batch/resume_recluster.bat` | Resume library-wide CLIP re-cluster from checkpoint (WSL) |
+| `research/clip_culling/resume_recluster.sh` | Same as above (bash; `DETACH=1` for setsid) |
 
 
 ## Repository Safety Check

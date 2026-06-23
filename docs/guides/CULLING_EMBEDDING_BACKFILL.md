@@ -1,3 +1,13 @@
+---
+type: Runbook
+title: Backfill plan — optional culling embedding spaces
+description: Operational runbook for culling embedding backfill, sub-stack rebuild, and library-wide CLIP re-cluster rollout.
+resource: guides/CULLING_EMBEDDING_BACKFILL.md
+tags: [docs, guides, culling, embeddings, backfill, clip, okf]
+timestamp: 2026-06-21T00:00:00Z
+okf_version: 0.1
+---
+
 # Backfill plan — optional culling embedding spaces
 
 > **Status:** Operational runbook / plan (executable).
@@ -19,7 +29,7 @@ two-level culling can sub-stack on the validated-best tower.
    [`modules/culling_embeddings.py`](../../modules/culling_embeddings.py) — no separate
    job required for new imports after initial coverage.
 2. **Bulk backfill (this runbook):** Embed the whole library (or a folder) in one shot
-   via `scripts/backfill_culling_embeddings.py` — useful before first enable or for
+   via `scripts/maintenance/backfill_culling_embeddings.py` — useful before first enable or for
    A/B towers.
 
 "Done" for production =
@@ -52,7 +62,7 @@ Library is **100% `.NEF`**; ~81% have on-disk thumbnails (the rest decode RAW on
 | Path | Role |
 |------|------|
 | `modules/culling_embeddings.py` | JIT ensure during `SelectionService.run` (stack-scoped) |
-| `scripts/backfill_culling_embeddings.py` | CLI bulk driver (`--space`, `--folder-id`, `--limit`, `--no-thumbnails`, `--dry-run`) |
+| `scripts/maintenance/backfill_culling_embeddings.py` | CLI bulk driver (`--space`, `--folder-id`, `--limit`, `--no-thumbnails`, `--dry-run`) |
 | `modules/embedding_extractors.py` | `CullingEmbedder` (loaders), `generate_and_persist` (batched, parallel load, progress log) |
 | `modules/thumbnails.py` | `open_image_for_ml` — embedded-JPEG → rawpy → ImageMagick RAW decode |
 | `modules/db.update_image_embeddings_batch_for_space` | upsert into per-dim fact table (no-op off Postgres) |
@@ -89,7 +99,7 @@ wsl -d Ubuntu bash -lc "source ~/.venvs/tf/bin/activate && python -c 'import tor
 
 ```bash
 wsl -d Ubuntu bash -lc "cd /mnt/d/Projects/image-scoring-backend && source ~/.venvs/tf/bin/activate && \
-  python -m scripts.backfill_culling_embeddings --space openclip_l14_laion2b_image --dry-run"
+  python scripts/maintenance/backfill_culling_embeddings.py --space openclip_l14_laion2b_image --dry-run"
 ```
 Expect `Images missing openclip_l14_laion2b_image: ~61164`.
 
@@ -97,7 +107,7 @@ Expect `Images missing openclip_l14_laion2b_image: ~61164`.
 
 ```bash
 wsl -d Ubuntu bash -lc "cd /mnt/d/Projects/image-scoring-backend && source ~/.venvs/tf/bin/activate && \
-  python -u -m scripts.backfill_culling_embeddings --space openclip_l14_laion2b_image \
+  python -u scripts/maintenance/backfill_culling_embeddings.py --space openclip_l14_laion2b_image \
   > reports/clip-culling/backfill_openclip_l14.log 2>&1"
 ```
 - Run via the harness background mechanism (stays attached, notifies on completion) — **not** bare `nohup`, which did not survive the WSL session exit.
@@ -173,7 +183,7 @@ Root **stacks** already exist from the clustering phase, but **sub-stacks**
 (`sub_stacks` + `images.sub_stack_id`) are only written when Selection runs with
 two-level enabled. After the embedding backfill (Steps 2–4) and threshold tuning
 (Step 5), recompute sub-stacks + picks for the whole library **without**
-re-clustering, using `scripts/backfill_sub_stacks.py`. It does **not** require
+re-clustering, using `scripts/maintenance/backfill_sub_stacks.py`. It does **not** require
 `culling.two_level.enabled: true` — it applies the two-level logic explicitly.
 
 The script is idempotent: it clears each stack's `sub_stacks` and rebuilds, so a
@@ -184,11 +194,11 @@ default.
 ```bash
 # Dry-run smoke on first 10 stacks (no writes; reports leaf/pick histogram)
 wsl -d Ubuntu bash -lc "cd /mnt/d/Projects/image-scoring-backend && source ~/.venvs/tf/bin/activate && \
-  python -m scripts.backfill_sub_stacks --dry-run --limit 10"
+  python scripts/maintenance/backfill_sub_stacks.py --dry-run --limit 10"
 
 # Live, whole library, background-friendly + resumable
 wsl -d Ubuntu bash -lc "cd /mnt/d/Projects/image-scoring-backend && source ~/.venvs/tf/bin/activate && \
-  python -u -m scripts.backfill_sub_stacks > reports/clip-culling/backfill_sub_stacks.log 2>&1"
+  python -u scripts/maintenance/backfill_sub_stacks.py > reports/clip-culling/backfill_sub_stacks.log 2>&1"
 ```
 
 `--embedding-space` / `--threshold` override the config `level2`; `--folder PATH`
@@ -215,7 +225,43 @@ SELECT COUNT(*) FROM images WHERE stack_id IS NOT NULL AND sub_stack_id IS NULL;
 ```
 
 Rollback: `DELETE FROM sub_stacks;` + null `images.sub_stack_id`, then rerun
-`scripts/backfill_subcluster_picks.py` to restore legacy bands.
+`scripts/maintenance/backfill_subcluster_picks.py` to restore legacy bands.
+
+### Step 9 — Library-wide CLIP re-cluster rollout (optional)
+
+When the **clustering embedding space** or capture-time batching logic changes, re-run
+root **stacks** across the whole library with `force_rescan` (clears burst UUIDs and
+re-groups). This is separate from Step 8 (sub-stacks without re-clustering).
+
+| Path | Role |
+|------|------|
+| [`scripts/research/clip_culling/rollout_recluster.py`](../../scripts/research/clip_culling/rollout_recluster.py) | Checkpointed driver over `db.get_all_folders()` |
+| [`scripts/research/clip_culling/resume_recluster.sh`](../../scripts/research/clip_culling/resume_recluster.sh) | WSL launcher (`DETACH=1` for `setsid`) |
+| [`scripts/batch/resume_recluster.bat`](../../scripts/batch/resume_recluster.bat) | Windows → WSL wrapper |
+| [`scripts/research/clip_culling/recluster_single_folder.py`](../../scripts/research/clip_culling/recluster_single_folder.py) | One-folder smoke / pilot |
+| `reports/clip-culling/rollout_recluster.checkpoint.json` | Resume state (gitignored) |
+| `reports/clip-culling/rollout_recluster.log` | Progress log |
+
+```bash
+# Resume from checkpoint (attached; logs to reports/clip-culling/rollout_recluster.log)
+bash scripts/research/clip_culling/resume_recluster.sh
+
+# Detached long run (preferred for multi-hour library passes)
+DETACH=1 bash scripts/research/clip_culling/resume_recluster.sh
+
+# Single folder
+python scripts/research/clip_culling/recluster_single_folder.py /mnt/d/Photos/Z8/180-600mm/2026/2026-06-14
+```
+
+**Prerequisites:** Docker Postgres on `127.0.0.1:5432` (`docker compose up -d db`; if
+connection refused with a running container, recreate so port `5432` is published).
+WSL + `~/.venvs/tf`. Monitor: `grep -E '^\[[0-9]+/|ROLLOUT_RECLUSTER_DONE' reports/clip-culling/rollout_recluster.log | tail -5`.
+
+**Culling maintenance scripts** (moved under `scripts/maintenance/`): `backfill_sub_stacks.py`,
+`backfill_subcluster_picks.py` (+ `.sh` wrapper), `backfill_culling_embeddings.py`,
+`backfill_clip_quality.py`, `backfill_bioclip_embeddings.py`,
+`backfill_pick_status_from_cull_decision.py`, `fix_cluster_progress.py`, `process_missing_stacks.py`.
+See [`scripts/README.md`](../../scripts/README.md).
 
 ## Throughput / runtime
 
@@ -232,7 +278,7 @@ GPU inference is not the bottleneck; image decode is. `generate_and_persist` loa
 
 - Registry/loader unit (no GPU/DB): `python -m pytest tests/test_culling_embedding_spaces.py -q`
 - Two-level compute/selection: `python -m pytest tests/test_two_level_culling.py tests/test_two_level_selection.py -q`
-- Lint touched files: `python -m ruff check modules/embedding_extractors.py scripts/backfill_culling_embeddings.py`
+- Lint touched files: `python -m ruff check modules/embedding_extractors.py scripts/maintenance/backfill_culling_embeddings.py`
 - Manual smoke (WSL): `--limit 5` writes 5 rows to `image_embeddings_768`.
 
 ## Rollback / flags

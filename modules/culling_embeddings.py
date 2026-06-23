@@ -3,7 +3,7 @@
 When ``culling.two_level.enabled`` is true, ``SelectionService`` calls
 ``ensure_embeddings_for_space`` for stacked images missing the configured
 level-2 space before sub-stack assignment. Bulk library backfill remains
-available via ``scripts/backfill_culling_embeddings.py``.
+available via ``scripts/maintenance/backfill_culling_embeddings.py``.
 """
 
 from __future__ import annotations

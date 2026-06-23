@@ -13,6 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.10.0] - 2026-06-22
+
+### Added
+
+- **Safe Postgres restore tooling**: `scripts/powershell/Restore-Postgres.ps1` and the `/restore-db` slash command (`.claude` + `.cursor`). Always takes a pre-restore safety dump, prints the source `pg_restore --list` header and a before/after `images` count + `max(id)` diff, gates the destructive `pg_restore --clean` behind `ShouldProcess` (`-WhatIf` / `-Confirm:$false`), runs `postgres_sequence_repair.py`, and warns loudly on a row-count or `max(id)` regression. Prompted by the 2026-06 data regression (an old dump restored over the live DB rewound `images_id_seq` 198499→190180).
+
+### Fixed
+
+- **Agent cull review — approve/apply returned HTTP 500 (`'PostgresConnector' object has no attribute 'query_all'`)**: `agent_cull.fingerprint.load_current_image_states` called a non-existent connector method; it now uses `connector.query`. The staleness check (run on every approve and apply-candidates) no longer crashes. Added a regression test that drives the real function through a fake connector exposing only `query` (`tests/test_agent_cull_fingerprint.py`).
+- **Frontend culling metrics build (TS2352)**: route `CullingStackImage` score lookups through `unknown` so the SPA bundle builds.
+
+### Changed
+
+- **Script layout**: maintenance/backfill scripts consolidated under `scripts/maintenance/` and batch helpers under `scripts/batch/`; references updated (`scripts/README.md`, `modules/culling_embeddings.py` docstring).
+- **Backup/restore hygiene**: stale Postgres dumps quarantined to `backups/archive/` (git-ignored, DO-NOT-RESTORE); `/backup-db` docs now point to `/restore-db`.
+- **Docs**: expanded culling-embedding backfill guide and related references (project structure, embeddings, agent-cull CLI matrix, culling analytics, cull-distribution audit); added picked-advisory forensics report.
+
 ## [8.9.1] - 2026-06-21
 
 ### Changed

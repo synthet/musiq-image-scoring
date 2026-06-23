@@ -6,6 +6,14 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-21] ingest — Culling scripts layout and re-cluster rollout runbook
+
+Documented script reorganization (culling backfills → `scripts/maintenance/`; re-cluster launchers under `scripts/research/clip_culling/` and `scripts/batch/`). Added **Step 9** to [guides/CULLING_EMBEDDING_BACKFILL.md](guides/CULLING_EMBEDDING_BACKFILL.md) (library-wide CLIP re-cluster rollout, checkpoint/resume, Postgres prerequisite). Updated [architecture/project-structure.md](architecture/project-structure.md) (`research/`, `study/`, agent scratch dirs). Fixed stale `python -m scripts.backfill_*` paths in [features/planned/embeddings/two-level-culling.md](features/planned/embeddings/two-level-culling.md), [technical/CULLING_ANALYTICS.md](technical/CULLING_ANALYTICS.md), [reports/CULL_DISTRIBUTION_AUDIT_2026-06.md](reports/CULL_DISTRIBUTION_AUDIT_2026-06.md). Updated [INDEX.md](INDEX.md).
+
+## [2026-06-21] ingest | Picked advisory gap research (195193)
+
+Ingested agent cull picked-image advisory gap research into [reports/PICKED_ADVISORY_GAP_195193_2026-06-21.md](reports/PICKED_ADVISORY_GAP_195193_2026-06-21.md). Archived forensics JSON to [raw/picked-advisory-forensics-2026-06-21.json](raw/picked-advisory-forensics-2026-06-21.json). Cross-linked [study/agent-cull-cli-matrix.md](study/agent-cull-cli-matrix.md), [specs/agent-assisted-cull-review/summary.md](specs/agent-assisted-cull-review/summary.md), [guides/setup/agent-cull-review-gemini-cli.md](guides/setup/agent-cull-review-gemini-cli.md). Updated [reports/INDEX.md](reports/INDEX.md), [INDEX.md](INDEX.md).
+
 ## [2026-06-21] created — UX/UI constitution and design-token agent skills
 
 Three-tier UX/UI governance: shared [image-scoring-ui UX_UI_CONSTITUTION.md](https://github.com/synthet/image-scoring-ui/blob/main/docs/UX_UI_CONSTITUTION.md); backend binding [design/UX_UI_CONSTITUTION.md](design/UX_UI_CONSTITUTION.md), `backend-frontend-ui` skill, `frontend-ui.mdc` rule; updated [design/INDEX.md](design/INDEX.md), [CANONICAL_SOURCES.md](CANONICAL_SOURCES.md), [AGENT_COORDINATION.md](technical/AGENT_COORDINATION.md) §6 (package **1.2.x**). Gallery mirror: [UX_UI_CONSTITUTION.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/design/UX_UI_CONSTITUTION.md), `gallery-ui` skill.
@@ -66,7 +74,7 @@ and unit tests `tests/test_agent_cull_*.py`. Metadata-only removal candidates; n
 
 Added [reports/CULL_DISTRIBUTION_AUDIT_2026-06.md](reports/CULL_DISTRIBUTION_AUDIT_2026-06.md),
 [`05_cull_decision_distribution.sql`](../scripts/sql/culling_analytics_diagnostics/05_cull_decision_distribution.sql),
-`scripts/backfill_pick_status_from_cull_decision.py`. `batch_update_cull_decisions` now syncs
+`scripts/maintenance/backfill_pick_status_from_cull_decision.py`. `batch_update_cull_decisions` now syncs
 `pick_status`; analytics `flags.auto_cull*` expose `cull_decision` stack/sub-stack stats.
 Updated [CULLING_ANALYTICS.md](technical/CULLING_ANALYTICS.md), [two-level-culling.md](features/planned/embeddings/two-level-culling.md), [STACK_CULLING_REFACTOR_PLAN.md](planning/refactoring/STACK_CULLING_REFACTOR_PLAN.md).
 

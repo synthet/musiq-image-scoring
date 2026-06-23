@@ -39,7 +39,7 @@ If the script cannot run, use the same connection values as config and either:
 
 ## After restore note
 
-If restoring into a DB that already has data, operators may need `scripts/python/postgres_sequence_repair.py` (see repo docs / CHANGELOG).
+To **restore** a dump, use the sanctioned wrapper **`/restore-db`** (`.cursor/commands/restore-db.md` → `scripts/powershell/Restore-Postgres.ps1`), which takes a pre-restore safety dump, gates the destructive step, repairs sequences, and warns on row-count regressions. Do not hand-run `pg_restore` — that caused the 2026-06 data loss. The wrapper invokes `scripts/python/postgres_sequence_repair.py` for you.
 
 ## Done when
 

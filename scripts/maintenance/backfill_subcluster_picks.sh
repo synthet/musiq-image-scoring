@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Wrapper around scripts/backfill_subcluster_picks.py.
+# Wrapper around scripts/maintenance/backfill_subcluster_picks.py.
 #
 # Defaults to a safe dry-run with verbose logging so you can sanity-check
 # the impact before any DB writes. Pass --live (or set LIVE=1) to actually
 # persist decisions.
 #
 # Usage examples:
-#   bash scripts/backfill_subcluster_picks.sh                     # dry-run, all stacks
-#   bash scripts/backfill_subcluster_picks.sh --folder /mnt/d/Photos/2024
-#   LIVE=1 bash scripts/backfill_subcluster_picks.sh              # persist
-#   bash scripts/backfill_subcluster_picks.sh --live --write-sidecars
-#   THRESHOLD=0.04 bash scripts/backfill_subcluster_picks.sh --live
+#   bash scripts/maintenance/backfill_subcluster_picks.sh                     # dry-run, all stacks
+#   bash scripts/maintenance/backfill_subcluster_picks.sh --folder /mnt/d/Photos/2024
+#   LIVE=1 bash scripts/maintenance/backfill_subcluster_picks.sh              # persist
+#   bash scripts/maintenance/backfill_subcluster_picks.sh --live --write-sidecars
+#   THRESHOLD=0.04 bash scripts/maintenance/backfill_subcluster_picks.sh --live
 #
 # Environment overrides (all optional):
 #   PYTHON           — interpreter (default: ~/.venvs/tf/bin/python if present, else python3)
@@ -29,7 +29,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PY_SCRIPT="$SCRIPT_DIR/backfill_subcluster_picks.py"
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then

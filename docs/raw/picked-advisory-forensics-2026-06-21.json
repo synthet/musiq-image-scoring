@@ -1,0 +1,142 @@
+{
+  "stack_id": 29157,
+  "sub_stack_id": 72253,
+  "target_image_id": 195193,
+  "groups": [
+    {
+      "group_id": 99,
+      "review_picked_quality": true,
+      "picked_set": {
+        "picked_image_ids": [
+          195193,
+          195199,
+          195201
+        ],
+        "picked_scores": [
+          {
+            "image_id": 195201,
+            "file_name": "DSC_8828.NEF",
+            "score_technical": 0.8512,
+            "clip_quality_v0": 0.5478401780128479,
+            "topiq": 0.649,
+            "spaq": 0.693
+          },
+          {
+            "image_id": 195193,
+            "file_name": "DSC_8825.NEF",
+            "score_technical": 0.8342,
+            "clip_quality_v0": 0.5508513450622559,
+            "topiq": 0.633,
+            "spaq": 0.726
+          },
+          {
+            "image_id": 195199,
+            "file_name": "DSC_8829.NEF",
+            "score_technical": 0.824,
+            "clip_quality_v0": 0.6481406092643738,
+            "topiq": 0.632,
+            "spaq": 0.672
+          }
+        ]
+      },
+      "picked_image_advisories": [],
+      "viewed_image_ids": [
+        195193,
+        195196,
+        195197,
+        195199,
+        195201
+      ],
+      "vision_used": true
+    },
+    {
+      "group_id": 100,
+      "review_picked_quality": true,
+      "picked_set": {
+        "picked_image_ids": [
+          195193,
+          195199,
+          195201
+        ],
+        "picked_scores": [
+          {
+            "image_id": 195201,
+            "file_name": "DSC_8828.NEF",
+            "score_technical": 0.8512,
+            "clip_quality_v0": 0.5478401780128479,
+            "topiq": null,
+            "spaq": null
+          },
+          {
+            "image_id": 195193,
+            "file_name": "DSC_8825.NEF",
+            "score_technical": 0.8342,
+            "clip_quality_v0": 0.5508513450622559,
+            "topiq": null,
+            "spaq": null
+          },
+          {
+            "image_id": 195199,
+            "file_name": "DSC_8829.NEF",
+            "score_technical": 0.824,
+            "clip_quality_v0": 0.6481406092643738,
+            "topiq": null,
+            "spaq": null
+          }
+        ]
+      },
+      "picked_image_advisories": [],
+      "viewed_image_ids": [
+        195193,
+        195196,
+        195197,
+        195199,
+        195201
+      ],
+      "vision_used": true
+    }
+  ],
+  "current_packet_picked_set": {
+    "picked_image_ids": [
+      195193,
+      195199,
+      195201
+    ],
+    "picked_scores": [
+      {
+        "image_id": 195201,
+        "file_name": "DSC_8828.NEF",
+        "score_technical": 0.8512,
+        "clip_quality_v0": 0.5478401780128479,
+        "topiq": 0.649,
+        "spaq": 0.693
+      },
+      {
+        "image_id": 195193,
+        "file_name": "DSC_8825.NEF",
+        "score_technical": 0.8342,
+        "clip_quality_v0": 0.5508513450622559,
+        "topiq": 0.633,
+        "spaq": 0.726
+      },
+      {
+        "image_id": 195199,
+        "file_name": "DSC_8829.NEF",
+        "score_technical": 0.824,
+        "clip_quality_v0": 0.6481406092643738,
+        "topiq": 0.632,
+        "spaq": 0.672
+      }
+    ]
+  },
+  "advisory_smoke": {
+    "ok": true,
+    "provider": "antigravity",
+    "exit_code": 0,
+    "duration_s": 11,
+    "path": "/app/thumbnails/5f/5f568345394cc5d1913cd36eaa3fe1d0.jpg",
+    "has_visual_language": true,
+    "stdout_head": "I will inspect the image file to audit its subject focus.\n{\"image_id\": 195193, \"filename\": \"5f568345394cc5d1913cd36eaa3fe1d0.jpg\", \"issue\": \"misfocus\", \"confidence\": 0.95, \"reason\": \"5f568345394cc5d1913cd36eaa3fe1d0.jpg: The spotted fawn in the foreground is blurry and out of focus, while the adult deer in the background is in sharp focus.\", \"blur_foreground\": true, \"focus_ok\": false, \"picked_image_advisories\": [{\"image_id\": 195193, \"issue\": \"misfocus\", \"reason\": \"The foreground fawn is out of focus while the background deer is sharp.\"}]}\n",
+    "stderr_head": ""
+  }
+}

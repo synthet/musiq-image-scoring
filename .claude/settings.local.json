@@ -325,7 +325,9 @@
       "PowerShell(& D:\\\\Projects\\\\image-scoring-backend\\\\.venv\\\\Scripts\\\\python.exe -m ruff check --fix modules/db_postgres.py scripts/study/agent_cull_matrix.py 2>&1; & D:\\\\Projects\\\\image-scoring-backend\\\\.venv\\\\Scripts\\\\python.exe -m ruff check modules/agent_cull/schema.py modules/db_postgres.py scripts/study/agent_cull_matrix.py 2>&1)",
       "PowerShell($galleryPath = \"D:\\\\Projects\\\\image-scoring-gallery\"; if \\(Test-Path $galleryPath\\) { Write-Output \"found\"; Set-Location $galleryPath; git status --short | Select-Object -First 10; git log --oneline -3; Write-Output \"--- default branch ---\"; gh repo view --json defaultBranchRef -q '.defaultBranchRef.name'; Write-Output \"--- current branch ---\"; git branch --show-current } else { Write-Output \"NOT FOUND at $galleryPath\" })",
       "PowerShell(git push *)",
-      "Bash(echo \"=== EXIT $? ===\")"
+      "Bash(echo \"=== EXIT $? ===\")",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/test_agent_cull_cli_adapter.py tests/test_agent_cull_vocab.py -q)",
+      "Bash(./.venv/Scripts/python.exe -m ruff check modules/agent_cull/cli_adapter.py modules/agent_cull/vocab.py scripts/study/agent_cull_matrix.py scripts/study/agent_cull_vision_smoke.py tests/test_agent_cull_cli_adapter.py tests/test_agent_cull_vocab.py modules/api.py)"
     ]
   },
   "enableAllProjectMcpServers": true,

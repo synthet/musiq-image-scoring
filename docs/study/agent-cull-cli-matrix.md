@@ -9,6 +9,8 @@ created: 2026-06-20
 
 Repeatable harness comparing **Antigravity (`agy`)**, **Codex**, **Gemini**, **Claude** (Claude Code CLI), and **Cursor** (`cursor-agent`) CLI agents across carousel-pick-aligned prompt modes, with explicit pre/post vision verification on **Docker**, **WSL**, and **host** runtimes. Opt the new providers into a run with `--providers claude,cursor` (default remains `antigravity`).
 
+**Research report (195193 picked advisory gap):** [reports/PICKED_ADVISORY_GAP_195193_2026-06-21.md](../reports/PICKED_ADVISORY_GAP_195193_2026-06-21.md)
+
 ## Questions
 
 1. How do CLI providers behave when editorial **priority modes** change?

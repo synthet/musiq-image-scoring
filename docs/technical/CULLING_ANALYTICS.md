@@ -26,7 +26,7 @@ Library/folder analytics expose **two flag layers**:
 
 **Note:** `SelectionService` writes `cull_decision` on every auto-cull run and (since 2026-06)
 also syncs `pick_status` via `batch_update_cull_decisions`. Libraries upgraded before that
-change need a one-time backfill: `python -m scripts.backfill_pick_status_from_cull_decision`.
+change need a one-time backfill: `python scripts/maintenance/backfill_pick_status_from_cull_decision.py`.
 
 Session scope uses `culling_picks.decision` (`flags` on session endpoint).
 
@@ -118,7 +118,7 @@ keeper-vs-reject **concordance 0.986**.
 
 - **Compute/storage:** [`modules/clip_quality.py`](../../modules/clip_quality.py) →
   `image_model_scores` (`model_name = clip_quality_v0`); surfaces in the API as
-  `clip_quality_v0_score`. Backfill: `python -m scripts.backfill_clip_quality`.
+  `clip_quality_v0_score`. Backfill: `python scripts/maintenance/backfill_clip_quality.py`.
 - **Phase-order note:** `clip_vit_b32_image` is normally produced in the *keywords*
   phase (after culling). When `culling.clip_quality.enabled`, culling JIT-generates it
   for stacked images via `ensure_embeddings_for_space` (same pattern as two-level

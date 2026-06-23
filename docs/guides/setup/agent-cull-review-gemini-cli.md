@@ -14,7 +14,7 @@ Enable **agent-assisted cull review** (`culling.agent_review` in `config.json`) 
 
 **Default (June 2026+):** [Antigravity CLI](https://antigravity.google/download#antigravity-cli) (`agy`) — Google’s replacement for individual **Gemini CLI** sign-in. **Legacy:** Gemini CLI with an API key still works via `provider: gemini`.
 
-**Related:** [agent-assisted cull review spec](../../specs/agent-assisted-cull-review/INDEX.md) · Gallery panel: [`AgentCullReviewPanel`](https://github.com/synthet/image-scoring-gallery/blob/main/src/components/CullingAnalytics/AgentCullReviewPanel.tsx)
+**Related:** [agent-assisted cull review spec](../../specs/agent-assisted-cull-review/INDEX.md) · [Picked advisory gap research (195193)](../../reports/PICKED_ADVISORY_GAP_195193_2026-06-21.md) · Gallery panel: [`AgentCullReviewPanel`](https://github.com/synthet/image-scoring-gallery/blob/main/src/components/CullingAnalytics/AgentCullReviewPanel.tsx)
 
 ## Prerequisites
 

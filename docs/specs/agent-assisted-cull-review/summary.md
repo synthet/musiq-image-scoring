@@ -17,6 +17,7 @@ The live matrix found that a **picked hero** (image 195193, stack #29157) had a 
 - Each advisory: `image_id` (a picked id), `filename`, `issue` (`misfocus`|`blur`|`exposure`|`composition`|`other`), `confidence`, `reason`, `suggested_alternatives` (picked ids), `risk_flags`.
 - Persisted as **advisory-only** recommendations: `agent_decision='advisory'`, `final_decision='keep'`, `candidate_status='pick_quality_advisory'`. They **never** participate in `apply-candidates`/remove gates and never change `pick_status`.
 - Validation (`schema.py`): advisory `image_id` must be picked, `suggested_alternatives ⊆ picked_image_ids`, and visual issues require the pick to be in `viewed_image_ids` when `require_vision_evidence` is on.
+- **Prompt fix (2026-06-21):** default `picked_audit_snippet` is **`picked_quality_audit_snippet_strict_v2.txt`** (mandatory per-pick checklist + worked example). Research: [reports/PICKED_ADVISORY_GAP_195193_2026-06-21.md](../reports/PICKED_ADVISORY_GAP_195193_2026-06-21.md).
 
 ## Hard rules (non-negotiable)
 

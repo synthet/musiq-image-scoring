@@ -4,7 +4,7 @@ title: Documentation Index
 description: Categorized map of the image-scoring-backend documentation bundle.
 resource: INDEX.md
 tags: [docs, index, navigation, okf]
-timestamp: 2026-06-16T00:00:00Z
+timestamp: 2026-06-21T00:00:00Z
 okf_version: 0.1
 ---
 
@@ -52,7 +52,7 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 |---|---|
 | [IMAGE_PIPELINE.md](IMAGE_PIPELINE.md) | Pipeline hub: ingestion, metadata, scoring, culling, keywords, embeddings, RAW/NEF. |
 | [EXPORT_PIPELINE.md](EXPORT_PIPELINE.md) | Export and output paths hub. |
-| [guides/CULLING_EMBEDDING_BACKFILL.md](guides/CULLING_EMBEDDING_BACKFILL.md) | Backfill embeddings for culling. |
+| [guides/CULLING_EMBEDDING_BACKFILL.md](guides/CULLING_EMBEDDING_BACKFILL.md) | Culling embedding backfill, sub-stack rebuild, library-wide re-cluster rollout. |
 | [technical/PIPELINE_TERMINOLOGY.md](technical/PIPELINE_TERMINOLOGY.md) | Canonical phase codes, operation tokens, and UI labels. |
 | [technical/PIPELINE_PHASE_RUNNERS.md](technical/PIPELINE_PHASE_RUNNERS.md) | Runner behavior by phase. |
 | [technical/RUN_OPTIONS_MODE_MATRIX.md](technical/RUN_OPTIONS_MODE_MATRIX.md) | Runs submit modes and dispatcher options. |
@@ -166,6 +166,7 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | Page | Purpose |
 |---|---|
 | [reports/INDEX.md](reports/INDEX.md) | Reports index. |
+| [reports/PICKED_ADVISORY_GAP_195193_2026-06-21.md](reports/PICKED_ADVISORY_GAP_195193_2026-06-21.md) | Agent cull picked-image advisory gap — forensics and strict_v2 fix. |
 | [reports/RUN_ORCHESTRATION_AUDIT_2026-04-17.md](reports/RUN_ORCHESTRATION_AUDIT_2026-04-17.md) | Run orchestration audit. |
 | [reports/CODE_REVIEW_2026-04-15.md](reports/CODE_REVIEW_2026-04-15.md) | Code review report. |
 | [reports/CODE_DESIGN_REVIEW_2026-04-18.md](reports/CODE_DESIGN_REVIEW_2026-04-18.md) | Code/design review. |

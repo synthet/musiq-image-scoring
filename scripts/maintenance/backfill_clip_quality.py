@@ -5,7 +5,7 @@ Computes the auxiliary CLIP prompt-quality score from already-persisted
 ``clip_vit_b32_image`` (512-d) embeddings and upserts it into
 ``image_model_scores`` (model ``clip_quality_v0``). Images without a B/32
 embedding are skipped (``ensure=False`` — no GPU image inference here; run the
-keywords phase or ``scripts/backfill_culling_embeddings.py --space
+keywords phase or ``scripts/maintenance/backfill_culling_embeddings.py --space
 clip_vit_b32_image`` first if you need to generate them).
 
 Run in WSL with the app venv (CLIP text tower)::

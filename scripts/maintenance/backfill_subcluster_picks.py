@@ -12,14 +12,14 @@ Usage examples
 --------------
 
     # Dry run across the whole DB, default threshold from config
-    python scripts/backfill_subcluster_picks.py --dry-run
+    python scripts/maintenance/backfill_subcluster_picks.py --dry-run
 
     # Live run, restrict to a folder subtree, custom threshold
-    python scripts/backfill_subcluster_picks.py \\
+    python scripts/maintenance/backfill_subcluster_picks.py \\
         --folder /mnt/d/Photos/2024 --threshold 0.05
 
     # Live run, also rewrite XMP sidecars
-    python scripts/backfill_subcluster_picks.py --write-sidecars
+    python scripts/maintenance/backfill_subcluster_picks.py --write-sidecars
 
 The script overwrites ``IMAGES.cull_decision`` and (optionally) XMP
 sidecars in place. Manual user picks stored in the same column WILL be

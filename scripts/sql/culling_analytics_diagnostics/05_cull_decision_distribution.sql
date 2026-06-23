@@ -235,7 +235,7 @@ ORDER BY n DESC
 LIMIT 15;
 
 -- ---------------------------------------------------------------------------
--- 7) One-time pick_status backfill (run via scripts/backfill_pick_status_from_cull_decision.py)
+-- 7) One-time pick_status backfill (run via scripts/maintenance/backfill_pick_status_from_cull_decision.py)
 -- ---------------------------------------------------------------------------
 -- UPDATE images
 -- SET pick_status = CASE LOWER(TRIM(cull_decision))

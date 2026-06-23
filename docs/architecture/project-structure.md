@@ -1,6 +1,16 @@
+---
+type: Architecture
+title: Project Structure
+description: Repository layout for image-scoring-backend — entry points, modules, scripts, tests, and docs.
+resource: architecture/project-structure.md
+tags: [docs, architecture, layout, scripts, okf]
+timestamp: 2026-06-21T00:00:00Z
+okf_version: 0.1
+---
+
 # Project Structure
 
-**Last updated**: 2026-03-08
+**Last updated**: 2026-06-21
 
 ## Overview
 
@@ -33,13 +43,20 @@ Common entry points you’ll actually use:
 
 - `scripts/`: utilities, batch files, PowerShell scripts, and maintenance helpers
   - `scripts/python/`: Core batch processor (`batch_process_images.py`), single image scorer (`run_all_musiq_models.py`), gallery generator (`gallery_generator.py`), GUI wrapper (`scoring_gui.py`)
-  - `scripts/powershell/`, `scripts/batch/`: Windows launchers and wrappers
-  - `scripts/maintenance/`: DB maintenance, backfill, cleanup scripts
+  - `scripts/powershell/`, `scripts/batch/`: Windows launchers and wrappers (e.g. `resume_recluster.bat`)
+  - `scripts/maintenance/`: DB maintenance, backfill, cleanup scripts (culling backfills, EXIF, embeddings)
+  - `scripts/research/`: CLIP culling experiments and rollout tools (`research/clip_culling/`)
+  - `scripts/study/`: Agent-assisted cull study scripts (`agent_cull_*.py`)
+  - `scripts/wsl/`: WSL test runner and agent CLI wrappers
+
+Agent scratch (gitignored): `.agent/tmp/` (ephemeral probes), `.agent/study/runs/` (study matrix JSON).
 
 When running scripts from the root directory, you may need to adjust paths or execute them from their respective subfolders. Example:
 ```powershell
 .\scripts\powershell\process_nef_folder.ps1 -FolderPath "D:\Photos\..."
 ```
+
+See also: [`scripts/README.md`](../../scripts/README.md) · [Culling embedding backfill runbook](../guides/CULLING_EMBEDDING_BACKFILL.md)
 
 ## Tests
 

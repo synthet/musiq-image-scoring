@@ -56,7 +56,7 @@ def load_current_image_states(image_ids: list[int]) -> dict[int, ImageState]:
         return {}
     connector = db.get_connector()
     placeholders = ",".join("?" * len(image_ids))
-    rows = connector.query_all(
+    rows = connector.query(
         f"SELECT id, pick_status, cull_decision FROM images WHERE id IN ({placeholders})",
         tuple(image_ids),
     )

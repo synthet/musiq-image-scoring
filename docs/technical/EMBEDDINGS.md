@@ -85,7 +85,7 @@ Treat a new space as **not interchangeable** with MobileNet embeddings without m
 The last four are **optional culling towers** (registered by migration `0029`).
 They are produced by `modules/embedding_extractors.py` and persisted via
 `modules/culling_embeddings.ensure_embeddings_for_space` (JIT during culling when
-`culling.two_level.enabled`) or bulk `scripts/backfill_culling_embeddings.py`.
+`culling.two_level.enabled`) or bulk `scripts/maintenance/backfill_culling_embeddings.py`.
 They become selectable per two-level culling level. See
 [two-level-culling.md](../features/planned/embeddings/two-level-culling.md#selectable-embedding-spaces-integrating-new-culling-models)
 and [the culling model recommendation](../reports/CULLING_MODEL_RECOMMENDATION_2026-05-29.md).
