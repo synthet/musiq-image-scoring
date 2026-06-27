@@ -188,13 +188,20 @@ def _reconcile_stale_ips_for_drive() -> None:
     # while the planner correctly finds no work → nothing_to_queue / loop_detected churn.
     # Marking them done lets the drive reach genuinely-incomplete folders.
     try:
-        db.reconcile_phantom_complete_image_phases(("scoring", "keywords"), limit=5000)
+        db.reconcile_phantom_complete_image_phases(
+            ("scoring", "keywords", "culling"),
+            limit=5000,
+        )
     except Exception:
         logger.debug("runs_autodrive: reconcile phantom-complete IPS failed", exc_info=True)
     try:
         db.reset_false_complete_metadata_phases(limit=500)
     except Exception:
         logger.debug("runs_autodrive: reset false-complete metadata IPS failed", exc_info=True)
+    try:
+        db.reset_retryable_stale_phase_failures(limit=500)
+    except Exception:
+        logger.debug("runs_autodrive: reset retryable stale phase failures failed", exc_info=True)
 
 
 def _autodrive_config_bool(key: str, *, default: bool = True) -> bool:
@@ -676,7 +683,7 @@ def _phase_view(row: dict[str, Any], fallback_total: int) -> dict[str, Any]:
     ready = done + skipped
     percent = round((ready / total) * 100.0, 1) if total > 0 else 0.0
     status = _status(row.get("status"))
-    if status == "not_started" and total > 0 and failed > 0:
+    if status in ("not_started", "partial") and total > 0 and failed > 0 and failed >= total:
         status = "failed"
     return {
         "code": str(row.get("code") or "").strip().lower(),
@@ -1534,6 +1541,7 @@ def auto_drive_runs(
     target_phases: Optional[Sequence[Any]] = None,
     max_repeats: int = 2,
     generate_captions: bool = True,
+    force: bool = False,
 ) -> dict[str, Any]:
     limit = max(1, min(_as_int(limit, 50), 500))
     max_repeats = max(1, min(_as_int(max_repeats, 2), 20))
@@ -1670,7 +1678,7 @@ def auto_drive_runs(
         effective_attempts = failure_attempts
         if completed_attempts > 0 and not made_progress:
             effective_attempts += completed_attempts
-        if effective_attempts >= max_repeats:
+        if effective_attempts >= max_repeats and not (force and scoped_request):
             # Don't loop-block when the blocking attempts were no-op COMPLETIONS (empty
             # plans, e.g. claims blocked the work at the time) and the folder still has
             # genuinely un-attempted work (attempt_count == 0). A no-op completion is not
@@ -1958,16 +1966,54 @@ def _classify_drive_tick(
     return None, "idle"
 
 
+def _skipped_detail_for_summary(
+    skipped: Sequence[dict[str, Any]],
+    *,
+    max_items: int = 20,
+) -> list[dict[str, Any]]:
+    """Compact skip rows for drive status / UI (paths + reasons, no huge image lists)."""
+    out: list[dict[str, Any]] = []
+    for item in list(skipped or [])[:max_items]:
+        entry: dict[str, Any] = {
+            "folder_path": item.get("folder_path"),
+            "reason": item.get("reason"),
+            "phases": item.get("phases") or [],
+        }
+        if item.get("attempts") is not None:
+            entry["attempts"] = item.get("attempts")
+        if item.get("failed_phase"):
+            entry["failed_phase"] = item.get("failed_phase")
+        failed_images = item.get("failed_images") or []
+        if failed_images:
+            entry["failed_images"] = [
+                {
+                    "image_id": fi.get("image_id"),
+                    "file_path": fi.get("file_path"),
+                    "attempt_count": fi.get("attempt_count"),
+                    "last_error": (str(fi.get("last_error") or "")[:200] or None),
+                }
+                for fi in failed_images[:5]
+            ]
+            if len(failed_images) > 5:
+                entry["failed_images_truncated"] = len(failed_images) - 5
+        if item.get("error"):
+            entry["error"] = str(item.get("error"))[:200]
+        out.append(entry)
+    return out
+
+
 def _summarize_result(result: Dict[str, Any], *, last_tick_reason: str = "") -> Dict[str, Any]:
     bucket_counts = result.get("bucket_counts", {}) or {}
     health = result.get("health") or _bucket_health_from_counts(bucket_counts)
+    skipped_raw = result.get("skipped", []) or []
     summary: Dict[str, Any] = {
         "scheduled": len(result.get("scheduled", []) or []),
-        "skipped": len(result.get("skipped", []) or []),
+        "skipped": len(skipped_raw),
         "candidates": _as_int(result.get("candidates")),
         "total_outstanding": _as_int(result.get("total_outstanding")),
         "loop_detected": _as_int(result.get("loop_detected")),
         "skip_reason_counts": dict(result.get("skip_reason_counts") or {}),
+        "skipped_detail": _skipped_detail_for_summary(skipped_raw),
         "bucket_counts": bucket_counts,
         "health": health,
     }

@@ -9917,6 +9917,22 @@ def get_culling_incomplete_predicate_sql(
     )
 
 
+def is_image_culling_work_complete(image_id: int) -> bool:
+    """True when the image is complete per :func:`get_phase_incomplete_sql` for culling.
+
+    Aligns JIT planner skips with workflow healing and phantom-complete reconcile —
+    ``cull_decision`` alone is not enough when stacks/embeddings/cohesion still need work.
+    """
+    if not image_id:
+        return False
+    incomplete_sql = get_culling_incomplete_predicate_sql("i", cohesion_folders_expr=None)
+    row = get_connector().query_one(
+        f"SELECT 1 AS x FROM images i WHERE i.id = ? AND NOT ({incomplete_sql})",
+        (int(image_id),),
+    )
+    return bool(row)
+
+
 def _sql_image_has_birds_keyword(table_alias: str = "i") -> str:
     """True when the image has a birds keyword (normalized or legacy column)."""
     prefix = f"{table_alias}." if table_alias else ""
@@ -10164,8 +10180,11 @@ def reset_image_phase_status(image_ids: List[int], phase_code: str) -> int:
         for i in range(0, len(image_ids), chunk_size):
             chunk = image_ids[i:i + chunk_size]
             placeholders = ",".join(["?"] * len(chunk))
-            sql = f"UPDATE image_phase_status SET status = 'not_started', updated_at = CURRENT_TIMESTAMP " \
-                  f"WHERE phase_id = ? AND image_id IN ({placeholders})"
+            sql = (
+                f"UPDATE image_phase_status SET status = 'not_started', "
+                f"attempt_count = 0, updated_at = CURRENT_TIMESTAMP "
+                f"WHERE phase_id = ? AND image_id IN ({placeholders})"
+            )
             params = [phase_id] + list(chunk)
             c.execute(sql, tuple(params))
             updated_total += c.rowcount
@@ -10289,6 +10308,50 @@ def get_image_metadata_asset_gap_reason(image_id: int) -> Optional[str]:
     if capture_missing:
         return "missing_exif_capture_date"
     return None
+
+
+def reset_retryable_stale_phase_failures(*, limit: int = 500) -> int:
+    """Reset ``failed`` IPS rows from stale job reconciliation so autodrive can retry.
+
+    Job cancel/interrupt reconcilers sometimes mark in-flight rows ``failed`` with
+    ``stale_running_reconciled`` even though no real attempt finished. Those rows
+    pin folder rollups on a red failed icon while most images were never tried.
+    """
+    try:
+        lim = max(1, int(limit))
+    except (TypeError, ValueError):
+        lim = 500
+    rows = get_connector().query(
+        """
+        SELECT ips.image_id, pp.code AS phase_code
+        FROM image_phase_status ips
+        JOIN pipeline_phases pp ON pp.id = ips.phase_id
+        WHERE LOWER(TRIM(ips.status)) = 'failed'
+          AND LOWER(COALESCE(ips.last_error, '')) LIKE 'stale_running_reconciled%'
+        ORDER BY ips.image_id
+        FETCH FIRST ? ROWS ONLY
+        """,
+        (lim,),
+    ) or []
+    reset = 0
+    for row in rows:
+        image_id = int(row["image_id"])
+        code = str(row.get("phase_code") or "").strip().lower()
+        if not code:
+            continue
+        try:
+            set_image_phase_status(image_id, code, "not_started")
+            reset += 1
+        except Exception:
+            logger.debug(
+                "reset_retryable_stale_phase_failures failed image_id=%s phase=%s",
+                image_id,
+                code,
+                exc_info=True,
+            )
+    if reset:
+        logger.info("reset_retryable_stale_phase_failures: reset %s row(s)", reset)
+    return reset
 
 
 def reset_false_complete_metadata_phases(*, limit: int = 500) -> int:
@@ -14850,7 +14913,9 @@ def get_folder_phase_summary(folder_path, force_refresh=False):
             elif done > 0 or skipped > 0:
                 status = "partial"
             elif failed > 0:
-                status = "failed"
+                # Minority failures among mostly un-attempted images are partial,
+                # not folder-fatal — avoids a red "failed" rollup when 13/674 failed.
+                status = "failed" if failed >= total else "partial"
             else:
                 status = "not_started"
 

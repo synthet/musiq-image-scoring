@@ -271,13 +271,22 @@ class TestFolderPhaseSummary:
         # Active work: running_count > 0 maps to status 'running' (see get_folder_phase_summary)
         assert summary[PhaseCode.SCORING.value]['status'] == 'running'
 
-        # failed when no done/skipped/running exists and at least one failed
+        # partial when some failed but most images were never attempted
         fail_folder = base_root + "_failed"
         fimg, _ = _insert_image_with_folder(fail_folder, "fail_1.jpg")
         _insert_image_with_folder(fail_folder, "fail_2.jpg")
         db.set_image_phase_status(fimg, PhaseCode.KEYWORDS, PhaseStatus.FAILED)
         fsum = {r['code']: r for r in db.get_folder_phase_summary(fail_folder, force_refresh=True)}
-        assert fsum[PhaseCode.KEYWORDS.value]['status'] == 'failed'
+        assert fsum[PhaseCode.KEYWORDS.value]['status'] == 'partial'
+
+        # failed only when every image in scope failed
+        all_fail_folder = base_root + "_all_failed"
+        af1, _ = _insert_image_with_folder(all_fail_folder, "af_1.jpg")
+        af2, _ = _insert_image_with_folder(all_fail_folder, "af_2.jpg")
+        db.set_image_phase_status(af1, PhaseCode.KEYWORDS, PhaseStatus.FAILED)
+        db.set_image_phase_status(af2, PhaseCode.KEYWORDS, PhaseStatus.FAILED)
+        afsum = {r['code']: r for r in db.get_folder_phase_summary(all_fail_folder, force_refresh=True)}
+        assert afsum[PhaseCode.KEYWORDS.value]['status'] == 'failed'
 
         # skipped when every image is skipped
         skip_folder = base_root + "_skipped"

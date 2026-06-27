@@ -17,10 +17,12 @@ from __future__ import annotations
 from modules.agent_cull.apply import PICK_QUALITY_ADVISORY_STATUS
 
 # ``agent_cull_recommendations.candidate_status`` — see ``apply.py`` (proposed /
-# agent_remove_candidate / pick_quality_advisory) and ``operator.py``
-# (operator_approved / operator_rejected). ``rollback.py`` restores the prior
-# value rather than introducing a new one, so ``rolled_back`` is NOT a
-# recommendation candidate_status (it is only a *group* status, below).
+# agent_remove_candidate / pick_quality_advisory), ``operator.py``
+# (operator_approved / operator_rejected), and ``actions.py``
+# (operator_deleted — terminal status after delete-approved permanently removes
+# the file + DB record). ``rollback.py`` restores the prior value rather than
+# introducing a new one, so ``rolled_back`` is NOT a recommendation
+# candidate_status (it is only a *group* status, below).
 CANDIDATE_STATUSES: tuple[str, ...] = (
     "none",
     "proposed",
@@ -28,6 +30,7 @@ CANDIDATE_STATUSES: tuple[str, ...] = (
     PICK_QUALITY_ADVISORY_STATUS,
     "operator_approved",
     "operator_rejected",
+    "operator_deleted",
 )
 
 # ``agent_cull_recommendations.agent_decision`` — the raw per-image decision

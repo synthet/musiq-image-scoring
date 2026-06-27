@@ -240,7 +240,7 @@ def test_policy_skips_bird_species_when_done_same_version(monkeypatch):
 
 
 def test_policy_runs_culling_when_similarity_artefacts_missing(monkeypatch):
-    """Re-run when pick/reject exists but Mobilenet/stack fingerprints do not."""
+    """Re-run when IPS says done but the healing completeness predicate still fails."""
     monkeypatch.setattr(
         phases_policy.db,
         "get_image_phase_statuses",
@@ -248,13 +248,8 @@ def test_policy_runs_culling_when_similarity_artefacts_missing(monkeypatch):
     )
     monkeypatch.setattr(
         phases_policy.db,
-        "is_image_culling_complete",
-        lambda image_id: True,
-    )
-    monkeypatch.setattr(
-        phases_policy.db,
-        "is_image_culling_similarity_artefacts_missing",
-        lambda image_id: True,
+        "is_image_culling_work_complete",
+        lambda image_id: False,
     )
     PhaseRegistry.register(
         PhaseExecutor(code=PhaseCode.CULLING, executor_version="1.0.0"),
@@ -264,7 +259,7 @@ def test_policy_runs_culling_when_similarity_artefacts_missing(monkeypatch):
         1, PhaseCode.CULLING, current_executor_version="1.0.0"
     )
     assert decision["should_run"] is True
-    assert decision["reason"] == "missing_similarity_artefacts"
+    assert decision["reason"] == "missing_culling_work"
 
 
 def test_policy_skips_culling_when_similarity_artefacts_present(monkeypatch):
@@ -275,13 +270,8 @@ def test_policy_skips_culling_when_similarity_artefacts_present(monkeypatch):
     )
     monkeypatch.setattr(
         phases_policy.db,
-        "is_image_culling_complete",
+        "is_image_culling_work_complete",
         lambda image_id: True,
-    )
-    monkeypatch.setattr(
-        phases_policy.db,
-        "is_image_culling_similarity_artefacts_missing",
-        lambda image_id: False,
     )
     PhaseRegistry.register(
         PhaseExecutor(code=PhaseCode.CULLING, executor_version="1.0.0"),
@@ -384,3 +374,30 @@ def test_policy_skips_scoring_when_canonical_executor_version_matches(monkeypatc
     decision = phases_policy.explain_phase_run_decision(1, PhaseCode.SCORING)
     assert decision["should_run"] is False
     assert decision["reason"] == "already_done_current_executor"
+
+
+def test_culling_not_started_runs_when_healing_predicate_incomplete(monkeypatch):
+    """Culling policy must follow healing completeness, not cull_decision alone."""
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_phase_statuses",
+        lambda _i: {"culling": {"status": "not_started", "executor_version": "1.0.0"}},
+    )
+    monkeypatch.setattr(phases_policy.db, "is_image_culling_work_complete", lambda _i: False)
+
+    decision = phases_policy.explain_phase_run_decision(1, PhaseCode.CULLING)
+    assert decision["should_run"] is True
+    assert decision["reason"] == "status_not_started"
+
+
+def test_culling_not_started_skips_when_healing_predicate_complete(monkeypatch):
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_phase_statuses",
+        lambda _i: {"culling": {"status": "not_started", "executor_version": "1.0.0"}},
+    )
+    monkeypatch.setattr(phases_policy.db, "is_image_culling_work_complete", lambda _i: True)
+
+    decision = phases_policy.explain_phase_run_decision(1, PhaseCode.CULLING)
+    assert decision["should_run"] is False
+    assert decision["reason"] == "data_complete_status_not_started"

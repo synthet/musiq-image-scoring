@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.11.0] - 2026-06-27
+
+### Added
+
+- **Agent cull review — permanent delete of approved removals**: New `POST /api/culling/agent-review/groups/{group_id}/delete-approved` (`delete_approved_action`). For a validated, non-stale group it **permanently deletes the file (+ thumbnails) from disk and the `images` DB record** (via `db.delete_image(delete_related=True)` + `os.remove`) for every `operator_approved` removal, marking each recommendation `operator_deleted`. **Irreversible** and requires `confirm: true` in the request body (returns `confirmation_required` otherwise). Only approved removals are touched; advisories and un-approved recommendations are left intact. Tests in `tests/test_agent_cull_actions.py`.
+
+### Fixed
+
+- **Dashboard folder pipeline — culling false “failed” icon**: Folder phase rollups no longer show a red failed state when only a minority of images failed (e.g. 13/674 `stale_running_reconciled` rows while the rest were never attempted). Those retryable stale failures are reset to `not_started` during auto-drive reconcile, and culling completeness checks now use `is_image_culling_work_complete` consistently in phase policy.
+
 ## [8.10.0] - 2026-06-22
 
 ### Added

@@ -1693,6 +1693,12 @@ class AgentCullRecommendationIdsRequest(BaseModel):
     note: Optional[str] = None
 
 
+class AgentCullDeleteApprovedRequest(BaseModel):
+    actor: str = "operator"
+    #: Server-side safety: callers must pass true to perform the irreversible delete.
+    confirm: bool = False
+
+
 class AgentCullPickStatusRequest(BaseModel):
     pick_status: int = Field(..., ge=-1, le=1)
 
@@ -5339,6 +5345,43 @@ def create_api_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e))
 
     @router.post(
+        "/culling/agent-review/groups/{group_id}/delete-approved",
+        summary="Permanently delete files + DB records for operator-approved removals",
+    )
+    async def delete_approved_agent_cull_group(group_id: int, request: AgentCullDeleteApprovedRequest):
+        """IRREVERSIBLE. Deletes the source file, thumbnails, and DB record for every
+        operator-approved remove candidate in a validated group. Requires ``confirm: true``."""
+        from modules.agent_cull.actions import delete_approved_action
+        from modules.culling_analytics._common import require_postgres
+
+        if not request.confirm:
+            raise HTTPException(status_code=400, detail="confirmation_required")
+        try:
+            require_postgres()
+            result = delete_approved_action(group_id, actor=request.actor)
+            if not result.get("ok"):
+                err = result.get("error")
+                if err == "group_not_found":
+                    code = 404
+                elif err == "agent_review_disabled":
+                    code = 403
+                elif err in ("dry_run_group", "stale_group_state"):
+                    code = 409
+                elif err == "delete_failed":
+                    code = 500
+                else:
+                    code = 400
+                raise HTTPException(status_code=code, detail=err)
+            return result
+        except ValueError as e:
+            raise HTTPException(status_code=501, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception("delete_approved_agent_cull_group failed")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.post(
         "/culling/agent-review/recommendations/{recommendation_id}/rollback",
         summary="Rollback recommendation candidate status",
     )
@@ -6722,6 +6765,13 @@ def create_api_router() -> APIRouter:
             True,
             description="Generate captions during keywords runs.",
         )
+        force: bool = Field(
+            False,
+            description=(
+                "When true with explicit folder_paths, bypass the loop guard for a "
+                "manual per-folder queue (Drive batch still respects max_repeats)."
+            ),
+        )
 
     @router.post("/runs/plan/preview", summary="Preview stale/missing work for scope")
     @router.post("/runs/validation-repair/preview", summary="Preview stale/missing work for scope (alias)")
@@ -6814,6 +6864,7 @@ def create_api_router() -> APIRouter:
                 target_phases=request.target_phases,
                 max_repeats=request.max_repeats,
                 generate_captions=request.generate_captions,
+                force=request.force,
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e

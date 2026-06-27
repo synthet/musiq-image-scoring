@@ -34,6 +34,7 @@ The shapes are produced by
 | `pick_quality_advisory` | Informational advisory on a **picked** image — never a remove candidate. | `apply.py` |
 | `operator_approved` | Operator approved the removal. | `operator.py` |
 | `operator_rejected` | Operator dismissed/rejected the removal. | `operator.py` |
+| `operator_deleted` | Terminal: the file **and** DB record were permanently deleted via `delete-approved`. | `actions.py` |
 
 > **`rolled_back` is not a recommendation status.** Rollback restores the
 > recommendation's `prior_candidate_status`; only the *group* status becomes

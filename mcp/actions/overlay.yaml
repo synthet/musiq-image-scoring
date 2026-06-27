@@ -520,6 +520,36 @@ actions:
       function: get_run_diagnostics
     legacy_tool_name: get_run_diagnostics
 
+  jobs.get_drive_diagnostics:
+    title: Auto-drive diagnostics
+    description: Drive loop state, schedulable folder health, loop-guard skips, and duplicate active plan keys.
+    category: jobs
+    tags: [auto-drive, drive, folder health, loop guard]
+    aliases: [drive diagnostics, auto drive status, drive stall]
+    intent_examples:
+      - why did drive stall
+      - auto drive loop health
+      - schedulable folders drive status
+    side_effect_level: read_only
+    confirmation_required: false
+    dry_run_supported: false
+    dispatch_enabled: true
+    review_required: false
+    compact_profile_exposure: true
+    version: 1
+    deprecated: false
+    canonical_docs: [docs/technical/MCP_DEBUGGING_TOOLS.md]
+    api_contract_refs: []
+    auth_or_policy_requirements: [requires_db]
+    input_schema:
+      type: object
+      additionalProperties: false
+    canonical_backend_handler:
+      kind: python_function
+      module: modules.mcp_server
+      function: get_drive_diagnostics
+    legacy_tool_name: get_drive_diagnostics
+
   jobs.get_runner_status:
     title: Runner status
     description: Scoring, tagging, clustering, and related in-process runner state (WebUI process).

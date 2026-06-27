@@ -590,6 +590,86 @@ def test_auto_drive_loop_guard_skips_repeated_plan(monkeypatch):
     assert result["skipped"][0]["last_run_id"] == 77
 
 
+def test_force_bypasses_loop_guard_for_scoped_folder(monkeypatch):
+    folder = "/mnt/d/Photos/2026-05-04"
+    monkeypatch.setattr(
+        runs_autodrive,
+        "build_folder_buckets_for_autodrive",
+        lambda **_kwargs: {
+            "items": [
+                {
+                    "path": folder,
+                    "bucket": "awaiting_scoring",
+                    "next_phases": ["scoring"],
+                    "plan_key": "repeat",
+                    "overall_percent": 50.0,
+                }
+            ],
+            "total": 1,
+            "bucket_counts": {"awaiting_scoring": 1},
+            "phase_counts": {"scoring": 1},
+        },
+    )
+    monkeypatch.setattr(
+        runs_autodrive,
+        "_recent_auto_attempt_counts",
+        lambda *_a, **_k: {
+            "repeat": {
+                "failure_attempts": 2,
+                "completed_attempts": 0,
+                "last_completed_percent": 0.0,
+                "last_run_id": 77,
+                "last_status": "failed",
+            }
+        },
+    )
+    monkeypatch.setattr(
+        runs_autodrive,
+        "_resolve_enqueue_phases_with_refresh",
+        lambda *_a, **_k: ["scoring"],
+    )
+    monkeypatch.setattr(
+        runs_autodrive,
+        "_enqueue_auto_bucket",
+        lambda *_a, **_k: (42, 1, None),
+    )
+    monkeypatch.setattr(runs_autodrive.db, "count_running_pipeline_jobs", lambda **_k: 0)
+
+    result = runs_autodrive.auto_drive_runs(
+        dry_run=False,
+        max_repeats=2,
+        force=True,
+        folder_paths=[folder],
+    )
+
+    assert result["loop_detected"] == 0
+    assert len(result["scheduled"]) == 1
+    assert result["scheduled"][0]["job_id"] == 42
+
+
+def test_summarize_result_includes_skipped_detail():
+    result = {
+        "scheduled": [],
+        "skipped": [
+            {
+                "folder_path": "/mnt/d/x",
+                "reason": "failed_exhausted",
+                "failed_phase": "culling",
+                "failed_images": [{"image_id": 1, "file_path": "/a.jpg", "attempt_count": 3}],
+            }
+        ],
+        "candidates": 1,
+        "total_outstanding": 1,
+        "loop_detected": 1,
+        "skip_reason_counts": {"failed_exhausted": 1},
+        "bucket_counts": {"awaiting_culling": 1},
+    }
+    summary = runs_autodrive._summarize_result(result, last_tick_reason="no_enqueue_progress")
+    assert summary["skipped"] == 1
+    assert summary["skipped_detail"][0]["reason"] == "failed_exhausted"
+    assert summary["skipped_detail"][0]["failed_images"][0]["file_path"] == "/a.jpg"
+
+
 def test_recent_auto_attempt_counts_includes_in_flight_jobs(monkeypatch):
     rows = [
         {

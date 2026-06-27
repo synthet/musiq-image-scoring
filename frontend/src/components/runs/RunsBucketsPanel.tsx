@@ -22,7 +22,7 @@ import {
 import { RUNS_DRIVE_STATUS_KEY, RUNS_QUERY_ROOT } from '@/queryKeys/runs'
 import { useUiStore } from '@/stores/uiStore'
 import { useWsStore } from '@/stores/wsStore'
-import type { RunFolderBucket, RunsAutoDriveResult, StageCode } from '@/types/api'
+import type { RunFolderBucket, RunsAutoDriveResult, RunsAutoDriveSkipDetail, StageCode } from '@/types/api'
 import { STAGE_DISPLAY } from '@/types/api'
 import {
   NextChainPhaseIcons,
@@ -76,6 +76,57 @@ function splitPath(path: string) {
   }
 }
 
+function skipReasonLabel(reason: string | undefined): string {
+  return (reason || 'unknown').replace(/_/g, ' ')
+}
+
+function folderLeaf(path: string | undefined): string {
+  if (!path) return '—'
+  const parts = path.split(/[\\/]/).filter(Boolean)
+  return parts[parts.length - 1] || path
+}
+
+function SkipDetailsList({ items }: { items: RunsAutoDriveSkipDetail[] }) {
+  if (items.length === 0) return null
+  return (
+    <ul className="mt-2 space-y-2 text-[11px]">
+      {items.map((item) => (
+        <li key={`${item.folder_path}-${item.reason}`} className="rounded border border-[var(--color-border-muted)] bg-[var(--color-bg-primary)]/60 px-2 py-1.5">
+          <div className="font-medium text-[var(--color-text-primary)]">
+            {folderLeaf(item.folder_path)}
+            <span className="ml-1.5 font-normal text-[var(--color-text-muted)]">
+              — {skipReasonLabel(item.reason)}
+              {item.attempts != null ? ` (${item.attempts} attempts)` : ''}
+            </span>
+          </div>
+          {item.failed_phase && (
+            <div className="mt-0.5 text-[var(--color-text-secondary)]">
+              Phase: {STAGE_DISPLAY[item.failed_phase as StageCode]?.name ?? item.failed_phase}
+            </div>
+          )}
+          {item.failed_images && item.failed_images.length > 0 && (
+            <ul className="mt-1 max-h-24 overflow-y-auto font-mono text-[10px] text-[var(--color-text-muted)]">
+              {item.failed_images.map((img) => (
+                <li key={img.image_id ?? img.file_path} className="truncate" title={img.last_error ?? undefined}>
+                  {folderLeaf(img.file_path)}
+                  {img.attempt_count != null ? ` (×${img.attempt_count})` : ''}
+                  {img.last_error ? ` — ${img.last_error}` : ''}
+                </li>
+              ))}
+              {item.failed_images_truncated != null && item.failed_images_truncated > 0 && (
+                <li className="text-[var(--color-text-secondary)]">
+                  +{item.failed_images_truncated} more failed image(s)
+                </li>
+              )}
+            </ul>
+          )}
+          {item.error && <div className="mt-0.5 text-[var(--color-error,#f44747)]">{item.error}</div>}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function ResultBanner({ result }: { result: RunsAutoDriveResult | null }) {
   if (!result) return null
   const queued = result.scheduled.filter((x) => x.job_id).length
@@ -84,7 +135,16 @@ function ResultBanner({ result }: { result: RunsAutoDriveResult | null }) {
   const text = result.dry_run
     ? `Plan: ${planned} folder run(s), ${skipped} skipped.`
     : `Queued ${queued} folder run(s), ${skipped} skipped.`
-  const ok = result.loop_detected === 0
+  const ok = result.loop_detected === 0 && skipped === 0
+  const skipDetails: RunsAutoDriveSkipDetail[] = result.skipped.map((s) => ({
+    folder_path: s.folder_path,
+    reason: s.reason,
+    phases: s.phases,
+    attempts: s.attempts,
+    failed_phase: s.failed_phase,
+    failed_images: s.failed_images,
+    error: s.error,
+  }))
   return (
     <div
       className={`flex items-start gap-2 rounded border px-3 py-2 text-xs ${
@@ -94,7 +154,7 @@ function ResultBanner({ result }: { result: RunsAutoDriveResult | null }) {
       }`}
     >
       {ok ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" /> : <TriangleAlert size={14} className="mt-0.5 shrink-0" />}
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div>{text}</div>
         {result.loop_detected > 0 && (
           <div className="mt-1 text-[11px]">Loop guard skipped {result.loop_detected} repeated folder plan(s).</div>
@@ -103,10 +163,11 @@ function ResultBanner({ result }: { result: RunsAutoDriveResult | null }) {
           <div className="mt-1 text-[11px]">
             Skips:{' '}
             {Object.entries(result.skip_reason_counts)
-              .map(([reason, count]) => `${reason.replace(/_/g, ' ')} ${count}`)
+              .map(([reason, count]) => `${skipReasonLabel(reason)} ${count}`)
               .join(' · ')}
           </div>
         )}
+        <SkipDetailsList items={skipDetails} />
       </div>
     </div>
   )
@@ -127,7 +188,10 @@ function BucketRow({
       ? item.planner_next_phases
       : null
   const queuePhases = plannerPhases ?? item.next_phases
-  const canQueue = queuePhases.length > 0 && item.bucket !== 'blocked' && item.bucket !== 'in_flight'
+  const canQueue =
+    item.bucket !== 'blocked' &&
+    item.bucket !== 'in_flight' &&
+    (queuePhases.length > 0 || item.next_phases.length > 0)
   const showPlannerSplit =
     plannerPhases != null &&
     (plannerPhases.length !== item.next_phases.length ||
@@ -352,6 +416,7 @@ export function RunsBucketsPanel() {
   const outstandingTotal = driveStatusQuery.data?.outstanding.total_outstanding
   const lastDriveResult = drive?.last_result ?? null
   const driveHealth = lastDriveResult?.health ?? driveStatusQuery.data?.outstanding.health
+  const stallSkipDetails = lastDriveResult?.skipped_detail ?? []
   const batchInProgress = Boolean(drive?.batch_in_progress)
   const lastBatchError = drive?.last_batch_error ?? driveStatusQuery.data?.outstanding.last_batch_error
   const visibleRange = useMemo(() => {
@@ -370,6 +435,7 @@ export function RunsBucketsPanel() {
       target_phases: drivePhases,
       max_repeats: driveMaxRepeats,
       generate_captions: true,
+      force: true,
     })
   }
 
@@ -547,6 +613,12 @@ export function RunsBucketsPanel() {
               <p className="text-[11px] text-[var(--color-text-secondary)]">
                 {DRIVE_STOP_REASON_HINT[drive.stop_reason]}
               </p>
+            )}
+            {!driving && drive?.stop_reason === 'stalled' && stallSkipDetails.length > 0 && (
+              <div className="rounded border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)]/40 px-3 py-2">
+                <p className="text-[11px] font-medium text-[var(--color-warning)]">Last tick skips</p>
+                <SkipDetailsList items={stallSkipDetails} />
+              </div>
             )}
           </div>
         )}

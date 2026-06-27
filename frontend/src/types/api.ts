@@ -204,6 +204,24 @@ export interface RunsAutoDriveRequest {
   dry_run?: boolean
   max_repeats?: number
   generate_captions?: boolean
+  /** Bypass loop guard when queuing explicit folder_paths (per-row Queue). */
+  force?: boolean
+}
+
+export interface RunsAutoDriveSkipDetail {
+  folder_path?: string
+  reason?: string
+  phases?: StageCode[]
+  attempts?: number
+  failed_phase?: string
+  failed_images?: Array<{
+    image_id?: number
+    file_path?: string
+    attempt_count?: number
+    last_error?: string | null
+  }>
+  failed_images_truncated?: number
+  error?: string
 }
 
 export interface RunsAutoDriveResult {
@@ -228,6 +246,13 @@ export interface RunsAutoDriveResult {
     last_status?: string | null
     error?: string
     missing?: Record<string, string[]>
+    failed_phase?: string
+    failed_images?: Array<{
+      image_id?: number
+      file_path?: string
+      attempt_count?: number
+      last_error?: string | null
+    }>
   }>
   candidates: number
   total_outstanding: number
@@ -252,6 +277,7 @@ export interface RunsDriveLastResult {
   total_outstanding: number
   loop_detected: number
   skip_reason_counts?: Record<string, number>
+  skipped_detail?: RunsAutoDriveSkipDetail[]
   bucket_counts: Record<string, number>
   health?: RunsDriveHealth
   last_tick_reason?: string

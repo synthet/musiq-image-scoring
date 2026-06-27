@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+import os
 from typing import Any
 
-from modules.agent_cull.apply import apply_agent_remove_candidates
+from modules import audit, db
+from modules.agent_cull.apply import _coerce_dry_run, apply_agent_remove_candidates
 from modules.agent_cull.config import load_agent_cull_config
 from modules.agent_cull.discovery_db import (
     discover_eligible_units,
@@ -13,9 +16,14 @@ from modules.agent_cull.discovery_db import (
 )
 from modules.agent_cull.fingerprint import check_group_staleness
 from modules.agent_cull.operator import approve_recommendations, reject_recommendations
-from modules.agent_cull.repository import get_latest_group_for_unit
+from modules.agent_cull.repository import get_latest_group_for_unit, list_recommendations_for_group
 from modules.agent_cull.rollback import rollback_recommendation
 from modules.agent_cull.service import run_agent_review_for_unit
+
+logger = logging.getLogger(__name__)
+
+#: Terminal status for a recommendation whose image+record were permanently deleted.
+OPERATOR_DELETED_STATUS = "operator_deleted"
 
 
 def _require_enabled() -> dict[str, Any] | None:
@@ -179,6 +187,95 @@ def reject_action(
         note=note,
     )
     return {"ok": True, **result}
+
+
+def _mark_recommendation_deleted(recommendation_id: int, actor: str) -> None:
+    db.get_connector().execute(
+        """
+        UPDATE agent_cull_recommendations
+        SET prior_candidate_status = candidate_status,
+            candidate_status = ?,
+            operator_actor = ?,
+            operator_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (OPERATOR_DELETED_STATUS, actor, recommendation_id),
+    )
+
+
+def delete_approved_action(
+    group_id: int,
+    *,
+    actor: str = "operator",
+) -> dict[str, Any]:
+    """Permanently delete the FILE **and** DB record for every operator-approved remove candidate.
+
+    IRREVERSIBLE. Only runs on a validated (non-dry-run) group whose live state still matches the
+    review. Mirrors ``DELETE /images/{id}?delete_file=true``: ``db.delete_image`` removes the
+    ``images`` row plus related rows and repairs the stack, then ``os.remove`` deletes the source
+    file and thumbnails from disk. Each approved recommendation becomes ``operator_deleted``.
+    """
+    blocked = _require_enabled()
+    if blocked:
+        return blocked
+    row = get_group_row(group_id)
+    if row is None:
+        return {"ok": False, "error": "group_not_found"}
+    if _coerce_dry_run(row.get("dry_run")):
+        return {"ok": False, "error": "dry_run_group"}
+    if check_group_staleness(group_id):
+        return {"ok": False, "error": "stale_group_state"}
+
+    approved = [
+        rec
+        for rec in list_recommendations_for_group(group_id)
+        if rec.get("candidate_status") == "operator_approved"
+        and rec.get("final_decision") == "remove"
+    ]
+    if not approved:
+        return {"ok": True, "deleted": [], "updated": 0, "group_id": group_id, "error": "no_approved_candidates"}
+
+    deleted: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    with audit.audit_context(source="agent_cull", phase_code="culling"):
+        for rec in approved:
+            image_id = int(rec["image_id"])
+            img = db.get_connector().query_one(
+                "SELECT file_path, thumbnail_path, thumbnail_path_win FROM images WHERE id = ?",
+                (image_id,),
+            )
+            if not img:
+                # Image already gone from the DB — mark the recommendation terminal and move on.
+                _mark_recommendation_deleted(rec["id"], actor)
+                deleted.append({"image_id": image_id, "file_path": None, "already_absent": True})
+                continue
+
+            file_path = img.get("file_path")
+            success, msg = db.delete_image(file_path, delete_related=True)
+            if not success:
+                errors.append({"image_id": image_id, "error": msg})
+                continue
+
+            for path in (img.get("file_path"), img.get("thumbnail_path"), img.get("thumbnail_path_win")):
+                if path and os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except OSError as exc:
+                        logger.warning("agent_cull delete: could not remove %s: %s", path, exc)
+
+            _mark_recommendation_deleted(rec["id"], actor)
+            deleted.append({"image_id": image_id, "file_path": file_path})
+
+    result: dict[str, Any] = {
+        "ok": not errors,
+        "deleted": deleted,
+        "updated": len(deleted),
+        "group_id": group_id,
+    }
+    if errors:
+        result["error"] = "delete_failed"
+        result["errors"] = errors
+    return result
 
 
 def rollback_action(recommendation_id: int, *, actor: str = "operator") -> dict[str, Any]:

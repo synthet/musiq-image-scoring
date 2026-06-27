@@ -7,6 +7,7 @@ gallery type sync) are updated.
 """
 
 from modules.agent_cull import vocab
+from modules.agent_cull.actions import OPERATOR_DELETED_STATUS
 from modules.agent_cull.apply import (
     PICK_QUALITY_ADVISORY_STATUS,
     candidate_status_for_decision,
@@ -35,6 +36,7 @@ def test_candidate_statuses_cover_emitters():
     # Operator action statuses + the prerequisites they consume.
     assert "operator_approved" in vocab.CANDIDATE_STATUSES
     assert "operator_rejected" in vocab.CANDIDATE_STATUSES
+    assert OPERATOR_DELETED_STATUS in vocab.CANDIDATE_STATUSES
     assert APPROVABLE_STATUSES <= set(vocab.CANDIDATE_STATUSES)
 
 

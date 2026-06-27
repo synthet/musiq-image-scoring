@@ -41,9 +41,7 @@ def _phase_data_complete(image_id: int, code: str) -> bool | None:
     if code == PhaseCode.BIRD_SPECIES.value:
         return bool(db.is_image_bird_species_complete(image_id))
     if code == PhaseCode.CULLING.value:
-        if not db.is_image_culling_complete(image_id):
-            return False
-        return not db.is_image_culling_similarity_artefacts_missing(image_id)
+        return bool(db.is_image_culling_work_complete(image_id))
     return None
 
 
@@ -157,13 +155,9 @@ def explain_phase_run_decision(
             decision["reason"] = "missing_bird_species_data"
             return decision
     elif code == PhaseCode.CULLING.value:
-        if not db.is_image_culling_complete(image_id):
+        if not db.is_image_culling_work_complete(image_id):
             decision["should_run"] = True
-            decision["reason"] = "missing_cull_decision"
-            return decision
-        if db.is_image_culling_similarity_artefacts_missing(image_id):
-            decision["should_run"] = True
-            decision["reason"] = "missing_similarity_artefacts"
+            decision["reason"] = "missing_culling_work"
             return decision
 
     decision["should_run"] = False
