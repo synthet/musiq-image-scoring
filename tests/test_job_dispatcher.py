@@ -761,3 +761,55 @@ def test_dispatcher_reconciles_phantom_phases_before_continue(monkeypatch):
 
     assert reconciled
     assert reconciled[0]["grace_seconds"] == JobDispatcher._stale_phase_grace_sec()
+
+
+def test_explicit_stage_resolved_ids_empty_list_falls_through_for_folder_scope():
+    payload = {
+        "scope_paths": ["/mnt/d/foo"],
+        "resolved_image_ids_by_stage": {"scoring": []},
+    }
+    assert JobDispatcher._explicit_stage_resolved_ids(payload, "scoring") is None
+
+
+def test_explicit_stage_resolved_ids_nonempty_list_for_folder_scope():
+    payload = {
+        "scope_paths": ["/mnt/d/foo"],
+        "resolved_image_ids_by_stage": {"scoring": [10, 11]},
+    }
+    assert JobDispatcher._explicit_stage_resolved_ids(payload, "scoring") == [10, 11]
+
+
+def test_dispatcher_jit_replans_when_explicit_scoring_queue_empty(monkeypatch):
+    jit_calls = []
+
+    def _jit(self, job_id, payload, queue_key, input_path):
+        jit_calls.append(queue_key)
+        payload = dict(payload)
+        scoped = [1, 2]
+        payload["resolved_image_ids"] = scoped
+        return payload, scoped, False
+
+    monkeypatch.setattr(JobDispatcher, "_jit_replan_phase", _jit)
+
+    scoring_runner = DummyRunner()
+    dispatcher = JobDispatcher(scoring_runner=scoring_runner)
+    queued_job = {
+        "id": 8001,
+        "job_type": "scoring",
+        "input_path": "/mnt/d/foo",
+        "queue_payload": json.dumps({
+            "input_path": "/mnt/d/foo",
+            "scope_paths": ["/mnt/d/foo"],
+            "run_mode": "process_stale_or_missing",
+            "resolved_image_ids_by_stage": {"scoring": []},
+        }),
+    }
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
+    monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *a, **k: None)
+    monkeypatch.setattr("modules.job_dispatcher.db.get_image_count", lambda **kw: 2)
+
+    dispatcher._tick()
+
+    assert jit_calls == ["scoring"]
+    assert len(scoring_runner.calls) == 1
+    assert scoring_runner.calls[0][1]["resolved_image_ids"] == [1, 2]

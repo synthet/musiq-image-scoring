@@ -1831,3 +1831,80 @@ def test_cooldown_sec_reads_config_value(monkeypatch):
 
     monkeypatch.setattr("modules.config.get_config_value", _cfg)
     assert runs_autodrive._unproductive_cooldown_sec() == 120.0
+
+
+def test_first_post_audit_stage_with_work_prefers_earliest_phase():
+    stage_queues = {
+        "metadata": {"total": 0},
+        "scoring": {"total": 44},
+        "culling": {"total": 44},
+    }
+    first = runs_autodrive._first_post_audit_stage_with_work(stage_queues)
+    assert first == ("scoring", 44)
+
+
+def test_maybe_schedule_post_audit_followup_metadata_gap(monkeypatch):
+    captured = []
+
+    def _enqueue(bucket, **kwargs):
+        captured.append((bucket, kwargs))
+        return 88, 1, None
+
+    monkeypatch.setattr(runs_autodrive, "_enqueue_auto_bucket", _enqueue)
+    follow_id = runs_autodrive.maybe_schedule_post_audit_followup(
+        1,
+        {
+            "tool_id": "runs_auto_drive",
+            "scope_paths": ["/mnt/d/foo"],
+            "target_phases": ["metadata", "scoring", "culling"],
+        },
+        {
+            "status": "issues_remaining",
+            "stage_queues": {"metadata": {"total": 5}},
+        },
+    )
+    assert follow_id == 88
+    assert captured[0][0]["bucket"] == "awaiting_metadata"
+    assert captured[0][1]["phase_values"] == ["metadata", "scoring", "culling"]
+
+
+def test_maybe_schedule_post_audit_followup_scoring_gap_when_metadata_clean(monkeypatch):
+    captured = []
+
+    def _enqueue(bucket, **kwargs):
+        captured.append((bucket, kwargs))
+        return 99, 1, None
+
+    monkeypatch.setattr(runs_autodrive, "_enqueue_auto_bucket", _enqueue)
+    follow_id = runs_autodrive.maybe_schedule_post_audit_followup(
+        4281,
+        {
+            "tool_id": "runs_auto_drive",
+            "scope_paths": ["/mnt/d/Photos/Z8/180-600mm/2026/2026-06-24"],
+            "target_phases": ["metadata", "scoring", "culling", "keywords", "bird_species"],
+        },
+        {
+            "status": "issues_remaining",
+            "stage_queues": {
+                "metadata": {"total": 0},
+                "scoring": {"total": 292},
+                "culling": {"total": 292},
+            },
+        },
+    )
+    assert follow_id == 99
+    assert captured[0][0]["bucket"] == "awaiting_scoring"
+    assert captured[0][1]["phase_values"] == [
+        "scoring",
+        "culling",
+        "keywords",
+        "bird_species",
+    ]
+
+
+def test_maybe_schedule_post_audit_followup_skips_clean_audit():
+    assert runs_autodrive.maybe_schedule_post_audit_followup(
+        1,
+        {"tool_id": "runs_auto_drive", "scope_paths": ["/mnt/d/foo"]},
+        {"status": "clean", "stage_queues": {}},
+    ) is None

@@ -329,12 +329,22 @@ class JobDispatcher:
             return None
 
     @staticmethod
+    def _folder_scoped_payload(payload: Dict[str, Any]) -> bool:
+        scope_paths = payload.get("scope_paths")
+        if isinstance(scope_paths, list) and any(str(p).strip() for p in scope_paths):
+            return True
+        ip = (payload.get("input_path") or "").strip()
+        return bool(ip) and not ip.startswith("SELECTOR_")
+
+    @staticmethod
     def _explicit_stage_resolved_ids(payload: Dict[str, Any], queue_key: str) -> Optional[List[int]]:
         """Return pre-resolved image IDs when the job has no folder scope (selector API)."""
         stage_queues = payload.get("resolved_image_ids_by_stage")
         if isinstance(stage_queues, dict):
             per_stage = stage_queues.get(queue_key)
             if isinstance(per_stage, list):
+                if len(per_stage) == 0 and JobDispatcher._folder_scoped_payload(payload):
+                    return None
                 return [int(i) for i in per_stage if i is not None]
 
         root = payload.get("resolved_image_ids")

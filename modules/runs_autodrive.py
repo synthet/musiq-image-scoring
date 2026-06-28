@@ -189,7 +189,7 @@ def _reconcile_stale_ips_for_drive() -> None:
     # Marking them done lets the drive reach genuinely-incomplete folders.
     try:
         db.reconcile_phantom_complete_image_phases(
-            ("scoring", "keywords", "culling"),
+            ("indexing", "metadata", "scoring", "keywords", "culling"),
             limit=5000,
         )
     except Exception:
@@ -302,12 +302,36 @@ def _maybe_enqueue_drive_self_heal_maintenance(summary: Optional[dict[str, Any]]
     return out
 
 
+_POST_AUDIT_FOLLOWUP_PHASE_ORDER: tuple[str, ...] = (
+    PhaseCode.INDEXING.value,
+    PhaseCode.METADATA.value,
+    PhaseCode.SCORING.value,
+    PhaseCode.CULLING.value,
+    PhaseCode.KEYWORDS.value,
+    PhaseCode.BIRD_SPECIES.value,
+)
+
+
+def _first_post_audit_stage_with_work(
+    stage_queues: dict[str, Any],
+) -> Optional[tuple[str, int]]:
+    """Return (phase_code, remaining_count) for the earliest pipeline stage with audit work."""
+    for code in _POST_AUDIT_FOLLOWUP_PHASE_ORDER:
+        info = stage_queues.get(code)
+        if not isinstance(info, dict):
+            continue
+        remaining = int(info.get("total") or 0)
+        if remaining > 0:
+            return code, remaining
+    return None
+
+
 def maybe_schedule_post_audit_followup(
     job_id: int,
     payload: dict[str, Any],
     post_run_audit: dict[str, Any],
 ) -> Optional[int]:
-    """Re-queue metadata for auto-drive jobs when post-run audit still shows metadata work."""
+    """Re-queue auto-drive work when post-run audit still shows residual stage gaps."""
     if payload.get("tool_id") != "runs_auto_drive":
         return None
     if not _autodrive_config_bool("auto_drive.post_audit_followup", default=True):
@@ -315,12 +339,10 @@ def maybe_schedule_post_audit_followup(
     if post_run_audit.get("status") != "issues_remaining":
         return None
     stage_queues = post_run_audit.get("stage_queues") or {}
-    metadata_info = stage_queues.get("metadata") or stage_queues.get(PhaseCode.METADATA.value)
-    if not isinstance(metadata_info, dict):
+    first = _first_post_audit_stage_with_work(stage_queues)
+    if not first:
         return None
-    remaining = int(metadata_info.get("total") or 0)
-    if remaining <= 0:
-        return None
+    first_phase, remaining = first
     scope_paths = payload.get("scope_paths") or []
     if not scope_paths:
         ip = payload.get("input_path")
@@ -331,19 +353,27 @@ def maybe_schedule_post_audit_followup(
     resolved = str(scope_paths[0]).strip()
     if not resolved:
         return None
+    target = sort_phase_value_strings(
+        [str(p) for p in (payload.get("target_phases") or payload.get("phases") or list(DEFAULT_TARGET_PHASES))]
+    )
+    try:
+        start_idx = target.index(first_phase)
+    except ValueError:
+        start_idx = 0
+    next_phases = target[start_idx:]
     try:
         follow_id, _, err = _enqueue_auto_bucket(
             {
                 "path": resolved,
-                "bucket": "awaiting_metadata",
-                "next_phases": [PhaseCode.METADATA.value],
+                "bucket": f"awaiting_{first_phase}",
+                "next_phases": next_phases,
                 "overall_percent": payload.get("auto_drive_overall_percent"),
                 "folder_created_at": None,
                 "is_newly_imported": False,
             },
             generate_captions=bool(payload.get("generate_captions", True)),
             resolved=resolved,
-            phase_values=[PhaseCode.METADATA.value],
+            phase_values=list(next_phases),
         )
     except Exception:
         logger.exception(
@@ -361,8 +391,10 @@ def maybe_schedule_post_audit_followup(
         )
         return None
     logger.info(
-        "runs_autodrive: post_audit follow-up queued metadata job %s for parent job %s (%s)",
+        "runs_autodrive: post_audit follow-up queued %s job %s (%d remaining) for parent job %s (%s)",
+        first_phase,
         follow_id,
+        remaining,
         job_id,
         resolved,
     )
@@ -1481,7 +1513,7 @@ def _enqueue_auto_bucket(
         [resolved],
         phase_values,
         False,
-        include_stale_executor=False,
+        include_stale_executor=True,
     )
     payload["repair_plan_summary"] = repair_plan
     payload["resolved_image_ids_by_stage"] = repair_plan.get("stage_queues", {})

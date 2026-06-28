@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.11.1] - 2026-06-28
+
+### Fixed
+
+- **Auto-drive post-audit follow-up — scoring gaps skipped when metadata was clean**: `maybe_schedule_post_audit_followup` now re-queues the earliest pipeline stage with remaining audit work (indexing through bird_species), not metadata alone. Follow-up jobs resume from that phase through the original target list (e.g. scoring → culling → keywords when 292 images still need scores).
+- **Job dispatcher — empty folder-scoped stage queue finished the job with no work**: When `resolved_image_ids_by_stage` held an empty list for a folder-scoped run, the dispatcher treated it as explicit “nothing to do” instead of falling through to JIT replan. Empty per-stage lists now defer to replan for folder/scope-path jobs.
+- **Auto-drive phantom reconcile — indexing/metadata stale rows**: Drive reconcile now includes `indexing` and `metadata` in `reconcile_phantom_complete_image_phases`, matching scoring/keywords/culling.
+
+### Changed
+
+- **Auto-drive bucket enqueue**: Repair plan for auto-bucket jobs uses `include_stale_executor=True` so stale/missing images are included in the resolved work set.
+
 ## [8.11.0] - 2026-06-27
 
 ### Added
