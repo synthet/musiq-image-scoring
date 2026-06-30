@@ -336,7 +336,12 @@ def maybe_schedule_post_audit_followup(
         return None
     if not _autodrive_config_bool("auto_drive.post_audit_followup", default=True):
         return None
-    if post_run_audit.get("status") != "issues_remaining":
+    # Gate on the whole-pipeline signal, not the (phase-scoped) badge ``status``: a single-phase
+    # run can have a clean badge while downstream phases still need work. ``pipeline_status`` is
+    # the authoritative full-pipeline flag; fall back to ``status`` for audits written before it
+    # existed. ``stage_queues`` remains the full per-phase plan in both cases.
+    pipeline_status = post_run_audit.get("pipeline_status") or post_run_audit.get("status")
+    if pipeline_status != "issues_remaining":
         return None
     stage_queues = post_run_audit.get("stage_queues") or {}
     first = _first_post_audit_stage_with_work(stage_queues)

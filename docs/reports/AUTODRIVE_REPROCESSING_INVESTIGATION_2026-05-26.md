@@ -3,6 +3,7 @@
 **Reporter:** dmnsy (Claude Opus 4.7 assist)
 **Trigger:** Run [#3245](http://127.0.0.1:7860/ui/runs/3245) — "Auto-drive queued this folder from the Runs buckets planner." Suspected re-processing of already-done images/phases.
 **Status:** Fixed (2026-05-27). See [Implementation status](#implementation-status-2026-05-27) below. Operator summary: [AUTO_DRIVE_FIX_SUMMARY.md](AUTO_DRIVE_FIX_SUMMARY.md).
+**See also:** [RUN_DATA_GAP_BADGES_FIX_2026-06-30.md](RUN_DATA_GAP_BADGES_FIX_2026-06-30.md) — a separate auto-drive defect where the post-run audit's "Data gaps" badge graded single-phase runs against the whole pipeline.
 
 ## TL;DR
 

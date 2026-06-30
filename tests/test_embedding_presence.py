@@ -155,6 +155,58 @@ def test_maybe_warn_legacy_embedding_drift_logs_once(monkeypatch, caplog):
     assert sum(1 for r in caplog.records if "image_embeddings rows" in r.message) == 1
 
 
+def test_is_image_indexing_complete_hash_present_firebird(monkeypatch):
+    """Indexing completeness is hash-based; a missing embedding must not matter."""
+    import modules.db_legacy as dbl
+
+    monkeypatch.setattr(dbl, "_get_db_engine", lambda: "firebird")
+    mock_conn = MagicMock()
+    # Hash present, no embedding column selected at all.
+    mock_conn.query_one.return_value = {"image_hash": "abc123"}
+    monkeypatch.setattr(dbl, "get_connector", lambda: mock_conn)
+
+    assert dbl.is_image_indexing_complete(100) is True
+    # The query must select the hash, not the embedding.
+    sql = mock_conn.query_one.call_args[0][0]
+    assert "image_hash" in sql
+    assert "image_embedding" not in sql
+
+
+def test_is_image_indexing_complete_no_hash_firebird(monkeypatch):
+    import modules.db_legacy as dbl
+
+    monkeypatch.setattr(dbl, "_get_db_engine", lambda: "firebird")
+    mock_conn = MagicMock()
+    monkeypatch.setattr(dbl, "get_connector", lambda: mock_conn)
+
+    mock_conn.query_one.return_value = None
+    assert dbl.is_image_indexing_complete(101) is False
+
+    mock_conn.query_one.return_value = {"image_hash": "   "}
+    assert dbl.is_image_indexing_complete(101) is False
+
+    mock_conn.query_one.return_value = {"image_hash": None}
+    assert dbl.is_image_indexing_complete(101) is False
+
+
+def test_is_image_indexing_complete_postgres_uses_hash(monkeypatch):
+    import modules.db_legacy as dbl
+    from modules import db_postgres
+
+    monkeypatch.setattr(dbl, "_get_db_engine", lambda: "postgres")
+    calls = []
+
+    def _select_one(query, params=None):
+        calls.append(query)
+        return {"x": 1}
+
+    monkeypatch.setattr(db_postgres, "execute_select_one", _select_one)
+
+    assert dbl.is_image_indexing_complete(100) is True
+    assert "image_hash" in calls[0]
+    assert "image_embedding" not in calls[0]
+
+
 def test_sort_by_embeddings(monkeypatch):
     import modules.db_legacy as dbl
 

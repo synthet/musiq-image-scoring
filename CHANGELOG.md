@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.11.2] - 2026-06-30
+
+### Fixed
+
+- **Post-run audit badges scoped to executed phase**: Single-phase jobs no longer show `issues_remaining` for downstream pipeline work they never ran (e.g. a fresh indexing job flagged for missing culling scores). Audit payload adds `executed_phases` and `pipeline_status` for whole-pipeline diagnostics while `status` reflects only the phase that job executed.
+
+### Changed
+
+- **Batch 1 safe extractions**: Split `modules/api_helpers.py` and `modules/api_models.py` from `api.py`; moved MCP tool implementations to `modules/mcp/tools/` with a slimmer `mcp_server.py`. Public API and compact MCP dispatch unchanged.
+
 ## [8.11.1] - 2026-06-28
 
 ### Fixed

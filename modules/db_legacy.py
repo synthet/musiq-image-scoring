@@ -6921,14 +6921,43 @@ def _maybe_fail_job_on_post_audit_issues(job_id: int, post_run_audit: dict) -> N
         logger.debug("post_run_audit fail broadcast failed", exc_info=True)
 
 
+# job_type -> single pipeline phase_code. Mirrors the alias sets in
+# ``pipeline._runner_audit_phase_code`` and ``runs_autodrive.normalize_target_phases``.
+# A job_type that does not resolve here (e.g. multi-phase ``pipeline``) yields None,
+# which makes the audit fall back to whole-pipeline badge status.
+_AUDIT_JOB_TYPE_PHASE_ALIASES = {
+    "indexing": "indexing",
+    "metadata": "metadata",
+    "scoring": "scoring",
+    "score": "scoring",
+    "culling": "culling",
+    "cluster": "culling",
+    "clustering": "culling",
+    "selection": "culling",
+    "keywords": "keywords",
+    "tag": "keywords",
+    "tagging": "keywords",
+    "bird_species": "bird_species",
+}
+
+
+def _audit_job_type_to_phase(job_type) -> str | None:
+    """Map a single-phase ``job_type`` to its pipeline phase_code, or None when multi-phase/unknown."""
+    return _AUDIT_JOB_TYPE_PHASE_ALIASES.get(str(job_type or "").strip().lower())
+
+
 def run_post_completion_data_quality_audit(job_id: int):
     """
     After terminal completion: optional dry-run of ``build_validation_repair_plan`` for the run scope,
     merge results into ``queue_payload.post_run_audit``, optionally fail the job per config.
+
+    The badge ``status``/``severity`` is scoped to the phase the run actually executed
+    (``job_type``), while ``stage_queues`` and the new ``pipeline_status`` field keep the
+    full-pipeline view for auto-drive chaining and diagnostics.
     Returns the audit dict, or None if skipped.
     """
     row = get_connector().query_one(
-        "SELECT id, queue_payload, status FROM jobs WHERE id = ?",
+        "SELECT id, queue_payload, status, job_type FROM jobs WHERE id = ?",
         (job_id,),
     )
     if not row:
@@ -6964,9 +6993,24 @@ def run_post_completion_data_quality_audit(job_id: int):
     stage_queues_full = plan.get("stage_queues") or {}
     ic = plan.get("issue_counts") or {}
 
-    has_issues = any(int(v or 0) > 0 for v in ic.values()) or any(
+    # Whole-pipeline signal: drives chaining/diagnostics, not the badge.
+    full_has_issues = any(int(v or 0) > 0 for v in ic.values()) or any(
         len(v or []) > 0 for v in stage_queues_full.values()
     )
+
+    # Badge status is scoped to the phase this run actually executed. Auto-drive runs
+    # one phase per job, so a fresh indexing job must not be flagged for downstream
+    # culling/scoring work it was never asked to do.
+    executed_phase = _audit_job_type_to_phase(row.get("job_type"))
+    executed_phases = [executed_phase] if executed_phase else []
+    if executed_phase:
+        phase_prefix = f"{executed_phase}_"
+        has_issues = len(stage_queues_full.get(executed_phase) or []) > 0 or any(
+            int(v or 0) > 0 for k, v in ic.items() if str(k).startswith(phase_prefix)
+        )
+    else:
+        # Multi-phase / unknown job_type: badge reflects the whole pipeline.
+        has_issues = full_has_issues
 
     stage_queues_out = {}
     for stage, ids in stage_queues_full.items():
@@ -7007,11 +7051,14 @@ def run_post_completion_data_quality_audit(job_id: int):
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
         "status": "issues_remaining" if has_issues else "clean",
         "severity": "warning" if has_issues else "info",
+        "executed_phases": executed_phases,
+        "pipeline_status": "issues_remaining" if full_has_issues else "clean",
         "issue_counts": ic,
         "stage_queues": stage_queues_out,
         "delta_vs_enqueue": delta_vs_enqueue,
         "notes": (
-            "Point-in-time snapshot after job completion; other jobs or edits may change rows afterward."
+            "Point-in-time snapshot after job completion; other jobs or edits may change rows afterward. "
+            "``status`` is scoped to the executed phase; ``pipeline_status`` covers the whole pipeline."
         ),
     }
 
@@ -9959,10 +10006,9 @@ def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
     code = (phase_code or "").strip().lower()
 
     if code == "indexing":
-        # NOTE: ``is_image_indexing_complete`` tests ``image_embedding``; this predicate
-        # tests ``image_hash``. Keep both in mind when interpreting "indexing" gaps: a row
-        # can have a hash but no embedding (policy may still want a run) without matching
-        # workflow heal's false-done reset for hash.
+        # ``is_image_indexing_complete`` mirrors this predicate (hash present == indexed).
+        # The default-space embedding is a culling product, not an indexing one, so it must
+        # not gate indexing completeness here or in workflow heal's false-done reset.
         return f"({prefix}image_hash IS NULL OR TRIM(CAST({prefix}image_hash AS VARCHAR(128))) = '')"
 
     if code == "metadata":
@@ -10437,18 +10483,27 @@ def _folder_like_patterns_for_scope(scope_path: str) -> list[str]:
 
 
 def is_image_indexing_complete(image_id: int) -> bool:
-    """True if image has a default-space embedding in the database."""
+    """True if the image has been indexed (``image_hash`` present).
+
+    Indexing produces the file hash; the default-space embedding is a *culling*
+    product (see ``modules/clustering.py``). Mirror ``get_phase_incomplete_sql('indexing')``
+    so a freshly-indexed image with no embedding is not judged "indexing-incomplete".
+    """
     if _get_db_engine() == "postgres":
         row = db_postgres.execute_select_one(
-            f"SELECT 1 AS x FROM images i WHERE i.id = %s AND ({_postgres_has_default_embedding_sql('i')})",
+            "SELECT 1 AS x FROM images i WHERE i.id = %s "
+            "AND i.image_hash IS NOT NULL AND TRIM(CAST(i.image_hash AS VARCHAR(128))) <> ''",
             (image_id,),
         )
         return row is not None
     row = get_connector().query_one(
-        "SELECT image_embedding FROM images WHERE id = ?",
+        "SELECT image_hash FROM images WHERE id = ?",
         (image_id,),
     )
-    return row is not None and row.get("image_embedding") is not None
+    if row is None:
+        return False
+    h = row.get("image_hash")
+    return h is not None and str(h).strip() != ""
 
 
 def get_resolved_image_keywords(image_id: int, legacy_fallback: str | None = None) -> str:

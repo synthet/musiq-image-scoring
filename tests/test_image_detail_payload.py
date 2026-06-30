@@ -45,14 +45,16 @@ def test_image_detail_payload_enrichments(metadata, scores_json, expect_indexing
     emb_map = {42: {"mobilenet_v2_imagenet_gap": True, "clip_vit_b32_image": False}}
 
     with (
-        patch("modules.api.db.get_db", return_value=mock_conn),
-        patch("modules.api.db.get_all_paths", return_value=[]),
-        patch("modules.api.db.get_resolved_path", return_value="/p.jpg"),
-        patch("modules.api.db.get_image_phase_statuses", return_value={}),
-        patch("modules.api.db.get_image_technical_failure", return_value=None),
-        patch("modules.api.db.get_batch_image_embedding_presence", return_value=emb_map),
-        patch("modules.api.db.get_image_model_scores", return_value={}),
-        patch("modules.api._row_to_dict", side_effect=lambda r, **kw: dict(r)),
+        patch("modules.api_helpers.db.get_db", return_value=mock_conn),
+        patch("modules.api_helpers.db.get_all_paths", return_value=[]),
+        patch("modules.api_helpers.db.get_resolved_path", return_value="/p.jpg"),
+        patch("modules.api_helpers.db.get_image_phase_statuses", return_value={}),
+        patch("modules.api_helpers.db.get_image_technical_failure", return_value=None),
+        patch("modules.api_helpers.db.get_batch_image_embedding_presence", return_value=emb_map),
+        patch("modules.api_helpers.db.get_image_model_scores", return_value={}),
+        patch("modules.api_helpers.db.get_resolved_image_keywords", return_value=""),
+        patch("modules.api_helpers.db.compute_image_data_quality_flags", return_value={}),
+        patch("modules.api_helpers._row_to_dict", side_effect=lambda r, **kw: dict(r)),
     ):
         data = _image_detail_payload(42)
 

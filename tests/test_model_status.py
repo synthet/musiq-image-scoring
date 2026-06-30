@@ -1,13 +1,13 @@
 """Tests for the registry-driven MCP get_model_status helper.
 
-`_registry_model_status()` must report every registered scoring model with its
+`registry_model_status()` must report every registered scoring model with its
 enabled/shadow flags resolved from config — not the legacy hardcoded MUSIQ list.
 GPU-free; no DB.
 """
 
 from modules.engines.base import IScoringModel
 from modules.engines.registry import get_registry, reset_registry
-from modules.mcp_server import _registry_model_status
+from modules.mcp.tool_support import registry_model_status
 
 
 class _Stub(IScoringModel):
@@ -27,7 +27,7 @@ class _Stub(IScoringModel):
 
 def test_registry_model_status_empty_registry():
     reset_registry()
-    assert _registry_model_status() == {}
+    assert registry_model_status() == {}
 
 
 def test_registry_model_status_reflects_enabled_and_shadow(monkeypatch):
@@ -46,7 +46,7 @@ def test_registry_model_status_reflects_enabled_and_shadow(monkeypatch):
         }),
     )
 
-    status = _registry_model_status()
+    status = registry_model_status()
 
     # Registry models surface — not the legacy koniq/paq2piq hardcoded list.
     assert set(status) == {"spaq", "topiq", "cursor"}

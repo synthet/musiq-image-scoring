@@ -28,6 +28,7 @@ Historical reports, research, reviews, and debugging sessions.
 | [GRADIO_SERVING_DECISION.md](GRADIO_SERVING_DECISION.md) | Why Gradio + FastAPI fits this product; when Triton/BentoML would matter |
 | [CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md](CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md) | Culling phase done but no stacks — SelectionRunner phase-order bug (fixed) |
 | [AUTODRIVE_REPROCESSING_INVESTIGATION_2026-05-26.md](AUTODRIVE_REPROCESSING_INVESTIGATION_2026-05-26.md) | Auto-drive false reprocessing (run 3245) — `stale_executor` / executor_version policy |
+| [RUN_DATA_GAP_BADGES_FIX_2026-06-30.md](RUN_DATA_GAP_BADGES_FIX_2026-06-30.md) | Misleading "Data gaps" badge on completed runs (run 4555) — hash-based indexing completeness + phase-scoped post-run audit |
 | [AUTO_DRIVE_FIX_SUMMARY.md](AUTO_DRIVE_FIX_SUMMARY.md) | Operator summary — fixes for planner version gate + runs_autodrive buckets |
 | [AUTODRIVE_REPROCESSING_SUMMARY.md](AUTODRIVE_REPROCESSING_SUMMARY.md) | Short investigation summary (run 3245) — links to fix summary and full RCA |
 | [RUN_ORCHESTRATION_AUDIT_2026-04-17.md](RUN_ORCHESTRATION_AUDIT_2026-04-17.md) | Run orchestration audit — MUSIQ import regression, dispatcher busy-as-fail, stale `running` rows, path-validation gap, MCP SSE event-loop stalls |

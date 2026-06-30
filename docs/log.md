@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-06-30] ingest | Run "Data gaps" badges fix
+
+Ingested the misleading "Data gaps" badge fix (run 4555) into [reports/RUN_DATA_GAP_BADGES_FIX_2026-06-30.md](reports/RUN_DATA_GAP_BADGES_FIX_2026-06-30.md): hash-based `is_image_indexing_complete` + phase-scoped post-run audit badge (`executed_phases`/`pipeline_status`), chaining preserved via `maybe_schedule_post_audit_followup`. Cross-linked [reports/AUTODRIVE_REPROCESSING_INVESTIGATION_2026-05-26.md](reports/AUTODRIVE_REPROCESSING_INVESTIGATION_2026-05-26.md), [reports/AUTO_DRIVE_FIX_SUMMARY.md](reports/AUTO_DRIVE_FIX_SUMMARY.md). Updated [reports/INDEX.md](reports/INDEX.md).
+
 ## [2026-06-21] ingest — Culling scripts layout and re-cluster rollout runbook
 
 Documented script reorganization (culling backfills → `scripts/maintenance/`; re-cluster launchers under `scripts/research/clip_culling/` and `scripts/batch/`). Added **Step 9** to [guides/CULLING_EMBEDDING_BACKFILL.md](guides/CULLING_EMBEDDING_BACKFILL.md) (library-wide CLIP re-cluster rollout, checkpoint/resume, Postgres prerequisite). Updated [architecture/project-structure.md](architecture/project-structure.md) (`research/`, `study/`, agent scratch dirs). Fixed stale `python -m scripts.backfill_*` paths in [features/planned/embeddings/two-level-culling.md](features/planned/embeddings/two-level-culling.md), [technical/CULLING_ANALYTICS.md](technical/CULLING_ANALYTICS.md), [reports/CULL_DISTRIBUTION_AUDIT_2026-06.md](reports/CULL_DISTRIBUTION_AUDIT_2026-06.md). Updated [INDEX.md](INDEX.md).

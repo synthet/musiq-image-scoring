@@ -1908,3 +1908,41 @@ def test_maybe_schedule_post_audit_followup_skips_clean_audit():
         {"tool_id": "runs_auto_drive", "scope_paths": ["/mnt/d/foo"]},
         {"status": "clean", "stage_queues": {}},
     ) is None
+
+
+def test_maybe_schedule_post_audit_followup_fires_when_badge_clean_pipeline_dirty(monkeypatch):
+    """Single-phase run: badge status clean, but pipeline_status drives the follow-up."""
+    captured = []
+
+    def _enqueue(bucket, **kwargs):
+        captured.append((bucket, kwargs))
+        return 77, 1, None
+
+    monkeypatch.setattr(runs_autodrive, "_enqueue_auto_bucket", _enqueue)
+    follow_id = runs_autodrive.maybe_schedule_post_audit_followup(
+        4555,
+        {
+            "tool_id": "runs_auto_drive",
+            "scope_paths": ["/mnt/d/foo"],
+            "target_phases": ["indexing", "metadata", "scoring", "culling"],
+        },
+        {
+            "status": "clean",
+            "pipeline_status": "issues_remaining",
+            "stage_queues": {"culling": {"total": 9}},
+        },
+    )
+    assert follow_id == 77
+    assert captured[0][0]["bucket"] == "awaiting_culling"
+
+
+def test_maybe_schedule_post_audit_followup_skips_when_pipeline_clean(monkeypatch):
+    """Badge clean and pipeline clean: no follow-up even if stage_queues key exists empty."""
+    monkeypatch.setattr(
+        runs_autodrive, "_enqueue_auto_bucket", lambda *a, **k: (None, 0, "should_not_run")
+    )
+    assert runs_autodrive.maybe_schedule_post_audit_followup(
+        4555,
+        {"tool_id": "runs_auto_drive", "scope_paths": ["/mnt/d/foo"]},
+        {"status": "clean", "pipeline_status": "clean", "stage_queues": {"culling": {"total": 0}}},
+    ) is None
