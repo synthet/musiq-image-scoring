@@ -453,6 +453,509 @@ class IndexingRunner:
                     valid_files.append(fp)
         return valid_files
 
+
+    def _process_indexing_file(
+        self,
+        file_path,
+        *,
+        skip_existing,
+        job_id,
+        report_collector,
+        log,
+        processed_count,
+        skipped_count,
+    ):
+        """Process one item in a batch run."""
+        self.current_count += 1
+
+
+
+        # Fast-path: skip_existing and indexing already complete for this file
+
+        existing_by_path = None  # cached for reuse after skip_existing check
+
+        if skip_existing:
+
+            existing_by_path = db.get_image_details(file_path)
+
+            if existing_by_path and existing_by_path.get("id"):
+
+                phase_status = db.get_image_phase_status(existing_by_path["id"], PhaseCode.INDEXING)
+
+                # Do not treat phase=done as complete if image_hash is still missing; otherwise
+
+                # "Process unprocessed" / heal re-runs skip forever (matches workflow healing predicate).
+
+                if (
+
+                    phase_status
+
+                    and phase_status.get("status") == PhaseStatus.DONE
+
+                    and _image_row_has_identity_hash(existing_by_path)
+
+                ):
+
+                    sid = int(existing_by_path["id"])
+
+                    # Do not overwrite IPS done→skipped (illegal transition; reads like regression in UI).
+
+                    # Per-run "no work" stays on the job report / job_image_actions.
+
+                    skipped_count += 1
+
+                    if report_collector:
+
+                        report_collector.record_skip(sid, "already_indexed")
+
+                    log("DEBUG", f"Skip (already indexed): {file_path}", image_id=sid)
+
+                    if self.current_count % PROGRESS_INTERVAL == 0:
+
+                        log(
+
+                            "INFO",
+
+                            f"Progress {self.current_count}/{self.total_count} "
+
+                            f"(processed={processed_count}, skipped={skipped_count})",
+
+                        )
+
+                        self._persist_log_to_job_row(job_id)
+
+                        event_manager.broadcast_threadsafe(
+
+                            "job_progress",
+
+                            {
+
+                                "job_id": job_id,
+
+                                "job_type": "indexing",
+
+                                "phase_code": "indexing",
+
+                                "current": self.current_count,
+
+                                "total": self.total_count,
+
+                            },
+
+                        )
+
+                    return processed_count, skipped_count
+
+
+
+        from modules.config import get_config_value
+
+        from modules import image_identity_hash
+
+
+
+        if existing_by_path is None:
+
+            existing_by_path = db.get_image_details(file_path)
+
+        track_id = int(existing_by_path["id"]) if existing_by_path and existing_by_path.get("id") else None
+
+
+
+        image_id = None
+
+        existing = None
+
+        try:
+
+            meta_dict = _parse_metadata_dict((existing_by_path or {}).get("metadata"))
+
+            cfg_mode = (
+
+                get_config_value("indexing.hash_mode", "content_preview") or "content_preview"
+
+            ).strip().lower()
+
+            stored_hash = (existing_by_path or {}).get("image_hash")
+
+            if isinstance(stored_hash, str):
+
+                stored_hash = stored_hash.strip() or None
+
+            fp = meta_dict.get(_INDEXING_CONTENT_FP_KEY)
+
+            prev_mode = meta_dict.get("indexing_hash_mode")
+
+            image_hash = None
+
+            hash_version: Optional[int] = None
+
+            if (
+
+                stored_hash
+
+                and _content_fp_matches_file(fp, file_path)
+
+                and prev_mode == cfg_mode
+
+            ):
+
+                image_hash = stored_hash
+
+                try:
+
+                    hash_version = int((existing_by_path or {}).get("hash_version") or 1)
+
+                except (TypeError, ValueError):
+
+                    hash_version = 1
+
+                log(
+
+                    "DEBUG",
+
+                    f"Reusing stored hash (content fingerprint unchanged): {file_path}",
+
+                    image_id=int(existing_by_path["id"]) if existing_by_path and existing_by_path.get("id") else None,
+
+                )
+
+            else:
+
+                # Try UUID-based shortcut: adopt hash from an existing record
+
+                # matched by image_uuid (helps moved/renamed files avoid rehashing).
+
+                uuid_adopted = False
+
+                if meta_dict:
+
+                    try:
+
+                        candidate_uuid = db.generate_image_uuid(meta_dict)
+
+                        if candidate_uuid:
+
+                            uuid_record_id = db.find_image_id_by_uuid(candidate_uuid)
+
+                            if uuid_record_id:
+
+                                uuid_row = db.get_connector().query_one(
+
+                                    "SELECT image_hash, hash_version FROM images WHERE id = ?",
+
+                                    (uuid_record_id,),
+
+                                )
+
+                                uh = (uuid_row.get("image_hash") or "").strip() if uuid_row else ""
+
+                                if uh:
+
+                                    image_hash = uh
+
+                                    try:
+
+                                        hash_version = int(uuid_row.get("hash_version") or 1)
+
+                                    except (TypeError, ValueError):
+
+                                        hash_version = 1
+
+                                    uuid_adopted = True
+
+                                    log(
+
+                                        "DEBUG",
+
+                                        f"Adopted hash from UUID match (id={uuid_record_id}): {file_path}",
+
+                                        image_id=uuid_record_id,
+
+                                    )
+
+                    except Exception:
+
+                        logger.debug("UUID shortcut failed for %s", file_path, exc_info=True)
+
+
+
+                if not uuid_adopted:
+
+                    log("DEBUG", f"Hashing: {file_path}", image_id=track_id)
+
+                    ident = image_identity_hash.compute_image_identity_hash(file_path)
+
+                    if not ident:
+
+                        log("ERROR", f"Could not compute identity hash for {file_path}", image_id=track_id)
+
+                        skipped_count += 1
+
+                        return processed_count, skipped_count
+
+                    image_hash, hash_version = ident
+
+
+
+            merged_meta = _attach_indexing_content_fp(meta_dict, file_path)
+
+            merged_meta["indexing_hash_mode"] = cfg_mode
+
+
+
+            existing = db.get_image_by_hash(image_hash, hash_version)
+
+            if existing:
+
+                hash_row_id = int(existing.get("id"))
+
+                image_id = hash_row_id
+
+
+
+                if track_id and track_id != hash_row_id:
+
+                    image_id = _resolve_split_brain_collision(
+
+                        track_id=track_id,
+
+                        hash_row_id=hash_row_id,
+
+                        file_path=file_path,
+
+                        image_hash=image_hash,
+
+                        hash_version=hash_version,
+
+                        existing=existing,
+
+                        existing_by_path=existing_by_path,
+
+                        log=log,
+
+                    )
+
+
+
+                db.register_image_path(image_id, file_path)
+
+                _fname = os.path.basename(file_path)
+
+                db.get_connector().execute(
+
+                    "UPDATE images SET file_path = ?, file_name = ? WHERE id = ?",
+
+                    (file_path, _fname, image_id),
+
+                )
+
+
+
+                _assign_indexing_folder_id(image_id, file_path, scan_stop, nef_cache)
+
+                _persist_indexing_content_fp(int(image_id), file_path, cfg_mode)
+
+                log(
+
+                    "DEBUG",
+
+                    f"Registered path and updated record image_id={image_id}: {file_path}",
+
+                    image_id=int(image_id) if image_id else None,
+
+                )
+
+            else:
+
+                resolved_folder = _resolve_nef_folder_path(file_path, scan_stop, nef_cache)
+
+                folder_id = db.get_or_create_folder(resolved_folder) if resolved_folder else None
+
+                image_id = db.upsert_image(
+
+                    job_id,
+
+                    {
+
+                        "image_path": file_path,
+
+                        "image_hash": image_hash,
+
+                        "hash_version": hash_version,
+
+                        "folder_id": folder_id,
+
+                        "metadata": merged_meta,
+
+                    },
+
+                )
+
+                if not image_id:
+
+                    detail = db.get_image_details(file_path)
+
+                    image_id = detail.get("id") if detail else None
+
+                log(
+
+                    "DEBUG",
+
+                    f"Upsert new row image_id={image_id}: {file_path}",
+
+                    image_id=int(image_id) if image_id else None,
+
+                )
+
+
+
+            if job_id and image_id:
+
+                db.set_image_phase_status(
+
+                    int(image_id),
+
+                    PhaseCode.INDEXING,
+
+                    PhaseStatus.RUNNING,
+
+                    app_version=APP_VERSION,
+
+                    executor_version=INDEXING_VERSION,
+
+                    job_id=job_id,
+
+                )
+
+
+
+            if image_id:
+
+                db.set_image_phase_status(
+
+                    int(image_id),
+
+                    PhaseCode.INDEXING,
+
+                    PhaseStatus.DONE,
+
+                    app_version=APP_VERSION,
+
+                    executor_version=INDEXING_VERSION,
+
+                    job_id=job_id,
+
+                )
+
+                processed_count += 1
+
+                if report_collector:
+
+                    report_collector.record_after(int(image_id), {}, action="processed")
+
+                log("DEBUG", f"Indexed image_id={image_id}: {file_path}", image_id=int(image_id))
+
+            else:
+
+                skipped_count += 1
+
+                log("WARNING", f"No image_id after upsert for {file_path}")
+
+
+
+        except Exception as e:
+
+            log("ERROR", f"Error indexing {file_path}: {e}", image_id=track_id or image_id)
+
+            skipped_count += 1
+
+            if report_collector and (track_id or image_id):
+
+                report_collector.record_failure(int(track_id or image_id), str(e))
+
+            fail_id = track_id
+
+            try:
+
+                if existing and existing.get("id"):
+
+                    fail_id = int(existing["id"])
+
+                elif image_id:
+
+                    fail_id = int(image_id)
+
+            except (TypeError, ValueError):
+
+                pass
+
+            if fail_id:
+
+                try:
+
+                    db.set_image_phase_status(
+
+                        fail_id,
+
+                        PhaseCode.INDEXING,
+
+                        PhaseStatus.FAILED,
+
+                        app_version=APP_VERSION,
+
+                        executor_version=INDEXING_VERSION,
+
+                        job_id=job_id,
+
+                        error=str(e),
+
+                    )
+
+                except Exception:
+
+                    logger.exception("IndexingRunner: failed to set FAILED ips")
+
+
+
+        if self.current_count % PROGRESS_INTERVAL == 0:
+
+            event_manager.broadcast_threadsafe(
+
+                "job_progress",
+
+                {
+
+                    "job_id": job_id,
+
+                    "job_type": "indexing",
+
+                    "phase_code": "indexing",
+
+                    "current": self.current_count,
+
+                    "total": self.total_count,
+
+                },
+
+            )
+
+            log(
+
+                "INFO",
+
+                f"Progress {self.current_count}/{self.total_count} "
+
+                f"(processed={processed_count}, skipped={skipped_count})",
+
+            )
+
+            self._persist_log_to_job_row(job_id)
+
+
+
+        return processed_count, skipped_count
+
     def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None, report_collector=None):
         PROGRESS_INTERVAL = 50
 
@@ -573,249 +1076,16 @@ class IndexingRunner:
                 log("WARNING", "Indexing paused (job status).")
                 break
 
-            self.current_count += 1
 
-            # Fast-path: skip_existing and indexing already complete for this file
-            existing_by_path = None  # cached for reuse after skip_existing check
-            if skip_existing:
-                existing_by_path = db.get_image_details(file_path)
-                if existing_by_path and existing_by_path.get("id"):
-                    phase_status = db.get_image_phase_status(existing_by_path["id"], PhaseCode.INDEXING)
-                    # Do not treat phase=done as complete if image_hash is still missing; otherwise
-                    # "Process unprocessed" / heal re-runs skip forever (matches workflow healing predicate).
-                    if (
-                        phase_status
-                        and phase_status.get("status") == PhaseStatus.DONE
-                        and _image_row_has_identity_hash(existing_by_path)
-                    ):
-                        sid = int(existing_by_path["id"])
-                        # Do not overwrite IPS done→skipped (illegal transition; reads like regression in UI).
-                        # Per-run "no work" stays on the job report / job_image_actions.
-                        skipped_count += 1
-                        if report_collector:
-                            report_collector.record_skip(sid, "already_indexed")
-                        log("DEBUG", f"Skip (already indexed): {file_path}", image_id=sid)
-                        if self.current_count % PROGRESS_INTERVAL == 0:
-                            log(
-                                "INFO",
-                                f"Progress {self.current_count}/{self.total_count} "
-                                f"(processed={processed_count}, skipped={skipped_count})",
-                            )
-                            self._persist_log_to_job_row(job_id)
-                            event_manager.broadcast_threadsafe(
-                                "job_progress",
-                                {
-                                    "job_id": job_id,
-                                    "job_type": "indexing",
-                                    "phase_code": "indexing",
-                                    "current": self.current_count,
-                                    "total": self.total_count,
-                                },
-                            )
-                        continue
-
-            from modules.config import get_config_value
-            from modules import image_identity_hash
-
-            if existing_by_path is None:
-                existing_by_path = db.get_image_details(file_path)
-            track_id = int(existing_by_path["id"]) if existing_by_path and existing_by_path.get("id") else None
-
-            image_id = None
-            existing = None
-            try:
-                meta_dict = _parse_metadata_dict((existing_by_path or {}).get("metadata"))
-                cfg_mode = (
-                    get_config_value("indexing.hash_mode", "content_preview") or "content_preview"
-                ).strip().lower()
-                stored_hash = (existing_by_path or {}).get("image_hash")
-                if isinstance(stored_hash, str):
-                    stored_hash = stored_hash.strip() or None
-                fp = meta_dict.get(_INDEXING_CONTENT_FP_KEY)
-                prev_mode = meta_dict.get("indexing_hash_mode")
-                image_hash = None
-                hash_version: Optional[int] = None
-                if (
-                    stored_hash
-                    and _content_fp_matches_file(fp, file_path)
-                    and prev_mode == cfg_mode
-                ):
-                    image_hash = stored_hash
-                    try:
-                        hash_version = int((existing_by_path or {}).get("hash_version") or 1)
-                    except (TypeError, ValueError):
-                        hash_version = 1
-                    log(
-                        "DEBUG",
-                        f"Reusing stored hash (content fingerprint unchanged): {file_path}",
-                        image_id=int(existing_by_path["id"]) if existing_by_path and existing_by_path.get("id") else None,
-                    )
-                else:
-                    # Try UUID-based shortcut: adopt hash from an existing record
-                    # matched by image_uuid (helps moved/renamed files avoid rehashing).
-                    uuid_adopted = False
-                    if meta_dict:
-                        try:
-                            candidate_uuid = db.generate_image_uuid(meta_dict)
-                            if candidate_uuid:
-                                uuid_record_id = db.find_image_id_by_uuid(candidate_uuid)
-                                if uuid_record_id:
-                                    uuid_row = db.get_connector().query_one(
-                                        "SELECT image_hash, hash_version FROM images WHERE id = ?",
-                                        (uuid_record_id,),
-                                    )
-                                    uh = (uuid_row.get("image_hash") or "").strip() if uuid_row else ""
-                                    if uh:
-                                        image_hash = uh
-                                        try:
-                                            hash_version = int(uuid_row.get("hash_version") or 1)
-                                        except (TypeError, ValueError):
-                                            hash_version = 1
-                                        uuid_adopted = True
-                                        log(
-                                            "DEBUG",
-                                            f"Adopted hash from UUID match (id={uuid_record_id}): {file_path}",
-                                            image_id=uuid_record_id,
-                                        )
-                        except Exception:
-                            logger.debug("UUID shortcut failed for %s", file_path, exc_info=True)
-
-                    if not uuid_adopted:
-                        log("DEBUG", f"Hashing: {file_path}", image_id=track_id)
-                        ident = image_identity_hash.compute_image_identity_hash(file_path)
-                        if not ident:
-                            log("ERROR", f"Could not compute identity hash for {file_path}", image_id=track_id)
-                            skipped_count += 1
-                            continue
-                        image_hash, hash_version = ident
-
-                merged_meta = _attach_indexing_content_fp(meta_dict, file_path)
-                merged_meta["indexing_hash_mode"] = cfg_mode
-
-                existing = db.get_image_by_hash(image_hash, hash_version)
-                if existing:
-                    hash_row_id = int(existing.get("id"))
-                    image_id = hash_row_id
-
-                    if track_id and track_id != hash_row_id:
-                        image_id = _resolve_split_brain_collision(
-                            track_id=track_id,
-                            hash_row_id=hash_row_id,
-                            file_path=file_path,
-                            image_hash=image_hash,
-                            hash_version=hash_version,
-                            existing=existing,
-                            existing_by_path=existing_by_path,
-                            log=log,
-                        )
-
-                    db.register_image_path(image_id, file_path)
-                    _fname = os.path.basename(file_path)
-                    db.get_connector().execute(
-                        "UPDATE images SET file_path = ?, file_name = ? WHERE id = ?",
-                        (file_path, _fname, image_id),
-                    )
-
-                    _assign_indexing_folder_id(image_id, file_path, scan_stop, nef_cache)
-                    _persist_indexing_content_fp(int(image_id), file_path, cfg_mode)
-                    log(
-                        "DEBUG",
-                        f"Registered path and updated record image_id={image_id}: {file_path}",
-                        image_id=int(image_id) if image_id else None,
-                    )
-                else:
-                    resolved_folder = _resolve_nef_folder_path(file_path, scan_stop, nef_cache)
-                    folder_id = db.get_or_create_folder(resolved_folder) if resolved_folder else None
-                    image_id = db.upsert_image(
-                        job_id,
-                        {
-                            "image_path": file_path,
-                            "image_hash": image_hash,
-                            "hash_version": hash_version,
-                            "folder_id": folder_id,
-                            "metadata": merged_meta,
-                        },
-                    )
-                    if not image_id:
-                        detail = db.get_image_details(file_path)
-                        image_id = detail.get("id") if detail else None
-                    log(
-                        "DEBUG",
-                        f"Upsert new row image_id={image_id}: {file_path}",
-                        image_id=int(image_id) if image_id else None,
-                    )
-
-                if job_id and image_id:
-                    db.set_image_phase_status(
-                        int(image_id),
-                        PhaseCode.INDEXING,
-                        PhaseStatus.RUNNING,
-                        app_version=APP_VERSION,
-                        executor_version=INDEXING_VERSION,
-                        job_id=job_id,
-                    )
-
-                if image_id:
-                    db.set_image_phase_status(
-                        int(image_id),
-                        PhaseCode.INDEXING,
-                        PhaseStatus.DONE,
-                        app_version=APP_VERSION,
-                        executor_version=INDEXING_VERSION,
-                        job_id=job_id,
-                    )
-                    processed_count += 1
-                    if report_collector:
-                        report_collector.record_after(int(image_id), {}, action="processed")
-                    log("DEBUG", f"Indexed image_id={image_id}: {file_path}", image_id=int(image_id))
-                else:
-                    skipped_count += 1
-                    log("WARNING", f"No image_id after upsert for {file_path}")
-
-            except Exception as e:
-                log("ERROR", f"Error indexing {file_path}: {e}", image_id=track_id or image_id)
-                skipped_count += 1
-                if report_collector and (track_id or image_id):
-                    report_collector.record_failure(int(track_id or image_id), str(e))
-                fail_id = track_id
-                try:
-                    if existing and existing.get("id"):
-                        fail_id = int(existing["id"])
-                    elif image_id:
-                        fail_id = int(image_id)
-                except (TypeError, ValueError):
-                    pass
-                if fail_id:
-                    try:
-                        db.set_image_phase_status(
-                            fail_id,
-                            PhaseCode.INDEXING,
-                            PhaseStatus.FAILED,
-                            app_version=APP_VERSION,
-                            executor_version=INDEXING_VERSION,
-                            job_id=job_id,
-                            error=str(e),
-                        )
-                    except Exception:
-                        logger.exception("IndexingRunner: failed to set FAILED ips")
-
-            if self.current_count % PROGRESS_INTERVAL == 0:
-                event_manager.broadcast_threadsafe(
-                    "job_progress",
-                    {
-                        "job_id": job_id,
-                        "job_type": "indexing",
-                        "phase_code": "indexing",
-                        "current": self.current_count,
-                        "total": self.total_count,
-                    },
-                )
-                log(
-                    "INFO",
-                    f"Progress {self.current_count}/{self.total_count} "
-                    f"(processed={processed_count}, skipped={skipped_count})",
-                )
-                self._persist_log_to_job_row(job_id)
+            processed_count, skipped_count = self._process_indexing_file(
+                file_path,
+                skip_existing=skip_existing,
+                job_id=job_id,
+                report_collector=report_collector,
+                log=log,
+                processed_count=processed_count,
+                skipped_count=skipped_count,
+            )
 
         log("INFO", f"Done. Processed: {processed_count}, Skipped: {skipped_count}")
         self._persist_log_to_job_row(job_id)

@@ -1,5 +1,7 @@
 # Refactoring Plan for webui.py
 
+**Related:** LoC-driven backlog — [CODEBASE_SIZE_REFACTOR_PLAN.md](CODEBASE_SIZE_REFACTOR_PLAN.md) (Phases 6 and 9 cover `webui.py::main` and frontend `/ui/` pages). Audit snapshot — [CODEBASE_SIZE_AUDIT_2026-06.md](../../reports/CODEBASE_SIZE_AUDIT_2026-06.md).
+
 ## Overview
 
 The `webui.py` file has grown to over 5,200 lines, mixing business logic, data access, and UI definition. This plan outlines a systematic approach to split it into a modular component-based structure.

@@ -529,6 +529,571 @@ class TaggingRunner:
         self._thread.start()
         return "Started"
 
+
+    def _process_tagging_image_row(
+        self,
+        row,
+        *,
+        custom_keywords,
+        overwrite,
+        generate_captions,
+        generate_accessibility,
+        job_id,
+        report_collector,
+        write_keyword_relevance,
+        log,
+        processed_count,
+        skipped_count,
+        processed_folders,
+    ):
+        """Process a single image row during batch tagging."""
+        path = row['file_path']
+
+        folder = os.path.dirname(path)
+
+
+
+
+
+        # Convert DB path to WSL path for processing if needed
+
+        original_windows_path = path
+
+        if ":" in path and path[1] == ":" and os.path.exists("/mnt/"):
+
+            drive = path[0].lower()
+
+            p = path[2:].replace("\\", "/")
+
+            wsl_p = f"/mnt/{drive}{p}"
+
+            path = wsl_p
+
+
+
+        db.set_image_phase_status(
+
+            row['id'],
+
+            PhaseCode.KEYWORDS,
+
+            PhaseStatus.RUNNING,
+
+            app_version=APP_VERSION,
+
+            executor_version=TAGGER_VERSION,
+
+            job_id=job_id,
+
+        )
+
+
+
+        try:
+
+            log(f"Tagging image_id={row['id']}: {path}", "DEBUG", image_id=row["id"])
+
+            # Determine inference path (NEF vs Thumbnail)
+
+            inference_path = path
+
+            ext = os.path.splitext(path)[1].lower()
+
+            if ext in ['.nef', '.nrw', '.arw', '.cr2', '.cr3', '.dng']:
+
+                from modules.thumbnails import get_thumb_wsl
+
+                thumb_path = get_thumb_wsl(row)
+
+                if thumb_path and os.path.exists(thumb_path):
+
+                    inference_path = thumb_path
+
+
+
+            # Resolve embedding-persistence flags once per image (cheap dict lookups).
+
+            from modules import config as _emb_cfg
+
+            _emb_section = _emb_cfg.get_config_section('embeddings') or {}
+
+            _persist_clip = bool(_emb_section.get('persist_clip_image', True))
+
+            _persist_blip = bool(_emb_section.get('persist_blip_image', True))
+
+
+
+            # Run inference
+
+            confidence_map: Dict[str, float] = {}
+
+            relevance_map: Dict[str, float] = {}
+
+            if self.tagging_engine is not None:
+
+                tags = self.tagging_engine.predict_keywords(inference_path, custom_keywords)
+
+                caption = ""
+
+                title = ""
+
+                if generate_captions:
+
+                    caption = self.tagging_engine.generate_caption(inference_path)
+
+                    import textwrap
+
+                    title = textwrap.shorten(caption, width=50, placeholder="...")
+
+            else:
+
+                # Reuse the clip_vit_b32_image embedding the culling phase already
+
+                # persisted (if any) so we skip the CLIP image forward pass here.
+
+                reuse_emb = self._reuse_clip_embedding(row['id']) if _persist_clip else None
+
+                if write_keyword_relevance:
+
+                    tags, confidence_map, relevance_map = self.scorer.predict(
+
+                        inference_path, keywords=custom_keywords, return_scores=True,
+
+                        image_embedding=reuse_emb,
+
+                    )
+
+                else:
+
+                    tags = self.scorer.predict(
+
+                        inference_path, keywords=custom_keywords,
+
+                        image_embedding=reuse_emb,
+
+                    )
+
+                caption = ""
+
+                title = ""
+
+                if generate_captions:
+
+                    caption = self.captioner.generate(
+
+                        inference_path, extract_embedding=_persist_blip
+
+                    )
+
+                    import textwrap
+
+                    title = textwrap.shorten(caption, width=50, placeholder="...")
+
+
+
+            # Best-effort: persist the freshly-computed image embeddings for
+
+            # this image (CLIP 512-d, BLIP 768-d) so downstream features
+
+            # (similarity, diversity, tag propagation) can reuse them.
+
+            if self.tagging_engine is None:
+
+                try:
+
+                    self._persist_tagging_embeddings(row['id'], _persist_clip, _persist_blip)
+
+                except Exception:
+
+                    logger.warning(
+
+                        "tagging: embedding persist failed for image_id=%s",
+
+                        row.get('id'),
+
+                        exc_info=True,
+
+                    )
+
+            elif (_persist_clip or _persist_blip) and not getattr(self, "_warned_engine_persist_gap", False):
+
+                logger.warning(
+
+                    "tagging: shared tagging_engine path does not yet extract "
+
+                    "CLIP/BLIP image embeddings; image_embeddings_512 / "
+
+                    "image_embeddings_768 will not populate via this runner. "
+
+                    "Set embeddings.persist_clip_image / persist_blip_image to "
+
+                    "false to silence this warning, or use TaggingRunner() with "
+
+                    "no engine arg."
+
+                )
+
+                self._warned_engine_persist_gap = True
+
+
+
+            tags = [t.strip() for t in (tags or []) if t and t.strip()]
+
+            caption = (caption or "").strip()
+
+
+
+            alt_text = None
+
+            extended_description = None
+
+            if generate_accessibility:
+
+                from modules import clip_accessibility
+
+
+
+                acc = clip_accessibility.describe_from_clip(
+
+                    image_id=row['id'],
+
+                    image_path=original_windows_path,
+
+                    keywords=tags,
+
+                    scorer=self.scorer if self.tagging_engine is None else None,
+
+                    overwrite=overwrite,
+
+                )
+
+                if not acc.get('error'):
+
+                    alt_text = (acc.get('alt_text') or '').strip() or None
+
+                    extended_description = (
+
+                        (acc.get('extended_description') or '').strip() or None
+
+                    )
+
+                    if acc.get('skipped'):
+
+                        log(
+
+                            f"Accessibility skipped image_id={row['id']}: {acc.get('reason')}",
+
+                            "DEBUG",
+
+                            image_id=row["id"],
+
+                        )
+
+
+
+            keywords_produced = bool(tags)
+
+            metadata_produced = bool(caption or alt_text or extended_description)
+
+
+
+            if keywords_produced or metadata_produced:
+
+                tags_str = ",".join(tags)
+
+                # When CLIP inference produced per-keyword scores, persist
+
+                # keywords (legacy column + normalized rows with confidence /
+
+                # relevance_weight) via the dedicated helper, and write only
+
+                # the remaining fields through the batch helper to avoid a
+
+                # second keyword sync that would overwrite the weights.
+
+                use_scored_keywords = bool(
+
+                    keywords_produced
+
+                    and write_keyword_relevance
+
+                    and (confidence_map or relevance_map)
+
+                )
+
+                field_updates = {
+
+                    "title": title if title else row.get('title'),
+
+                    "description": caption if caption else row.get('description'),
+
+                }
+
+                if not use_scored_keywords:
+
+                    field_updates["keywords"] = tags_str
+
+                db.update_image_fields_batch([(row['id'], field_updates)])
+
+                if use_scored_keywords:
+
+                    db.update_image_keywords_for_image(
+
+                        row['id'],
+
+                        tags_str,
+
+                        source="auto",
+
+                        confidence_map=confidence_map,
+
+                        relevance_map=relevance_map,
+
+                    )
+
+                if alt_text or extended_description:
+
+                    db.upsert_image_xmp(row['id'], {
+
+                        'alt_text': alt_text,
+
+                        'extended_description': extended_description,
+
+                    })
+
+                self.write_metadata(
+
+                    original_windows_path,
+
+                    tags,
+
+                    title,
+
+                    caption,
+
+                    alt_text=alt_text or "",
+
+                    extended_description=extended_description or "",
+
+                )
+
+                if keywords_produced:
+
+                    processed_count += 1
+
+                    processed_folders.add(folder)
+
+                    db.set_image_phase_status(
+
+                        row['id'],
+
+                        PhaseCode.KEYWORDS,
+
+                        PhaseStatus.DONE,
+
+                        app_version=APP_VERSION,
+
+                        executor_version=TAGGER_VERSION,
+
+                        job_id=job_id,
+
+                    )
+
+                    if report_collector is not None:
+
+                        try:
+
+                            report_collector.record_after(
+
+                                int(row['id']),
+
+                                {
+
+                                    "keywords": tags_str,
+
+                                    "title": title or None,
+
+                                    "description": caption or None,
+
+                                },
+
+                                action="processed",
+
+                            )
+
+                        except Exception:
+
+                            logger.debug(
+
+                                "tagging: record_after failed for image_id=%s",
+
+                                row.get('id'),
+
+                                exc_info=True,
+
+                            )
+
+                else:
+
+                    skipped_count += 1
+
+                    db.set_image_phase_status(
+
+                        row['id'],
+
+                        PhaseCode.KEYWORDS,
+
+                        PhaseStatus.SKIPPED,
+
+                        app_version=APP_VERSION,
+
+                        executor_version=TAGGER_VERSION,
+
+                        job_id=job_id,
+
+                        skip_reason="caption_only_no_keywords",
+
+                        skipped_by="tagging",
+
+                    )
+
+                    if report_collector is not None:
+
+                        try:
+
+                            report_collector.record_skip(
+
+                                int(row['id']),
+
+                                "caption_only_no_keywords",
+
+                            )
+
+                        except Exception:
+
+                            logger.debug(
+
+                                "tagging: record_skip failed for image_id=%s",
+
+                                row.get('id'),
+
+                                exc_info=True,
+
+                            )
+
+            else:
+
+                skipped_count += 1
+
+                db.set_image_phase_status(
+
+                    row['id'],
+
+                    PhaseCode.KEYWORDS,
+
+                    PhaseStatus.SKIPPED,
+
+                    app_version=APP_VERSION,
+
+                    executor_version=TAGGER_VERSION,
+
+                    job_id=job_id,
+
+                    skip_reason="no tags produced",
+
+                    skipped_by="tagging",
+
+                )
+
+                # Issue #160: increment job_phases.images_skipped.
+
+                if report_collector is not None:
+
+                    try:
+
+                        report_collector.record_skip(int(row['id']), "no tags produced")
+
+                    except Exception:
+
+                        logger.debug("tagging: record_skip failed for image_id=%s", row.get('id'), exc_info=True)
+
+        except Exception as e:
+
+            log(f"Error processing {path}: {e}", "ERROR", image_id=row["id"])
+
+            skipped_count += 1
+
+            try:
+
+                db.set_image_phase_status(
+
+                    row['id'],
+
+                    PhaseCode.KEYWORDS,
+
+                    PhaseStatus.FAILED,
+
+                    app_version=APP_VERSION,
+
+                    executor_version=TAGGER_VERSION,
+
+                    job_id=job_id,
+
+                    error=str(e)[:1024],
+
+                )
+
+            except Exception:
+
+                logger.exception(
+
+                    "tagging: failed to record FAILED phase status for image_id=%s",
+
+                    row.get('id'),
+
+                )
+
+            # Issue #160: increment job_phases.images_failed.
+
+            if report_collector is not None:
+
+                try:
+
+                    report_collector.record_failure(int(row['id']), str(e)[:1024])
+
+                except Exception:
+
+                    logger.debug("tagging: record_failure failed for image_id=%s", row.get('id'), exc_info=True)
+
+
+
+        self.current_count += 1
+
+        if self.current_count % 5 == 0:
+
+            event_manager.broadcast_threadsafe(
+
+                "job_progress",
+
+                {
+
+                    "job_id": job_id,
+
+                    "job_type": "tagging",
+
+                    "phase_code": "keywords",
+
+                    "current": self.current_count,
+
+                    "total": self.total_count,
+
+                },
+
+            )
+
+
+        return processed_count, skipped_count
+
     def _run_batch_internal(self, input_path: str, custom_keywords: List[str] = None, overwrite: bool = False, generate_captions: bool = False, generate_accessibility: bool = False, job_id: int = None, resolved_image_ids: List[int] = None, report_collector=None):
         """
         Internal sync runner for tagging process.
@@ -665,51 +1230,6 @@ class TaggingRunner:
         in_scope_total = len(all_images)
         final_images = []
         for row in all_images:
-            decision = explain_phase_run_decision(
-                row['id'],
-                PhaseCode.KEYWORDS,
-                current_executor_version=TAGGER_VERSION,
-                force_run=overwrite
-            )
-            if decision['should_run']:
-                final_images.append(row)
-            else:
-                logger.info("Skipping keywords image_id=%s: %s", row['id'], decision['reason'])
-                # Issue #160: record filtered-out images as skipped so job_phases.images_skipped
-                # reflects the phase-policy filter, not just per-image failures inside the loop.
-                if report_collector is not None:
-                    try:
-                        report_collector.record_skip(int(row['id']), decision.get('reason') or 'phase_policy_skip')
-                    except Exception:
-                        logger.debug("tagging: record_skip failed for image_id=%s", row.get('id'), exc_info=True)
-
-        all_images = final_images
-        log(f"Found {len(all_images)} images to process.")
-        self.total_count = len(all_images)
-        self.current_count = 0
-
-        # Issue #160: push the post-filter scope so job_phases denominator reflects what
-        # the runner will actually attempt. The dispatcher seeded with the pre-filter
-        # count (#159); this overwrites with the accurate targeted value.
-        if report_collector is not None:
-            try:
-                report_collector.set_scope_counts(in_scope=in_scope_total, targeted=len(all_images))
-            except Exception:
-                logger.debug("tagging: set_scope_counts failed for job_id=%s", job_id, exc_info=True)
-        
-        # Whether to persist per-keyword relevance_weight / confidence derived
-        # from CLIP inference scores (forward-fill). Only the native CLIP path
-        # produces scores; injected tagging engines return bare keyword lists.
-        from modules import config as _rel_cfg
-        write_keyword_relevance = bool(
-            (_rel_cfg.get_config_section('tagging') or {}).get('write_keyword_relevance', True)
-        )
-
-        processed_count = 0
-        skipped_count = 0
-        processed_folders = set()
-        
-        for row in all_images:
             if self.stop_event.is_set():
                 log("Tagging stopped by user.", "WARNING")
                 break
@@ -718,279 +1238,21 @@ class TaggingRunner:
                 log("Tagging paused (job status).", "WARNING")
                 break
 
-            path = row['file_path']
-            folder = os.path.dirname(path)
-
-
-            # Convert DB path to WSL path for processing if needed
-            original_windows_path = path
-            if ":" in path and path[1] == ":" and os.path.exists("/mnt/"):
-                drive = path[0].lower()
-                p = path[2:].replace("\\", "/")
-                wsl_p = f"/mnt/{drive}{p}"
-                path = wsl_p
-
-            db.set_image_phase_status(
-                row['id'],
-                PhaseCode.KEYWORDS,
-                PhaseStatus.RUNNING,
-                app_version=APP_VERSION,
-                executor_version=TAGGER_VERSION,
+            processed_count, skipped_count = self._process_tagging_image_row(
+                row,
+                custom_keywords=custom_keywords,
+                overwrite=overwrite,
+                generate_captions=generate_captions,
+                generate_accessibility=generate_accessibility,
                 job_id=job_id,
+                report_collector=report_collector,
+                write_keyword_relevance=write_keyword_relevance,
+                log=log,
+                processed_count=processed_count,
+                skipped_count=skipped_count,
+                processed_folders=processed_folders,
             )
 
-            try:
-                log(f"Tagging image_id={row['id']}: {path}", "DEBUG", image_id=row["id"])
-                # Determine inference path (NEF vs Thumbnail)
-                inference_path = path
-                ext = os.path.splitext(path)[1].lower()
-                if ext in ['.nef', '.nrw', '.arw', '.cr2', '.cr3', '.dng']:
-                    from modules.thumbnails import get_thumb_wsl
-                    thumb_path = get_thumb_wsl(row)
-                    if thumb_path and os.path.exists(thumb_path):
-                        inference_path = thumb_path
-
-                # Resolve embedding-persistence flags once per image (cheap dict lookups).
-                from modules import config as _emb_cfg
-                _emb_section = _emb_cfg.get_config_section('embeddings') or {}
-                _persist_clip = bool(_emb_section.get('persist_clip_image', True))
-                _persist_blip = bool(_emb_section.get('persist_blip_image', True))
-
-                # Run inference
-                confidence_map: Dict[str, float] = {}
-                relevance_map: Dict[str, float] = {}
-                if self.tagging_engine is not None:
-                    tags = self.tagging_engine.predict_keywords(inference_path, custom_keywords)
-                    caption = ""
-                    title = ""
-                    if generate_captions:
-                        caption = self.tagging_engine.generate_caption(inference_path)
-                        import textwrap
-                        title = textwrap.shorten(caption, width=50, placeholder="...")
-                else:
-                    # Reuse the clip_vit_b32_image embedding the culling phase already
-                    # persisted (if any) so we skip the CLIP image forward pass here.
-                    reuse_emb = self._reuse_clip_embedding(row['id']) if _persist_clip else None
-                    if write_keyword_relevance:
-                        tags, confidence_map, relevance_map = self.scorer.predict(
-                            inference_path, keywords=custom_keywords, return_scores=True,
-                            image_embedding=reuse_emb,
-                        )
-                    else:
-                        tags = self.scorer.predict(
-                            inference_path, keywords=custom_keywords,
-                            image_embedding=reuse_emb,
-                        )
-                    caption = ""
-                    title = ""
-                    if generate_captions:
-                        caption = self.captioner.generate(
-                            inference_path, extract_embedding=_persist_blip
-                        )
-                        import textwrap
-                        title = textwrap.shorten(caption, width=50, placeholder="...")
-
-                # Best-effort: persist the freshly-computed image embeddings for
-                # this image (CLIP 512-d, BLIP 768-d) so downstream features
-                # (similarity, diversity, tag propagation) can reuse them.
-                if self.tagging_engine is None:
-                    try:
-                        self._persist_tagging_embeddings(row['id'], _persist_clip, _persist_blip)
-                    except Exception:
-                        logger.warning(
-                            "tagging: embedding persist failed for image_id=%s",
-                            row.get('id'),
-                            exc_info=True,
-                        )
-                elif (_persist_clip or _persist_blip) and not getattr(self, "_warned_engine_persist_gap", False):
-                    logger.warning(
-                        "tagging: shared tagging_engine path does not yet extract "
-                        "CLIP/BLIP image embeddings; image_embeddings_512 / "
-                        "image_embeddings_768 will not populate via this runner. "
-                        "Set embeddings.persist_clip_image / persist_blip_image to "
-                        "false to silence this warning, or use TaggingRunner() with "
-                        "no engine arg."
-                    )
-                    self._warned_engine_persist_gap = True
-
-                tags = [t.strip() for t in (tags or []) if t and t.strip()]
-                caption = (caption or "").strip()
-
-                alt_text = None
-                extended_description = None
-                if generate_accessibility:
-                    from modules import clip_accessibility
-
-                    acc = clip_accessibility.describe_from_clip(
-                        image_id=row['id'],
-                        image_path=original_windows_path,
-                        keywords=tags,
-                        scorer=self.scorer if self.tagging_engine is None else None,
-                        overwrite=overwrite,
-                    )
-                    if not acc.get('error'):
-                        alt_text = (acc.get('alt_text') or '').strip() or None
-                        extended_description = (
-                            (acc.get('extended_description') or '').strip() or None
-                        )
-                        if acc.get('skipped'):
-                            log(
-                                f"Accessibility skipped image_id={row['id']}: {acc.get('reason')}",
-                                "DEBUG",
-                                image_id=row["id"],
-                            )
-
-                keywords_produced = bool(tags)
-                metadata_produced = bool(caption or alt_text or extended_description)
-
-                if keywords_produced or metadata_produced:
-                    tags_str = ",".join(tags)
-                    # When CLIP inference produced per-keyword scores, persist
-                    # keywords (legacy column + normalized rows with confidence /
-                    # relevance_weight) via the dedicated helper, and write only
-                    # the remaining fields through the batch helper to avoid a
-                    # second keyword sync that would overwrite the weights.
-                    use_scored_keywords = bool(
-                        keywords_produced
-                        and write_keyword_relevance
-                        and (confidence_map or relevance_map)
-                    )
-                    field_updates = {
-                        "title": title if title else row.get('title'),
-                        "description": caption if caption else row.get('description'),
-                    }
-                    if not use_scored_keywords:
-                        field_updates["keywords"] = tags_str
-                    db.update_image_fields_batch([(row['id'], field_updates)])
-                    if use_scored_keywords:
-                        db.update_image_keywords_for_image(
-                            row['id'],
-                            tags_str,
-                            source="auto",
-                            confidence_map=confidence_map,
-                            relevance_map=relevance_map,
-                        )
-                    if alt_text or extended_description:
-                        db.upsert_image_xmp(row['id'], {
-                            'alt_text': alt_text,
-                            'extended_description': extended_description,
-                        })
-                    self.write_metadata(
-                        original_windows_path,
-                        tags,
-                        title,
-                        caption,
-                        alt_text=alt_text or "",
-                        extended_description=extended_description or "",
-                    )
-                    if keywords_produced:
-                        processed_count += 1
-                        processed_folders.add(folder)
-                        db.set_image_phase_status(
-                            row['id'],
-                            PhaseCode.KEYWORDS,
-                            PhaseStatus.DONE,
-                            app_version=APP_VERSION,
-                            executor_version=TAGGER_VERSION,
-                            job_id=job_id,
-                        )
-                        if report_collector is not None:
-                            try:
-                                report_collector.record_after(
-                                    int(row['id']),
-                                    {
-                                        "keywords": tags_str,
-                                        "title": title or None,
-                                        "description": caption or None,
-                                    },
-                                    action="processed",
-                                )
-                            except Exception:
-                                logger.debug(
-                                    "tagging: record_after failed for image_id=%s",
-                                    row.get('id'),
-                                    exc_info=True,
-                                )
-                    else:
-                        skipped_count += 1
-                        db.set_image_phase_status(
-                            row['id'],
-                            PhaseCode.KEYWORDS,
-                            PhaseStatus.SKIPPED,
-                            app_version=APP_VERSION,
-                            executor_version=TAGGER_VERSION,
-                            job_id=job_id,
-                            skip_reason="caption_only_no_keywords",
-                            skipped_by="tagging",
-                        )
-                        if report_collector is not None:
-                            try:
-                                report_collector.record_skip(
-                                    int(row['id']),
-                                    "caption_only_no_keywords",
-                                )
-                            except Exception:
-                                logger.debug(
-                                    "tagging: record_skip failed for image_id=%s",
-                                    row.get('id'),
-                                    exc_info=True,
-                                )
-                else:
-                    skipped_count += 1
-                    db.set_image_phase_status(
-                        row['id'],
-                        PhaseCode.KEYWORDS,
-                        PhaseStatus.SKIPPED,
-                        app_version=APP_VERSION,
-                        executor_version=TAGGER_VERSION,
-                        job_id=job_id,
-                        skip_reason="no tags produced",
-                        skipped_by="tagging",
-                    )
-                    # Issue #160: increment job_phases.images_skipped.
-                    if report_collector is not None:
-                        try:
-                            report_collector.record_skip(int(row['id']), "no tags produced")
-                        except Exception:
-                            logger.debug("tagging: record_skip failed for image_id=%s", row.get('id'), exc_info=True)
-            except Exception as e:
-                log(f"Error processing {path}: {e}", "ERROR", image_id=row["id"])
-                skipped_count += 1
-                try:
-                    db.set_image_phase_status(
-                        row['id'],
-                        PhaseCode.KEYWORDS,
-                        PhaseStatus.FAILED,
-                        app_version=APP_VERSION,
-                        executor_version=TAGGER_VERSION,
-                        job_id=job_id,
-                        error=str(e)[:1024],
-                    )
-                except Exception:
-                    logger.exception(
-                        "tagging: failed to record FAILED phase status for image_id=%s",
-                        row.get('id'),
-                    )
-                # Issue #160: increment job_phases.images_failed.
-                if report_collector is not None:
-                    try:
-                        report_collector.record_failure(int(row['id']), str(e)[:1024])
-                    except Exception:
-                        logger.debug("tagging: record_failure failed for image_id=%s", row.get('id'), exc_info=True)
-
-            self.current_count += 1
-            if self.current_count % 5 == 0:
-                event_manager.broadcast_threadsafe(
-                    "job_progress",
-                    {
-                        "job_id": job_id,
-                        "job_type": "tagging",
-                        "phase_code": "keywords",
-                        "current": self.current_count,
-                        "total": self.total_count,
-                    },
-                )
-                
         log(f"Done. Processed: {processed_count}, Skipped: {skipped_count}")
 
         # Issue #160: flush collector — writes final job_phases counters and any

@@ -14,6 +14,8 @@ import threading
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from modules import db
+
 logger = logging.getLogger(__name__)
 
 BIRD_SPECIES_RUNNER_VERSION = "1.0.0"
@@ -304,6 +306,105 @@ class BirdSpeciesRunner:
         self._thread.start()
         return "Started"
 
+    def _process_bird_species_image_row(
+        self,
+        row,
+        *,
+        species_list,
+        threshold,
+        top_k,
+        phase_code,
+        log,
+    ):
+        """Classify one bird-tagged image. Returns (processed_delta, skipped_delta)."""
+        file_path = row["file_path"]
+        inference_path = _resolve_inference_path(row, file_path)
+
+        if not inference_path or not os.path.exists(inference_path):
+            db.set_image_phase_status(
+                row["id"],
+                phase_code,
+                "skipped",
+                skip_reason="file_missing",
+                skipped_by="bird_species_runner",
+                executor_version=BIRD_SPECIES_RUNNER_VERSION,
+            )
+            log(f"Skipped (file not found): {os.path.basename(file_path)}", "WARNING")
+            return 0, 1
+
+        try:
+            predictions = self.classifier.classify(
+                inference_path, species_list, threshold=threshold, top_k=top_k
+            )
+
+            try:
+                self._persist_bioclip_embedding(row["id"])
+            except Exception:
+                logger.debug(
+                    "bird_species: BioCLIP embedding persist failed for image_id=%s",
+                    row.get("id"),
+                    exc_info=True,
+                )
+
+            if predictions:
+                existing_kw_str = (row.get("keywords") or "").strip()
+                existing_kws = [k.strip() for k in existing_kw_str.split(",") if k.strip()]
+                base_kws = [k for k in existing_kws if not k.lower().startswith("species:")]
+                new_species_kws = [f"species:{name}" for name, _ in predictions]
+                merged = base_kws + new_species_kws
+                merged_str = ",".join(merged)
+
+                confidence_map = {
+                    f"species:{name}".lower(): float(prob)
+                    for name, prob in predictions
+                }
+                source_map = {
+                    f"species:{name}".lower(): "bioclip"
+                    for name, _ in predictions
+                }
+                db.update_image_keywords_for_image(
+                    row["id"],
+                    merged_str,
+                    source="auto",
+                    confidence_map=confidence_map,
+                    source_map=source_map,
+                )
+                db.set_image_phase_status(
+                    row["id"],
+                    phase_code,
+                    "done",
+                    executor_version=BIRD_SPECIES_RUNNER_VERSION,
+                )
+                log(f"{os.path.basename(file_path)}: {', '.join(new_species_kws)}")
+                return 1, 0
+
+            from modules.bird_species_eligibility import (
+                BIRDS_SPECIES_EXHAUSTED_KEYWORD,
+                mark_species_exhausted,
+            )
+
+            mark_species_exhausted(
+                int(row["id"]),
+                existing_keywords_csv=(row.get("keywords") or ""),
+            )
+            log(
+                f"{os.path.basename(file_path)}: no species above threshold "
+                f"(marked {BIRDS_SPECIES_EXHAUSTED_KEYWORD})",
+            )
+            return 0, 1
+
+        except Exception as exc:
+            db.set_image_phase_status(
+                row["id"],
+                phase_code,
+                "failed",
+                error=str(exc),
+                executor_version=BIRD_SPECIES_RUNNER_VERSION,
+            )
+            log(f"Error classifying {os.path.basename(file_path)}: {exc}", "ERROR")
+            logger.exception("BirdSpeciesRunner error on %s", file_path)
+            return 0, 1
+
     def _run_batch_internal(
         self,
         input_path: str,
@@ -442,102 +543,16 @@ class BirdSpeciesRunner:
                 log("Paused (job status).", "WARNING")
                 break
 
-            file_path = row["file_path"]
-            inference_path = _resolve_inference_path(row, file_path)
-
-            if not inference_path or not os.path.exists(inference_path):
-                # Terminal at this executor version: classification can't proceed
-                # until the file reappears (or is pruned). 'skipped' lets the heal
-                # status filter treat it as terminal; 'failed' caused heal to
-                # re-queue the same folder forever.
-                db.set_image_phase_status(
-                    row["id"],
-                    phase_code,
-                    "skipped",
-                    skip_reason="file_missing",
-                    skipped_by="bird_species_runner",
-                    executor_version=BIRD_SPECIES_RUNNER_VERSION,
-                )
-                log(f"Skipped (file not found): {os.path.basename(file_path)}", "WARNING")
-                skipped += 1
-                self.current_count += 1
-                continue
-
-            try:
-                predictions = self.classifier.classify(
-                    inference_path, species_list, threshold=threshold, top_k=top_k
-                )
-
-                # Best-effort: persist the BioCLIP image embedding computed during
-                # classify() so similarity/diversity/tag-propagation can reuse it.
-                try:
-                    self._persist_bioclip_embedding(row["id"])
-                except Exception:
-                    logger.debug(
-                        "bird_species: BioCLIP embedding persist failed for image_id=%s",
-                        row.get("id"),
-                        exc_info=True,
-                    )
-
-                if predictions:
-                    # Build merged keywords: keep existing non-species keywords + new species: ones
-                    existing_kw_str = (row.get("keywords") or "").strip()
-                    existing_kws = [k.strip() for k in existing_kw_str.split(",") if k.strip()]
-                    base_kws = [k for k in existing_kws if not k.lower().startswith("species:")]
-                    new_species_kws = [f"species:{name}" for name, _ in predictions]
-                    merged = base_kws + new_species_kws
-                    merged_str = ",".join(merged)
-
-                    confidence_map = {
-                        f"species:{name}".lower(): float(prob)
-                        for name, prob in predictions
-                    }
-                    source_map = {
-                        f"species:{name}".lower(): "bioclip"
-                        for name, _ in predictions
-                    }
-                    db.update_image_keywords_for_image(
-                        row["id"],
-                        merged_str,
-                        source="auto",
-                        confidence_map=confidence_map,
-                        source_map=source_map,
-                    )
-                    db.set_image_phase_status(
-                        row["id"],
-                        phase_code,
-                        "done",
-                        executor_version=BIRD_SPECIES_RUNNER_VERSION,
-                    )
-                    log(f"{os.path.basename(file_path)}: {', '.join(new_species_kws)}")
-                    processed += 1
-                else:
-                    from modules.bird_species_eligibility import (
-                        BIRDS_SPECIES_EXHAUSTED_KEYWORD,
-                        mark_species_exhausted,
-                    )
-
-                    mark_species_exhausted(
-                        int(row["id"]),
-                        existing_keywords_csv=(row.get("keywords") or ""),
-                    )
-                    log(
-                        f"{os.path.basename(file_path)}: no species above threshold "
-                        f"(marked {BIRDS_SPECIES_EXHAUSTED_KEYWORD})",
-                    )
-                    skipped += 1
-
-            except Exception as exc:
-                db.set_image_phase_status(
-                    row["id"],
-                    phase_code,
-                    "failed",
-                    error=str(exc),
-                    executor_version=BIRD_SPECIES_RUNNER_VERSION,
-                )
-                log(f"Error classifying {os.path.basename(file_path)}: {exc}", "ERROR")
-                logger.exception("BirdSpeciesRunner error on %s", file_path)
-                skipped += 1
+            processed_delta, skipped_delta = self._process_bird_species_image_row(
+                row,
+                species_list=species_list,
+                threshold=threshold,
+                top_k=top_k,
+                phase_code=phase_code,
+                log=log,
+            )
+            processed += processed_delta
+            skipped += skipped_delta
 
             self.current_count += 1
             if self.current_count % 5 == 0:

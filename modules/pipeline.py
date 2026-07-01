@@ -190,6 +190,110 @@ class PrepWorker(PipelineWorker):
         super().__init__("PrepWorker", input_queue, output_queue, stop_event)
         self.scorer = scorer_ref # Reference to scorer class for static methods (is_raw, etc)
         self._raw_converter = None  # Lazy-init; reused for RAW conversion to avoid per-image instantiation
+
+    def _apply_scoring_prep(self, job: ImageJob) -> bool:
+        """Run scoring-phase prep for one job. Returns False if job should not reach GPU."""
+        if not _is_phase_targeted(job.target_phases, PhaseCode.SCORING):
+            return True
+
+        if not job.thumbnail_path:
+            thumb = thumbnails.get_thumb_path(job.image_path)
+            if not os.path.exists(thumb):
+                generated = thumbnails.generate_thumbnail(job.image_path)
+                if generated:
+                    thumb = generated
+            job.thumbnail_path = thumb
+
+        if job.image_id:
+            from modules.phases_policy import explain_phase_run_decision
+            decision = explain_phase_run_decision(
+                job.image_id,
+                PhaseCode.SCORING,
+                current_executor_version=SCORING_EXECUTOR_VERSION,
+                force_run=not job.skip_existing,
+            )
+            if not decision['should_run']:
+                skip_reason = decision.get("reason", "scoring_policy_skip")
+                job.status = "skipped"
+                job.skip_reason = skip_reason
+                db.set_image_phase_status(
+                    job.image_id,
+                    PhaseCode.SCORING,
+                    PhaseStatus.SKIPPED,
+                    app_version=APP_VERSION,
+                    executor_version=SCORING_EXECUTOR_VERSION,
+                    job_id=job.job_id,
+                    skip_reason=skip_reason,
+                    skipped_by="scoring_pipeline",
+                )
+                if job.job_id:
+                    emit_run_log(
+                        job.job_id,
+                        f"Scoring skipped (policy): {Path(job.image_path).name}",
+                        "INFO",
+                        phase="scoring",
+                        step="prep",
+                    )
+                self.output_queue.put(job)
+                return False
+
+        job.is_raw = self.scorer.is_raw_file(job.image_path) if self.scorer else False
+        if job.job_id:
+            emit_run_log(
+                job.job_id,
+                f"Prep {Path(job.image_path).name} raw={job.is_raw}",
+                "DEBUG",
+                phase="scoring",
+                step="prep",
+            )
+
+        if job.image_id:
+            db.set_image_phase_status(
+                job.image_id,
+                PhaseCode.SCORING,
+                PhaseStatus.RUNNING,
+                app_version=APP_VERSION,
+                executor_version=SCORING_EXECUTOR_VERSION,
+                job_id=job.job_id,
+            )
+
+        if job.is_raw:
+            t_dir = tempfile.mkdtemp(prefix="musiq_prep_")
+            job.temp_files.append(t_dir)
+
+            if self._raw_converter is None:
+                from scripts.python.run_all_musiq_models import MultiModelMUSIQ
+                self._raw_converter = MultiModelMUSIQ(skip_gpu=True)
+            self._raw_converter.temp_dir = t_dir
+
+            jpg = self._raw_converter.convert_raw_to_jpeg(job.image_path)
+            if jpg:
+                job.process_path = jpg
+                job.temp_files.append(jpg)
+                if job.job_id:
+                    emit_run_log(
+                        job.job_id,
+                        f"RAW converted: {Path(job.image_path).name}",
+                        "DEBUG",
+                        phase="scoring",
+                        step="prep",
+                    )
+            else:
+                job.status = "failed"
+                job.error = "RAW Conversion Failed"
+                if job.job_id:
+                    emit_run_log(
+                        job.job_id,
+                        f"RAW conversion failed: {job.image_path}",
+                        "ERROR",
+                        phase="scoring",
+                        step="prep",
+                    )
+                self.output_queue.put(job)
+                return False
+        else:
+            job.process_path = job.image_path
+        return True
         
     def process(self, job: ImageJob):
         try:
@@ -224,117 +328,8 @@ class PrepWorker(PipelineWorker):
                             )
 
             # --- PHASE C: SCORING (Preparation) ---
-            if _is_phase_targeted(job.target_phases, PhaseCode.SCORING):
-                # Ensure we have a thumbnail for scoring if needed
-                if not job.thumbnail_path:
-                    # MetadataRunner should have created this, but we'll check just in case
-                    thumb = thumbnails.get_thumb_path(job.image_path)
-                    if not os.path.exists(thumb):
-                        generated = thumbnails.generate_thumbnail(job.image_path)
-                        if generated:
-                            thumb = generated
-                    job.thumbnail_path = thumb
-
-                # Per-image rerun gate (symmetric with tagging/culling runners)
-                if job.image_id:
-                    from modules.phases_policy import explain_phase_run_decision
-                    decision = explain_phase_run_decision(
-                        job.image_id,
-                        PhaseCode.SCORING,
-                        current_executor_version=SCORING_EXECUTOR_VERSION,
-                        force_run=not job.skip_existing,
-                    )
-                    if not decision['should_run']:
-                        skip_reason = decision.get("reason", "scoring_policy_skip")
-                        job.status = "skipped"
-                        job.skip_reason = skip_reason
-                        db.set_image_phase_status(
-                            job.image_id,
-                            PhaseCode.SCORING,
-                            PhaseStatus.SKIPPED,
-                            app_version=APP_VERSION,
-                            executor_version=SCORING_EXECUTOR_VERSION,
-                            job_id=job.job_id,
-                            skip_reason=skip_reason,
-                            skipped_by="scoring_pipeline",
-                        )
-                        if job.job_id:
-                            emit_run_log(
-                                job.job_id,
-                                f"Scoring skipped (policy): {Path(job.image_path).name}",
-                                "INFO",
-                                phase="scoring",
-                                step="prep",
-                            )
-                        self.output_queue.put(job)
-                        return
-
-                # Identify Type
-                job.is_raw = self.scorer.is_raw_file(job.image_path) if self.scorer else False
-                if job.job_id:
-                    emit_run_log(
-                        job.job_id,
-                        f"Prep {Path(job.image_path).name} raw={job.is_raw}",
-                        "DEBUG",
-                        phase="scoring",
-                        step="prep",
-                    )
-
-                # Mark scoring RUNNING up-front, before RAW conversion, so a conversion
-                # failure is recorded as a running→failed transition and counts toward the
-                # per-image retry budget (attempt_count increments on failed→running reruns).
-                # Previously a RAW-conversion failure returned before this transition,
-                # leaving attempt_count at 0 forever — so scope_has_unattempted_phase_work()
-                # kept classifying the image as "never attempted" and auto-drive re-enqueued
-                # the whole folder indefinitely (see RCA: transient-conversion loop wedge).
-                if job.image_id:
-                    db.set_image_phase_status(
-                        job.image_id,
-                        PhaseCode.SCORING,
-                        PhaseStatus.RUNNING,
-                        app_version=APP_VERSION,
-                        executor_version=SCORING_EXECUTOR_VERSION,
-                        job_id=job.job_id,
-                    )
-
-                # RAW Conversion for Scoring
-                if job.is_raw:
-                    # Custom conversion logic here to avoid sharing state
-                    t_dir = tempfile.mkdtemp(prefix="musiq_prep_")
-                    job.temp_files.append(t_dir)
-                    
-                    if self._raw_converter is None:
-                        from scripts.python.run_all_musiq_models import MultiModelMUSIQ
-                        self._raw_converter = MultiModelMUSIQ(skip_gpu=True)
-                    self._raw_converter.temp_dir = t_dir
-                    
-                    jpg = self._raw_converter.convert_raw_to_jpeg(job.image_path)
-                    if jpg:
-                        job.process_path = jpg
-                        job.temp_files.append(jpg)
-                        if job.job_id:
-                            emit_run_log(
-                                job.job_id,
-                                f"RAW converted: {Path(job.image_path).name}",
-                                "DEBUG",
-                                phase="scoring",
-                                step="prep",
-                            )
-                    else:
-                        job.status = "failed"
-                        job.error = "RAW Conversion Failed"
-                        if job.job_id:
-                            emit_run_log(
-                                job.job_id,
-                                f"RAW conversion failed: {job.image_path}",
-                                "ERROR",
-                                phase="scoring",
-                                step="prep",
-                            )
-                        self.output_queue.put(job)
-                        return
-                else:
-                    job.process_path = job.image_path
+            if not self._apply_scoring_prep(job):
+                return
 
             self.output_queue.put(job)
             
@@ -618,159 +613,161 @@ class ResultWorker(PipelineWorker):
         except TypeError:
             self.progress_callback(out)
 
-    def process(self, job: ImageJob):
-        collector = getattr(self, "report_collector", None)
+        except TypeError:
+            self.progress_callback(out)
 
-        # 1. Handle Status
-        if job.status == "skipped":
-            self._progress(f"Skipped: {job.image_path}", "INFO", image_id=job.image_id)
-            if job.image_id and _is_phase_targeted(job.target_phases, PhaseCode.SCORING):
-                thumb = job.thumbnail_path
-                if not thumb or not os.path.isfile(thumb):
-                    thumb = thumbnails.get_thumb_path(job.image_path)
-                if thumb and os.path.isfile(thumb):
-                    db.update_image_thumbnail_paths(job.image_id, thumb, None)
-                if collector and job.image_id:
-                    collector.record_skip(job.image_id, job.skip_reason or "scoring_policy_skip")
+    def _handle_skipped_job(self, job: ImageJob, collector) -> None:
+        self._progress(f"Skipped: {job.image_path}", "INFO", image_id=job.image_id)
+        if job.image_id and _is_phase_targeted(job.target_phases, PhaseCode.SCORING):
+            thumb = job.thumbnail_path
+            if not thumb or not os.path.isfile(thumb):
+                thumb = thumbnails.get_thumb_path(job.image_path)
+            if thumb and os.path.isfile(thumb):
+                db.update_image_thumbnail_paths(job.image_id, thumb, None)
+            if collector and job.image_id:
+                collector.record_skip(job.image_id, job.skip_reason or "scoring_policy_skip")
 
-        elif job.status == "failed":
-            self._progress(f"FAILED: {job.image_path} - {job.error}", "ERROR", image_id=job.image_id)
+    def _handle_failed_job(self, job: ImageJob, collector) -> None:
+        self._progress(f"FAILED: {job.image_path} - {job.error}", "ERROR", image_id=job.image_id)
+        if job.image_id:
+            db.set_image_phase_status(
+                job.image_id,
+                PhaseCode.SCORING,
+                PhaseStatus.FAILED,
+                app_version=APP_VERSION,
+                executor_version=SCORING_EXECUTOR_VERSION,
+                job_id=job.job_id,
+                error=job.error,
+            )
+            if collector:
+                collector.record_failure(job.image_id, job.error or "unknown")
+
+    def _handle_success_job(self, job: ImageJob, collector) -> None:
+        if self.scorer and "weighted_scores" in job.result["summary"]:
+            try:
+                normalized_scores_dict = {}
+                for m_name, m_res in job.result["models"].items():
+                    if m_res.get("status") == "success" and not m_res.get("is_shadow"):
+                        normalized_scores_dict[m_name] = m_res.get("normalized_score", 0)
+
+                result_all = snorm.compute_all(normalized_scores_dict)
+                rating = result_all["rating"]
+                label = result_all["label"]
+
+                job.result["summary"]["weighted_scores"] = {
+                    "technical": result_all["technical"],
+                    "aesthetic": result_all["aesthetic"],
+                    "general": result_all["general"],
+                }
+
+                metadata_written = xmp.write_metadata_unified(
+                    image_path=job.image_path,
+                    rating=rating,
+                    label=label,
+                    use_sidecar=True,
+                    use_embedded=job.is_raw,
+                )
+
+                if metadata_written:
+                    job.result["nef_metadata"] = {
+                        "rating": rating,
+                        "label": label,
+                    }
+
+            except Exception as e:
+                self._progress(f"Metadata Write Failed: {e}", "WARNING", image_id=job.image_id)
+
+        try:
+            job.result["image_path"] = job.image_path
+            job.result["image_name"] = Path(job.image_path).name
+            if "image_hash" in job.external_scores:
+                job.result["image_hash"] = job.external_scores["image_hash"]
+            if "hash_version" in job.external_scores:
+                job.result["hash_version"] = job.external_scores["hash_version"]
+
+            if job.thumbnail_path:
+                job.result["thumbnail_path"] = job.thumbnail_path
+
+            if self._folder_agg_dirty_ids is not None:
+                db.upsert_image(
+                    job.job_id,
+                    job.result,
+                    invalidate_agg=False,
+                    dirty_folder_ids=self._folder_agg_dirty_ids,
+                )
+            else:
+                db.upsert_image(job.job_id, job.result)
+
+            if not job.image_id:
+                try:
+                    img_rec = db.get_image_details(job.image_path)
+                    if img_rec:
+                        job.image_id = img_rec['id']
+                except Exception:
+                    pass
+
+            if job.image_id:
+                db.set_image_phase_status(
+                    job.image_id,
+                    PhaseCode.SCORING,
+                    PhaseStatus.DONE,
+                    app_version=APP_VERSION,
+                    executor_version=SCORING_EXECUTOR_VERSION,
+                    job_id=job.job_id,
+                )
+
+            score = job.result.get("summary", {}).get("weighted_scores", {}).get("general", 0)
+            self._progress(
+                f"Scored: {Path(job.image_path).name} - {score:.2f}",
+                "INFO",
+                image_id=job.image_id,
+            )
+
+            if collector and job.image_id:
+                try:
+                    ws = job.result.get("summary", {}).get("weighted_scores", {})
+                    models = job.result.get("models", {})
+                    nef_meta = job.result.get("nef_metadata", {})
+                    after = {
+                        "score": ws.get("general"),
+                        "score_general": ws.get("general"),
+                        "score_technical": ws.get("technical"),
+                        "score_aesthetic": ws.get("aesthetic"),
+                        "rating": nef_meta.get("rating"),
+                        "label": nef_meta.get("label"),
+                    }
+                    for m_name in ("spaq", "ava", "koniq", "paq2piq", "liqe"):
+                        m_data = models.get(m_name, {})
+                        after[f"score_{m_name}"] = m_data.get("normalized_score")
+                    collector.record_after(job.image_id, after)
+                except Exception:
+                    logger.debug(
+                        "ResultWorker: after-snapshot recording failed for image %s",
+                        job.image_id,
+                        exc_info=True,
+                    )
+        except Exception as e:
             if job.image_id:
                 db.set_image_phase_status(
                     job.image_id,
                     PhaseCode.SCORING,
                     PhaseStatus.FAILED,
-                    app_version=APP_VERSION,
-                    executor_version=SCORING_EXECUTOR_VERSION,
                     job_id=job.job_id,
-                    error=job.error,
+                    error=str(e),
                 )
                 if collector:
-                    collector.record_failure(job.image_id, job.error or "unknown")
-                
+                    collector.record_failure(job.image_id, str(e))
+            self._progress(f"DB Error: {e}", "ERROR", image_id=job.image_id)
+
+    def process(self, job: ImageJob):
+        collector = getattr(self, "report_collector", None)
+
+        if job.status == "skipped":
+            self._handle_skipped_job(job, collector)
+        elif job.status == "failed":
+            self._handle_failed_job(job, collector)
         elif job.status == "success":
-            # Write Metadata using unified XMP module
-            # Doing this here takes I/O off the GPU thread
-            metadata_written = False
-            if self.scorer and "weighted_scores" in job.result["summary"]:
-                try:
-                    normalized_scores_dict = {}
-                    for m_name, m_res in job.result["models"].items():
-                         # Shadow models run alongside production but must NOT contribute
-                         # to fused scores (Phase 1 shadow-mode). The host stamps
-                         # is_shadow=True on those rows; legacy results omit the key
-                         # entirely, which `not m_res.get("is_shadow")` treats as production.
-                         if m_res.get("status") == "success" and not m_res.get("is_shadow"):
-                             normalized_scores_dict[m_name] = m_res.get("normalized_score", 0)
-
-                    result_all = snorm.compute_all(normalized_scores_dict)
-                    avg_score = result_all["general"]
-                    rating = result_all["rating"]
-                    label = result_all["label"]
-
-                    job.result["summary"]["weighted_scores"] = {
-                        "technical": result_all["technical"],
-                        "aesthetic": result_all["aesthetic"],
-                        "general": result_all["general"],
-                    }
-                    
-                    # Use unified XMP module for consistent metadata handling
-                    # Write XMP sidecar (non-destructive) for all images
-                    metadata_written = xmp.write_metadata_unified(
-                        image_path=job.image_path,
-                        rating=rating,
-                        label=label,
-                        use_sidecar=True,  # Always create XMP sidecar
-                        use_embedded=job.is_raw  # Only write embedded for RAW files
-                    )
-                    
-                    if metadata_written:
-                        # Inject metadata into result for DB upsert
-                        job.result["nef_metadata"] = {
-                            "rating": rating,
-                            "label": label
-                        }
-                        
-                except Exception as e:
-                    self._progress(f"Metadata Write Failed: {e}", "WARNING", image_id=job.image_id)
-
-            # Upsert
-            try:
-                # Add original path to result so DB knows
-                job.result["image_path"] = job.image_path
-                job.result["image_name"] = Path(job.image_path).name
-                if "image_hash" in job.external_scores:
-                    job.result["image_hash"] = job.external_scores["image_hash"]
-                if "hash_version" in job.external_scores:
-                    job.result["hash_version"] = job.external_scores["hash_version"]
-                
-                if job.thumbnail_path:
-                    job.result["thumbnail_path"] = job.thumbnail_path
-                
-                if self._folder_agg_dirty_ids is not None:
-                    db.upsert_image(
-                        job.job_id,
-                        job.result,
-                        invalidate_agg=False,
-                        dirty_folder_ids=self._folder_agg_dirty_ids,
-                    )
-                else:
-                    db.upsert_image(job.job_id, job.result)
-                
-                # Resolve image_id for phase tracking (may have been created by upsert)
-                had_no_image_id = not job.image_id
-                if not job.image_id:
-                    try:
-                        img_rec = db.get_image_details(job.image_path)
-                        if img_rec:
-                            job.image_id = img_rec['id']
-                    except Exception:
-                        pass
-
-                # Phase status updates
-                if job.image_id:
-                    db.set_image_phase_status(job.image_id, PhaseCode.SCORING, PhaseStatus.DONE,
-                                              app_version=APP_VERSION,
-                                              executor_version=SCORING_EXECUTOR_VERSION,
-                                              job_id=job.job_id)
-
-                score = job.result.get("summary", {}).get("weighted_scores", {}).get("general", 0)
-                self._progress(
-                    f"Scored: {Path(job.image_path).name} - {score:.2f}",
-                    "INFO",
-                    image_id=job.image_id,
-                )
-
-                # Record after-snapshot for execution trail.
-                if collector and job.image_id:
-                    try:
-                        ws = job.result.get("summary", {}).get("weighted_scores", {})
-                        models = job.result.get("models", {})
-                        nef_meta = job.result.get("nef_metadata", {})
-                        after = {
-                            "score": ws.get("general"),
-                            "score_general": ws.get("general"),
-                            "score_technical": ws.get("technical"),
-                            "score_aesthetic": ws.get("aesthetic"),
-                            "rating": nef_meta.get("rating"),
-                            "label": nef_meta.get("label"),
-                        }
-                        for m_name in ("spaq", "ava", "koniq", "paq2piq", "liqe"):
-                            m_data = models.get(m_name, {})
-                            after[f"score_{m_name}"] = m_data.get("normalized_score")
-                        collector.record_after(job.image_id, after)
-                    except Exception:
-                        logger.debug("ResultWorker: after-snapshot recording failed for image %s", job.image_id, exc_info=True)
-            except Exception as e:
-                # Phase C (Scoring) — failed
-                if job.image_id:
-                    db.set_image_phase_status(job.image_id, PhaseCode.SCORING, PhaseStatus.FAILED,
-                                              job_id=job.job_id, error=str(e))
-                    if collector:
-                        collector.record_failure(job.image_id, str(e))
-                self._progress(f"DB Error: {e}", "ERROR", image_id=job.image_id)
-        
-        # 2. Cleanup
+            self._handle_success_job(job, collector)
         for p in job.temp_files:
             try:
                 if os.path.isdir(p):

@@ -75,32 +75,20 @@ class BatchImageProcessor:
                     pass
         return total
 
-    def process_directory(self, input_dir, output_dir_unused, callback=None, job_id=None):
-        """
-        Main entry point for batch processing.
-        """
-        # 1. Setup
-        if not self.scorer:
-            self.log("Error: Scorer not provided!", "ERROR")
-            return
-
-        # 2. Find Images (using os.walk for folder-level control)
+    def _discover_scoring_input_files(self, input_dir):
+        """Walk input_dir and return (sorted file paths, visited folder paths)."""
         extensions = discovery_extensions()
         files = []
         visited_folders = set()
-        
-        # Normalize input_dir
+
         input_dir = os.path.normpath(input_dir)
 
-        # Single file: os.walk(file_path) yields nothing — file-scoped runs must still enqueue one image.
         if os.path.isfile(input_dir):
             if path_is_indexing_excluded(input_dir):
-                self.log("No images found (path excluded from indexing).")
-                return
+                return [], set()
             ext = os.path.splitext(input_dir)[1].lower()
             if ext not in extensions:
-                self.log(f"No images found (unsupported extension {ext!r}).")
-                return
+                return [], set()
             parent = os.path.normpath(os.path.dirname(input_dir))
             if self.skip_existing:
                 try:
@@ -109,7 +97,7 @@ class BatchImageProcessor:
                             pass
                         else:
                             self.log(f"Skipping fully scored folder: {parent}")
-                            return
+                            return [], set()
                 except Exception as e:
                     self.log(f"Error checking folder status for {parent}: {e}", "WARNING")
             try:
@@ -120,55 +108,60 @@ class BatchImageProcessor:
                 pass
             visited_folders.add(parent)
             files.append(input_dir)
-        else:
-            for root, dirs, filenames in os.walk(input_dir):
-                prune_indexing_excluded_walk_dirs(root, dirs)
-                # Check folder flag if we are skipping existing
-                if self.skip_existing:
-                    try:
-                        if db.is_folder_scored(root):
-                            # One-time validation: does the flag still hold?
-                            if not db.check_and_update_folder_status(root):
-                                # Flag was stale; don't skip — fall through to scan.
-                                pass
-                            else:
-                                self.log(f"Skipping fully scored folder: {root}")
-                                # We do not process files in this folder.
-                                # We DO continue into subdirectories (os.walk default),
-                                # because they might not be scored.
-                                continue
-                    except Exception as e:
-                        self.log(f"Error checking folder status for {root}: {e}", "WARNING")
+            return sorted(list(set(files))), visited_folders
 
-                # Broadcast folder discovery
+        for root, dirs, filenames in os.walk(input_dir):
+            prune_indexing_excluded_walk_dirs(root, dirs)
+            if self.skip_existing:
                 try:
-                    from modules.events import event_manager
-                    event_manager.broadcast_threadsafe("folder_discovered", {"path": root})
-                except Exception:
-                    pass
-
-                visited_folders.add(root)
-
-                for filename in filenames:
-                    file_path = os.path.join(root, filename)
-                    if path_is_indexing_excluded(file_path):
-                        continue
-                    ext = os.path.splitext(filename)[1].lower()
-                    if ext in extensions:
-                        files.append(file_path)
-                        # Broadcast image discovery
-                        try:
-                            from modules.events import event_manager
-                            event_manager.broadcast_threadsafe("image_discovered", {"path": file_path})
-                        except Exception:
+                    if db.is_folder_scored(root):
+                        if not db.check_and_update_folder_status(root):
                             pass
+                        else:
+                            self.log(f"Skipping fully scored folder: {root}")
+                            continue
+                except Exception as e:
+                    self.log(f"Error checking folder status for {root}: {e}", "WARNING")
 
-        files = sorted(list(set(files)))  # Dedup just in case
+            try:
+                from modules.events import event_manager
+                event_manager.broadcast_threadsafe("folder_discovered", {"path": root})
+            except Exception:
+                pass
 
-        
+            visited_folders.add(root)
+
+            for filename in filenames:
+                file_path = os.path.join(root, filename)
+                if path_is_indexing_excluded(file_path):
+                    continue
+                ext = os.path.splitext(filename)[1].lower()
+                if ext in extensions:
+                    files.append(file_path)
+                    try:
+                        from modules.events import event_manager
+                        event_manager.broadcast_threadsafe("image_discovered", {"path": file_path})
+                    except Exception:
+                        pass
+
+        return sorted(list(set(files))), visited_folders
+
+    def process_directory(self, input_dir, output_dir_unused, callback=None, job_id=None):
+        """
+        Main entry point for batch processing.
+        """
+        # 1. Setup
+        if not self.scorer:
+            self.log("Error: Scorer not provided!", "ERROR")
+            return
+
+        files, visited_folders = self._discover_scoring_input_files(input_dir)
+
         if not files:
-            self.log("No images found.")
-            # Update flags for visited (e.g. empty) folders as they might be "done" (empty)
+            if not visited_folders and os.path.isfile(os.path.normpath(input_dir)):
+                self.log("No images found (path excluded from indexing or unsupported extension).")
+            elif not files:
+                self.log("No images found.")
             if visited_folders:
                 self.log("Verifying empty folders...")
                 for f in visited_folders:
