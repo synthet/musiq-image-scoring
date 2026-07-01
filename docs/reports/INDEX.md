@@ -1,3 +1,13 @@
+---
+type: Documentation Index
+title: Reports index
+description: Index of historical reports, research, reviews, and debugging sessions under docs/reports/.
+resource: docs/reports/INDEX.md
+tags: [docs, reports, index]
+timestamp: 2026-07-01T00:00:00Z
+okf_version: 0.1
+---
+
 # Reports — Index
 
 Historical reports, research, reviews, and debugging sessions.

@@ -1,3 +1,13 @@
+---
+type: Documentation Index
+title: Planning and migrations index
+description: Index of database migrations, schema phases, refactors, and model roadmaps under docs/planning/.
+resource: docs/planning/INDEX.md
+tags: [docs, planning, index]
+timestamp: 2026-07-01T00:00:00Z
+okf_version: 0.1
+---
+
 # Planning & migrations — index
 
 Database migrations, schema phases, refactors, and model roadmaps. **Product / UI specs** that are not yet shipped live under [`../features/planned/INDEX.md`](../features/planned/INDEX.md) (embedding apps, pipeline UI plans, import alignment).
