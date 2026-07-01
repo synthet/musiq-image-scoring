@@ -339,7 +339,7 @@ def test_enqueue_auto_bucket_uses_only_repair_plan_phases_with_work(monkeypatch)
     assert plan_calls[1][2] is False
     assert plan_calls[1][1] == ["indexing", "metadata", "scoring", "keywords"]
     assert plan_calls[0][3] is False
-    assert plan_calls[1][3] is False
+    assert plan_calls[1][3] is True
     assert enqueued["reason"]["source"] == "auto_drive"
     assert enqueued["reason"]["criteria"]["enqueued_phases"] == ["indexing", "metadata", "scoring", "keywords"]
     assert enqueued["reason"]["criteria"]["planner_reason_counts"]["stale_executor"] == 2
