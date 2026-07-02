@@ -1,3 +1,13 @@
+---
+type: Plan
+title: DB.py god object refactoring plan
+description: Phased decomposition of modules/db_legacy.py into domain-specific modules; reduces defect risk and merge conflicts.
+resource: docs/planning/db-refactor-decomposition.md
+tags: [docs, planning, refactoring, database]
+timestamp: 2026-06-30T00:00:00Z
+okf_version: 0.1
+---
+
 # DB.py God Object Refactoring Plan
 
 **Document:** DB.py Decomposition Strategy  
