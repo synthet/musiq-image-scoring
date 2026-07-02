@@ -28,13 +28,23 @@ def test_eligible_group():
     assert reason is None
 
 
-def test_skip_large_group():
+def test_eligible_oversized_group_with_batching_default():
+    """Units larger than legacy max=9 remain eligible; batching handles vision limits."""
     ok, reason = is_group_eligible(
-        GroupCounts(total=10, picked=5, rejected=3, usable=10),
+        GroupCounts(total=25, picked=5, rejected=15, usable=25),
         _cfg(),
     )
+    assert ok is True
+    assert reason is None
+
+
+def test_skip_safety_ceiling():
+    ok, reason = is_group_eligible(
+        GroupCounts(total=250, picked=5, rejected=200, usable=250),
+        AgentCullConfig(max_group_size=200),
+    )
     assert ok is False
-    assert reason == "group_too_large"
+    assert reason == "group_exceeds_safety_ceiling"
 
 
 def test_skip_no_rejected():

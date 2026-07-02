@@ -137,8 +137,40 @@ def test_process_stack_two_level_missing_embeddings_single_leaf():
     images = [{"id": i, "score_general": float(i), "file_path": ""} for i in range(1, 5)]
     rows, decisions, leaf_count = process_stack_two_level(7, images, {}, _tl_cfg(), _sort_key)
     assert leaf_count == 1
-    assert len(rows) == 1
+    assert len(rows) == 0  # skip_single_leaf_persist default
     assert sum(1 for _, d, _ in decisions if d == "pick") <= _tl_cfg().max_picks_per_stack
+
+
+def test_process_stack_two_level_skip_single_leaf_persist_false():
+    images = [{"id": i, "score_general": float(i), "file_path": ""} for i in range(1, 5)]
+    tl_cfg = _tl_cfg()
+    tl_cfg = TwoLevelConfig(
+        picks_per_substack=tl_cfg.picks_per_substack,
+        max_picks_per_stack=tl_cfg.max_picks_per_stack,
+        reject_non_picks=tl_cfg.reject_non_picks,
+        level1=tl_cfg.level1,
+        level2=tl_cfg.level2,
+        diversity_enabled=tl_cfg.diversity_enabled,
+        diversity_lambda=tl_cfg.diversity_lambda,
+        score_field=tl_cfg.score_field,
+        skip_single_leaf_persist=False,
+    )
+    rows, _, leaf_count = process_stack_two_level(7, images, {}, tl_cfg, _sort_key)
+    assert leaf_count == 1
+    assert len(rows) == 1
+
+
+def test_process_stack_two_level_min_stack_size_skips_subcluster():
+    images = [{"id": i, "score_general": float(i), "file_path": ""} for i in range(1, 3)]
+    emb = {1: _emb([1.0, 0.0]), 2: _emb([0.0, 1.0])}
+    tl_cfg = TwoLevelConfig(
+        min_stack_size_for_substack=3,
+        skip_single_leaf_persist=False,
+        diversity_enabled=False,
+    )
+    rows, _, leaf_count = process_stack_two_level(9, images, emb, tl_cfg, _sort_key)
+    assert leaf_count == 1
+    assert len(rows) == 1
 
 
 def test_two_level_config_default_level2_openclip():

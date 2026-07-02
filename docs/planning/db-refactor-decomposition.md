@@ -4,7 +4,9 @@
 **Status:** Planning (Not Yet Implemented)  
 **Priority:** Medium (Post-MVP)  
 **Severity:** Medium – High defect risk, merge conflicts, testing difficulty  
-**Last Updated:** 2026-04-19  
+**Last Updated:** 2026-06-30  
+
+**Related:** Phased execution checklist — [CODEBASE_SIZE_REFACTOR_PLAN.md](refactoring/CODEBASE_SIZE_REFACTOR_PLAN.md) (Phase 2). Source audit — [CODEBASE_SIZE_AUDIT_2026-06.md](../reports/CODEBASE_SIZE_AUDIT_2026-06.md).
 
 ---
 

@@ -373,6 +373,7 @@ def build_review_packet(
         },
         "policy": {
             "max_group_size": cfg.max_group_size,
+            "review_batch_size": cfg.review_batch_size,
             "min_agent_confidence": cfg.min_agent_confidence,
             "min_group_confidence": cfg.min_group_confidence,
             "decision_source": cfg.decision_source,
