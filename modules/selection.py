@@ -81,6 +81,8 @@ def _load_two_level_config(cfg: SelectionConfig) -> TwoLevelConfig:
         diversity_enabled=bool(div.get("enabled", True)),
         diversity_lambda=float(div.get("lambda", 0.70)),
         score_field=cfg.score_field,
+        min_stack_size_for_substack=int(tl.get("min_stack_size_for_substack", 3)),
+        skip_single_leaf_persist=bool(tl.get("skip_single_leaf_persist", True)),
     )
 
 

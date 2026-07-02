@@ -33,6 +33,8 @@ class TwoLevelConfig:
     diversity_enabled: bool = True
     diversity_lambda: float = 0.70
     score_field: str = "score_general"
+    min_stack_size_for_substack: int = 3
+    skip_single_leaf_persist: bool = True
 
     def __post_init__(self):
         if self.level1 is None:
@@ -250,12 +252,15 @@ def process_stack_two_level(
     ``db.create_sub_stacks_batch`` and ``decisions`` feed
     ``db.batch_update_cull_decisions`` (policy ``TWO_LEVEL_POLICY_VERSION``).
     """
-    leaf_groups = compute_leaf_substacks(
-        images,
-        embeddings,
-        tl_cfg.level2.distance_threshold,
-        id_key=id_key,
-    )
+    if len(images) < max(2, int(tl_cfg.min_stack_size_for_substack)):
+        leaf_groups = [list(images)]
+    else:
+        leaf_groups = compute_leaf_substacks(
+            images,
+            embeddings,
+            tl_cfg.level2.distance_threshold,
+            id_key=id_key,
+        )
     if not leaf_groups:
         leaf_groups = [list(images)]
 
@@ -275,14 +280,17 @@ def process_stack_two_level(
         tl_cfg.max_picks_per_stack,
     )
 
-    persist_rows = build_substack_persist_rows(
-        stack_id,
-        leaf_groups,
-        level1_space=tl_cfg.level1.embedding_space,
-        level2_space=tl_cfg.level2.embedding_space,
-        sort_key=sort_key,
-        id_key=id_key,
-    )
+    if tl_cfg.skip_single_leaf_persist and len(leaf_groups) == 1:
+        persist_rows: List[dict] = []
+    else:
+        persist_rows = build_substack_persist_rows(
+            stack_id,
+            leaf_groups,
+            level1_space=tl_cfg.level1.embedding_space,
+            level2_space=tl_cfg.level2.embedding_space,
+            sort_key=sort_key,
+            id_key=id_key,
+        )
 
     decisions = assign_decisions_for_stack(
         leaf_groups,

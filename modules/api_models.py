@@ -952,3 +952,9 @@ class ExportRequest(BaseModel):
     min_score_technical: float = Field(0.0, ge=0, le=1, description="Minimum technical score.")
     date_from: Optional[str] = Field(None, description="Start date filter YYYY-MM-DD.")
     date_to: Optional[str] = Field(None, description="End date filter YYYY-MM-DD.")
+
+
+class DeleteFolderCacheRequest(BaseModel):
+    """Remove a folder subtree from the folders cache when no images reference it."""
+
+    path: str = Field(..., description="Absolute folder path matching a cached folders.path.")

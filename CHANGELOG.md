@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.11.3] - 2026-07-01
+
+### Fixed
+
+- **Bird species runner**: Restored module-level `db` import in `_process_bird_species_image_row` after Phase 4 extraction (NameError during per-image processing).
+
+### Changed
+
+- **API modularization (Phase 1)**: Replaced monolithic `modules/api.py` with `modules/api/` domain routers; `from modules.api import create_api_router` and all REST routes unchanged.
+- **Runner batch helpers (Phase 4)**: Mechanical per-image/per-batch extractions from tagging, metadata, indexing, clustering, scoring, pipeline, engine, bird_species, and selection runners — behavior and public surfaces unchanged.
+- **Refactor tooling and docs**: Added `scripts/audit/codebase_size_audit.py`, `scripts/refactor/*` helpers, and [CODEBASE_SIZE_REFACTOR_PLAN.md](docs/planning/refactoring/CODEBASE_SIZE_REFACTOR_PLAN.md) with Phase 1 and Phase 4 progress.
+
 ## [8.11.2] - 2026-06-30
 
 ### Fixed

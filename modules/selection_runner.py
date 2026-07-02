@@ -82,6 +82,65 @@ class SelectionRunner:
         self._thread.start()
         return "Started"
 
+    def _resolve_culling_scope(
+        self,
+        input_path: str,
+        force_rescan: bool,
+        resolved_image_ids: list[int] | None,
+        log,
+    ):
+        """Load images in scope and filter to culling-eligible rows."""
+        from modules.phases import PhaseCode
+        from modules.phases_policy import explain_phase_run_decision
+
+        images = []
+        images_for_phase = []
+        local_scope = utils.convert_path_to_local((input_path or "").strip())
+        seen_ids: set[int] = set()
+        if local_scope and os.path.isdir(local_scope):
+            for folder_path in db.list_folder_paths_under_scope(local_scope):
+                for row in db.get_images_by_folder(folder_path) or []:
+                    iid = row.get("id")
+                    if iid is None or iid in seen_ids:
+                        continue
+                    seen_ids.add(iid)
+                    images.append(row)
+        if not images:
+            images = db.get_images_by_folder(input_path) or []
+        if resolved_image_ids is not None:
+            target_ids = {int(i) for i in resolved_image_ids}
+            images = [img for img in images if int(img.get("id") or 0) in target_ids]
+            if not target_ids:
+                return "empty_queue", images, images_for_phase
+        if images:
+            valid_images = [
+                img for img in images
+                if img.get("score_general") is not None and img.get("score_general") > 0
+            ]
+            missing_scores = len(images) - len(valid_images)
+            if missing_scores > 0:
+                log(
+                    f"Warning: {missing_scores} images are missing valid score_general. "
+                    "They will be skipped. Ensure the Scoring phase has completed.",
+                    "WARNING",
+                )
+            images = valid_images
+            if not images:
+                return "missing_prerequisites", images, images_for_phase
+            if force_rescan:
+                images_for_phase = images
+            else:
+                for img in images:
+                    decision = explain_phase_run_decision(
+                        img['id'],
+                        PhaseCode.CULLING,
+                        current_executor_version="1.0.0",
+                        force_run=False,
+                    )
+                    if decision['should_run']:
+                        images_for_phase.append(img)
+        return "ok", images, images_for_phase
+
     def _run_internal(
         self,
         input_path: str,
@@ -143,60 +202,25 @@ class SelectionRunner:
         images = []
         images_for_phase = []
         try:
-            local_scope = utils.convert_path_to_local((input_path or "").strip())
-            seen_ids: set[int] = set()
-            if local_scope and os.path.isdir(local_scope):
-                for folder_path in db.list_folder_paths_under_scope(local_scope):
-                    for row in db.get_images_by_folder(folder_path) or []:
-                        iid = row.get("id")
-                        if iid is None or iid in seen_ids:
-                            continue
-                        seen_ids.add(iid)
-                        images.append(row)
-            if not images:
-                images = db.get_images_by_folder(input_path) or []
-            if resolved_image_ids is not None:
-                target_ids = {int(i) for i in resolved_image_ids}
-                images = [img for img in images if int(img.get("id") or 0) in target_ids]
-                if not target_ids:
-                    log("No images in planner queue for culling.")
-                    if job_id:
-                        db.update_job_status(job_id, "completed", "Culling: empty planner queue")
-                    with self._lock:
-                        self._status_message = "Done (no images)"
-                    return
-            if images:
-                # Pre-requisite validation: Selection/Culling absolutely requires general scores
-                # to perform ranking and filtering.
-                valid_images = [img for img in images if img.get("score_general") is not None and img.get("score_general") > 0]
-                missing_scores = len(images) - len(valid_images)
-                if missing_scores > 0:
-                    log(f"Warning: {missing_scores} images are missing valid score_general. They will be skipped. Ensure the Scoring phase has completed.", "WARNING")
-                images = valid_images
-                
-                if not images:
-                    log("Error: No images in the current scope have required scoring data. Aborting Selection/Culling phase. Run 'Scoring' first.", "ERROR")
-                    with self._lock:
-                        self._status_message = "Failed: missing prerequisites"
-                    return
-
-                if force_rescan:
-                    # Skip per-image phase updates: clustering will set RUNNING when it processes.
-                    # Avoids ~10k DB calls for large folders (3256 images × 3 calls each).
-                    images_for_phase = images
-                else:
-                    for img in images:
-                        decision = explain_phase_run_decision(
-                            img['id'],
-                            PhaseCode.CULLING,
-                            current_executor_version="1.0.0",
-                            force_run=False,
-                        )
-                        if decision['should_run']:
-                            images_for_phase.append(img)
-                            # FIX: Do not set PhaseStatus.RUNNING here. 
-                            # ClusteringEngine.cluster_images must see the images as runnable.
-                            # Prematurely setting RUNNING causes ClusteringEngine to skip them.
+            scope_status, images, images_for_phase = self._resolve_culling_scope(
+                input_path, force_rescan, resolved_image_ids, log
+            )
+            if scope_status == "empty_queue":
+                log("No images in planner queue for culling.")
+                if job_id:
+                    db.update_job_status(job_id, "completed", "Culling: empty planner queue")
+                with self._lock:
+                    self._status_message = "Done (no images)"
+                return
+            if scope_status == "missing_prerequisites":
+                log(
+                    "Error: No images in the current scope have required scoring data. "
+                    "Aborting Selection/Culling phase. Run 'Scoring' first.",
+                    "ERROR",
+                )
+                with self._lock:
+                    self._status_message = "Failed: missing prerequisites"
+                return
         except Exception as pe:
             log(f"Phase status eligibility check error: {pe}")
 

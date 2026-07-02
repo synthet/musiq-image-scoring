@@ -465,6 +465,52 @@ class ScoringRunner:
         self._thread.start()
         return "Started"
 
+    def _build_fix_db_jobs_from_records(self, records, job_id, log, ims_map):
+        """Build ImageJob list from incomplete DB records; returns (jobs, deleted_count)."""
+        jobs = []
+        deleted_count = 0
+        for row in records:
+            file_path = row['file_path']
+            if not os.path.exists(file_path):
+                log(f"Deleting missing file from DB: {file_path}")
+                db.delete_image(file_path)
+                deleted_count += 1
+                continue
+
+            job = pipeline.ImageJob(
+                image_path=file_path,
+                job_id=job_id,
+                skip_existing=False,
+            )
+
+            ims_entries = ims_map.get(int(row['id'])) if row.get('id') is not None else None
+            ims_entries = ims_entries or {}
+            for m in ('spaq', 'ava', 'liqe'):
+                entry = ims_entries.get(m)
+                if not entry or entry.get("status") != "success":
+                    continue
+                val = entry.get("normalized")
+                if val is None:
+                    val = entry.get("raw_score")
+                if val is not None and val > 0:
+                    job.external_scores[m] = {
+                        "score": val,
+                        "normalized_score": val,
+                        "status": "success",
+                    }
+
+            try:
+                if row.get('image_hash'):
+                    job.external_scores['image_hash'] = row['image_hash']
+                    hv = row.get('hash_version')
+                    if hv is not None:
+                        job.external_scores['hash_version'] = int(hv)
+            except (KeyError, IndexError):
+                pass
+
+            jobs.append(job)
+        return jobs, deleted_count
+
     def _fix_db_internal(self, job_id):
         """
         Internal synchronous fix db runner.
@@ -527,48 +573,7 @@ class ScoringRunner:
             ims_map = db.get_batch_image_model_scores(record_ids, include_shadow=False)
         except Exception:
             ims_map = {}
-        for row in records:
-             file_path = row['file_path']
-             if not os.path.exists(file_path):
-                 log(f"Deleting missing file from DB: {file_path}")
-                 db.delete_image(file_path)
-                 deleted_count += 1
-                 continue
-                 
-             job = pipeline.ImageJob(
-                 image_path=file_path,
-                 job_id=job_id,
-                 skip_existing=False 
-             )
-             
-             # Pre-fill external scores from image_model_scores (backend
-             # migration 0016 — per-model table, replaces typed columns).
-             ims_entries = ims_map.get(int(row['id'])) if row.get('id') is not None else None
-             ims_entries = ims_entries or {}
-             for m in ('spaq', 'ava', 'liqe'):
-                 entry = ims_entries.get(m)
-                 if not entry or entry.get("status") != "success":
-                     continue
-                 val = entry.get("normalized")
-                 if val is None:
-                     val = entry.get("raw_score")
-                 if val is not None and val > 0:
-                     job.external_scores[m] = {
-                         "score": val,
-                         "normalized_score": val,
-                         "status": "success",
-                     }
-             
-             try:
-                 if row.get('image_hash'):
-                     job.external_scores['image_hash'] = row['image_hash']
-                     hv = row.get('hash_version')
-                     if hv is not None:
-                         job.external_scores['hash_version'] = int(hv)
-             except (KeyError, IndexError):
-                 pass
-                 
-             jobs.append(job)
+        jobs, deleted_count = self._build_fix_db_jobs_from_records(records, job_id, log, ims_map)
         
         if deleted_count > 0:
              log(f"Removed {deleted_count} orphaned records from database.")

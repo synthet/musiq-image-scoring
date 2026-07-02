@@ -1,0 +1,96 @@
+{
+  "root": "/mnt/d/Projects/image-scoring-gallery",
+  "file_min": 1000,
+  "fn_min": 150,
+  "large_files": [
+    {
+      "path": "electron/db.ts",
+      "lines": 2601,
+      "language": "ts"
+    },
+    {
+      "path": "src/components/Viewer/ImageViewer.tsx",
+      "lines": 1746,
+      "language": "tsx"
+    },
+    {
+      "path": "electron/main.ts",
+      "lines": 1623,
+      "language": "ts"
+    }
+  ],
+  "large_functions": [
+    {
+      "path": "src/AppContent.tsx",
+      "name": "AppContent",
+      "start_line": 49,
+      "end_line": 967,
+      "lines": 919,
+      "kind": "function"
+    },
+    {
+      "path": "electron/main.ts",
+      "name": "startFullApplication",
+      "start_line": 874,
+      "end_line": 1584,
+      "lines": 711,
+      "kind": "function"
+    },
+    {
+      "path": "electron/ipc/registerSyncHandlers.ts",
+      "name": "registerSyncHandlers",
+      "start_line": 35,
+      "end_line": 621,
+      "lines": 587,
+      "kind": "function"
+    },
+    {
+      "path": "electron/ipc/registerBackupHandlers.ts",
+      "name": "registerBackupHandlers",
+      "start_line": 42,
+      "end_line": 491,
+      "lines": 450,
+      "kind": "function"
+    },
+    {
+      "path": "server/index.ts",
+      "name": "createServerApp",
+      "start_line": 55,
+      "end_line": 466,
+      "lines": 412,
+      "kind": "function"
+    },
+    {
+      "path": "src/bridge.ts",
+      "name": "createHttpBridge",
+      "start_line": 207,
+      "end_line": 477,
+      "lines": 271,
+      "kind": "function"
+    },
+    {
+      "path": "electron/ipc/registerDbHandlers.ts",
+      "name": "registerDbHandlers",
+      "start_line": 13,
+      "end_line": 218,
+      "lines": 206,
+      "kind": "function"
+    },
+    {
+      "path": "mcp-server/src/tools/cdp.ts",
+      "name": "handleCdpTool",
+      "start_line": 284,
+      "end_line": 447,
+      "lines": 164,
+      "kind": "function"
+    },
+    {
+      "path": "electron/main.ts",
+      "name": "rebuildApplicationMenu",
+      "start_line": 514,
+      "end_line": 675,
+      "lines": 162,
+      "kind": "arrow"
+    }
+  ]
+}

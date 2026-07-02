@@ -1,3 +1,13 @@
+---
+type: Documentation Index
+title: Planning and migrations index
+description: Index of database migrations, schema phases, refactors, and model roadmaps under docs/planning/.
+resource: docs/planning/INDEX.md
+tags: [docs, planning, index]
+timestamp: 2026-07-01T00:00:00Z
+okf_version: 0.1
+---
+
 # Planning & migrations — index
 
 Database migrations, schema phases, refactors, and model roadmaps. **Product / UI specs** that are not yet shipped live under [`../features/planned/INDEX.md`](../features/planned/INDEX.md) (embedding apps, pipeline UI plans, import alignment).
@@ -14,7 +24,7 @@ Aligned with root [`TODO.md`](../../TODO.md) **Highest-Impact Next Steps**. Tier
 | **P0** | Database Phase 4–5 | Keyword path coordination with gallery; Phase **5** PG work ([POSTGRES_SCHEMA_OPTIMIZATIONS.md](database/POSTGRES_SCHEMA_OPTIMIZATIONS.md), [DB_STATUS_REPORT.md](database/DB_STATUS_REPORT.md)) — vectors + integrity **high** in that doc. |
 | **P1** | Verification + embedding UX | RAW preview manual QA ([TODO.md](../../TODO.md)); embedding API → UI wiring, bidirectional control ([`../features/planned/embeddings/NEXT_STEPS.md`](../features/planned/embeddings/NEXT_STEPS.md), App 08). |
 | **P1** | Operator UI | [`../features/planned/ux-ui-implementation-plan.md`](../features/planned/ux-ui-implementation-plan.md) P0/P1 (Quick Start, confirmations, gallery presets). |
-| **P2** | Large UI / refactor proposals | [`../features/planned/ui-pipeline-redesign.md`](../features/planned/ui-pipeline-redesign.md) (tab merge); [`../features/planned/import-discovery-alignment.md`](../features/planned/import-discovery-alignment.md) (Import vs Discovery); [STACK_CULLING_REFACTOR_PLAN.md](refactoring/STACK_CULLING_REFACTOR_PLAN.md); [REFACTORING_PLAN.md](refactoring/REFACTORING_PLAN.md) (`webui.py` split). |
+| **P2** | Large UI / refactor proposals | [`../features/planned/ui-pipeline-redesign.md`](../features/planned/ui-pipeline-redesign.md) (tab merge); [`../features/planned/import-discovery-alignment.md`](../features/planned/import-discovery-alignment.md) (Import vs Discovery); [CODEBASE_SIZE_REFACTOR_PLAN.md](refactoring/CODEBASE_SIZE_REFACTOR_PLAN.md) (audit-driven LoC checklist); [STACK_CULLING_REFACTOR_PLAN.md](refactoring/STACK_CULLING_REFACTOR_PLAN.md); [REFACTORING_PLAN.md](refactoring/REFACTORING_PLAN.md) (`webui.py` split). |
 | **P3** | Setup / research | [WINDOWS_NATIVE_WEBUI_PLAN.md](setup/WINDOWS_NATIVE_WEBUI_PLAN.md); [IQA_MODEL_STACK_UPDATE_PROPOSAL.md](models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md). |
 
 ---
@@ -38,6 +48,7 @@ Aligned with root [`TODO.md`](../../TODO.md) **Highest-Impact Next Steps**. Tier
 
 | Document | Description |
 |----------|-------------|
+| [CODEBASE_SIZE_REFACTOR_PLAN.md](refactoring/CODEBASE_SIZE_REFACTOR_PLAN.md) | Phased checklist from codebase-size audit (files ≥1000 LoC, functions ≥150 LoC) |
 | [STACK_CULLING_REFACTOR_PLAN.md](refactoring/STACK_CULLING_REFACTOR_PLAN.md) | Unified Stack + Culling refactor plan |
 | [REFACTORING_PLAN.md](refactoring/REFACTORING_PLAN.md) | webui.py modular refactoring plan |
 | [db-refactor-decomposition.md](db-refactor-decomposition.md) | Long-range `modules/db.py` decomposition plan |

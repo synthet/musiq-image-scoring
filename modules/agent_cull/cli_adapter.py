@@ -184,8 +184,10 @@ class MockAgentCullProvider:
     def __init__(self, response_text: str, *, exit_code: int = 0):
         self.response_text = response_text
         self.exit_code = exit_code
+        self.call_count = 0
 
     def run_review(self, prompt: str, cfg: AgentCullConfig) -> AgentCullRawResponse:
+        self.call_count += 1
         _ = prompt, cfg
         return AgentCullRawResponse(
             ok=self.exit_code == 0,

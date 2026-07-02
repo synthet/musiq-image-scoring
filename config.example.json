@@ -92,7 +92,7 @@
       },
       "level2": {
         "embedding_space": "openclip_l14_laion2b_image",
-        "distance_threshold": 0.06
+        "distance_threshold": 0.04
       },
       "diversity": {
         "enabled": true,
@@ -110,7 +110,10 @@
     "agent_review": {
       "enabled": false,
       "dry_run_default": true,
-      "max_group_size": 9,
+      "max_group_size": 200,
+      "_comment_max_group_size": "Absolute safety ceiling for one agent review unit; normal oversized leaves are reviewed in review_batch_size chunks.",
+      "review_batch_size": 10,
+      "_comment_review_batch_size": "Max images per agent vision call when a leaf exceeds this size.",
       "min_usable_images": 2,
       "min_agent_confidence": 0.75,
       "min_group_confidence": 0.70,

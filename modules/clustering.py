@@ -494,6 +494,62 @@ class ClusteringEngine(IClusteringEngine):
             self.is_running = False
             self.status_message = "Idle"
             
+    def _filter_runnable_cluster_rows(self, rows, force_rescan, job_id):
+        """Return rows eligible for clustering; heal stuck RUNNING when folder is all-current."""
+        runnable_rows = []
+        for r in rows:
+            decision = explain_phase_run_decision(
+                r['id'],
+                PhaseCode.CULLING,
+                current_executor_version=CLUSTER_VERSION,
+                force_run=force_rescan,
+            )
+            if decision['should_run']:
+                if not r.get("image_hash") and not force_rescan:
+                    logger.warning(
+                        "[Clustering] Skipping image_id=%s: missing image_hash. Run Indexing phase first.",
+                        r["id"],
+                    )
+                    continue
+                if r.get("score_general") is None:
+                    logger.warning(
+                        "[Clustering] image_id=%s: missing score_general. Run Scoring phase first for better representative selection.",
+                        r["id"],
+                    )
+                runnable_rows.append(r)
+            else:
+                logger.debug(
+                    "[culling] skip image_id=%s reason=%s",
+                    r["id"],
+                    decision.get("reason"),
+                )
+
+        if not runnable_rows:
+            for r in rows:
+                st = (db.get_image_phase_statuses(r["id"]) or {}).get("culling") or {}
+                if (st.get("status") or "").strip() != PhaseStatus.RUNNING:
+                    continue
+                decision = explain_phase_run_decision(
+                    r["id"],
+                    PhaseCode.CULLING,
+                    current_executor_version=CLUSTER_VERSION,
+                    force_run=force_rescan,
+                )
+                if decision.get("should_run") or decision.get("reason") != "already_running":
+                    continue
+                try:
+                    db.set_image_phase_status(
+                        r["id"],
+                        PhaseCode.CULLING,
+                        PhaseStatus.DONE,
+                        app_version=APP_VERSION,
+                        executor_version=CLUSTER_VERSION,
+                        job_id=job_id,
+                    )
+                except Exception:
+                    pass
+        return runnable_rows
+
     def _cluster_images_impl(
         self,
         distance_threshold,
@@ -668,32 +724,7 @@ class ClusteringEngine(IClusteringEngine):
                 break
             rows = by_folder[folder]
             self._load_capture_times(rows)
-            runnable_rows = []
-            for r in rows:
-                decision = explain_phase_run_decision(
-                    r['id'],
-                    PhaseCode.CULLING,
-                    current_executor_version=CLUSTER_VERSION,
-                    force_run=force_rescan,
-                )
-                if decision['should_run']:
-                    # Pre-requisite validation: ensure image has a hash and a score
-                    # (Score is used for representative selection; Hash for embedding cache)
-                    if not r.get("image_hash") and not force_rescan:
-                        logger.warning("[Clustering] Skipping image_id=%s: missing image_hash. Run Indexing phase first.", r["id"])
-                        continue
-                    if r.get("score_general") is None:
-                        logger.warning("[Clustering] image_id=%s: missing score_general. Run Scoring phase first for better representative selection.", r["id"])
-                        # We don't abort here because clustering can still happen (spatial/temporal),
-                        # but representative selection will fall back to default order.
-                    
-                    runnable_rows.append(r)
-                else:
-                    logger.debug(
-                        "[culling] skip image_id=%s reason=%s",
-                        r["id"],
-                        decision.get("reason"),
-                    )
+            runnable_rows = self._filter_runnable_cluster_rows(rows, force_rescan, job_id)
 
             if not runnable_rows:
                 logger.warning(
@@ -705,30 +736,6 @@ class ClusteringEngine(IClusteringEngine):
                     folder,
                     len(rows),
                 )
-                # Recover stuck RUNNING rows (e.g. crashed job) so folder previews / phase summaries stay accurate.
-                for r in rows:
-                    st = (db.get_image_phase_statuses(r["id"]) or {}).get("culling") or {}
-                    if (st.get("status") or "").strip() != PhaseStatus.RUNNING:
-                        continue
-                    decision = explain_phase_run_decision(
-                        r["id"],
-                        PhaseCode.CULLING,
-                        current_executor_version=CLUSTER_VERSION,
-                        force_run=force_rescan,
-                    )
-                    if decision.get("should_run") or decision.get("reason") != "already_running":
-                        continue
-                    try:
-                        db.set_image_phase_status(
-                            r["id"],
-                            PhaseCode.CULLING,
-                            PhaseStatus.DONE,
-                            app_version=APP_VERSION,
-                            executor_version=CLUSTER_VERSION,
-                            job_id=job_id,
-                        )
-                    except Exception:
-                        pass
                 yield update_status(f"Skipping folder: {folder} (all images current)", processed_count, len(images_rows))
                 logger.debug(f"[Clustering] Skipping folder {folder}: all images are already up to date according to version {CLUSTER_VERSION}.")
                 continue

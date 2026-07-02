@@ -95,8 +95,10 @@ def is_group_eligible(
         return False, "singleton_root"
     if counts.usable < cfg.min_usable_images:
         return False, "insufficient_usable_images"
+    # Absolute safety ceiling only; oversized units are reviewed in batches via
+    # ``review_batch_size`` in the agent-cull service layer.
     if counts.total > cfg.max_group_size:
-        return False, "group_too_large"
+        return False, "group_exceeds_safety_ceiling"
     if counts.rejected < 1:
         return False, "no_rejected_images"
     if counts.picked < 1:

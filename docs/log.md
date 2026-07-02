@@ -6,6 +6,18 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-07-01] ingest | Branch docs salvage (gallery docs-only branches)
+
+Ingested gallery branch-cleanup salvage cross-ref into [reports/BRANCH_DOCS_SALVAGE_2026-07.md](reports/BRANCH_DOCS_SALVAGE_2026-07.md): docs-only branches archived and deleted on gallery; UNMERGED code branches retained. Gallery detail: [09-branch-docs-salvage-2026-07.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/reports/09-branch-docs-salvage-2026-07.md). Updated [reports/INDEX.md](reports/INDEX.md).
+
+## [2026-06-30] ingest | Codebase size audit and refactor plan
+
+Ingested June 2026 codebase-size audit into [reports/CODEBASE_SIZE_AUDIT_2026-06.md](reports/CODEBASE_SIZE_AUDIT_2026-06.md). Archived machine output to [raw/codebase-size-audit-2026-06-30-backend.json](raw/codebase-size-audit-2026-06-30-backend.json) and [raw/codebase-size-audit-2026-06-30-gallery.json](raw/codebase-size-audit-2026-06-30-gallery.json). Added OKF frontmatter to [planning/refactoring/CODEBASE_SIZE_REFACTOR_PLAN.md](planning/refactoring/CODEBASE_SIZE_REFACTOR_PLAN.md). Cross-linked [planning/db-refactor-decomposition.md](planning/db-refactor-decomposition.md), [planning/refactoring/REFACTORING_PLAN.md](planning/refactoring/REFACTORING_PLAN.md). Updated [reports/INDEX.md](reports/INDEX.md), [docs/INDEX.md](INDEX.md), [raw/README.md](raw/README.md).
+
+## [2026-06-30] created — Codebase size refactor plan
+
+Added [planning/refactoring/CODEBASE_SIZE_REFACTOR_PLAN.md](planning/refactoring/CODEBASE_SIZE_REFACTOR_PLAN.md): phased checkbox backlog from `codebase_size_audit.py` (Phases 0–10; cross-link to gallery sibling plan). Updated [planning/INDEX.md](planning/INDEX.md).
+
 ## [2026-06-30] ingest | Run "Data gaps" badges fix
 
 Ingested the misleading "Data gaps" badge fix (run 4555) into [reports/RUN_DATA_GAP_BADGES_FIX_2026-06-30.md](reports/RUN_DATA_GAP_BADGES_FIX_2026-06-30.md): hash-based `is_image_indexing_complete` + phase-scoped post-run audit badge (`executed_phases`/`pipeline_status`), chaining preserved via `maybe_schedule_post_audit_followup`. Cross-linked [reports/AUTODRIVE_REPROCESSING_INVESTIGATION_2026-05-26.md](reports/AUTODRIVE_REPROCESSING_INVESTIGATION_2026-05-26.md), [reports/AUTO_DRIVE_FIX_SUMMARY.md](reports/AUTO_DRIVE_FIX_SUMMARY.md). Updated [reports/INDEX.md](reports/INDEX.md).

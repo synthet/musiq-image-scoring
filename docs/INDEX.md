@@ -159,6 +159,7 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Troubleshooting hub. |
 | [DIAGNOSTICS.md](DIAGNOSTICS.md) | Doctor, debug bundle, logs, MCP diagnostics. |
 | [.agent/INFRA_QUICKSTART.md](../.agent/INFRA_QUICKSTART.md) | Agent-safe infra quick reference. |
+| [reports/CODEBASE_SIZE_AUDIT_2026-06.md](reports/CODEBASE_SIZE_AUDIT_2026-06.md) | LoC audit snapshot — refactor hotspot inventory (June 2026). |
 | [reports/DEBUGGING_SESSIONS_HUB.md](reports/DEBUGGING_SESSIONS_HUB.md) | Indexed debugging write-ups. |
 
 ## Reports

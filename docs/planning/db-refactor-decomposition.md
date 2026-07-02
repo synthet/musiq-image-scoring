@@ -1,10 +1,22 @@
+---
+type: Plan
+title: DB.py god object refactoring plan
+description: Phased decomposition of modules/db_legacy.py into domain-specific modules; reduces defect risk and merge conflicts.
+resource: docs/planning/db-refactor-decomposition.md
+tags: [docs, planning, refactoring, database]
+timestamp: 2026-06-30T00:00:00Z
+okf_version: 0.1
+---
+
 # DB.py God Object Refactoring Plan
 
 **Document:** DB.py Decomposition Strategy  
 **Status:** Planning (Not Yet Implemented)  
 **Priority:** Medium (Post-MVP)  
 **Severity:** Medium – High defect risk, merge conflicts, testing difficulty  
-**Last Updated:** 2026-04-19  
+**Last Updated:** 2026-06-30  
+
+**Related:** Phased execution checklist — [CODEBASE_SIZE_REFACTOR_PLAN.md](refactoring/CODEBASE_SIZE_REFACTOR_PLAN.md) (Phase 2). Source audit — [CODEBASE_SIZE_AUDIT_2026-06.md](../reports/CODEBASE_SIZE_AUDIT_2026-06.md).
 
 ---
 

@@ -1,4 +1,16 @@
+---
+type: Plan
+title: Refactoring plan for webui.py
+description: Modular component-based split plan for the legacy Gradio webui.py monolith.
+resource: docs/planning/refactoring/REFACTORING_PLAN.md
+tags: [docs, planning, refactoring, webui]
+timestamp: 2026-07-01T00:00:00Z
+okf_version: 0.1
+---
+
 # Refactoring Plan for webui.py
+
+**Related:** LoC-driven backlog — [CODEBASE_SIZE_REFACTOR_PLAN.md](CODEBASE_SIZE_REFACTOR_PLAN.md) (Phases 6 and 9 cover `webui.py::main` and frontend `/ui/` pages). Audit snapshot — [CODEBASE_SIZE_AUDIT_2026-06.md](../../reports/CODEBASE_SIZE_AUDIT_2026-06.md).
 
 ## Overview
 

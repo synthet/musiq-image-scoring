@@ -47,7 +47,8 @@ class AgentCullLocalGatesConfig:
 class AgentCullConfig:
     enabled: bool = False
     dry_run_default: bool = True
-    max_group_size: int = 9
+    max_group_size: int = 200
+    review_batch_size: int = 10
     min_usable_images: int = 2
     min_agent_confidence: float = 0.75
     min_group_confidence: float = 0.70
@@ -148,7 +149,8 @@ def load_agent_cull_config(overrides: dict[str, Any] | None = None) -> AgentCull
     return AgentCullConfig(
         enabled=_coerce_bool(raw.get("enabled"), False),
         dry_run_default=_coerce_bool(raw.get("dry_run_default"), True),
-        max_group_size=_coerce_int(raw.get("max_group_size"), 9),
+        max_group_size=_coerce_int(raw.get("max_group_size"), 200),
+        review_batch_size=_coerce_int(raw.get("review_batch_size"), 10),
         min_usable_images=_coerce_int(raw.get("min_usable_images"), 2),
         min_agent_confidence=_coerce_float(raw.get("min_agent_confidence"), 0.75),
         min_group_confidence=_coerce_float(raw.get("min_group_confidence"), 0.70),
