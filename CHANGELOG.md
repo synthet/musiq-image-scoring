@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.12.0] - 2026-07-01
+
+### Added
+
+- **Agent cull batch review**: Split oversized review units into `review_batch_size` chunks with merged validation so large stacks can be reviewed without exceeding group limits.
+
+### Changed
+
+- **Two-level substack split**: Gate substack split on `min_stack_size_for_substack`, skip persisting single-leaf sub-stacks, default level-2 `distance_threshold` to `0.04` (per substack audit), and raise `max_group_size` safety ceiling. Study scripts and audit report under `docs/reports/SUBSTACK_SPLIT_AUDIT_2026-06.md`.
+
 ## [8.11.3] - 2026-07-01
 
 ### Fixed
