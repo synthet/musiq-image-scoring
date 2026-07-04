@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.12.1] - 2026-07-03
+
+### Changed
+
+- **Electron API router**: Split monolithic `electron.py` into domain sub-routers (config, folders, images, runs, scope); behavior unchanged.
+- **Agent SDLC**: Sync Cursor/Claude skills, rules, slash commands, assistant-tree sync script, and agent-infra CI workflow.
+
 ## [8.12.0] - 2026-07-01
 
 ### Added
