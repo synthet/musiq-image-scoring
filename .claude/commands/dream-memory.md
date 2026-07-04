@@ -1,4 +1,4 @@
-> **Claude Code:** Same intent as Cursor `/dream-memory`. Mirror: `.cursor/commands/dream-memory.md`.
+> **Cursor:** Same intent as Claude `/dream-memory`. Mirror: `.claude/commands/dream-memory.md`.
 
 # /dream-memory — Propose consolidated project memory
 
@@ -24,4 +24,4 @@ python scripts/agent-memory/dream.py
 
 ## Skill
 
-`.claude/skills/agent-memory/SKILL.md`
+`.cursor/skills/agent-memory/SKILL.md`

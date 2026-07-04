@@ -1,4 +1,4 @@
-> **Claude Code:** Same intent as Cursor `/log-session`. Mirror: `.cursor/commands/log-session.md`.
+> **Cursor:** Same intent as Claude `/log-session`. Mirror: `.claude/commands/log-session.md`.
 
 # /log-session — Log agent session to raw memory
 
@@ -23,4 +23,4 @@ Repeat `--file`, `--command`, `--test`, `--decision`, `--error` as needed.
 
 ## Skill
 
-`.claude/skills/agent-memory/SKILL.md`
+`.cursor/skills/agent-memory/SKILL.md`

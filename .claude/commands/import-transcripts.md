@@ -1,4 +1,4 @@
-> **Claude Code:** Mirror: `.cursor/commands/import-transcripts.md`.
+> **Cursor:** Mirror: `.claude/commands/import-transcripts.md`.
 
 # /import-transcripts — Mine Cursor chat history
 
@@ -50,4 +50,4 @@ python scripts/agent-memory/dream.py
 
 ## Skill
 
-`.claude/skills/agent-memory/SKILL.md`
+`.cursor/skills/agent-memory/SKILL.md`

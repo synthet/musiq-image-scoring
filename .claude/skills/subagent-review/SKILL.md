@@ -10,11 +10,11 @@ Run external CLI coding agents **through the subagent-orchestrator MCP server** 
 ## Prerequisites
 
 - Sibling checkout: `../subagent-orchestrator/agent-orchestrator` built (`npm install && npm run build` there once)
-- MCP server enabled in [`.cursor/mcp.json`](../../.cursor/mcp.json) as **`imgscore-subagent-orchestrator`** and reloaded in Cursor
+- MCP server enabled in [`.cursor/mcp.json`](../../.cursor/mcp.json) as **`cli-review`** (or user-level **`subagent-orchestrator`**) and reloaded in Cursor
 
 ## Step 1 — Resolve MCP server
 
-Before `CallMcpTool`, find the enabled server where `serverName` is `subagent-orchestrator` (project key **`imgscore-subagent-orchestrator`**; user-level keys may also appear). Read tool schemas from `mcps/*/tools/detect_subagents.json` and `run_subagent.json`. Prefer the **project** server so `WORKSPACE_ROOT` is this repo.
+Before `CallMcpTool`, find the enabled server where `serverName` is `subagent-orchestrator` (project key **`cli-review`**; user-level keys may also appear). Read tool schemas from `mcps/*/tools/detect_subagents.json` and `run_subagent.json`. Prefer the **project** server so `WORKSPACE_ROOT` is this repo.
 
 ## Step 2 — Detect
 

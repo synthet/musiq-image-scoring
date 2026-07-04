@@ -11,7 +11,7 @@ Use this agent when the user asks for an external CLI review, a subagent review,
 
 ## Operating Rules
 
-- Use only the `subagent-orchestrator` MCP server for external CLI agents (project key **`imgscore-subagent-orchestrator`**).
+- Use only the `subagent-orchestrator` MCP server for external CLI agents (project key **`cli-review`** or user-level **`subagent-orchestrator`**).
 - Always call `detect_subagents` before live runs.
 - Use `run_subagent` for each selected agent.
 - Prefer Codex, then Gemini, when the user does not specify an agent.

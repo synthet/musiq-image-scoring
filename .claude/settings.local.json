@@ -327,7 +327,11 @@
       "PowerShell(git push *)",
       "Bash(echo \"=== EXIT $? ===\")",
       "Bash(./.venv/Scripts/python.exe -m pytest tests/test_agent_cull_cli_adapter.py tests/test_agent_cull_vocab.py -q)",
-      "Bash(./.venv/Scripts/python.exe -m ruff check modules/agent_cull/cli_adapter.py modules/agent_cull/vocab.py scripts/study/agent_cull_matrix.py scripts/study/agent_cull_vision_smoke.py tests/test_agent_cull_cli_adapter.py tests/test_agent_cull_vocab.py modules/api.py)"
+      "Bash(./.venv/Scripts/python.exe -m ruff check modules/agent_cull/cli_adapter.py modules/agent_cull/vocab.py scripts/study/agent_cull_matrix.py scripts/study/agent_cull_vision_smoke.py tests/test_agent_cull_cli_adapter.py tests/test_agent_cull_vocab.py modules/api.py)",
+      "mcp__is-be-diag__get_stale_running_phase_status",
+      "mcp__is-be-jobs__get_recent_jobs",
+      "mcp__is-be-diag__search_logs",
+      "mcp__is-be-jobs__get_image_pipeline_failures"
     ]
   },
   "enableAllProjectMcpServers": true,

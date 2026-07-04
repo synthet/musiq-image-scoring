@@ -1,4 +1,4 @@
-# Run external sub-agent review (MCP)
+# /run-subagent-review — Run external sub-agent review (MCP)
 
 Delegate a **review-only** task to one or more external CLIs via **subagent-orchestrator** MCP.
 

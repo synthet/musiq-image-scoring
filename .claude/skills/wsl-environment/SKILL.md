@@ -52,13 +52,12 @@ GPU/ML extras (open_clip, timm, transformers, pyiqa, torch CUDA build) are insta
 
 For a one-off command use the `wsl-tf-python-runner` pattern. For **anything that runs minutes+ under GPU/IO load** (backfills, batch embedding, full pipeline), follow these rules — they encode failures hit in production:
 
-1. **Run attached, in a held-open background session** — this is the reliable default. Launch via the harness `run_in_background` so the `wsl … bash -lc "<longjob>"` stays attached for the job's whole duration; that live session is what keeps the distro from idle-terminating. Always `>> log 2>&1` and make the job **resumable** (skip already-done rows) so a relay break just means relaunch:
+1. **Detach from the host relay.** A bare `wsl … bash -lc "<longjob>"` dies if the WSL host-side relay hiccups (`Wsl/Service/E_UNEXPECTED`), even though the distro survives. Launch detached so it reparents to init:
    ```bash
-   # harness run_in_background: true
    wsl -d Ubuntu bash -lc "cd /mnt/d/Projects/image-scoring-backend && source ~/.venvs/tf/bin/activate && \
-     python -u -m scripts.<job> >> reports/<job>.log 2>&1"
+     setsid bash -c 'python -u -m scripts.<job> >> reports/<job>.log 2>&1' < /dev/null & disown; echo launched"
    ```
-   **Do not** reach for `setsid`/`nohup` detach as the default: detach survives a host-relay break (`Wsl/Service/E_UNEXPECTED`) but, right after a cold boot, the distro has no attached session and WSL **idle-terminates it within seconds — before python even starts** (zero log output). Detach is only safe if a *separate* attached session is independently keeping the distro alive.
+   `nohup` alone is not enough — it survives session exit but not relay teardown; `setsid` + `</dev/null` is what detaches it.
 2. **Monitor from the host, not WSL.** Long-lived `wsl … "sleep N; …"` commands stress the same fragile relay and can themselves trigger `E_UNEXPECTED`. Poll the **host-side Postgres (5432)** or `tail` the log via short, separate commands. A host poller (Git Bash) example:
    ```bash
    PY="D:/Projects/image-scoring-backend/.venv/Scripts/python.exe"

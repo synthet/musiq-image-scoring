@@ -1,4 +1,4 @@
-> **Claude Code:** Same intent as Cursor `/promote-memory`. Mirror: `.cursor/commands/promote-memory.md`.
+> **Cursor:** Same intent as Claude `/promote-memory`. Mirror: `.claude/commands/promote-memory.md`.
 
 # /promote-memory — Approve dream into active memory
 
@@ -23,4 +23,4 @@ Requires matching `*-changelog.md` unless user confirms `--force`.
 
 ## Skill
 
-`.claude/skills/agent-memory/SKILL.md`
+`.cursor/skills/agent-memory/SKILL.md`

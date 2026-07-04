@@ -22,7 +22,8 @@ Historical reports, research, reviews, and debugging sessions.
 | [CLIP_MODELS_CULLING_SCORING_2026-05-23.md](CLIP_MODELS_CULLING_SCORING_2026-05-23.md) | CLIP / OpenCLIP / MetaCLIP for culling and prompt-based scoring |
 | [CULLING_MODEL_RECOMMENDATION_2026-05-29.md](CULLING_MODEL_RECOMMENDATION_2026-05-29.md) | Model choice for grouping, mishot rejection, and stack selection (post L/14 spike) |
 | [CULL_DISTRIBUTION_AUDIT_2026-06.md](CULL_DISTRIBUTION_AUDIT_2026-06.md) | Pick/reject/neutral distribution audit — policy 1.0 vs 2.0, stack/sub-stack invariants |
-| [CODEBASE_SIZE_AUDIT_2026-06.md](CODEBASE_SIZE_AUDIT_2026-06.md) | LoC audit snapshot (≥1000 files, ≥150 functions) — backend + gallery; feeds refactor plan |
+| [CODEBASE_SIZE_AUDIT_2026-07.md](CODEBASE_SIZE_AUDIT_2026-07.md) | LoC audit snapshot (July 2026) — post Phase 1 API split; pre/post Phase 1b electron router |
+| [CODEBASE_SIZE_AUDIT_2026-06.md](CODEBASE_SIZE_AUDIT_2026-06.md) | LoC audit snapshot (June 2026) — baseline; feeds refactor plan |
 | [BRANCH_DOCS_SALVAGE_2026-07.md](BRANCH_DOCS_SALVAGE_2026-07.md) | Branch cleanup audit — docs-only gallery branches archived/deleted; UNMERGED code branches retained |
 | [PICKED_ADVISORY_GAP_195193_2026-06-21.md](PICKED_ADVISORY_GAP_195193_2026-06-21.md) | Agent cull picked-image advisory gap — forensics, strict_v2 A/B, production defaults |
 | [INPUT_SIZE_CULLING_2026-05-29.md](INPUT_SIZE_CULLING_2026-05-29.md) | Thumbnail / long-edge sweep for culling embeddings + IQA signal quality |

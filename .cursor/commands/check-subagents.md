@@ -1,4 +1,4 @@
-# Check external CLI sub-agents
+# /check-subagents — Check external CLI sub-agents
 
 Detect which external coding CLIs are available on PATH via the **subagent-orchestrator** MCP server.
 

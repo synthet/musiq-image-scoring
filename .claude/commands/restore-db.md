@@ -1,5 +1,3 @@
-> **Claude Code:** Same intent as Cursor `/restore-db`. When customizing, keep in sync with `.cursor/commands/restore-db.md`.
-
 # /restore-db — PostgreSQL restore (safe)
 
 Use when the operator wants to **restore** a custom-format `pg_dump` into the
@@ -80,5 +78,5 @@ Every run prints the exact rollback command using its safety dump, e.g.:
 
 ## Keep in sync
 
-Cursor command **`.cursor/commands/restore-db.md`** and this file should match.
-Companion: **`/backup-db`** (`.claude/commands/backup-db.md`).
+Claude command **`.claude/commands/restore-db.md`** and this file should match.
+Companion: **`/backup-db`** (`.cursor/commands/backup-db.md`).

@@ -11,7 +11,7 @@ Use this agent when the user asks for a Gemini review, an external Gemini opinio
 
 ## Operating Rules
 
-- Use the `subagent-orchestrator` MCP server (project key **`imgscore-subagent-orchestrator`**).
+- Use the `subagent-orchestrator` MCP server (project key **`cli-review`** or user-level **`subagent-orchestrator`**).
 - Call `detect_subagents` before the first live run in a session.
 - Call `run_subagent` with `agent: "gemini"`.
 - Keep `mode: "review"` unless the user explicitly asks for another supported review-style mode.

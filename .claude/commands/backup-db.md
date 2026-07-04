@@ -1,5 +1,3 @@
-> **Claude Code:** Same intent as Cursor `/backup-db`. When customizing, keep in sync with `.cursor/commands/backup-db.md`.
-
 # /backup-db — PostgreSQL backup
 
 Use when the operator wants a **local dump** of the `image_scoring` PostgreSQL database (custom-format `pg_dump`).
@@ -41,7 +39,7 @@ If the script cannot run, use the same connection values as config and either:
 
 ## After restore note
 
-To **restore** a dump, use the sanctioned wrapper **`/restore-db`** (`.claude/commands/restore-db.md` → `scripts/powershell/Restore-Postgres.ps1`), which takes a pre-restore safety dump, gates the destructive step, repairs sequences, and warns on row-count regressions. Do not hand-run `pg_restore` — that caused the 2026-06 data loss. The wrapper invokes `scripts/python/postgres_sequence_repair.py` for you.
+To **restore** a dump, use the sanctioned wrapper **`/restore-db`** (`.cursor/commands/restore-db.md` → `scripts/powershell/Restore-Postgres.ps1`), which takes a pre-restore safety dump, gates the destructive step, repairs sequences, and warns on row-count regressions. Do not hand-run `pg_restore` — that caused the 2026-06 data loss. The wrapper invokes `scripts/python/postgres_sequence_repair.py` for you.
 
 ## Done when
 

@@ -54,3 +54,12 @@ Verified patterns from [AGENTS.md](../AGENTS.md), [.agent/INFRA_QUICKSTART.md](I
 ## Inventory maintenance
 
 - Regenerate MCP table in AGENTS.md when tools change: `python scripts/generate_mcp_tool_inventory.py --update-docs AGENTS.md docs/technical/MCP_DEBUGGING_TOOLS.md`
+
+## Agent CLI skills
+
+```bash
+python scripts/validate_cli_hub_skills.py   # after changing .cursor/skills/agent-* or mcp-code-intelligence
+python scripts/sync_assistant_trees.py --check
+```
+
+Spec: [.agent/cli-tools-skills-spec.md](cli-tools-skills-spec.md).

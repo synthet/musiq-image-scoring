@@ -1,4 +1,4 @@
-# Release (Python backend)
+# /release — Semver release (Python backend)
 
 Run a **semver release** for **this repo** (`image-scoring`): bump `APP_VERSION`, update `CHANGELOG.md`, commit, and push.
 

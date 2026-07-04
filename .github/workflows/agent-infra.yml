@@ -1,0 +1,48 @@
+name: Agent Infra
+
+on:
+  pull_request:
+    paths:
+      - '.cursor/**'
+      - '.claude/**'
+      - '.agent/**'
+      - 'scripts/sync_assistant_trees.py'
+      - 'scripts/validate_cli_hub_skills.py'
+      - 'scripts/ci/check_agent_frontmatter.py'
+      - 'scripts/ci/check_secrets.py'
+      - '.github/workflows/agent-infra.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.cursor/**'
+      - '.claude/**'
+      - '.agent/**'
+      - 'scripts/sync_assistant_trees.py'
+      - 'scripts/validate_cli_hub_skills.py'
+      - 'scripts/ci/check_agent_frontmatter.py'
+      - 'scripts/ci/check_secrets.py'
+      - '.github/workflows/agent-infra.yml'
+
+jobs:
+  agent-infra:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Assistant tree drift check
+        run: python scripts/sync_assistant_trees.py --check
+
+      - name: CLI hub skills structure
+        run: python scripts/validate_cli_hub_skills.py
+
+      - name: Agent frontmatter contract
+        run: python scripts/ci/check_agent_frontmatter.py
+
+      - name: Committed secrets scan
+        run: python scripts/ci/check_secrets.py

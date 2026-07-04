@@ -1,4 +1,4 @@
-# Run Gemini review (MCP)
+# /run-gemini-review — Run Gemini review (MCP)
 
 Delegate a **review-only** task to **Gemini CLI** through the **subagent-orchestrator** MCP server. Do **not** run `gemini -p` directly in the terminal unless the user explicitly asks to bypass the orchestrator.
 

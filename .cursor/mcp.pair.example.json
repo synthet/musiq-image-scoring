@@ -24,6 +24,18 @@
       "headers": {
         "Authorization": "Bearer ${env:GALLERY_MCP_TOKEN}"
       }
+    },
+    "fff-be": {
+      "_comment": "Requires git repo cwd — do NOT register at user ~/.cursor/mcp.json. Pass explicit PATH + cwd.",
+      "command": "fff-mcp",
+      "args": ["${workspaceFolder:image-scoring-backend}"],
+      "cwd": "${workspaceFolder:image-scoring-backend}"
+    },
+    "fff-gallery": {
+      "_comment": "Gallery repo index — separate from fff-be in multi-root workspaces.",
+      "command": "fff-mcp",
+      "args": ["${workspaceFolder:image-scoring-gallery}"],
+      "cwd": "${workspaceFolder:image-scoring-gallery}"
     }
   }
 }

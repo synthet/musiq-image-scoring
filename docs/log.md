@@ -6,6 +6,14 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-07-01] ingest | synthet-code-framework adoption (agent infra)
+
+Cherry-picked generic agent-sdlc improvements from synthet-code-framework: `validate-implementation` skill, EARS `/spec`, `/plan`, `/decompose`, enhanced `/pr-ready`, `release-bump`, `threat-modeling-agentic-tools`, `mcp-server-design`, `eval` skills. Added [ai-workflow/README.md](ai-workflow/README.md), [raw/framework-adoption-port-manifest.md](raw/framework-adoption-port-manifest.md), `scripts/sync_assistant_trees.py` (Cursor→Claude), CI validators (`check_agent_frontmatter.py`, `check_secrets.py`), workflow [agent-infra.yml](../.github/workflows/agent-infra.yml).
+
+## [2026-07-01] ingest | Codebase size audit July + Phase 1b electron router split
+
+Published [reports/CODEBASE_SIZE_AUDIT_2026-07.md](reports/CODEBASE_SIZE_AUDIT_2026-07.md) with raw JSON [codebase-size-audit-2026-07-01-backend.json](raw/codebase-size-audit-2026-07-01-backend.json) and [codebase-size-audit-2026-07-01-gallery.json](raw/codebase-size-audit-2026-07-01-gallery.json). Split `modules/api/routers/electron.py` into domain sub-routers (Closes [#298](https://github.com/synthet/image-scoring-backend/issues/298)). Updated [planning/refactoring/CODEBASE_SIZE_REFACTOR_PLAN.md](planning/refactoring/CODEBASE_SIZE_REFACTOR_PLAN.md) Phase 1b and [raw/README.md](raw/README.md).
+
 ## [2026-07-01] ingest | Branch docs salvage (gallery docs-only branches)
 
 Ingested gallery branch-cleanup salvage cross-ref into [reports/BRANCH_DOCS_SALVAGE_2026-07.md](reports/BRANCH_DOCS_SALVAGE_2026-07.md): docs-only branches archived and deleted on gallery; UNMERGED code branches retained. Gallery detail: [09-branch-docs-salvage-2026-07.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/reports/09-branch-docs-salvage-2026-07.md). Updated [reports/INDEX.md](reports/INDEX.md).

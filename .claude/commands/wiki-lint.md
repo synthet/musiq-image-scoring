@@ -1,4 +1,4 @@
-> **Cursor:** Same intent as Claude `/wiki-lint`. When customizing, keep in sync with `.cursor/commands/wiki-lint.md`.
+> **Cursor:** Same intent as Claude `/wiki-lint`. When customizing, keep in sync with `.claude/commands/wiki-lint.md`.
 
 # /wiki-lint — Health-check the docs wiki
 
@@ -60,3 +60,7 @@ Read `docs/OKF_ADOPTION.md` and `docs/WIKI_SCHEMA.md` for the OKF frontmatter pr
 - Report presented to user.
 - Approved fixes applied.
 - Log entry appended.
+
+## Skill
+
+[`.cursor/skills/docs-wiki/SKILL.md`](../skills/docs-wiki/SKILL.md)
