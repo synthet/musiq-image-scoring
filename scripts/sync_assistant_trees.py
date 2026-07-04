@@ -34,6 +34,7 @@ MIRROR_RULES = {
     "image-scoring-mcp",
     "pytest-e2e-vocabulary",
     "python-wsl-webapp-env",
+    "safety-and-secrets",
     "sdlc-core",
 }
 

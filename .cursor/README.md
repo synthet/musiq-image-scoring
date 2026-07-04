@@ -22,7 +22,7 @@ Project-local configuration for Cursor IDE agents. **Authority:** [AGENTS.md](..
 
 Legacy profile servers (`is-be-diag`, `is-be-jobs`, `is-be-data`, `is-be-router`, `is-be-full`) are **not** in the default config. Use compact dispatch or run `scripts/batch/run_mcp_server_windows.bat` with `MCP_TOOL_PROFILE` for debug-only stdio profiles.
 
-User **`~/.cursor/mcp.json`**: **`github`**, **`subagent-orchestrator`**, optional **`fff`** (file search), etc. only — see [`mcp.user.example.json`](mcp.user.example.json).
+User **`~/.cursor/mcp.json`**: **`github`**, **`subagent-orchestrator`**, etc. only — see [`mcp.user.example.json`](mcp.user.example.json). Optional **`fff-be`** / **`fff-gallery`** are **project-level** in each repo's `.cursor/mcp.json` — see [AGENTS.md § fff](../AGENTS.md).
 
 ## Also use
 

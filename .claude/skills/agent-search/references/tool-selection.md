@@ -32,15 +32,16 @@ After locating a file → bat --line-range or sed -n (never unbounded cat)
 | **`bat` / `sed -n`** | Read 80–160 lines **after** locating file | Discovery (use `rg`/`fd` first) | Always bound reads |
 | **`semgrep`** | Security/rule packs; org-wide policy checks | Ad hoc symbol lookup | `--dryrun` only unless user asks |
 | **`ctags`** | Repeated def/ref across sessions; LSP unavailable | One-off search | Optional index |
-| **fff MCP** (`ffgrep`, `fffind`, `fff-multi-grep`) | Repeated repo-wide file/content search when user-level fff is connected | One-off bounded probe; fff not installed | Prefer over many grep tool roundtrips |
+| **fff MCP** (`ffgrep`, `fffind`, `fff-multi-grep`) | Repeated repo-wide file/content search when **project** `fff-be` MCP is connected | One-off bounded probe; fff not installed | Prefer over many grep tool roundtrips |
 
 ## fff MCP (when connected)
 
-When **fff** is registered in user `~/.cursor/mcp.json` (see [mcp.user.example.json](../../../.cursor/mcp.user.example.json)):
+When **fff** is registered as **`fff-be`** in **project** [`.cursor/mcp.json`](../../../mcp.example.json) with repo `cwd` (see [AGENTS.md § fff](../../../../AGENTS.md)):
 
 - Prefer **`ffgrep`** / **`fffind`** / **`fff-multi-grep`** for repeated repo-wide search.
 - Keep one-off bounded probes as **`rg`** / **`fd`** (fast, no index warmup).
 - Do not replace **`ast-grep`** for syntax-shape queries — fff is text/path indexed search.
+- Do **not** put fff in user `~/.cursor/mcp.json` — repo-scoped indexing requires project config.
 
 ## Default order
 

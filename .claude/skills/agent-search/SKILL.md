@@ -26,7 +26,7 @@ Locate files and code quickly using the right CLI tool for the job — before op
 5. **`fzf`** is optional for humans — agents narrow with path prefix + `rg --max-count` instead.
 6. **`tree`/`eza`** for directory layout only — not content search.
 7. **Cursor IDE:** Grep tool ≈ `rg`; SemanticSearch for meaning; Glob ≈ `fd`.
-8. **fff MCP:** When connected (user-level), prefer `ffgrep`/`fffind` for repeated repo search; one-off probes may still use `rg`/`fd` — see [tool-selection.md](references/tool-selection.md).
+8. **fff MCP:** When **project** `fff-be` is connected, prefer `ffgrep`/`fffind` for repeated repo search; one-off probes may still use `rg`/`fd` — see [tool-selection.md](references/tool-selection.md) and [AGENTS.md § fff](../../../AGENTS.md).
 
 ## When to use (scenario → tool)
 

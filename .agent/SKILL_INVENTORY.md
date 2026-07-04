@@ -40,13 +40,13 @@ Central list of **first-party** `SKILL.md` files in this repository for governan
 | threat-modeling-agentic-tools | `.cursor/skills/threat-modeling-agentic-tools/SKILL.md` | MCP/hook/prompt-injection threat modeling | L1 | Yes | 2026-07-01 |
 | mcp-server-design | `.cursor/skills/mcp-server-design/SKILL.md` | Safe MCP server design patterns | L1 | Yes | 2026-07-01 |
 | eval | `.cursor/skills/eval/SKILL.md` | Task quality signals → agent memory feedback loop | L1 | Yes | 2026-07-01 |
-| agent-cli-hub | `.cursor/skills/agent-cli-hub/SKILL.md` | CLI skill router; install/safety/bounded-output references | L1 | — | 2026-07-03 |
-| agent-search | `.cursor/skills/agent-search/SKILL.md` | rg/grep/ast-grep/fd tool selection + fff when connected | L1 | — | 2026-07-03 |
-| agent-git-workflows | `.cursor/skills/agent-git-workflows/SKILL.md` | git/gh safe status, diff, PR workflows | L2 | — | 2026-07-03 |
-| agent-data-config | `.cursor/skills/agent-data-config/SKILL.md` | jq/yq/curl config and API inspection | L1 | — | 2026-07-03 |
-| agent-dev-tooling | `.cursor/skills/agent-dev-tooling/SKILL.md` | WSL pytest, ruff, doctor, docker compose | L1 | — | 2026-07-03 |
-| agent-platform-tooling | `.cursor/skills/agent-platform-tooling/SKILL.md` | Windows vs WSL2 environment choice | L1 | — | 2026-07-03 |
-| mcp-code-intelligence | `.cursor/skills/mcp-code-intelligence/SKILL.md` | MCP vs CLI tiers; fff + is-be-mcp | L1 | — | 2026-07-03 |
+| agent-cli-hub | `.cursor/skills/agent-cli-hub/SKILL.md` | CLI skill router; install tiers, agent-environment, shared references | L1 | Yes | 2026-07-04 |
+| agent-search | `.cursor/skills/agent-search/SKILL.md` | rg/grep/ast-grep/fd tool selection + fff when connected | L1 | Yes | 2026-07-04 |
+| agent-git-workflows | `.cursor/skills/agent-git-workflows/SKILL.md` | git/gh safe status, diff, PR workflows | L2 | Yes | 2026-07-04 |
+| agent-data-config | `.cursor/skills/agent-data-config/SKILL.md` | jq/yq/curl config and API inspection | L1 | Yes | 2026-07-04 |
+| agent-dev-tooling | `.cursor/skills/agent-dev-tooling/SKILL.md` | WSL pytest, ruff, doctor, docker compose | L1 | Yes | 2026-07-04 |
+| agent-platform-tooling | `.cursor/skills/agent-platform-tooling/SKILL.md` | Windows vs WSL2 environment choice | L1 | Yes | 2026-07-04 |
+| mcp-code-intelligence | `.cursor/skills/mcp-code-intelligence/SKILL.md` | MCP vs CLI tiers; fff + is-be-mcp | L1 | Yes | 2026-07-04 |
 
 ## Claude Code mirror
 

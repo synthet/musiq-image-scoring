@@ -39,6 +39,25 @@ okf_version: 0.1
 
 Start generic CLI work at **`agent-cli-hub`**. Validate: `python scripts/validate_cli_hub_skills.py`.
 
+## Framework alignment
+
+Upstream: [synthet-code-framework](https://github.com/synthet/synthet-code-framework) (generic agent scaffold). This repo is a **Cursor-first domain fork** — see [framework-adoption-port-manifest](../raw/framework-adoption-port-manifest.md).
+
+| Framework pattern | This repo |
+|-------------------|-----------|
+| Single SOT + mirror | `.cursor/` canonical → `.claude/` via `sync_assistant_trees.py` |
+| CLI tooling | 7-skill hub (not 13 flat skills) — content-equivalent map in port manifest |
+| CI agent-infra | [`.github/workflows/agent-infra.yml`](../../.github/workflows/agent-infra.yml) |
+
+```bash
+python scripts/sync_assistant_trees.py --check
+python scripts/validate_cli_hub_skills.py
+python scripts/ci/check_agent_frontmatter.py
+python scripts/ci/check_secrets.py
+```
+
+Cherry-pick generic improvements from framework; never blind-merge domain rules or MCP inventory.
+
 ## The SDLC loop
 
 ```
@@ -67,4 +86,4 @@ is unnecessary (trivial fix), say so explicitly.
 
 ## Safety
 
-All of the above operate under [`.agent/SAFETY.md`](../../.agent/SAFETY.md).
+All of the above operate under [`.agent/SAFETY.md`](../../.agent/SAFETY.md) and the always-on **`safety-and-secrets`** rule.

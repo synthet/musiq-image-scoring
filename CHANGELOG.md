@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.12.2] - 2026-07-04
+
+### Changed
+
+- **Agent CLI hub**: Install tiers and agent-environment references; project-level **fff-be** MCP guidance (replacing user-level fff); refresh search and code-intelligence skill cross-links.
+- **Agent safety**: Add `safety-and-secrets` rule (Cursor + Claude mirror).
+- **Framework adoption**: Expand port manifest; trim `CLAUDE.md` to pointer style; extend `validate_cli_hub_skills.py`.
+
 ## [8.12.1] - 2026-07-03
 
 ### Changed

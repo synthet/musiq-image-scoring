@@ -37,7 +37,7 @@ Lowest memory, transparent, deterministic. Best default for most tasks.
 ### Better setup
 
 ```text
-fff MCP (ffgrep, fffind) + rg + fd + ast-grep + is-be-mcp search/dispatch + WSL pytest/doctor
+fff-be MCP (ffgrep, fffind) + rg + fd + ast-grep + is-be-mcp search/dispatch + WSL pytest/doctor
 ```
 
 Adds indexed file search for long agent sessions and compact pipeline triage via **`is-be-mcp`**. Keep `rg`/`fd` for one-off shell probes.
@@ -56,7 +56,7 @@ Higher setup cost and memory. Use when repeated cross-repo symbol navigation jus
 
 | Layer | Examples | Strengths | Cost |
 |-------|----------|-----------|------|
-| Indexed file search | **fff** MCP (`ffgrep`, `fffind`) | Warm index, frecency, git-aware | User install |
+| Indexed file search | **fff** MCP (`ffgrep`, `fffind`) — project `fff-be` | Warm index, frecency, git-aware | Project MCP install |
 | CLI wrappers | rg, fd, bat, git diff | Fast, bounded, no index | Agent orchestrates |
 | Domain compact MCP | **`is-be-mcp`** search/dispatch | Pipeline, DB, diagnostics registry | Build `mcp-server/` |
 | Structural | ast-grep, semgrep | Syntax shapes | Medium |

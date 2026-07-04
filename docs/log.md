@@ -6,6 +6,18 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-07-04] edit | Framework alignment (Cursor-first, hub layout)
+
+Aligned with [synthet-code-framework](https://github.com/synthet/synthet-code-framework): updated [framework-adoption-port-manifest](../docs/raw/framework-adoption-port-manifest.md) (13→7 skill map, verify commands), [docs/ai-workflow/README.md](../docs/ai-workflow/README.md) Framework alignment section, `safety-and-secrets` rule, gallery infra parity coordination.
+
+## [2026-07-04] edit | CLI hub install tiers + agent environment
+
+Added [install-tiers.md](../.cursor/skills/agent-cli-hub/references/install-tiers.md) and [agent-environment.md](../.cursor/skills/agent-cli-hub/references/agent-environment.md) under agent-cli-hub; fixed fff **project-level** (`fff-be`) doc drift across CLI skills; extended [validate_cli_hub_skills.py](../scripts/validate_cli_hub_skills.py). Cross-repo parity with image-scoring-gallery hub layout.
+
+## [2026-07-03] edit | Lean CLAUDE.md and refresh .cursorrules
+
+Trimmed root [CLAUDE.md](../CLAUDE.md) from ~274 lines to lean orientation (~74 lines): corrected `modules/api/` and `modules/db/` paths, MCP keys (`is-be-mcp` / `is-be-live`), added **image-scoring-ui** sibling, delegated keyword/embedding/DB-refactor detail to planning docs. Refreshed [.cursorrules](../.cursorrules) with WSL test venv, `launch.py`, PROJECT_GUIDE link, and current MCP stack.
+
 ## [2026-07-01] ingest | synthet-code-framework adoption (agent infra)
 
 Cherry-picked generic agent-sdlc improvements from synthet-code-framework: `validate-implementation` skill, EARS `/spec`, `/plan`, `/decompose`, enhanced `/pr-ready`, `release-bump`, `threat-modeling-agentic-tools`, `mcp-server-design`, `eval` skills. Added [ai-workflow/README.md](ai-workflow/README.md), [raw/framework-adoption-port-manifest.md](raw/framework-adoption-port-manifest.md), `scripts/sync_assistant_trees.py` (Cursor→Claude), CI validators (`check_agent_frontmatter.py`, `check_secrets.py`), workflow [agent-infra.yml](../.github/workflows/agent-infra.yml).

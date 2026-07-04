@@ -25,7 +25,7 @@ Central entry point for agent-safe CLI workflows: which skill to use, how to ins
 
 | Need | Skill |
 |------|-------|
-| Find files / grep / browse tree | [`agent-search`](../agent-search/SKILL.md) — rg vs grep vs ast-grep vs fd; prefer **fff** MCP when installed |
+| Find files / grep / browse tree | [`agent-search`](../agent-search/SKILL.md) — rg vs grep vs ast-grep vs fd; optional **fff-be** project MCP |
 | git status, diff, gh PR/issue | [`agent-git-workflows`](../agent-git-workflows/SKILL.md) |
 | jq/yq on JSON/YAML, API probes | [`agent-data-config`](../agent-data-config/SKILL.md) |
 | pytest, ruff, doctor, docker compose | [`agent-dev-tooling`](../agent-dev-tooling/SKILL.md) |
@@ -33,11 +33,24 @@ Central entry point for agent-safe CLI workflows: which skill to use, how to ins
 | MCP vs CLI code intelligence | [`mcp-code-intelligence`](../mcp-code-intelligence/SKILL.md) |
 | Pipeline / DB triage via MCP | [`image-scoring-mcp`](../image-scoring-mcp/SKILL.md) |
 | WSL venv / pytest markers | [`wsl-tf-python-runner`](../wsl-tf-python-runner/SKILL.md) |
-| Fast indexed file search (MCP) | **[fff](https://github.com/dmtrKovalenko/fff)** — user-level `fff-mcp`; see [mcp.user.example.json](../../../.cursor/mcp.user.example.json) |
+| Fast indexed file search (MCP) | **[fff](https://github.com/dmtrKovalenko/fff)** — **project** `fff-be` in `.cursor/mcp.json`; see [AGENTS.md § fff](../../../AGENTS.md) |
 
 ## Required tools (baseline)
 
 `git`, `rg`, `fd`, `jq`, Python (WSL + venv). Install full set via [references/install-blocks.md](references/install-blocks.md).
+
+## Install tiers
+
+Install in order — see [references/install-tiers.md](references/install-tiers.md):
+
+1. **Tier 0:** `git`, `rg`, `fd`, `jq`, Python (WSL + `~/.venvs/tf`)
+2. **Block A:** canonical block in [references/install-blocks.md](references/install-blocks.md)
+3. **Block B:** child-skill extensions (`yq`, `just`, `mise`, …)
+4. **Deferred:** optional tools per skill (`fzf`, `semgrep`, …)
+
+## Agent environment
+
+After installing CLI tools, **restart Cursor** and verify PATH — see [references/agent-environment.md](references/agent-environment.md).
 
 ## Install
 

@@ -30,7 +30,7 @@ Keep **image-scoring-backend** and **image-scoring-gallery** as sibling director
 | Backend FastAPI / pytest / GPU scripts | WSL2 + documented venvs |
 | Gallery Electron (sibling repo) | Windows (see gallery repo) |
 | PostgreSQL via Docker | WSL or Windows — run `docker compose` from backend repo |
-| Agent file search | `rg`/`fd` or user-level **fff** MCP |
+| Agent file search | `rg`/`fd` or **project** **fff-be** MCP |
 
 ## Pitfalls
 

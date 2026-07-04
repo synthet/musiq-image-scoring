@@ -14,13 +14,15 @@ Maintain practical agent skills for lightweight CLI tools on Windows, WSL2, and 
 | `agent-search` | Text + structural search; [references/tool-selection.md](../.cursor/skills/agent-search/references/tool-selection.md) |
 | `agent-git-workflows` | git, gh, bounded diffs |
 | `agent-data-config` | jq, yq, curl |
-| `agent-dev-tooling` | Gallery npm lint/tsc/vitest first |
+| `agent-dev-tooling` | WSL pytest, ruff, doctor, docker compose |
 | `agent-platform-tooling` | Windows vs WSL2 |
 | `mcp-code-intelligence` | MCP tiers; fff, embeddings warning |
 
 Shared references under `agent-cli-hub/references/`:
 
 - `install-blocks.md`
+- `install-tiers.md`
+- `agent-environment.md`
 - `bounded-output-patterns.md`
 - `commands-requiring-confirmation.md`
 - `windows-wsl-split.md`

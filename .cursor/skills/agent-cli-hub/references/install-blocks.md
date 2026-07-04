@@ -66,7 +66,7 @@ irm https://raw.githubusercontent.com/dmtrKovalenko/fff/main/install-mcp.ps1 | i
 curl -L https://dmtrkovalenko.dev/install-fff-mcp.sh | bash
 ```
 
-Wire into user `~/.cursor/mcp.json` — see [`.cursor/mcp.user.example.json`](../../../.cursor/mcp.user.example.json).
+Wire into **project** [`.cursor/mcp.json`](../../../mcp.example.json) as `fff-be` — see [AGENTS.md § fff](../../../../AGENTS.md). Do **not** use user `~/.cursor/mcp.json` (fff needs repo `cwd`).
 
 ## Verification
 
