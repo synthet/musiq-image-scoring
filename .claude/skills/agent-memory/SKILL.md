@@ -12,7 +12,6 @@ Local consolidation for **image-scoring-backend** — external artifacts only (n
 - **Session start:** Read `.agent-memory/memory.md`; prefer repo evidence on conflict.
 - **Session end / milestone:** Log durable learnings with `/log-session`.
 - **Periodic:** Run `/dream-memory`, review changelog, `/promote-memory` after human approval.
-- **Bulk history:** `/import-transcripts` to mine local Cursor JSONL into staging.
 
 ## Memory candidates
 
@@ -55,21 +54,11 @@ python scripts/agent-memory/context.py
 3. Redact anything sensitive; reject promotion if secrets might be present.
 4. Promote only when the proposal is accurate and concise.
 
-## Relationship to Claude Code native memory
-
-Two memory stores coexist; keep them in their lanes:
-
-- **`.agent-memory/memory.md` (this skill)** — team-shared, committed, repo-scoped, review-gated.
-- **Claude Code native `~/.claude/.../memory/MEMORY.md`** — private, auto-loaded, personal recall.
-
-When they conflict, committed `.agent-memory/memory.md` and live repo evidence win.
-
 ## Safety
 
 - Scripts block common secret patterns on write.
 - Do not log `secrets.json`, `.env`, tokens, or personal library paths.
 - Never edit `memory.md` directly during implementation work.
-- `raw-sessions/` and `dreams/` are gitignored; only `memory.md`, `schema.md`, `config.json`, and `CURSOR_USAGE.md` are shared.
 
 ## Reference
 

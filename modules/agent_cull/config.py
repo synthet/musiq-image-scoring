@@ -17,6 +17,7 @@ class AgentCullAgentConfig:
     provider: str = "gemini"
     command: str = "gemini"
     args: tuple[str, ...] = ()
+    model: str = ""
     timeout_seconds: int = 180
     max_retries: int = 1
     supports_vision: bool = True
@@ -46,7 +47,7 @@ class AgentCullLocalGatesConfig:
 @dataclass(frozen=True)
 class AgentCullConfig:
     enabled: bool = False
-    dry_run_default: bool = True
+    dry_run_default: bool = False
     max_group_size: int = 200
     review_batch_size: int = 10
     min_usable_images: int = 2
@@ -121,6 +122,7 @@ def load_agent_cull_config(overrides: dict[str, Any] | None = None) -> AgentCull
         provider=str(agent_raw.get("provider") or "gemini"),
         command=str(agent_raw.get("command") or "gemini"),
         args=args_tuple,
+        model=str(agent_raw.get("model") or "").strip(),
         timeout_seconds=_coerce_int(agent_raw.get("timeout_seconds"), 180),
         max_retries=_coerce_int(agent_raw.get("max_retries"), 1),
         supports_vision=_coerce_bool(agent_raw.get("supports_vision"), True),
@@ -148,7 +150,7 @@ def load_agent_cull_config(overrides: dict[str, Any] | None = None) -> AgentCull
     )
     return AgentCullConfig(
         enabled=_coerce_bool(raw.get("enabled"), False),
-        dry_run_default=_coerce_bool(raw.get("dry_run_default"), True),
+        dry_run_default=_coerce_bool(raw.get("dry_run_default"), False),
         max_group_size=_coerce_int(raw.get("max_group_size"), 200),
         review_batch_size=_coerce_int(raw.get("review_batch_size"), 10),
         min_usable_images=_coerce_int(raw.get("min_usable_images"), 2),

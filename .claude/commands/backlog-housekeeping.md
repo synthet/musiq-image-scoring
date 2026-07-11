@@ -1,4 +1,4 @@
-> **Claude Code:** Same intent as Cursor `/backlog-housekeeping`. When customizing, keep in sync with `.cursor/commands/backlog-housekeeping.md`.
+> **Cursor:** Same intent as Claude `/backlog-housekeeping`. When customizing, keep in sync with `.claude/commands/backlog-housekeeping.md`.
 
 # /backlog-housekeeping — sync GitHub Project board and issue labels
 

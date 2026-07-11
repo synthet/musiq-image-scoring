@@ -8,28 +8,36 @@
 
 AI image quality scoring, tagging, clustering, and gallery API backend.
 Python 3.10+, FastAPI on port 7860, PostgreSQL + pgvector as primary store.
+React SPA at `/ui/`; Gradio operator page at `/app`.
 
 ## Where to look first
 
 - `CLAUDE.md` — project overview, backlog contract, key modules.
-- `AGENTS.md` — MCP server registration and tool inventory.
+- `AGENTS.md` — MCP server registration, search+dispatch, tool inventory.
 - `docs/CANONICAL_SOURCES.md` — authoritative file map (API, schema, phases).
 - `docs/technical/PIPELINE_TERMINOLOGY.md` — canonical phase codes.
 - `docs/technical/API_CONTRACT.md` and `docs/reference/api/openapi.yaml` — REST contract.
+- `docs/technical/MCP_SEARCH_DISPATCH.md` — compact MCP workflow.
 - `docs/technical/DB_SCHEMA.md` — schema reference.
+- `.agent/PROJECT_GUIDE.md`, `.agent/SAFETY.md`, `.agent/COMMANDS.md`.
 - `.cursor/rules/` — short, focused rules (each `.mdc` documents its scope).
-- `.agent/SAFETY.md` — agent guardrails and forbidden actions.
-- `.agent/COMMANDS.md` — verified commands quick reference.
 - `.agent/AGENT_INFRA_INVENTORY.md` — every agent-facing file with its status.
 
 ## Core technologies (current)
 
-- Python 3.10+ in WSL (`~/.venvs/tf`).
-- FastAPI (`webui.py` entrypoint) + Gradio operator page mounted at `/app`.
-- PostgreSQL + pgvector via `modules/db_postgres.py`; routed by `modules/db.py`.
+- Python 3.10+ in WSL (`~/.venvs/tf`) for app/scripts; `~/.venvs/image-scoring-tests` for WSL pytest.
+- FastAPI via `launch.py` / `webui.py`; Gradio operator page at `/app`.
+- REST API: `modules/api/` package (domain routers under `routers/`).
+- PostgreSQL + pgvector via `modules/db_postgres.py`; routed by `modules/db/` facade.
 - Models: MUSIQ (TF), LIQE / TOPIQ / Q-Align (PyTorch via pyiqa), BLIP/CLIP for captioning.
 - Embeddings: 1280-d MobileNetV2 default space (see `docs/EMBEDDINGS.md`).
 - Pipeline phases: `indexing` → `metadata` → `scoring` → `culling` → `keywords`.
+- MCP: **`is-be-mcp`** (stdio search+dispatch), optional **`is-be-live`** (SSE when WebUI runs).
+
+## Related projects
+
+- **image-scoring-gallery** — Electron desktop UI (sibling repo).
+- **image-scoring-ui** — shared design tokens (`@synthet/image-scoring-design`).
 
 ## Diagnostics
 
@@ -40,12 +48,14 @@ Python 3.10+, FastAPI on port 7860, PostgreSQL + pgvector as primary store.
 ## Tests
 
 ```bash
-# Fast subset, no hardware deps
+# Fast subset, no hardware deps (WSL + ~/.venvs/tf)
 python -m pytest -m "not gpu and not db and not ml" --ignore=tests/test_probe.py
 ```
 
+WSL-marked tests: `~/.venvs/image-scoring-tests` via `scripts/wsl/run_wsl_tests.sh` or `Run-WSLTests.ps1`.
+
 Markers: `gpu`, `db`, `ml`, `wsl`, `network`, `sample_data`, `postgres`, `inference_e2e`.
-See `docs/TESTING.md`.
+See `docs/TESTING.md` and AGENTS.md (Pytest E2E vocabulary).
 
 ## Hard rules
 
@@ -57,7 +67,7 @@ See `docs/TESTING.md`.
 - **Do not commit** `secrets.json`, debug bundles, thumbnails, model caches,
   or anything under `.agent/scratch/`.
 - **Backlog contract** — every task starts from the GitHub Project board
-  (https://github.com/users/synthet/projects/1). See CLAUDE.md "Backlog & queue".
+  (https://github.com/users/synthet/projects/1). See `.cursor/skills/backlog-queue/SKILL.md`.
 
 ## Cross-repo
 

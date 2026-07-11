@@ -1,12 +1,10 @@
-> **Claude Code:** Same intent as Cursor `/critical-commit-audit`. When customizing, keep in sync with `.cursor/commands/critical-commit-audit.md`.
-
 # /critical-commit-audit — Deep review of recent commits for critical bugs
 
 Use when you want a **high-severity-only** pass over **recent git history** (data loss, crashes, security, major breakage).
 
 ## Instructions
 
-1. **Read the skill** **`.claude/skills/critical-commit-audit/SKILL.md`** and follow it end to end.
+1. **Read the skill** [`.cursor/skills/critical-commit-audit/SKILL.md`](../skills/critical-commit-audit/SKILL.md) and follow it end to end.
 2. **Use AGENTS.md** for lint, pytest, and environment commands after any code change.
 
 ## Inputs

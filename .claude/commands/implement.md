@@ -1,5 +1,3 @@
-> **Claude Code:** Same intent as Cursor `/implement`. When customizing, keep in sync with `.cursor/commands/implement.md`.
-
 # /implement — Execute an approved plan
 
 Use when the user has approved a plan or given a small, explicit task.

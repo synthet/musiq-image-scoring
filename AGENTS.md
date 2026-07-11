@@ -23,6 +23,8 @@ For **doctor CLI**, redacted debug bundles, safe commands, and pitfalls (without
 
 This repo vendors **[agent-sdlc](https://github.com/synthet/agent-sdlc)**-style Cursor rules (`.cursor/rules/`), slash commands (`.cursor/commands/`), and project skills (`.cursor/skills/`). **This `AGENTS.md` file** remains the source of truth for canonical commands, repository layout, and boundaries.
 
+**Upstream:** Generic agent patterns are extracted in **[synthet-code-framework](https://github.com/synthet/synthet-code-framework)**. This repository is a **domain fork** (MCP, WSL, pipeline, cross-repo gallery coordination). Sync policy: diff framework → cherry-pick generic improvements; never blind merge. Port manifest: [docs/raw/framework-adoption-port-manifest.md](docs/raw/framework-adoption-port-manifest.md). SDLC loop: [docs/ai-workflow/README.md](docs/ai-workflow/README.md).
+
 ### Agent skills: source of truth (AST10)
 
 For [OWASP Agentic Skills Top 10](https://github.com/kenhuangus/agentic-skills-top-10) cross-platform drift (**AST10**), duplicated skills follow this rule:
@@ -33,7 +35,7 @@ For [OWASP Agentic Skills Top 10](https://github.com/kenhuangus/agentic-skills-t
 
 **Inventory and PR review:** [.agent/SKILL_INVENTORY.md](.agent/SKILL_INVENTORY.md) · [.agent/SKILL_CHANGE_AST10_REVIEW.md](.agent/SKILL_CHANGE_AST10_REVIEW.md)
 
-**Cursor slash commands** (type `/` in chat): **`/spec`**, **`/plan`**, **`/implement`**, **`/test-and-fix`**, **`/pr-ready`**, **`/task-claim`**, **`/release-notes`**, **`/release`**, **`/backup-db`**, **`/windows-keep-awake on`**, **`/windows-keep-awake off`**, **`/critical-commit-audit`**, **`/wiki-ingest`**, **`/wiki-lint`**, **`/wiki-query`**, **`/check-subagents`**, **`/run-codex-review`**, **`/run-gemini-review`**, **`/run-subagent-review`**. Index: [`.cursor/README.md`](.cursor/README.md). **Claude Code** mirrors paired commands under `.claude/commands/`.
+**Cursor slash commands** (type `/` in chat): **`/spec`**, **`/plan`**, **`/decompose`**, **`/implement`**, **`/test-and-fix`**, **`/pr-ready`**, **`/task-claim`**, **`/release-notes`**, **`/release`**, **`/backup-db`**, **`/windows-keep-awake on`**, **`/windows-keep-awake off`**, **`/critical-commit-audit`**, **`/wiki-ingest`**, **`/wiki-lint`**, **`/wiki-query`**, **`/check-subagents`**, **`/run-codex-review`**, **`/run-gemini-review`**, **`/run-subagent-review`**. Index: [`.cursor/README.md`](.cursor/README.md). **Claude Code** mirrors paired commands under `.claude/commands/`. After editing `.cursor/` assets, run `python scripts/sync_assistant_trees.py`.
 
 **External CLI reviews:** sibling [`subagent-orchestrator`](../subagent-orchestrator) via MCP **`imgscore-subagent-orchestrator`** — see [docs/technical/EXTERNAL_CLI_REVIEWS.md](docs/technical/EXTERNAL_CLI_REVIEWS.md).
 
@@ -83,6 +85,26 @@ Side-effecting dispatch (e.g. **`support.export_debug_bundle`**) requires **`con
 **Not in default config:** `is-ui-router`, `is-ui-local`, `is-ui-api` (gallery debug entrypoints only).
 
 **Legacy MCP keys:** remove obsolete server names from user `~/.cursor/mcp.json`; use **`is-be-*`** / **`is-ui-*`** from each repo's `mcp.example.json`.
+
+### fff file search (optional, project MCP)
+
+**[fff](https://github.com/dmtrKovalenko/fff)** is a fast, frecency-ranked file search MCP for agents — tools **`ffgrep`**, **`fffind`**, **`fff-multi-grep`**. **Do not** register at user `~/.cursor/mcp.json` — fff exits if launched from `$HOME` or a filesystem root. Use **project** `.cursor/mcp.json` with explicit **`cwd`** and **`args`** PATH to a git repo. Templates: [`.cursor/mcp.example.json`](.cursor/mcp.example.json), [`.cursor/mcp.pair.example.json`](.cursor/mcp.pair.example.json) (`fff-be`, `fff-gallery`).
+
+| Install | Command |
+|---------|---------|
+| Windows (PowerShell) | `irm https://raw.githubusercontent.com/dmtrKovalenko/fff/main/install-mcp.ps1 \| iex` |
+| Linux / macOS | `curl -L https://dmtrkovalenko.dev/install-fff-mcp.sh \| bash` |
+| Homebrew (macOS / Linux) | `brew install dmtrKovalenko/fff/fff-mcp` |
+
+```json
+"fff-be": {
+  "command": "fff-mcp",
+  "args": ["${workspaceFolder:image-scoring-backend}"],
+  "cwd": "${workspaceFolder:image-scoring-backend}"
+}
+```
+
+**Agent prompt (recommended):** For file search or grep in the current git-indexed directory, prefer **fff** MCP tools over built-in grep roundtrips. CLI guidance: [`.cursor/skills/agent-search/SKILL.md`](.cursor/skills/agent-search/SKILL.md) (tool selection + fff when connected).
 
 For backend WebUI SSE, start the WebUI first (`run_webui.bat`). Confirm URL with **`GET /mcp-status`** → `expected_sse_url` and **`sse_profile`** (`compact` default). Set **`MCP_SSE_PROFILE=full`** on the WebUI process for legacy raw tools (including **`execute_code`** when `ENABLE_MCP_EXECUTE_CODE=1`). Gallery live port: **`gallery-mcp.lock`** (default `9373`).
 

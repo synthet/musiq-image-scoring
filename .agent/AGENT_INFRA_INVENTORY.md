@@ -26,6 +26,10 @@
 | [.cursor/agents/*.md](../.cursor/agents/) | Subagent role YAML | coding | active | AGENTS.md | Keep synced to `.claude/agents/` |
 | [.cursor/rules/external-cli-subagents.mdc](../.cursor/rules/external-cli-subagents.mdc) | External Codex/Gemini review safety | governance | active | subagent-orchestrator | Mirror `.claude/rules/` |
 | [.cursor/skills/subagent-review/](../.cursor/skills/subagent-review/) | MCP external review workflow | workflow | active | `../subagent-orchestrator` | Mirror `.claude/skills/` |
+| [sync_assistant_trees.py](../scripts/sync_assistant_trees.py) | Cursor→Claude mirror + `--check` CI gate | workflow | active | synthet-code-framework | Run after `.cursor/` edits |
+| [docs/ai-workflow/README.md](../docs/ai-workflow/README.md) | SDLC loop + phase gates + asset map | workflow | active | synthet-code-framework | Cursor-first variant |
+| [docs/raw/framework-adoption-port-manifest.md](../docs/raw/framework-adoption-port-manifest.md) | Cherry-pick manifest from framework audit | governance | active | synthet-code-framework | Update when porting more assets |
+| [.github/workflows/agent-infra.yml](../.github/workflows/agent-infra.yml) | Assistant tree drift + frontmatter + secrets CI | governance | active | synthet-code-framework | None |
 | [docs/technical/EXTERNAL_CLI_REVIEWS.md](../docs/technical/EXTERNAL_CLI_REVIEWS.md) | Setup for imgscore-subagent-orchestrator MCP | cross-repo | active | sibling orchestrator | None |
 | [.claude/skills/*/SKILL.md](../.claude/skills/) | Claude mirror of skills | coding | duplicate-of | `.cursor/skills/` | Same-PR sync |
 | [.claude/commands/*.md](../.claude/commands/) | Claude slash commands | workflow | partial-mirror | `.cursor/commands/` | Same paired commands; backend-only `/release`, `/backup-db` |

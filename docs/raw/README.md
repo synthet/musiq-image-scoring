@@ -18,4 +18,6 @@ Drop articles, papers, PDFs, images, and other reference material here. Use `/wi
 |------|-------------|
 | [codebase-size-audit-2026-06-30-backend.json](codebase-size-audit-2026-06-30-backend.json) | Backend LoC audit machine output (2026-06-30) |
 | [codebase-size-audit-2026-06-30-gallery.json](codebase-size-audit-2026-06-30-gallery.json) | Gallery LoC audit machine output (2026-06-30) |
+| [codebase-size-audit-2026-07-01-backend.json](codebase-size-audit-2026-07-01-backend.json) | Backend LoC audit machine output (2026-07-01) |
+| [codebase-size-audit-2026-07-01-gallery.json](codebase-size-audit-2026-07-01-gallery.json) | Gallery LoC audit machine output (2026-07-01) |
 | [picked-advisory-forensics-2026-06-21.json](picked-advisory-forensics-2026-06-21.json) | Agent cull picked-advisory forensics |

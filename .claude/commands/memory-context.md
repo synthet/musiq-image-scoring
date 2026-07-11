@@ -1,4 +1,4 @@
-> **Claude Code:** Same intent as Cursor `/memory-context`. Mirror: `.cursor/commands/memory-context.md`.
+> **Cursor:** Same intent as Claude `/memory-context`. Mirror: `.claude/commands/memory-context.md`.
 
 # /memory-context — Print memory for a new session
 
@@ -22,4 +22,4 @@ Or instruct the user to reference `.agent-memory/memory.md` directly.
 
 ## Skill
 
-`.claude/skills/agent-memory/SKILL.md`
+`.cursor/skills/agent-memory/SKILL.md`

@@ -38,6 +38,9 @@ Closes #
 - [ ] Lint / typecheck pass
 - [ ] No secrets or credentials in code
 - [ ] Docs updated if behavior is user-visible
+- [ ] Spec-backed work: `validate-implementation` skill run; ACs Verified or open items listed
+- [ ] If porting from synthet-code-framework: domain paths/commands adapted, not copied verbatim
+- [ ] `python scripts/sync_assistant_trees.py --check` green when `.cursor/` or `.claude/` changed
 
 ## Skill files (`SKILL.md`) — only if this PR adds or materially changes agent skills
 

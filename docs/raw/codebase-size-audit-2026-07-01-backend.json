@@ -1,0 +1,704 @@
+{
+  "root": "D:\\Projects\\image-scoring-backend",
+  "file_min": 1000,
+  "fn_min": 150,
+  "large_files": [
+    {
+      "path": "modules/db_legacy.py",
+      "lines": 15457,
+      "language": "py"
+    },
+    {
+      "path": "modules/runs_autodrive.py",
+      "lines": 2449,
+      "language": "py"
+    },
+    {
+      "path": "tests/test_runs_autodrive.py",
+      "lines": 1948,
+      "language": "py"
+    },
+    {
+      "path": "modules/api/routers/electron.py",
+      "lines": 1855,
+      "language": "py"
+    },
+    {
+      "path": "modules/tagging.py",
+      "lines": 1561,
+      "language": "py"
+    },
+    {
+      "path": "scripts/python/run_all_musiq_models.py",
+      "lines": 1561,
+      "language": "py"
+    },
+    {
+      "path": "modules/db_postgres.py",
+      "lines": 1320,
+      "language": "py"
+    },
+    {
+      "path": "modules/clustering.py",
+      "lines": 1221,
+      "language": "py"
+    },
+    {
+      "path": "modules/indexing_runner.py",
+      "lines": 1174,
+      "language": "py"
+    },
+    {
+      "path": "scripts/analysis/analyze_phase_status.py",
+      "lines": 1109,
+      "language": "py"
+    },
+    {
+      "path": "modules/mcp_server.py",
+      "lines": 1108,
+      "language": "py"
+    }
+  ],
+  "large_functions": [
+    {
+      "path": "modules/api/routers/electron.py",
+      "name": "create_electron_router",
+      "start_line": 268,
+      "end_line": 1855,
+      "lines": 1588,
+      "kind": "function"
+    },
+    {
+      "path": "modules/db_legacy.py",
+      "name": "_init_db_impl",
+      "start_line": 2468,
+      "end_line": 4014,
+      "lines": 1547,
+      "kind": "function"
+    },
+    {
+      "path": "modules/db_postgres.py",
+      "name": "_init_db_transaction",
+      "start_line": 430,
+      "end_line": 1320,
+      "lines": 891,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/maintenance.py",
+      "name": "create_maintenance_router",
+      "start_line": 133,
+      "end_line": 853,
+      "lines": 721,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/pipeline_submit.py",
+      "name": "create_pipeline_submit_router",
+      "start_line": 133,
+      "end_line": 783,
+      "lines": 651,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/python/gallery_generator.py",
+      "name": "generate_html_with_embedded_data",
+      "start_line": 61,
+      "end_line": 677,
+      "lines": 617,
+      "kind": "function"
+    },
+    {
+      "path": "modules/tagging.py",
+      "name": "TaggingRunner._process_tagging_image_row",
+      "start_line": 533,
+      "end_line": 1095,
+      "lines": 563,
+      "kind": "method"
+    },
+    {
+      "path": "modules/clustering.py",
+      "name": "ClusteringEngine._cluster_images_impl",
+      "start_line": 553,
+      "end_line": 1085,
+      "lines": 533,
+      "kind": "method"
+    },
+    {
+      "path": "modules/indexing_runner.py",
+      "name": "IndexingRunner._process_indexing_file",
+      "start_line": 457,
+      "end_line": 957,
+      "lines": 501,
+      "kind": "method"
+    },
+    {
+      "path": "frontend/src/components/runs/RunsBucketsPanel.tsx",
+      "name": "RunsBucketsPanel",
+      "start_line": 311,
+      "end_line": 782,
+      "lines": 472,
+      "kind": "function"
+    },
+    {
+      "path": "webui.py",
+      "name": "main",
+      "start_line": 113,
+      "end_line": 581,
+      "lines": 469,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/data_query.py",
+      "name": "create_data_query_router",
+      "start_line": 133,
+      "end_line": 594,
+      "lines": 462,
+      "kind": "function"
+    },
+    {
+      "path": "modules/db_legacy.py",
+      "name": "upsert_image",
+      "start_line": 8653,
+      "end_line": 9078,
+      "lines": 426,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/tasks.py",
+      "name": "create_tasks_router",
+      "start_line": 133,
+      "end_line": 556,
+      "lines": 424,
+      "kind": "function"
+    },
+    {
+      "path": "migrations/versions/0001_initial_schema.py",
+      "name": "upgrade",
+      "start_line": 22,
+      "end_line": 395,
+      "lines": 374,
+      "kind": "function"
+    },
+    {
+      "path": "modules/metadata_runner.py",
+      "name": "MetadataRunner._process_metadata_image_row",
+      "start_line": 69,
+      "end_line": 431,
+      "lines": 363,
+      "kind": "method"
+    },
+    {
+      "path": "scripts/analysis/analyze_phase_status.py",
+      "name": "print_report",
+      "start_line": 649,
+      "end_line": 996,
+      "lines": 348,
+      "kind": "function"
+    },
+    {
+      "path": "frontend/src/pages/ImageInspectorPage.tsx",
+      "name": "ImageInspectorPage",
+      "start_line": 331,
+      "end_line": 667,
+      "lines": 337,
+      "kind": "function"
+    },
+    {
+      "path": "modules/selection.py",
+      "name": "SelectionService.run",
+      "start_line": 200,
+      "end_line": 528,
+      "lines": 329,
+      "kind": "method"
+    },
+    {
+      "path": "modules/runs_autodrive.py",
+      "name": "auto_drive_runs",
+      "start_line": 1572,
+      "end_line": 1899,
+      "lines": 328,
+      "kind": "function"
+    },
+    {
+      "path": "frontend/src/components/scope/ScopeSelector.tsx",
+      "name": "ScopeSelector",
+      "start_line": 29,
+      "end_line": 355,
+      "lines": 327,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/maintenance/backfill_sub_stacks.py",
+      "name": "main",
+      "start_line": 444,
+      "end_line": 762,
+      "lines": 319,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/scoring.py",
+      "name": "create_scoring_router",
+      "start_line": 133,
+      "end_line": 448,
+      "lines": 316,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/agent_cull.py",
+      "name": "create_agent_cull_router",
+      "start_line": 133,
+      "end_line": 434,
+      "lines": 302,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/shutdown_schema.py",
+      "name": "create_shutdown_schema_router",
+      "start_line": 133,
+      "end_line": 414,
+      "lines": 282,
+      "kind": "function"
+    },
+    {
+      "path": "modules/db_legacy.py",
+      "name": "update_job_status",
+      "start_line": 5777,
+      "end_line": 6041,
+      "lines": 265,
+      "kind": "function"
+    },
+    {
+      "path": "frontend/src/pages/GeoMapPage.tsx",
+      "name": "GeoMapPage",
+      "start_line": 196,
+      "end_line": 458,
+      "lines": 263,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/similar.py",
+      "name": "create_similar_router",
+      "start_line": 133,
+      "end_line": 392,
+      "lines": 260,
+      "kind": "function"
+    },
+    {
+      "path": "modules/workflow_healing.py",
+      "name": "heal_phase_data",
+      "start_line": 259,
+      "end_line": 517,
+      "lines": 259,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/research_models.py",
+      "name": "main",
+      "start_line": 450,
+      "end_line": 707,
+      "lines": 258,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/apply_backlog_inventory.py",
+      "name": "main",
+      "start_line": 205,
+      "end_line": 460,
+      "lines": 256,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/tagging.py",
+      "name": "create_tagging_router",
+      "start_line": 133,
+      "end_line": 380,
+      "lines": 248,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/backup/fix_backup_structure.py",
+      "name": "run_fix",
+      "start_line": 603,
+      "end_line": 850,
+      "lines": 248,
+      "kind": "function"
+    },
+    {
+      "path": "modules/job_dispatcher.py",
+      "name": "JobDispatcher._dispatch_to_runner",
+      "start_line": 493,
+      "end_line": 738,
+      "lines": 246,
+      "kind": "method"
+    },
+    {
+      "path": "modules/api/routers/utility.py",
+      "name": "create_utility_router",
+      "start_line": 133,
+      "end_line": 377,
+      "lines": 245,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/maintenance/process_images_one_by_one_discovery.py",
+      "name": "main",
+      "start_line": 338,
+      "end_line": 582,
+      "lines": 245,
+      "kind": "function"
+    },
+    {
+      "path": "frontend/src/pages/RunsPage.tsx",
+      "name": "RunsPage",
+      "start_line": 18,
+      "end_line": 260,
+      "lines": 243,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/import_register.py",
+      "name": "create_import_register_router",
+      "start_line": 133,
+      "end_line": 373,
+      "lines": 241,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/backup/sync_backup.py",
+      "name": "run_sync",
+      "start_line": 81,
+      "end_line": 315,
+      "lines": 235,
+      "kind": "function"
+    },
+    {
+      "path": "frontend/src/pages/RunDetailPage.tsx",
+      "name": "RunDetailPage",
+      "start_line": 21,
+      "end_line": 254,
+      "lines": 234,
+      "kind": "function"
+    },
+    {
+      "path": "modules/db_legacy.py",
+      "name": "set_image_phase_status",
+      "start_line": 13738,
+      "end_line": 13961,
+      "lines": 224,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/backup/cleanup_backup.py",
+      "name": "run_cleanup",
+      "start_line": 81,
+      "end_line": 302,
+      "lines": 222,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/python/run_all_musiq_models.py",
+      "name": "MultiModelMUSIQ.run_all_models",
+      "start_line": 1097,
+      "end_line": 1317,
+      "lines": 221,
+      "kind": "method"
+    },
+    {
+      "path": "frontend/src/pages/GalleryPage.tsx",
+      "name": "GalleryPage",
+      "start_line": 17,
+      "end_line": 235,
+      "lines": 219,
+      "kind": "function"
+    },
+    {
+      "path": "frontend/src/pages/DbPage.tsx",
+      "name": "DbPage",
+      "start_line": 31,
+      "end_line": 247,
+      "lines": 217,
+      "kind": "function"
+    },
+    {
+      "path": "modules/agent_cull/safety.py",
+      "name": "apply_safety_gates",
+      "start_line": 77,
+      "end_line": 291,
+      "lines": 215,
+      "kind": "function"
+    },
+    {
+      "path": "modules/db_legacy.py",
+      "name": "_build_image_query_components",
+      "start_line": 1938,
+      "end_line": 2147,
+      "lines": 210,
+      "kind": "function"
+    },
+    {
+      "path": "modules/tagging.py",
+      "name": "TaggingRunner._run_batch_internal",
+      "start_line": 1097,
+      "end_line": 1304,
+      "lines": 208,
+      "kind": "method"
+    },
+    {
+      "path": "modules/indexing_runner.py",
+      "name": "IndexingRunner._run_batch_internal",
+      "start_line": 959,
+      "end_line": 1161,
+      "lines": 203,
+      "kind": "method"
+    },
+    {
+      "path": "modules/mcp/tools/jobs.py",
+      "name": "get_embedding_stats",
+      "start_line": 195,
+      "end_line": 392,
+      "lines": 198,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/backup/fix_backup_structure.py",
+      "name": "run_fix_by_metadata",
+      "start_line": 403,
+      "end_line": 600,
+      "lines": 198,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/geo.py",
+      "name": "create_geo_router",
+      "start_line": 133,
+      "end_line": 329,
+      "lines": 197,
+      "kind": "function"
+    },
+    {
+      "path": "modules/projections.py",
+      "name": "compute_embedding_map",
+      "start_line": 188,
+      "end_line": 381,
+      "lines": 194,
+      "kind": "function"
+    },
+    {
+      "path": "frontend/src/components/runs/RunsToolsTab.tsx",
+      "name": "RunsToolsTab",
+      "start_line": 94,
+      "end_line": 286,
+      "lines": 193,
+      "kind": "function"
+    },
+    {
+      "path": "modules/metadata_runner.py",
+      "name": "MetadataRunner._run_batch_internal",
+      "start_line": 433,
+      "end_line": 625,
+      "lines": 193,
+      "kind": "method"
+    },
+    {
+      "path": "modules/db_legacy.py",
+      "name": "get_folder_phase_summary",
+      "start_line": 14817,
+      "end_line": 15008,
+      "lines": 192,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/research/clip_culling/report.py",
+      "name": "build",
+      "start_line": 37,
+      "end_line": 227,
+      "lines": 191,
+      "kind": "function"
+    },
+    {
+      "path": "modules/tagging.py",
+      "name": "propagate_tags",
+      "start_line": 19,
+      "end_line": 207,
+      "lines": 189,
+      "kind": "function"
+    },
+    {
+      "path": "modules/bird_species.py",
+      "name": "BirdSpeciesRunner._run_batch_internal",
+      "start_line": 408,
+      "end_line": 595,
+      "lines": 188,
+      "kind": "method"
+    },
+    {
+      "path": "modules/culling_analytics/flags.py",
+      "name": "compute_library_flags",
+      "start_line": 11,
+      "end_line": 193,
+      "lines": 183,
+      "kind": "function"
+    },
+    {
+      "path": "frontend/src/features/culling/components/CullingWorkspace.tsx",
+      "name": "CullingWorkspace",
+      "start_line": 16,
+      "end_line": 196,
+      "lines": 181,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/agent-memory/import_transcripts.py",
+      "name": "main",
+      "start_line": 38,
+      "end_line": 217,
+      "lines": 180,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/research/clip_culling/report_input_size.py",
+      "name": "build_unified_policy_md",
+      "start_line": 146,
+      "end_line": 325,
+      "lines": 180,
+      "kind": "function"
+    },
+    {
+      "path": "modules/agent_cull/schema.py",
+      "name": "validate_agent_response",
+      "start_line": 80,
+      "end_line": 255,
+      "lines": 176,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/python/analyze_research.py",
+      "name": "analyze_results",
+      "start_line": 74,
+      "end_line": 240,
+      "lines": 167,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/duplicates.py",
+      "name": "create_duplicates_router",
+      "start_line": 133,
+      "end_line": 295,
+      "lines": 163,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/clustering.py",
+      "name": "create_clustering_router",
+      "start_line": 133,
+      "end_line": 293,
+      "lines": 161,
+      "kind": "function"
+    },
+    {
+      "path": "modules/culling_analytics/hierarchy.py",
+      "name": "compute_library_hierarchy",
+      "start_line": 100,
+      "end_line": 260,
+      "lines": 161,
+      "kind": "function"
+    },
+    {
+      "path": "modules/db_legacy.py",
+      "name": "_heal_stale_phase_flags",
+      "start_line": 14654,
+      "end_line": 14814,
+      "lines": 161,
+      "kind": "function"
+    },
+    {
+      "path": "modules/selection_runner.py",
+      "name": "SelectionRunner._run_internal",
+      "start_line": 144,
+      "end_line": 304,
+      "lines": 161,
+      "kind": "method"
+    },
+    {
+      "path": "modules/scoring.py",
+      "name": "ScoringRunner._run_batch_internal",
+      "start_line": 162,
+      "end_line": 321,
+      "lines": 160,
+      "kind": "method"
+    },
+    {
+      "path": "scripts/analysis/model_score_quality_report.py",
+      "name": "render_html",
+      "start_line": 513,
+      "end_line": 672,
+      "lines": 160,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/maintenance/backfill_subcluster_picks.py",
+      "name": "main",
+      "start_line": 172,
+      "end_line": 328,
+      "lines": 157,
+      "kind": "function"
+    },
+    {
+      "path": "frontend/src/pages/FolderPage.tsx",
+      "name": "FolderPage",
+      "start_line": 21,
+      "end_line": 176,
+      "lines": 156,
+      "kind": "function"
+    },
+    {
+      "path": "modules/ui/app.py",
+      "name": "setup_server_endpoints",
+      "start_line": 114,
+      "end_line": 269,
+      "lines": 156,
+      "kind": "function"
+    },
+    {
+      "path": "modules/api/routers/bird_species.py",
+      "name": "create_bird_species_router",
+      "start_line": 133,
+      "end_line": 286,
+      "lines": 154,
+      "kind": "function"
+    },
+    {
+      "path": "modules/db_legacy.py",
+      "name": "delete_empty_folder_cache_subtree",
+      "start_line": 5327,
+      "end_line": 5479,
+      "lines": 153,
+      "kind": "function"
+    },
+    {
+      "path": ".agent/scratch/decision_stats_pct.py",
+      "name": "main",
+      "start_line": 18,
+      "end_line": 169,
+      "lines": 152,
+      "kind": "function"
+    },
+    {
+      "path": "scripts/schedule_bird_species_bird_folders.py",
+      "name": "main",
+      "start_line": 189,
+      "end_line": 340,
+      "lines": 152,
+      "kind": "function"
+    },
+    {
+      "path": "modules/exif_extractor.py",
+      "name": "backfill_exif_camera_lens",
+      "start_line": 346,
+      "end_line": 495,
+      "lines": 150,
+      "kind": "function"
+    }
+  ]
+}

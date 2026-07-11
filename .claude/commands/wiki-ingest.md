@@ -1,4 +1,4 @@
-> **Cursor:** Same intent as Claude `/wiki-ingest`. When customizing, keep in sync with `.cursor/commands/wiki-ingest.md`.
+> **Cursor:** Same intent as Claude `/wiki-ingest`. When customizing, keep in sync with `.claude/commands/wiki-ingest.md`.
 
 # /wiki-ingest — Process a source into the wiki
 
@@ -36,10 +36,6 @@ Read `docs/OKF_ADOPTION.md` and `docs/WIKI_SCHEMA.md` for OKF metadata and conve
 - Log entry appended.
 - User has reviewed the summary.
 
-## Example log entry
+## Skill
 
-```markdown
-## [2026-04-13] ingest | IAA Models Survey 2025
-
-Ingested survey paper on image aesthetic assessment models. Created [IAA_MODELS_SURVEY_2025.md](reports/IAA_MODELS_SURVEY_2025.md). Updated: [MODELS_SUMMARY.md](technical/MODELS_SUMMARY.md) (added survey refs), [INDEX.md](INDEX.md). Raw source: [docs/raw/iaa_survey_2025.pdf](raw/iaa_survey_2025.pdf).
-```
+Backend wiki conventions: [`.cursor/skills/docs-wiki/SKILL.md`](../skills/docs-wiki/SKILL.md) and rule [`.cursor/rules/documentation.mdc`](../rules/documentation.mdc).

@@ -35,6 +35,18 @@ Central list of **first-party** `SKILL.md` files in this repository for governan
 | docs-wiki | `.cursor/skills/docs-wiki/SKILL.md` | Backend docs wiki maintenance | L1 | — (Cursor only; `.agent/skills/docs-wiki` is thin alias) | 2026-05-31 |
 | subagent-review | `.cursor/skills/subagent-review/SKILL.md` | External Codex/Gemini review via subagent-orchestrator MCP | L2 | Yes | 2026-05-26 |
 | codebase-size-audit | `.cursor/skills/codebase-size-audit/SKILL.md` | Large-file / long-method read-only audit script + report | L1 | Yes | 2026-06-30 |
+| validate-implementation | `.cursor/skills/validate-implementation/SKILL.md` | Per-AC Verified/Failed/Unknown gate before /pr-ready | L1 | Yes | 2026-07-01 |
+| release-bump | `.cursor/skills/release-bump/SKILL.md` | Semver + changelog promotion rubric | L1 | Yes | 2026-07-01 |
+| threat-modeling-agentic-tools | `.cursor/skills/threat-modeling-agentic-tools/SKILL.md` | MCP/hook/prompt-injection threat modeling | L1 | Yes | 2026-07-01 |
+| mcp-server-design | `.cursor/skills/mcp-server-design/SKILL.md` | Safe MCP server design patterns | L1 | Yes | 2026-07-01 |
+| eval | `.cursor/skills/eval/SKILL.md` | Task quality signals → agent memory feedback loop | L1 | Yes | 2026-07-01 |
+| agent-cli-hub | `.cursor/skills/agent-cli-hub/SKILL.md` | CLI skill router; install tiers, agent-environment, shared references | L1 | Yes | 2026-07-04 |
+| agent-search | `.cursor/skills/agent-search/SKILL.md` | rg/grep/ast-grep/fd tool selection + fff when connected | L1 | Yes | 2026-07-04 |
+| agent-git-workflows | `.cursor/skills/agent-git-workflows/SKILL.md` | git/gh safe status, diff, PR workflows | L2 | Yes | 2026-07-04 |
+| agent-data-config | `.cursor/skills/agent-data-config/SKILL.md` | jq/yq/curl config and API inspection | L1 | Yes | 2026-07-04 |
+| agent-dev-tooling | `.cursor/skills/agent-dev-tooling/SKILL.md` | WSL pytest, ruff, doctor, docker compose | L1 | Yes | 2026-07-04 |
+| agent-platform-tooling | `.cursor/skills/agent-platform-tooling/SKILL.md` | Windows vs WSL2 environment choice | L1 | Yes | 2026-07-04 |
+| mcp-code-intelligence | `.cursor/skills/mcp-code-intelligence/SKILL.md` | MCP vs CLI tiers; fff + is-be-mcp | L1 | Yes | 2026-07-04 |
 
 ## Claude Code mirror
 

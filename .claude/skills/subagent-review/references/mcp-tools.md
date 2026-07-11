@@ -2,7 +2,7 @@
 
 Server display name: **subagent-orchestrator**
 
-Project MCP keys: **`imgscore-subagent-orchestrator`** (backend), **`imgscore-el-subagent-orchestrator`** (gallery).
+Project MCP key (either repo): **`cli-review`**. User-level: **`subagent-orchestrator`**.
 
 ## detect_subagents
 

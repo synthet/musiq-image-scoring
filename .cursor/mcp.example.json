@@ -5,6 +5,12 @@
       "command": "node",
       "args": ["mcp-server/dist/compactIndex.js"],
       "cwd": "${workspaceFolder:image-scoring-backend}"
+    },
+    "fff-be": {
+      "_comment": "Fast file search — must launch inside a git repo (not user home or FS root). Install: see AGENTS.md § fff.",
+      "command": "fff-mcp",
+      "args": ["${workspaceFolder:image-scoring-backend}"],
+      "cwd": "${workspaceFolder:image-scoring-backend}"
     }
   }
 }

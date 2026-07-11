@@ -292,3 +292,7 @@ reports/gallery-visual-review/
 # Re-include the shared control file caught by the repo-wide config.json rule above.
 !.agent-memory/config.json
 
+# Workspace MCP configuration
+.agents/mcp_config.json
+
+

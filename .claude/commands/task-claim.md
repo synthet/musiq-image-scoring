@@ -1,4 +1,4 @@
-> **Claude Code:** Same intent as Cursor `/task-claim`. When customizing, keep in sync with `.cursor/commands/task-claim.md`.
+> **Cursor:** Same intent as Claude `/task-claim`. When customizing, keep in sync with `.claude/commands/task-claim.md`.
 
 # /task-claim — claim a board issue and move it to Stage=Claimed
 
@@ -18,17 +18,14 @@ Run the steps below in order. Stop and report on any failure — do not proceed 
 ### 1. Resolve repo + verify the issue is claimable
 
 ```bash
-# Default repo is the current one. Caller may pass --repo backend|gallery.
 REPO="image-scoring-backend"   # or image-scoring-gallery if --repo gallery
 N="<issue-number>"
 
-# Confirm the issue exists, isn't closed, and isn't already assigned to someone else.
 gh issue view "$N" --repo "synthet/$REPO" --json number,state,assignees,title
 ```
 
 If `state == "CLOSED"`, abort: report "issue is closed".
-
-If `assignees` is non-empty and you are not in it, abort: report who has it. The user must explicitly override.
+If `assignees` is non-empty and you are not in it, abort: report who has it.
 
 ### 2. Assign yourself
 
@@ -37,8 +34,6 @@ gh issue edit "$N" --repo "synthet/$REPO" --add-assignee @me
 ```
 
 ### 3. Find the project item id
-
-The Project board number is `1`, owner `synthet`. Find the item id for this issue:
 
 ```bash
 ITEM_ID=$(gh project item-list 1 --owner synthet --format json --limit 200 \
@@ -66,7 +61,7 @@ gh project item-edit \
 
 ### 5. Confirm + remind
 
-Report back to the user:
+Report back:
 
 - Issue URL: `https://github.com/synthet/$REPO/issues/$N`
 - Title (from step 1)
@@ -86,4 +81,4 @@ Report back to the user:
 | Review | `cb723acb` |
 | Done | `73062c96` |
 
-Full contract: [`docs/project/00-backlog-workflow.md`](../../docs/project/00-backlog-workflow.md).
+Full contract: [`docs/project/00-backlog-workflow.md`](../../docs/project/00-backlog-workflow.md) and skill [`.cursor/skills/backlog-queue/SKILL.md`](../skills/backlog-queue/SKILL.md).

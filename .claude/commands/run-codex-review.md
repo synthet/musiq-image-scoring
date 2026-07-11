@@ -1,4 +1,4 @@
-# Run Codex review (MCP)
+# /run-codex-review — Run Codex review (MCP)
 
 Delegate a **review-only** task to **Codex** through the **subagent-orchestrator** MCP server. Do **not** run `codex exec` directly in the terminal unless the user explicitly asks to bypass the orchestrator.
 

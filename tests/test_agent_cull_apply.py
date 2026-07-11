@@ -151,3 +151,48 @@ def test_apply_skips_pick_quality_advisory(
     assert result["updated"] == 1
     connector.execute.assert_called_once()
     assert connector.execute.call_args[0][1][1] == 21
+
+
+@patch("modules.agent_cull.apply.insert_recommendation")
+@patch("modules.agent_cull.apply.update_review_group")
+@patch("modules.agent_cull.apply.insert_review_group", return_value=99)
+def test_persist_validated_review_records_agent_audit(
+    _mock_insert_group,
+    mock_update_group,
+    _mock_insert_rec,
+):
+    from modules.agent_cull.apply import persist_validated_review
+    from modules.agent_cull.config import AgentCullConfig
+    from modules.agent_cull.discovery import ReviewUnit
+    from modules.agent_cull.safety import SafetyResult
+
+    unit = ReviewUnit(
+        review_unit_key="stack:1",
+        stack_id=1,
+        sub_stack_id=None,
+        image_ids=(100,),
+        picked_ids=(100,),
+        rejected_ids=(),
+        neutral_ids=(),
+        usable_ids=(100,),
+        hierarchy_tier="stack",
+    )
+    persist_validated_review(
+        unit=unit,
+        packet={"schema_version": "agent-cull-request-v1"},
+        validated={"group_decision": "keep", "confidence": 0.9, "summary": "ok", "image_decisions": []},
+        safety=SafetyResult(group_blocked=False, group_decision_allowed=True, overrides=[], image_decisions=[]),
+        cfg=AgentCullConfig(),
+        dry_run=False,
+        rows_by_id={},
+        raw_response="{}",
+        provider_name="cursor",
+        agent_model="claude-sonnet-4",
+        agent_version="1.2.3",
+        provider_supports_vision=True,
+    )
+    mock_update_group.assert_called_once()
+    kwargs = mock_update_group.call_args.kwargs
+    assert kwargs["agent_name"] == "cursor"
+    assert kwargs["agent_model"] == "claude-sonnet-4"
+    assert kwargs["agent_version"] == "1.2.3"

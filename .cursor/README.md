@@ -22,7 +22,7 @@ Project-local configuration for Cursor IDE agents. **Authority:** [AGENTS.md](..
 
 Legacy profile servers (`is-be-diag`, `is-be-jobs`, `is-be-data`, `is-be-router`, `is-be-full`) are **not** in the default config. Use compact dispatch or run `scripts/batch/run_mcp_server_windows.bat` with `MCP_TOOL_PROFILE` for debug-only stdio profiles.
 
-User **`~/.cursor/mcp.json`**: **`github`**, **`subagent-orchestrator`**, etc. only — see [`mcp.user.example.json`](mcp.user.example.json).
+User **`~/.cursor/mcp.json`**: **`github`**, **`subagent-orchestrator`**, etc. only — see [`mcp.user.example.json`](mcp.user.example.json). Optional **`fff-be`** / **`fff-gallery`** are **project-level** in each repo's `.cursor/mcp.json` — see [AGENTS.md § fff](../AGENTS.md).
 
 ## Also use
 
@@ -51,6 +51,9 @@ User **`~/.cursor/mcp.json`**: **`github`**, **`subagent-orchestrator`**, etc. o
 ## Drift checklist (maintainers)
 
 1. MCP tool count in AGENTS.md matches `@mcp.tool` in `modules/mcp_server.py` — regenerate via `scripts/generate_mcp_tool_inventory.py`.
-2. Skills with Claude mirror stay in sync (see [.agent/SKILL_INVENTORY.md](../.agent/SKILL_INVENTORY.md)).
-3. Wiki slash commands exist in both `.cursor/commands/` and `.claude/commands/`.
-4. Bump [.agent/AGENT_INFRA_STATUS.json](../.agent/AGENT_INFRA_STATUS.json) `review_date` after infra passes.
+2. Skills with Claude mirror stay in sync — run `python scripts/sync_assistant_trees.py` after editing `.cursor/` assets (see [.agent/SKILL_INVENTORY.md](../.agent/SKILL_INVENTORY.md)).
+3. CI gate: `python scripts/sync_assistant_trees.py --check` (also in `.github/workflows/agent-infra.yml`).
+4. Wiki slash commands exist in both `.cursor/commands/` and `.claude/commands/`.
+5. Bump [.agent/AGENT_INFRA_STATUS.json](../.agent/AGENT_INFRA_STATUS.json) `review_date` after infra passes.
+
+See [docs/ai-workflow/README.md](../docs/ai-workflow/README.md) for the SDLC loop and phase gates.

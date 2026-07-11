@@ -1,5 +1,3 @@
-> **Claude Code:** Same intent as Cursor `/test-and-fix`. When customizing, keep in sync with `.cursor/commands/test-and-fix.md`.
-
 # /test-and-fix — Run tests and repair failures
 
 Use when CI is red, tests fail locally, or the user asks for a test pass.

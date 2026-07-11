@@ -1,5 +1,3 @@
-> **Claude Code:** Same intent as Cursor `/release-notes`. When customizing, keep in sync with `.cursor/commands/release-notes.md`.
-
 # /release-notes — User-facing changelog slice
 
 Use before tagging a release or publishing notes.

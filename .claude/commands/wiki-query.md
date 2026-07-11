@@ -1,4 +1,4 @@
-> **Cursor:** Same intent as Claude `/wiki-query`. When customizing, keep in sync with `.cursor/commands/wiki-query.md`.
+> **Cursor:** Same intent as Claude `/wiki-query`. When customizing, keep in sync with `.claude/commands/wiki-query.md`.
 
 # /wiki-query — Query the wiki and optionally file the answer
 
@@ -49,3 +49,7 @@ Structure answers as:
 ## When to file
 
 File the answer when it represents **durable, reusable knowledge** — comparisons, cross-cutting analysis, architectural decisions, research synthesis. Don't file simple lookups or ephemeral answers.
+
+## Skill
+
+[`.cursor/skills/docs-wiki/SKILL.md`](../skills/docs-wiki/SKILL.md)

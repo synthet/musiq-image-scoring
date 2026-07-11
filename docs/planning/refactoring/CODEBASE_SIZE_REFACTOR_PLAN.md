@@ -12,9 +12,9 @@ okf_version: 0.1
 
 Phased checklist to reduce files ≥1000 LoC and functions/methods ≥150 LoC in **image-scoring-backend**. Derived from the latest `codebase_size_audit.py` run.
 
-**Source audit:** [CODEBASE_SIZE_AUDIT_2026-06.md](../../reports/CODEBASE_SIZE_AUDIT_2026-06.md) · Raw JSON in [docs/raw/](../../raw/)
+**Source audit:** [CODEBASE_SIZE_AUDIT_2026-07.md](../../reports/CODEBASE_SIZE_AUDIT_2026-07.md) · [June baseline](../../reports/CODEBASE_SIZE_AUDIT_2026-06.md) · Raw JSON in [docs/raw/](../../raw/)
 
-**Last audit:** 2026-07-01 (post Phase 1 + Phase 4 resume)  
+**Last audit:** 2026-07-01 (post Phase 1b electron router split)  
 **Thresholds:** files ≥1000 LoC, functions/methods ≥150 LoC  
 **Sibling plan:** [image-scoring-gallery CODEBASE_SIZE_REFACTOR_PLAN.md](https://github.com/synthet/image-scoring-gallery/blob/main/docs/planning/CODEBASE_SIZE_REFACTOR_PLAN.md)  
 **Re-run audit:** [`.cursor/skills/codebase-size-audit/SKILL.md`](../../../.cursor/skills/codebase-size-audit/SKILL.md)
@@ -89,6 +89,27 @@ Suggested domain routers (one PR per router or tightly related pair):
 - [x] Update call sites / imports only as needed; keep `from modules.api import create_api_router` stable (`modules/api/state.py`, `deps.py`, `handler_registry.py`)
 - [x] Run fast pytest on touched routes (100 passed)
 - [x] Re-run audit; `create_api_router` **33 LoC**, `__init__.py` **311 LoC** — record actual counts: **33 / 311** (electron router **1,837** still exceeds threshold; optional follow-up)
+
+---
+
+## Phase 1b — `electron.py` sub-router split
+
+**Risk: High** — OpenAPI route order for Electron/gallery endpoints. **Gate:** Issue [#298](https://github.com/synthet/image-scoring-backend/issues/298).
+
+| Target | Before | After (2026-07-01) |
+|--------|-------:|-------------------:|
+| `electron.py` (file) | 1,855 | **23** (composer) |
+| `create_electron_router` | 1,588 | **~15** |
+| Largest sub-router | — | **642** (`electron_runs_lifecycle.py`; `create_electron_runs_lifecycle_router` **605**) |
+
+Sub-modules: `electron_folders.py`, `electron_images.py`, `electron_config.py`, `electron_runs_plan.py`, `electron_runs_lifecycle.py`, `electron_scope.py`; helpers `electron_models.py`, `electron_helpers.py`, `electron_run_helpers.py`, `electron_scope_helpers.py`.
+
+- [x] **Gate:** Issue [#298](https://github.com/synthet/image-scoring-backend/issues/298) filed and claimed
+- [x] Extract Pydantic models → `electron_models.py`
+- [x] Extract run/scope helpers → `electron_run_helpers.py`, `electron_scope_helpers.py`
+- [x] Split six domain routers; thin composer in `electron.py` (preserve mount order)
+- [x] Run API pytest on touched routes (**107 passed**)
+- [x] Re-run audit; `electron.py` off large-files list; composer under **80 LoC** — record: **23 / ~15** (lifecycle router optional second split)
 
 ---
 
@@ -308,6 +329,7 @@ No checkboxes — do not count toward refactor completion unless policy changes.
 
 ## Related documents
 
+- [CODEBASE_SIZE_AUDIT_2026-07.md](../../reports/CODEBASE_SIZE_AUDIT_2026-07.md) — July 2026 audit snapshot
 - [CODEBASE_SIZE_AUDIT_2026-06.md](../../reports/CODEBASE_SIZE_AUDIT_2026-06.md) — June 2026 audit snapshot (source data)
 - [db-refactor-decomposition.md](../db-refactor-decomposition.md) — DB god-object strategy (Phase 2 detail)
 - [REFACTORING_PLAN.md](REFACTORING_PLAN.md) — Gradio / `webui.py` tab split

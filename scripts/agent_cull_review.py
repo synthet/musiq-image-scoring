@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Agent-assisted cull review CLI (discover-only and dry-run by default)."""
+"""Agent-assisted cull review CLI (live by default; pass --dry-run for preview-only)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import sys
 from modules.agent_cull.apply import apply_agent_remove_candidates
 from modules.agent_cull.config import load_agent_cull_config
 from modules.agent_cull.discovery_db import discover_eligible_units, load_unit_rows
-from modules.agent_cull.repository import get_latest_group_for_unit
+from modules.agent_cull.repository import get_latest_group_for_unit, get_review_group
 from modules.agent_cull.service import run_agent_review_for_unit
 
 
@@ -19,6 +19,19 @@ def _emit(payload: dict, *, as_json: bool) -> None:
         print(json.dumps(payload, indent=2, default=str))
     else:
         print(json.dumps(payload, indent=2, default=str))
+
+
+def _attach_audit_fields(outcome: dict) -> dict:
+    group_id = outcome.get("group_id")
+    if not group_id:
+        return outcome
+    row = get_review_group(int(group_id))
+    if not row:
+        return outcome
+    outcome["agent_name"] = row.get("agent_name")
+    outcome["agent_model"] = row.get("agent_model")
+    outcome["agent_version"] = row.get("agent_version")
+    return outcome
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -134,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.apply_candidates and outcome.get("ok") and outcome.get("group_id"):
             apply_result = apply_agent_remove_candidates(int(outcome["group_id"]))
             outcome["apply"] = apply_result
-        results.append(outcome)
+        results.append(_attach_audit_fields(outcome))
 
     _emit({"results": results}, as_json=args.json_out)
     if not results:
