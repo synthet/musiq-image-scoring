@@ -1,13 +1,58 @@
 {
   "promote_ready": {
     "synthet/image-scoring-backend": [253, 254, 255, 256, 257, 258],
-    "synthet/image-scoring-gallery": [134, 135, 136, 137]
+    "synthet/image-scoring-gallery": []
   },
   "tier1_closes": [
     {
       "repo": "synthet/image-scoring-backend",
       "number": 114,
       "comment": "Closing as superseded by agent-assisted cull review epic #253 (backend MVP + gallery #134). The original Gradio-era request is now tracked under the structured agent cull program with API, safety gates, and gallery panel work."
+    },
+    {
+      "repo": "synthet/image-scoring-gallery",
+      "number": 134,
+      "comment": "Gallery agent cull MVP shipped on main: AgentCullReviewPanel + IPC (v7.20), permanent delete approved (v7.22), live-by-default review + agent audit chip (v7.25). Child issues #135–#137 are closed. Remaining enhancements belong under new issues if needed."
+    },
+    {
+      "repo": "synthet/image-scoring-gallery",
+      "number": 151,
+      "comment": "Phase 1 main.ts IPC/menu split complete (CHANGELOG v7.23.0): electron/main.ts is ~434 LoC; handlers live under electron/ipc/register*.ts, menu.ts, and helpers. Tracked under codebase-size epic #147."
+    },
+    {
+      "repo": "synthet/image-scoring-gallery",
+      "number": 90,
+      "comment": "Superseded by #151 and v7.22–v7.23 IPC extraction into electron/ipc/register*.ts. Further decomposition is tracked under codebase-size epic #147 (#148–#156)."
+    },
+    {
+      "repo": "synthet/image-scoring-gallery",
+      "number": 103,
+      "comment": "Stale codex branch triage (2026-05-20): origin/codex/disable-find-similar-images-feature is 47 commits behind main and abandoned. Work not rebased; superseded by current main as of 2026-07-11."
+    },
+    {
+      "repo": "synthet/image-scoring-gallery",
+      "number": 104,
+      "comment": "Stale codex branch triage (2026-05-20): origin/codex/fix-issues-in-backup-feature-specification is 92 commits behind main and abandoned. Work not rebased; superseded by current main as of 2026-07-11."
+    },
+    {
+      "repo": "synthet/image-scoring-gallery",
+      "number": 105,
+      "comment": "Stale codex branch triage (2026-05-20): origin/codex/remove-duplicates-and-embeddings-from-tools-submenu is 47 commits behind main and abandoned. Work not rebased; superseded by current main as of 2026-07-11."
+    },
+    {
+      "repo": "synthet/image-scoring-gallery",
+      "number": 106,
+      "comment": "Stale codex branch triage (2026-05-20): origin/codex/task-title-0bwetz is 38 commits behind main and abandoned. Work not rebased; superseded by current main as of 2026-07-11."
+    },
+    {
+      "repo": "synthet/image-scoring-gallery",
+      "number": 107,
+      "comment": "Parent inventory for stale codex branches (#103–#106). All child branches dispositioned as abandoned/superseded by main as of 2026-07-11."
+    },
+    {
+      "repo": "synthet/image-scoring-gallery",
+      "number": 110,
+      "comment": "Codex branch triage epic complete: child issues #103–#107 closed as abandoned/superseded. Remote codex/* branches may be deleted separately."
     }
   ]
 }
