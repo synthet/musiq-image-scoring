@@ -9,6 +9,7 @@ from modules.agent_cull.cli_adapter import (
     SubprocessAgentCullProvider,
     build_prompt,
     classify_cli_process_failure,
+    extract_cli_audit_metadata,
     normalize_antigravity_stdout,
     normalize_gemini_stdout,
     normalize_result_envelope,
@@ -207,6 +208,47 @@ def test_subprocess_antigravity_invokes_bridge_script_with_prompt():
         cmd_args, kwargs = run.call_args
         assert cmd_args[0] == ["/app/scripts/wsl/antigravity_agent.sh", "{}"]
         assert kwargs.get("shell") is False
+
+
+def test_extract_cli_audit_metadata_gemini_envelope():
+    inner = '{"schema_version":"agent-cull-response-v1"}'
+    wrapped = json.dumps({"response": inner, "model": "gemini-2.5-pro", "version": "0.7.1"})
+    model, version = extract_cli_audit_metadata(wrapped, "gemini")
+    assert model == "gemini-2.5-pro"
+    assert version == "0.7.1"
+
+
+def test_extract_cli_audit_metadata_claude_envelope():
+    inner = '{"schema_version":"agent-cull-response-v1"}'
+    wrapped = json.dumps({"type": "result", "result": inner, "model": "claude-sonnet-4-20250514"})
+    model, version = extract_cli_audit_metadata(wrapped, "claude")
+    assert model == "claude-sonnet-4-20250514"
+
+
+def test_extract_cli_audit_metadata_config_fallback():
+    model, version = extract_cli_audit_metadata("not-json", "cursor", config_model="configured-model")
+    assert model == "configured-model"
+    assert version == ""
+
+
+def test_subprocess_gemini_populates_model_from_envelope():
+    provider = SubprocessAgentCullProvider(
+        name="gemini",
+        command="echo",
+        args=(),
+        supports_vision=True,
+    )
+    cfg = AgentCullConfig()
+    inner = '{"schema_version":"agent-cull-response-v1"}'
+    wrapped = json.dumps({"response": inner, "model": "gemini-2.5-pro"})
+    with patch("modules.agent_cull.cli_adapter.subprocess.run") as run:
+        run.return_value.returncode = 0
+        run.return_value.stdout = wrapped
+        run.return_value.stderr = ""
+        result = provider.run_review("{}", cfg)
+        assert result.ok is True
+        assert result.stdout == inner
+        assert result.model == "gemini-2.5-pro"
 
 
 def test_subprocess_gemini_unwraps_json_envelope():

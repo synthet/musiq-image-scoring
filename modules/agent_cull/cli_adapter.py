@@ -56,6 +56,36 @@ def normalize_result_envelope(stdout: str) -> str:
     return _unwrap_json_field(stdout, "result")
 
 
+def extract_cli_audit_metadata(
+    raw_stdout: str,
+    provider: str,
+    *,
+    config_model: str = "",
+) -> tuple[str, str]:
+    """Return ``(model, cli_version)`` from a provider JSON envelope before payload unwrap."""
+    model = (config_model or "").strip()
+    version = ""
+    text = (raw_stdout or "").strip()
+    if not text:
+        return model, version
+    try:
+        envelope = json.loads(text)
+    except json.JSONDecodeError:
+        return model, version
+    if not isinstance(envelope, dict):
+        return model, version
+    for key in ("model", "modelId", "model_id"):
+        val = envelope.get(key)
+        if isinstance(val, str) and val.strip() and not model:
+            model = val.strip()
+    for key in ("modelVersion", "model_version", "version", "cli_version"):
+        val = envelope.get(key)
+        if isinstance(val, str) and val.strip() and not version:
+            version = val.strip()
+    _ = provider  # reserved for provider-specific keys later
+    return model, version
+
+
 def strip_ansi(text: str) -> str:
     return _ANSI_ESCAPE.sub("", text or "")
 
@@ -163,6 +193,8 @@ class AgentCullRawResponse:
     duration_ms: int
     timed_out: bool = False
     provider: str = ""
+    model: str = ""
+    cli_version: str = ""
     supports_vision: bool = False
     error: str | None = None
 
@@ -270,6 +302,8 @@ class SubprocessAgentCullProvider:
             cmd = [self.command, *self.args, prompt]
 
         start = time.monotonic()
+        agent_model = ""
+        cli_version = ""
         try:
             proc = subprocess.run(
                 cmd,
@@ -282,6 +316,11 @@ class SubprocessAgentCullProvider:
             duration_ms = int((time.monotonic() - start) * 1000)
             raw_stdout = (proc.stdout or "")[:MAX_RESPONSE_BYTES]
             raw_stderr = (proc.stderr or "")[:MAX_RESPONSE_BYTES]
+            agent_model, cli_version = extract_cli_audit_metadata(
+                raw_stdout,
+                provider,
+                config_model=cfg.agent.model,
+            )
             auth_failure = detect_cli_auth_failure(raw_stdout, raw_stderr)
             if auth_failure:
                 error_code, error_message = auth_failure
@@ -292,6 +331,8 @@ class SubprocessAgentCullProvider:
                     exit_code=int(proc.returncode or 1),
                     duration_ms=duration_ms,
                     provider=self.name,
+                    model=agent_model,
+                    cli_version=cli_version,
                     supports_vision=self.supports_vision,
                     error=error_code,
                 )
@@ -319,6 +360,8 @@ class SubprocessAgentCullProvider:
                     exit_code=1,
                     duration_ms=duration_ms,
                     provider=self.name,
+                    model=agent_model,
+                    cli_version=cli_version,
                     supports_vision=self.supports_vision,
                     error=error_code,
                 )
@@ -329,6 +372,8 @@ class SubprocessAgentCullProvider:
                 exit_code=int(proc.returncode),
                 duration_ms=duration_ms,
                 provider=self.name,
+                model=agent_model,
+                cli_version=cli_version,
                 supports_vision=self.supports_vision,
                 error=error_code,
             )
@@ -345,6 +390,8 @@ class SubprocessAgentCullProvider:
                 duration_ms=duration_ms,
                 timed_out=True,
                 provider=self.name,
+                model=agent_model,
+                cli_version=cli_version,
                 supports_vision=self.supports_vision,
                 error="timeout",
             )
@@ -358,6 +405,8 @@ class SubprocessAgentCullProvider:
                 exit_code=-1,
                 duration_ms=duration_ms,
                 provider=self.name,
+                model=agent_model,
+                cli_version=cli_version,
                 supports_vision=self.supports_vision,
                 error=error_code,
             )

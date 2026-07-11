@@ -109,7 +109,7 @@
     },
     "agent_review": {
       "enabled": false,
-      "dry_run_default": true,
+      "dry_run_default": false,
       "max_group_size": 200,
       "_comment_max_group_size": "Absolute safety ceiling for one agent review unit; normal oversized leaves are reviewed in review_batch_size chunks.",
       "review_batch_size": 10,
@@ -133,6 +133,8 @@
                 "_comment_provider": "One of: antigravity (recommended after June 2026), gemini (API key / legacy OAuth), codex, claude (Claude Code CLI, vision via image paths), cursor (cursor-agent, vision via image paths). codex_sandbox applies to codex only.",
                 "_comment_command": "Match the bridge script to the provider. Docker: /app/scripts/wsl/{antigravity,gemini,claude,cursor}_agent.sh (binary in image + auth on PATH); codex runs as the bare 'codex' binary (no bridge). WSL: /mnt/d/.../<provider>_agent.sh. The adapter appends provider-specific flags; claude/cursor need only to be logged in on PATH.",
                 "command": "/app/scripts/wsl/antigravity_agent.sh",
+        "model": "",
+        "_comment_model": "Optional fallback when the CLI JSON envelope does not expose model name (audit log + agent_cull_review_groups.agent_model).",
         "args": [],
         "timeout_seconds": 180,
         "max_retries": 1,

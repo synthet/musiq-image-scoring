@@ -44,6 +44,8 @@ def _run_agent_batch(
     )
     prompt = build_prompt(packet, cfg)
     raw = provider.run_review(prompt, cfg)
+    agent_model = (raw.model or cfg.agent.model or "").strip()
+    agent_version = (raw.cli_version or "").strip()
     if not raw.ok:
         error_code, error_message = classify_cli_process_failure(
             int(raw.exit_code),
@@ -56,6 +58,9 @@ def _run_agent_batch(
             "error_code": error_code,
             "error_message": error_message[:4000],
             "raw_stdout": raw.stdout,
+            "provider_name": raw.provider or provider.name,
+            "agent_model": agent_model,
+            "agent_version": agent_version,
         }
 
     validation = validate_raw_agent_response(
@@ -77,6 +82,9 @@ def _run_agent_batch(
             "error_message": validation.error_message or "invalid agent response",
             "validation_errors": validation.errors,
             "raw_stdout": raw.stdout,
+            "provider_name": raw.provider or provider.name,
+            "agent_model": agent_model,
+            "agent_version": agent_version,
         }
 
     return {
@@ -86,6 +94,8 @@ def _run_agent_batch(
         "raw_stdout": raw.stdout,
         "supports_vision": raw.supports_vision,
         "provider_name": raw.provider or provider.name,
+        "agent_model": agent_model,
+        "agent_version": agent_version,
     }
 
 
@@ -130,6 +140,9 @@ def run_agent_review_for_unit(
                 error_code=result.get("error_code") or "agent_failed",
                 error_message=result.get("error_message") or "agent batch failed",
                 raw_response=result.get("raw_stdout"),
+                provider_name=str(result.get("provider_name") or provider.name),
+                agent_model=str(result.get("agent_model") or ""),
+                agent_version=str(result.get("agent_version") or ""),
             )
             out: dict[str, Any] = {
                 "ok": False,
@@ -148,6 +161,8 @@ def run_agent_review_for_unit(
         raw_response = batch_results[0]["raw_stdout"] or ""
         supports_vision = bool(batch_results[0].get("supports_vision"))
         provider_name = str(batch_results[0].get("provider_name") or provider.name)
+        agent_model = str(batch_results[0].get("agent_model") or "")
+        agent_version = str(batch_results[0].get("agent_version") or "")
         audit_packet = batch_results[0]["packet"]
     else:
         validated = merge_validated_batch_responses(
@@ -161,6 +176,8 @@ def run_agent_review_for_unit(
         )[:500_000]
         supports_vision = any(bool(r.get("supports_vision")) for r in batch_results)
         provider_name = str(batch_results[0].get("provider_name") or provider.name)
+        agent_model = str(batch_results[0].get("agent_model") or "")
+        agent_version = str(batch_results[0].get("agent_version") or "")
         audit_packet = build_review_packet(
             unit,
             rows_by_id,
@@ -189,7 +206,17 @@ def run_agent_review_for_unit(
         rows_by_id=rows_by_id,
         raw_response=raw_response,
         provider_name=provider_name,
+        agent_model=agent_model,
+        agent_version=agent_version,
         provider_supports_vision=supports_vision,
+    )
+    logger.info(
+        "agent cull review complete group_id=%s provider=%s model=%s dry_run=%s stack_id=%s",
+        group_id,
+        provider_name,
+        agent_model or "unknown",
+        dry_run,
+        unit.stack_id,
     )
     return {
         "ok": True,

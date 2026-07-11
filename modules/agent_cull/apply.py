@@ -116,6 +116,8 @@ def persist_validated_review(
     rows_by_id: dict[int, dict[str, Any]],
     raw_response: str,
     provider_name: str,
+    agent_model: str = "",
+    agent_version: str = "",
     provider_supports_vision: bool,
 ) -> int:
     group_id = insert_review_group(
@@ -129,6 +131,8 @@ def persist_validated_review(
     update_review_group(
         group_id,
         agent_name=provider_name,
+        agent_model=agent_model or None,
+        agent_version=agent_version or None,
         agent_supports_vision=provider_supports_vision,
         prompt_template_version=resolve_prompt_template_version(cfg),
         prompt_hash=prompt_hash(packet),
@@ -177,6 +181,9 @@ def persist_failed_review(
     error_code: str,
     error_message: str,
     raw_response: str | None = None,
+    provider_name: str | None = None,
+    agent_model: str | None = None,
+    agent_version: str | None = None,
 ) -> int:
     group_id = insert_review_group(
         stack_id=unit.stack_id,
@@ -192,6 +199,9 @@ def persist_failed_review(
         error_code=error_code,
         error_message=error_message[:4000],
         status="failed",
+        agent_name=provider_name,
+        agent_model=agent_model,
+        agent_version=agent_version,
     )
     return group_id
 
