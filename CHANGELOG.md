@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.12.3] - 2026-07-19
+
+### Fixed
+- **Phase policy - skipped is terminal**: `explain_phase_run_decision` no longer re-queues images whose phase status is `skipped` when data validation finds no work product (e.g. keywords with no tags). Stops the auto-drive keywords re-queue loop; a newer executor version still re-runs.
+
+### Added
+- **Compiled agent skill harnesses**: Deterministic Python entrypoints under `scripts/agent_skills/` for `release-bump`, `validate-implementation`, `pr-ready` checks, and skill-usage profiling (`SKILL_COMPILATION.md`).
+
+### Changed
+- **`/release` and `/pr-ready` bootloaders**: Cursor/Claude skills and slash commands now call the compiled harnesses instead of rediscovering version/changelog paths in-prompt.
+
 ## [8.12.2] - 2026-07-04
 
 ### Changed

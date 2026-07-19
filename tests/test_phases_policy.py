@@ -108,6 +108,44 @@ def test_policy_skips_when_running(monkeypatch):
     assert decision["reason"] == "already_running"
 
 
+def test_policy_skips_when_keywords_skipped_and_no_keyword_data(monkeypatch):
+    """A deliberate skip ("no tags produced") is terminal — never re-queued by data-validation.
+
+    Regression: the tagger marks RAWs it can't caption as skipped, the data-validation branch
+    then saw no keywords and flipped should_run back to True, so the post-run audit re-queued
+    the same image forever (auto-drive keywords re-queue loop).
+    """
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_phase_statuses",
+        lambda image_id: {"keywords": {"status": "skipped", "executor_version": "1.0.0"}},
+    )
+
+    def _boom(_image_id):
+        raise AssertionError("data-validation must not run for a skipped phase")
+
+    monkeypatch.setattr(phases_policy.db, "is_image_keywords_complete", _boom)
+    PhaseRegistry.register(PhaseExecutor(code=PhaseCode.KEYWORDS, executor_version="1.0.0"))
+
+    decision = phases_policy.explain_phase_run_decision(1, PhaseCode.KEYWORDS)
+    assert decision["should_run"] is False
+    assert decision["reason"] == "already_skipped_current_executor"
+
+
+def test_policy_runs_when_skipped_but_version_changed(monkeypatch):
+    """A newer executor may succeed where the old one skipped, so re-run on version change."""
+    monkeypatch.setattr(
+        phases_policy.db,
+        "get_image_phase_statuses",
+        lambda image_id: {"keywords": {"status": "skipped", "executor_version": "1.0.0"}},
+    )
+    PhaseRegistry.register(PhaseExecutor(code=PhaseCode.KEYWORDS, executor_version="2.0.0"))
+
+    decision = phases_policy.explain_phase_run_decision(1, PhaseCode.KEYWORDS)
+    assert decision["should_run"] is True
+    assert decision["reason"] == "executor_version_changed"
+
+
 def test_policy_runs_when_failed(monkeypatch):
     monkeypatch.setattr(
         phases_policy.db,

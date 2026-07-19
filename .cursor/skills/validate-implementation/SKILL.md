@@ -1,53 +1,50 @@
 ---
 name: validate-implementation
-description: Verify an implementation against its spec's acceptance criteria, marking each AC Verified, Failed, or Unknown with concrete evidence. Use after /implement or /test-and-fix, before /pr-ready, or when the user asks whether the spec is actually satisfied.
+description: >-
+  Verify implementation against spec AC-n criteria via compiled harness. Use after
+  /implement or /test-and-fix, before /pr-ready. Parses ACs and emits the report;
+  LLM assigns Verified/Failed/Unknown when evidence is not a clean command exit.
 ---
 
-# Validate implementation against spec
+# Validate implementation (compiled)
 
-Answers one question: **does the implementation satisfy the spec's acceptance criteria?**
-This is *not* merge readiness — CI status, review hygiene, and issue linkage belong to `/pr-ready`
-(definition of done). Keep the two checks separate.
+Thin bootloader over `scripts/agent_skills/validate_implementation.py`.
 
-## Inputs
+Answers: **does the implementation satisfy the spec's acceptance criteria?**
+Not merge readiness — that is `/pr-ready`.
 
-- The spec with numbered `AC-n` acceptance criteria (from `/spec`). If no spec exists, reconstruct
-  the criteria from the issue/user request and confirm them with the user first.
-- The current diff/branch state and the project's test commands from **AGENTS.md**.
+## Canonical flow
 
-## Procedure
+```powershell
+# List ACs
+python scripts/agent_skills/validate_implementation.py parse path/to/spec.md
 
-For **each** acceptance criterion, assign exactly one verdict:
+# Skeleton report (all Unknown until evidence attached)
+python scripts/agent_skills/validate_implementation.py report path/to/spec.md --name "feature"
 
-| Verdict | Meaning | Required evidence |
-|---------|---------|-------------------|
-| **Verified** | Observed behavior matches the criterion | A test run, command output, or reproducible manual check — cite the command and result |
-| **Failed** | Observed behavior contradicts the criterion | The failing output or observed divergence |
-| **Unknown** | Could not be checked in this environment | Why it could not be checked and what would be needed |
-
-Rules:
-
-- **Evidence or it didn't happen.** "Looks done", "should work", or "probably green" are not
-  verdicts. Reading the code is supporting context, not sufficient evidence on its own — prefer
-  running the narrowest relevant test or command.
-- **Unknown is never an implicit pass.** Report Unknowns explicitly; the user decides whether they
-  block. Do not round Unknown up to Verified.
-- **Do not weaken the criteria.** If an AC turns out to be untestable as written, flag it and
-  propose a rewrite — do not quietly substitute a weaker check.
-- **Minimal fixes only.** If an AC fails and the fix is obvious and small, fix it and re-verify;
-  otherwise report the failure.
-
-## Output
-
-```
-## Validation report — <spec/feature name>
-
-| AC | Criterion (short) | Verdict | Evidence |
-|----|-------------------|---------|----------|
-| AC-1 | … | Verified | `pytest tests/test_x.py::test_y` passed |
-| AC-2 | … | Unknown  | needs staging credentials |
-
-Overall: N verified / N failed / N unknown. <Blockers or next steps.>
+# Attach command evidence (exit 0 → Verified, else Failed)
+python scripts/agent_skills/validate_implementation.py report path/to/spec.md `
+  --evidence "AC-1=pytest tests/test_x.py::test_y -q" `
+  --evidence "AC-2:Unknown:needs staging credentials" `
+  -o .agent/scratch/validation-report.md
 ```
 
-Only claim the spec is satisfied when **every** AC is Verified.
+## Ownership split
+
+| Owner | Responsibility |
+|-------|----------------|
+| **Code** | Parse `AC-n`, render report table, run evidence commands, bound output |
+| **LLM** | Verdict when evidence is manual/ambiguous; propose AC rewrites if untestable |
+| **Human** | Decide whether Unknowns block merge |
+
+## Rules (unchanged)
+
+- Evidence or it didn't happen — reading code alone is not Verified.
+- Unknown is never an implicit pass.
+- Do not weaken criteria; flag untestable ACs instead.
+- Only claim satisfied when **every** AC is Verified.
+
+## Related
+
+- [`.agent/SKILL_COMPILATION.md`](../../.agent/SKILL_COMPILATION.md)
+- `/pr-ready` uses the report as input, not a substitute.

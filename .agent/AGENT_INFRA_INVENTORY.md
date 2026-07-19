@@ -10,6 +10,8 @@
 | [.agent/mcp_tools_reference.md](mcp_tools_reference.md) | MCP tool quick reference | MCP | active | `modules/mcp_server.py`, AGENTS.md inventory | Regenerate table via generate_mcp_tool_inventory.py |
 | [.agent/ai_edit_spec.md](ai_edit_spec.md) | AI editing conventions | coding | active | — | None |
 | [.agent/SKILL_INVENTORY.md](SKILL_INVENTORY.md) | Skills + subagents index (AST09) | governance | active | `.cursor/skills/` | Update dates when skills change |
+| [.agent/SKILL_COMPILATION.md](SKILL_COMPILATION.md) | Token Shrinker profile + compiled harness map | workflow | active | `scripts/agent_skills/` | Re-profile after major skill use waves |
+| [scripts/agent_skills/](../scripts/agent_skills/) | Compiled skill harnesses (release, validate, pr-ready, profile) | workflow | active | SKILL_COMPILATION | Prefer harness over rediscovering SOP |
 | [.agent/SKILL_CHANGE_AST10_REVIEW.md](SKILL_CHANGE_AST10_REVIEW.md) | PR checklist for skill drift | cross-repo | active | OWASP AST10 | None |
 | [.agent/PROJECT_GUIDE.md](PROJECT_GUIDE.md) | Navigation for `.agent/` | docs-only | active | — | Add pointer to this inventory |
 | [.agent/COMMANDS.md](COMMANDS.md) | Verified command quick reference | testing, diagnostics | active | AGENTS.md, DEVELOPMENT.md | Maintain when scripts change |

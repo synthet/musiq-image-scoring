@@ -114,6 +114,20 @@ def explain_phase_run_decision(
         decision["reason"] = "already_running"
         return decision
 
+    if status == PhaseStatus.SKIPPED:
+        # Terminal, like the rest of the codebase treats it (see
+        # ``runs_autodrive.COMPLETE_PHASE_STATUSES`` and the ``NOT IN ('done','skipped')``
+        # incomplete-work predicates). A skip means the executor deliberately produced no
+        # work product (e.g. the tagger's "no tags produced"), so the data-validation below
+        # would always find the data missing and re-queue the image forever. Only a new
+        # executor version justifies another attempt.
+        if active_version and stored_version and stored_version != active_version:
+            decision["reason"] = "executor_version_changed"
+            return decision
+        decision["should_run"] = False
+        decision["reason"] = "already_skipped_current_executor"
+        return decision
+
     # status == done (or unknown terminal): compare versions when both are known.
     # Legacy rows often have executor_version=NULL; treat as unknown and fall through
     # to data-validation instead of forcing executor_version_changed.

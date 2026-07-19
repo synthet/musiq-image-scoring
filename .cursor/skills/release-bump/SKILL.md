@@ -1,43 +1,50 @@
 ---
 name: release-bump
-description: Bump the project version with a semver rubric, promote the Unreleased changelog section, and verify before committing. Use when the user asks to cut a release, bump the version, or tag a new version.
+description: >-
+  Bump semver + promote CHANGELOG Unreleased via compiled harness. Use for /release,
+  version bumps, or tagging. Runs scripts/agent_skills/release_bump.py; LLM only
+  when Unreleased is ambiguous. Never commit/push unless the user asks.
 ---
 
-# Release bump
+# Release bump (compiled)
 
-Repeatable release procedure: decide the semver level, update the version and `CHANGELOG.md`,
-verify, and prepare (not push) the release commit.
+Thin bootloader over `scripts/agent_skills/release_bump.py`. Do **not** re-discover
+version/changelog paths or semver math — run the harness.
 
-## 1. Detect the version source
+## Canonical flow
 
-Find where the version lives, in this order: `modules/version.py`, `pyproject.toml` / `setup.cfg`,
-`package.json` (frontend), a `VERSION` file, or a documented constant. If none exists, ask the user
-where the version should live instead of inventing one.
+```powershell
+# 1. Inspect (deterministic)
+python scripts/agent_skills/release_bump.py inspect
 
-## 2. Choose the bump (semver rubric)
+# 2. If needs_llm_judgment: classify git history, then pass --level
+python scripts/agent_skills/release_bump.py plan --level minor   # or major|patch
 
-Review changes since the last release (`git log <last-tag>..HEAD` and the `Unreleased` section of
-`CHANGELOG.md`):
+# 3. Apply file writes only (no git)
+python scripts/agent_skills/release_bump.py apply --level minor
+```
 
-- **major** — any breaking change: removed/renamed public API, config key, schema field, or CLI
-  flag; behavior change that requires consumer action.
-- **minor** — new backward-compatible capability (new command, skill, endpoint, option).
-- **patch** — bug fixes, docs, internal refactors with no contract change.
+## Ownership split
 
-State the chosen level and the one or two changes that justify it.
+| Owner | Responsibility |
+|-------|----------------|
+| **Code** | Read `modules/version.py`, parse `CHANGELOG.md`, bump math, rewrite files |
+| **LLM** | Only when `needs_llm_judgment` is true (empty/ambiguous Unreleased) |
+| **Human** | Commit, tag, push — only when explicitly requested |
 
-## 3. Update files
+## Semver rubric (encoded in harness; override with `--level`)
 
-1. Bump the version in the detected source.
-2. In `CHANGELOG.md` (Keep a Changelog): rename `## [Unreleased]` to `## [X.Y.Z] — YYYY-MM-DD`,
-   keeping its subsections, and add a fresh empty `## [Unreleased]` above it. Drop empty
-   subsections; keep entries as complete sentences.
+1. Breaking / removed → **major**
+2. Else if Added count ≥ Fixed and Added ≥ 1 → **minor**
+3. Else Fixed-dominant or Changed-only → **patch**
 
-## 4. Verify
+## After apply
 
-Run the project's checks from **AGENTS.md** (ruff, fast pytest subset). Do not proceed with failing checks.
+- Suggest `chore: release vX.Y.Z` (do not commit unless asked).
+- Optional verify: fast pytest / ruff from **AGENTS.md**.
+- Slash command `/release` follows the same harness, then may commit/push **only if the user asked**.
 
-## 5. Commit and tag — only when the user asks
+## Related
 
-Suggest a Conventional Commit (`chore(release): vX.Y.Z`) and the matching annotated tag
-(`git tag -a vX.Y.Z`). Do not commit, tag, or push without an explicit request.
+- Compilation notes: [`.agent/SKILL_COMPILATION.md`](../../.agent/SKILL_COMPILATION.md)
+- Command: [`.cursor/commands/release.md`](../../.cursor/commands/release.md)
