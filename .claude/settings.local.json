@@ -331,7 +331,8 @@
       "mcp__is-be-diag__get_stale_running_phase_status",
       "mcp__is-be-jobs__get_recent_jobs",
       "mcp__is-be-diag__search_logs",
-      "mcp__is-be-jobs__get_image_pipeline_failures"
+      "mcp__is-be-jobs__get_image_pipeline_failures",
+      "Bash(npx cross-env *)"
     ]
   },
   "enableAllProjectMcpServers": true,
