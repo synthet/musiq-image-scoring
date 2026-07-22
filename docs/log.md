@@ -6,6 +6,14 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-07-21] edit | Onboard Graphify (soft agent integration)
+
+Wired [Graphify](https://github.com/Graphify-Labs/graphify) as deferred CLI + soft rule (no alwaysApply): [graphify.mdc](../.cursor/rules/graphify.mdc), [AGENTS.md § Graphify](../AGENTS.md), install-tiers/mcp-code-intelligence/agent-search routing, `.graphifyignore`, optional `graphify-be` in mcp.example.json. Gallery twin. Artifacts gitignored under `graphify-out/`.
+
+## [2026-07-21] edit | Framework onboard (Spec Kit + Karpathy + disciplined skills)
+
+Cherry-picked post-0.1.0 synthet-code-framework gaps: `/clarify` `/tasks` `/analyze`, SPEC_KIT_ADOPTION, karpathy-coding rule/skill, TDD/debug/verification/skill-authoring/commit-and-push; updated [ai-workflow/README.md](../docs/ai-workflow/README.md) SDLC loop and [framework-adoption-port-manifest](../docs/raw/framework-adoption-port-manifest.md). Issues #301 / gallery #159.
+
 ## [2026-07-04] edit | Framework alignment (Cursor-first, hub layout)
 
 Aligned with [synthet-code-framework](https://github.com/synthet/synthet-code-framework): updated [framework-adoption-port-manifest](../docs/raw/framework-adoption-port-manifest.md) (13→7 skill map, verify commands), [docs/ai-workflow/README.md](../docs/ai-workflow/README.md) Framework alignment section, `safety-and-secrets` rule, gallery infra parity coordination.

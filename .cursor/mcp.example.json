@@ -11,6 +11,12 @@
       "command": "fff-mcp",
       "args": ["${workspaceFolder:image-scoring-backend}"],
       "cwd": "${workspaceFolder:image-scoring-backend}"
+    },
+    "graphify-be": {
+      "_comment": "Optional — requires graphify-mcp on PATH (uv tool install \"graphifyy[mcp]\") and graphify-out/graph.json (graphify . --code-only). Soft; see AGENTS.md § Graphify and .cursor/skills/graphify/SKILL.md.",
+      "command": "graphify-mcp",
+      "args": ["graphify-out/graph.json"],
+      "cwd": "${workspaceFolder:image-scoring-backend}"
     }
   }
 }

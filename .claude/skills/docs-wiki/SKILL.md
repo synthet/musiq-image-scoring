@@ -6,12 +6,29 @@ description: >-
   Triggers: wiki maintenance, docs update, documentation audit, wiki ingest/lint/query.
 ---
 
-# Backend docs wiki skill
+# Backend docs wiki skill (compiled scaffold)
 
 ## When to apply
 
 - Slash commands `/wiki-ingest`, `/wiki-query`, `/wiki-lint` (`.cursor/commands/` and `.claude/commands/`)
 - Any task that adds, materially edits, renames, or reorganizes files under `docs/`
+
+## Compiled bootloader (glue)
+
+Do **not** re-invent OKF frontmatter, INDEX row, or `docs/log.md` header formats.
+
+```powershell
+python scripts/agent_skills/wiki_scaffold.py frontmatter --type "…" --title "…" --resource …
+python scripts/agent_skills/wiki_scaffold.py append-index docs/<folder>/INDEX.md --link … --desc "…"
+python scripts/agent_skills/wiki_scaffold.py append-log --verb ingest --title "…"
+python scripts/agent_skills/wiki_scaffold.py lint
+```
+
+| Owner | Responsibility |
+|-------|----------------|
+| **Code** | Frontmatter stub, INDEX/log append, `okf_lint` |
+| **LLM** | Summaries, page prose, type/location, cross-links |
+| **Human** | Review before done |
 
 ## Read first
 
@@ -37,10 +54,11 @@ description: >-
 - New living docs and materially edited living docs should add YAML frontmatter with at least `type`; prefer `title`, `description`, `resource`, `tags`, `timestamp`, and `okf_version: 0.1`.
 - Use the type vocabulary in `docs/OKF_ADOPTION.md` when possible; consumers must tolerate unknown clear human-readable `type` values.
 - Avoid bulk metadata-only churn in archived or untouched docs; add OKF metadata opportunistically when content changes.
-- Validate with `python scripts/okf_lint.py --profile vexlum --exclude-prefix archive/` before claiming wiki health.
+- Validate with `wiki_scaffold.py lint` (or `python scripts/okf_lint.py --profile vexlum --exclude-prefix archive/`) before claiming wiki health.
 
-After substantive wiki edits, update the relevant `INDEX.md` files and append `docs/log.md`.
+After substantive wiki edits, update the relevant `INDEX.md` files and append `docs/log.md` via the harness.
 
 ## Rule
 
 Glob-scoped guidance: [`.cursor/rules/documentation.mdc`](../../rules/documentation.mdc).
+Compilation: [`.agent/SKILL_COMPILATION.md`](../../.agent/SKILL_COMPILATION.md).

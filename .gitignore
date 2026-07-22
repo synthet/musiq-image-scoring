@@ -265,6 +265,9 @@ thumbnails/feature_cache/
 # External sub-agent run outputs (subagent-orchestrator MCP)
 .agent-runs/
 
+# Graphify local knowledge graph (optional; build with `graphify .`)
+graphify-out/
+
 # Agent scratch / cache
 .agent/scratch/
 brain/

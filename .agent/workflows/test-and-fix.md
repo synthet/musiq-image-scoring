@@ -2,20 +2,19 @@
 
 Use when CI is red, tests fail locally, or the user asks for a test pass.
 
-## Inputs
+## Compiled bootloader
 
-- [AGENTS.md](file:///d:/Projects/image-scoring-backend/AGENTS.md) — canonical test commands.
-- Failing log output or error messages if available.
+```powershell
+python scripts/agent_skills/test_and_fix.py run
+python scripts/agent_skills/test_and_fix.py run --failed-only
+```
 
-## Steps
-
-1. Run the **unit test** command from [AGENTS.md](file:///d:/Projects/image-scoring-backend/AGENTS.md).
-2. For each failure: locate root cause, fix **minimal** code or test expectation.
-3. Re-run until green or blocked; if blocked, document what is needed.
+See [`.cursor/commands/test-and-fix.md`](../.cursor/commands/test-and-fix.md) for ownership split and loop.
+Inputs: [AGENTS.md](../AGENTS.md) (canonical suites); failing logs if available.
 
 ## Done when
 
-- Tests pass, or there is a clear written blocker.
+- Harness `ok: true`, or a clear written blocker.
 
 ## Avoid
 

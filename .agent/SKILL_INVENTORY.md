@@ -40,13 +40,20 @@ Central list of **first-party** `SKILL.md` files in this repository for governan
 | threat-modeling-agentic-tools | `.cursor/skills/threat-modeling-agentic-tools/SKILL.md` | MCP/hook/prompt-injection threat modeling | L1 | Yes | 2026-07-01 |
 | mcp-server-design | `.cursor/skills/mcp-server-design/SKILL.md` | Safe MCP server design patterns | L1 | Yes | 2026-07-01 |
 | eval | `.cursor/skills/eval/SKILL.md` | Task quality signals → agent memory feedback loop | L1 | Yes | 2026-07-01 |
-| agent-cli-hub | `.cursor/skills/agent-cli-hub/SKILL.md` | CLI skill router; install tiers, agent-environment, shared references | L1 | Yes | 2026-07-04 |
-| agent-search | `.cursor/skills/agent-search/SKILL.md` | rg/grep/ast-grep/fd tool selection + fff when connected | L1 | Yes | 2026-07-04 |
+| agent-cli-hub | `.cursor/skills/agent-cli-hub/SKILL.md` | CLI skill router; install tiers, agent-environment, shared references | L1 | Yes | 2026-07-21 |
+| agent-search | `.cursor/skills/agent-search/SKILL.md` | rg/grep/ast-grep/fd tool selection + fff + Graphify when connected | L1 | Yes | 2026-07-21 |
 | agent-git-workflows | `.cursor/skills/agent-git-workflows/SKILL.md` | git/gh safe status, diff, PR workflows | L2 | Yes | 2026-07-04 |
 | agent-data-config | `.cursor/skills/agent-data-config/SKILL.md` | jq/yq/curl config and API inspection | L1 | Yes | 2026-07-04 |
 | agent-dev-tooling | `.cursor/skills/agent-dev-tooling/SKILL.md` | WSL pytest, ruff, doctor, docker compose | L1 | Yes | 2026-07-04 |
 | agent-platform-tooling | `.cursor/skills/agent-platform-tooling/SKILL.md` | Windows vs WSL2 environment choice | L1 | Yes | 2026-07-04 |
-| mcp-code-intelligence | `.cursor/skills/mcp-code-intelligence/SKILL.md` | MCP vs CLI tiers; fff + is-be-mcp | L1 | Yes | 2026-07-04 |
+| mcp-code-intelligence | `.cursor/skills/mcp-code-intelligence/SKILL.md` | MCP vs CLI tiers; fff + is-be-mcp + Graphify | L1 | Yes | 2026-07-21 |
+| graphify | `.cursor/skills/graphify/SKILL.md` | Graphify MCP (`graphify-be`) + CLI for architecture / connectivity | L1 | Yes | 2026-07-21 |
+| karpathy-guidelines | `.cursor/skills/karpathy-guidelines/SKILL.md` | Deliberate coding checklist (pairs with karpathy-coding rule) | L1 | Yes | 2026-07-21 |
+| systematic-debugging | `.cursor/skills/systematic-debugging/SKILL.md` | Evidence-first root-cause before guess-and-check fixes | L2 | Yes | 2026-07-21 |
+| test-driven-development | `.cursor/skills/test-driven-development/SKILL.md` | Red-green-refactor; fail-first tests | L1 | Yes | 2026-07-21 |
+| verification-before-completion | `.cursor/skills/verification-before-completion/SKILL.md` | Fresh command evidence before "done" claims; harness `scripts/agent_skills/verification_before_completion.py` | L1 | Yes | 2026-07-21 |
+| skill-authoring | `.cursor/skills/skill-authoring/SKILL.md` | Create/improve Cursor-canonical skills + sync | L1 | Yes | 2026-07-21 |
+| commit-and-push | `.cursor/skills/commit-and-push/SKILL.md` | Dry-run-first commit/push harness `scripts/agent_skills/commit_and_push.py` | L2 | Yes | 2026-07-21 |
 
 ## Claude Code mirror
 

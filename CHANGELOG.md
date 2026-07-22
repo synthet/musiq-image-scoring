@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.13.0] - 2026-07-21
+
+### Added
+- **Spec Kit workflow gates**: `/clarify`, `/tasks`, and `/analyze` slash commands plus adoption notes (`.agent/SPEC_KIT_ADOPTION.md`) for non-trivial multi-AC work.
+- **Agent skills**: `graphify`, `karpathy-guidelines`, `skill-authoring`, `systematic-debugging`, `test-driven-development`, `verification-before-completion`, and `commit-and-push` (Cursor + Claude mirrors).
+- **Compiled skill harnesses**: `backlog_stage`, `commit_and_push`, `test_and_fix`, `verification_before_completion`, and `wiki_scaffold` under `scripts/agent_skills/` with harness tests.
+- **Graphify soft integration**: optional local AST graph (`graphify-out/`, `.graphifyignore`) and MCP example entries for architecture queries.
+
+### Changed
+- **Backlog queue / docs-wiki / CLI hub**: Skill and command refresh; Spec Kit commands listed in `AGENTS.md` and `.cursor/README.md`.
+- **Skill compilation docs**: Expand harness inventory and bootloader guidance in `SKILL_COMPILATION.md`.
+- **Legacy CLI skills**: Remove repo-root `skills/*.md` (canonical copies live under `.cursor/skills/`).
+
 ## [8.12.4] - 2026-07-21
 
 ### Fixed

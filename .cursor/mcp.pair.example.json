@@ -36,6 +36,18 @@
       "command": "fff-mcp",
       "args": ["${workspaceFolder:image-scoring-gallery}"],
       "cwd": "${workspaceFolder:image-scoring-gallery}"
+    },
+    "graphify-be": {
+      "_comment": "Optional — graphify-mcp on PATH + graphify-out/graph.json (graphify . --code-only). Soft; see AGENTS.md § Graphify.",
+      "command": "graphify-mcp",
+      "args": ["graphify-out/graph.json"],
+      "cwd": "${workspaceFolder:image-scoring-backend}"
+    },
+    "graphify-gallery": {
+      "_comment": "Optional — same for gallery after graphify . --code-only.",
+      "command": "graphify-mcp",
+      "args": ["graphify-out/graph.json"],
+      "cwd": "${workspaceFolder:image-scoring-gallery}"
     }
   }
 }

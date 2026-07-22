@@ -83,6 +83,7 @@ Confirm IDs with `winget search` on locked-down machines.
 | `gitleaks` | [agent-git-workflows](../../agent-git-workflows/SKILL.md) | Secret scan before sharing diffs |
 | `ctags` / `tree-sitter` | agent-search | Repeated def/ref sessions |
 | `fff-mcp` | agent-search, mcp-code-intelligence | Project **`fff-be`** in `.cursor/mcp.json` — [AGENTS.md § fff](../../../../AGENTS.md) |
+| `graphifyy` (CLI: `graphify`) | agent-search, mcp-code-intelligence | Architecture / cross-module graph — `uv tool install graphifyy`; first build `graphify . --code-only` (no API key); optional MCP `graphifyy[mcp]` — [AGENTS.md § Graphify](../../../../AGENTS.md) |
 
 ## Backend verification (after install)
 

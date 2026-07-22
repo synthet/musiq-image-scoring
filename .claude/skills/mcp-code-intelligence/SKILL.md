@@ -45,12 +45,12 @@ Adds indexed file search for long agent sessions and compact pipeline triage via
 ### Advanced setup
 
 ```text
-Serena or codebase-memory-mcp + Zoekt + optional embeddings (e.g. claude-context)
+Graphify (graphify query/path/explain or optional graphify-be MCP) + optional Serena / Zoekt / embeddings
 ```
 
-Higher setup cost and memory. Use when repeated cross-repo symbol navigation justifies indexing.
+Higher setup cost. Prefer **Graphify** for local AST knowledge graphs (no vector store) before heavier symbol/embedding indexes. Use when cross-module “why / how connected” questions outgrow `rg`/`fff`.
 
-**Warning:** Embedding-first indexing is often heavier and less exact than text/structural search — keep it secondary.
+**Warning:** Embedding-first indexing is often heavier and less exact than text/structural search — keep it secondary. Do **not** use Graphify for pipeline/DB triage — that stays on **`is-be-mcp`**.
 
 ## Comparison matrix
 
@@ -60,6 +60,7 @@ Higher setup cost and memory. Use when repeated cross-repo symbol navigation jus
 | CLI wrappers | rg, fd, bat, git diff | Fast, bounded, no index | Agent orchestrates |
 | Domain compact MCP | **`is-be-mcp`** search/dispatch | Pipeline, DB, diagnostics registry | Build `mcp-server/` |
 | Structural | ast-grep, semgrep | Syntax shapes | Medium |
+| Knowledge graph | **Graphify** (`graphifyy` CLI; optional `graphify-be` MCP) | AST edges, path/query/explain; local, no vectors | `uv tool install`; build `graphify-out/` |
 | Graph / embeddings | Serena, Zoekt, claude-context | Symbols, fuzzy discovery | Heavy |
 
 ## Backend domain MCP
@@ -96,4 +97,4 @@ test -f mcp-server/dist/compactIndex.js && echo ok
 rg --version && fd --version
 ```
 
-Tools not verified in this pass: Serena, codebase-memory-mcp, Zoekt server, claude-context — treat as optional third-party.
+Tools not verified in this pass: Graphify MCP (`graphifyy[mcp]`), Serena, codebase-memory-mcp, Zoekt server, claude-context — treat as optional third-party. See [AGENTS.md § Graphify](../../../AGENTS.md).

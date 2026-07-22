@@ -33,6 +33,7 @@ After locating a file → bat --line-range or sed -n (never unbounded cat)
 | **`semgrep`** | Security/rule packs; org-wide policy checks | Ad hoc symbol lookup | `--dryrun` only unless user asks |
 | **`ctags`** | Repeated def/ref across sessions; LSP unavailable | One-off search | Optional index |
 | **fff MCP** (`ffgrep`, `fffind`, `fff-multi-grep`) | Repeated repo-wide file/content search when **project** `fff-be` MCP is connected | One-off bounded probe; fff not installed | Prefer over many grep tool roundtrips |
+| **Graphify** (`graphify query` / `path` / `explain`) | Cross-module architecture; “how does X connect to Y”; god nodes — when `graphify-out/graph.json` exists | Literal string search; pipeline/DB triage (`is-be-mcp`); no graph built yet | Escalate after `rg`/`fff` for structure |
 
 ## fff MCP (when connected)
 
@@ -43,10 +44,20 @@ When **fff** is registered as **`fff-be`** in **project** [`.cursor/mcp.json`](.
 - Do not replace **`ast-grep`** for syntax-shape queries — fff is text/path indexed search.
 - Do **not** put fff in user `~/.cursor/mcp.json` — repo-scoped indexing requires project config.
 
+## Graphify (when installed)
+
+When **`graphifyy`** is on PATH and `graphify-out/graph.json` exists (see [AGENTS.md § Graphify](../../../../AGENTS.md), [`.cursor/rules/graphify.mdc`](../../../rules/graphify.mdc), and skill [`graphify`](../../graphify/SKILL.md)):
+
+- Prefer MCP **`graphify-be`** tools (`query_graph`, `shortest_path`, …) when connected; else CLI **`graphify query`** / **`path`** / **`explain`**.
+- Keep literal discovery as **`rg`** / **`fff`**; keep scoring/DB triage on **`is-be-mcp`**.
+- Soft rule only (`alwaysApply: false`) — do not run stock `graphify cursor install` (that sets always-on nudge).
+
 ## Default order
 
 ```text
 fd (filename) → rg (content) → ast-grep (syntax) → bat/sed (read slice)
+# architecture / connectivity (if graph built):
+→ graphify query|path|explain
 ```
 
 ## grep vs ripgrep (`rg`)

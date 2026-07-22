@@ -1,81 +1,83 @@
 ---
 name: backlog-queue
-description: Cross-repo GitHub Project board is the canonical task queue. Spans image-scoring-backend and image-scoring-gallery. Use whenever picking work, claiming an issue, transitioning Stage, or filing a new backlog item.
-risk: L1
-canonical: .cursor/skills/backlog-queue/SKILL.md
+description: Cross-repo GitHub Project board is the canonical task queue. Use whenever picking work, claiming an issue, transitioning Stage, or filing/closing a backlog issue across image-scoring-backend or image-scoring-gallery.
 ---
 
-# Backlog queue (.agent mirror)
+# Backlog queue (compiled claim/stage)
 
-> **This is the third-party-agent mirror** (Gemini Code Assist / Antigravity / generic agent harnesses). The canonical version is [`.cursor/skills/backlog-queue/SKILL.md`](../../../.cursor/skills/backlog-queue/SKILL.md). Keep them in sync per [`.agent/SKILL_INVENTORY.md`](../../SKILL_INVENTORY.md).
+> The canonical task queue is the GitHub Project board:
+> **https://github.com/users/synthet/projects/1**
+>
+> It spans both repos: `synthet/image-scoring-backend` and `synthet/image-scoring-gallery`.
+> The repo `TODO.md` files are pointers only — **never** add tasks there.
 
-## TL;DR
+## Compiled bootloader (claim / Stage)
 
-The canonical task queue is the GitHub Project board:
+Do **not** hand-roll `gh project item-edit` or rediscover Stage option IDs.
 
-**→ https://github.com/users/synthet/projects/1**
+```powershell
+python scripts/agent_skills/backlog_stage.py claim <N>
+python scripts/agent_skills/backlog_stage.py claim <N> --repo gallery
+python scripts/agent_skills/backlog_stage.py set-stage <N> --stage in_progress
+python scripts/agent_skills/backlog_stage.py set-stage <N> --stage blocked --comment "Blocked: …"
+python scripts/agent_skills/backlog_stage.py set-stage <N> --stage review
+python scripts/agent_skills/backlog_stage.py set-stage <N> --stage done
+```
 
-It surfaces issues from both repos. The `TODO.md` files are pointers — never edit them.
+Slash command `/task-claim <N>` uses the same harness.
+
+| Owner | Responsibility |
+|-------|----------------|
+| **Code** | Assign, project item lookup, Stage transitions |
+| **LLM** | Pick highest-priority Ready card; Blocked comment prose |
+| **Human** | Promote Backlog→Ready; close dead issues |
 
 ## When to use
 
-- Picking the next task / "what should I work on".
-- Filing a new backlog item.
-- Preparing a PR (must contain `Closes #N`).
-- Hitting a blocker, opening for review, or finishing a task.
+- User asks to pick the next task, start work, or "what's next".
+- Filing a new backlog item; PR needs `Closes #N`.
+- Blocked / Review / Done Stage transitions.
+- Agent would start work without an issue — stop and file one first.
 
-## Five-step contract
+## The five-step contract
 
-1. **Pick from `Stage = Ready`** (sorted by `priority:p0..p3`). If `Ready` is empty, stop and ask — do not invent work.
-2. **Claim**: `/task-claim <N>` (preferred) or the manual `gh` flow below. Adds you as assignee + moves the card to `Claimed`.
-3. **Flip `Stage = In Progress`** on the first commit.
-4. **If blocked**: move to `Stage = Blocked` *and* leave a comment with the reason and what would unblock it. Do not silently abandon a Claimed card.
-5. **PR description must include `Closes #<N>`**. Move the card to `Stage = Review` while the PR is open; merging closes the issue and flips `Status = Done` (move `Stage = Done` manually).
+1. **Pick** from `Stage = Ready`, sort `priority:p0..p3` (LLM judgment). Do not invent work if Ready is empty.
+2. **Claim** via harness / `/task-claim` (code).
+3. **In Progress** on first commit via `set-stage … --stage in_progress`.
+4. **Blocked** → `set-stage … --stage blocked --comment "…"` (LLM writes comment).
+5. **PR** must include `Closes #<N>`; move to `review` when opening; `done` after merge if needed.
 
-## Manual `gh` workflow
+## Filing a new task
 
-```bash
-REPO="image-scoring-backend"   # or image-scoring-gallery
-N=<issue-number>
+1. Search both repos for duplicates.
+2. Choose owning repo (or both + `cross-repo`).
+3. Open issue with label taxonomy below; add to Project; default Stage=Backlog.
+4. Promote to Ready only with maintainer signoff.
 
-# Verify it's open and unassigned (or assigned to you)
-gh issue view "$N" --repo "synthet/$REPO" --json number,state,assignees,title
+## Label taxonomy
 
-# Assign yourself
-gh issue edit "$N" --repo "synthet/$REPO" --add-assignee @me
+| Family | Values |
+|--------|--------|
+| `area:*` | `python`, `db`, `gradio`, `electron`, `docs` |
+| `priority:*` | `p0`, `p1`, `p2`, `p3` |
+| `type:*` | `bug`, `feature`, `refactor`, `test`, `chore`, `epic` |
+| (special) | `cross-repo` |
+| (status) | `obsolete` — stay open on Backlog |
 
-# Find the project item id
-ITEM_ID=$(gh project item-list 1 --owner synthet --format json --limit 200 \
-  | jq -r --argjson n "$N" --arg repo "$REPO" \
-      '.items[] | select(.content.number==$n) | select((.content.repository // "") | endswith($repo)) | .id')
+Epics: `type:epic` + GitHub sub-issues (same repo). Cross-repo: paired issues + `cross-repo` label.
 
-# Move card to Claimed
-gh project item-edit --id "$ITEM_ID" \
-  --project-id PVT_kwHOAFXgIs4BWC3c \
-  --field-id PVTSSF_lAHOAFXgIs4BWC3czhRaNZ0 \
-  --single-select-option-id 1cc70f0b
-```
-
-## Reference IDs
-
-| Thing | ID |
-|-------|----|
-| Project node id | `PVT_kwHOAFXgIs4BWC3c` |
-| Project number | `1` |
-| Owner | `synthet` (user-level) |
-| `Stage` field id | `PVTSSF_lAHOAFXgIs4BWC3czhRaNZ0` |
-| `Backlog` | `83b7a780` |
-| `Ready` | `ddaf7773` |
-| `Claimed` | `1cc70f0b` |
-| `In Progress` | `8b22e18e` |
-| `Blocked` | `4bbe5dd0` |
-| `Review` | `cb723acb` |
-| `Done` | `73062c96` |
+Obsolete: tier-1 close+`wontfix`; tier-2 open+`status:obsolete` on Backlog.
 
 ## Don'ts
 
 - Don't add tasks to `TODO.md`.
-- Don't skip Stage transitions.
+- Don't start work without claiming.
+- Don't silently abandon Claimed/In Progress — Blocked + comment.
 - Don't open a PR without `Closes #N`.
 
-Full contract and rationale: [`docs/project/00-backlog-workflow.md`](../../../docs/project/00-backlog-workflow.md).
+## Related
+
+- Harness: [`scripts/agent_skills/backlog_stage.py`](../../../scripts/agent_skills/backlog_stage.py)
+- Batch hygiene (separate): `scripts/housekeeping_backlog.py`
+- Contract: [`docs/project/00-backlog-workflow.md`](../../../docs/project/00-backlog-workflow.md)
+- Compilation: [`.agent/SKILL_COMPILATION.md`](../../../.agent/SKILL_COMPILATION.md)

@@ -4,7 +4,7 @@ title: AI Workflow & Asset Map
 description: Where every agent asset lives (rules, commands, skills, agents, memory, workflows) and the SDLC loop they support.
 resource: ai-workflow/README.md
 tags: [docs, agents, workflow]
-timestamp: 2026-07-03T00:00:00Z
+timestamp: 2026-07-21T00:00:00Z
 okf_version: 0.1
 ---
 
@@ -33,7 +33,7 @@ okf_version: 0.1
 
 | Cluster | Skills | When |
 |---------|--------|------|
-| **SDLC / governance** | `backlog-queue`, `validate-implementation`, `commit-conventions`, `eval`, … | Every task, PR, spec |
+| **SDLC / governance** | `backlog-queue`, `validate-implementation`, `commit-conventions`, `eval`, `karpathy-guidelines`, `systematic-debugging`, `test-driven-development`, `verification-before-completion`, … | Every task, PR, spec |
 | **Domain (backend)** | `image-scoring-mcp`, `wsl-tf-python-runner`, `wsl-environment`, `imgscore-*`, … | Pipeline, WSL, MCP triage |
 | **Generic CLI** | `agent-cli-hub` → `agent-search`, `agent-git-workflows`, `agent-data-config`, `agent-dev-tooling`, `agent-platform-tooling`, `mcp-code-intelligence` | Shell navigation, git, pytest/ruff, Windows/WSL |
 
@@ -61,8 +61,10 @@ Cherry-pick generic improvements from framework; never blind-merge domain rules 
 ## The SDLC loop
 
 ```
-/spec  →  /plan  →  /implement  →  /test-and-fix  →  validate-implementation  →  /pr-ready  →  (optional) /run-subagent-review  →  /release-notes
+/spec → /clarify? → /plan → /tasks → /analyze? → /implement → /test-and-fix → validate-implementation → /pr-ready → (optional) /run-subagent-review → /release-notes
 ```
+
+`/clarify`, `/tasks`, and `/analyze` are **required for non-trivial multi-AC work**; trivial fixes may skip them with an explicit note. See [`.agent/SPEC_KIT_ADOPTION.md`](../../.agent/SPEC_KIT_ADOPTION.md).
 
 ### Phase gates
 
@@ -72,7 +74,10 @@ is unnecessary (trivial fix), say so explicitly.
 | Phase | Artifact produced | Gate to pass before the next phase |
 |-------|-------------------|-------------------------------------|
 | `/spec` | Spec with EARS `AC-n` acceptance criteria | User approves; no criterion is AMBIGUOUS |
+| `/clarify` | Clarification summary + spec patch notes (when needed) | Planning readiness Ready / Ready with assumptions |
 | `/plan` | Implementation plan (files, approach, tests, rollback) | User approves the plan |
+| `/tasks` | Traceable `T-n` task list mapped to `AC-n` | No orphaned ACs; verification paths listed |
+| `/analyze` | Coverage / consistency matrix (non-trivial work) | Implementation readiness Ready (or warnings accepted) |
 | `/implement` | Minimal-diff change set with tests | Lint + narrowest tests green |
 | `/test-and-fix` | Green test run (or written blocker); RCA log entry for non-obvious failures | Tests pass or blocker documented |
 | `validate-implementation` (skill) | Per-AC Verified/Failed/Unknown report with evidence | Every AC Verified, or open items accepted by the user |

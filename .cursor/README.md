@@ -35,7 +35,10 @@ User **`~/.cursor/mcp.json`**: **`github`**, **`subagent-orchestrator`**, etc. o
 | Command | Purpose |
 |---------|---------|
 | `/spec` | Feature/change spec with acceptance criteria |
+| `/clarify` | Resolve material ambiguities before `/plan` |
 | `/plan` | Implementation plan (after spec or small task) |
+| `/tasks` | Traceable `T-n` task list from plan |
+| `/analyze` | Cross-artifact coverage check before `/implement` |
 | `/implement` | Execute approved plan |
 | `/test-and-fix` | Run tests, fix failures |
 | `/pr-ready` | Merge-ready summary + PR body |

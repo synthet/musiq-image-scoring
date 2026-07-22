@@ -34,6 +34,7 @@ Central entry point for agent-safe CLI workflows: which skill to use, how to ins
 | Pipeline / DB triage via MCP | [`image-scoring-mcp`](../image-scoring-mcp/SKILL.md) |
 | WSL venv / pytest markers | [`wsl-tf-python-runner`](../wsl-tf-python-runner/SKILL.md) |
 | Fast indexed file search (MCP) | **[fff](https://github.com/dmtrKovalenko/fff)** — **project** `fff-be` in `.cursor/mcp.json`; see [AGENTS.md § fff](../../../AGENTS.md) |
+| Architecture / cross-module graph | **[Graphify](https://github.com/Graphify-Labs/graphify)** — skill [`graphify`](../graphify/SKILL.md); soft rule [`.cursor/rules/graphify.mdc`](../../rules/graphify.mdc); see [AGENTS.md § Graphify](../../../AGENTS.md) |
 
 ## Required tools (baseline)
 

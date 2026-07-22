@@ -1,0 +1,34 @@
+# Extra excludes beyond .gitignore (merged; never re-includes gitignored paths).
+# Keep indexing: modules/, mcp-server/, docs/technical/, migrations/, frontend/src/
+
+# Heavy / irrelevant for architecture graph
+thumbnails/
+models/
+FirebirdLinux/
+.agent/scratch/
+.agent/tmp/
+frontend/dist/
+static/app/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+node_modules/
+mcp-server/node_modules/
+.venv/
+.venvs/
+graphify-out/
+.agent-runs/
+brain/
+artifacts/
+.cache/
+.playwright-mcp/
+*.pth
+*.h5
+*.onnx
+*.log
+webui.lock
+secrets.json
+.env
+.env.*

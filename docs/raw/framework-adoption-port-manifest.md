@@ -102,3 +102,22 @@ python scripts/validate_cli_hub_skills.py
 python scripts/ci/check_agent_frontmatter.py
 python scripts/ci/check_secrets.py
 ```
+
+---
+
+## 2026-07-21 onboard (post-0.1.0 framework gaps)
+
+Source: [synthet-code-framework](https://github.com/synthet/synthet-code-framework) HEAD after Spec Kit + disciplined-skills work (~2026-07-19). Issues: backend [#301](https://github.com/synthet/image-scoring-backend/issues/301), gallery [#159](https://github.com/synthet/image-scoring-gallery/issues/159).
+
+| Asset | Backend | Gallery | Notes |
+|-------|---------|---------|-------|
+| `/clarify`, `/tasks`, `/analyze` + workflows | Added | Added | Spec Kit quality gates |
+| `.agent/SPEC_KIT_ADOPTION.md` | Added | Added | Cursor-first sync wording |
+| `/spec` product scenario + assumptions | Updated | Updated | Light cherry-pick |
+| `karpathy-coding` rule + `karpathy-guidelines` skill | Added | Added | Always-on coding behavior |
+| `systematic-debugging`, `test-driven-development`, `skill-authoring` | Added | Added | Prose skills |
+| `verification-before-completion` | Skill + `scripts/agent_skills/verification_before_completion.py` | Skill (npm/tsc proofs) | Backend harness layout preserved |
+| `commit-and-push` | Skill + `scripts/agent_skills/commit_and_push.py` | Skipped | Gallery keeps `changelog-commit-push` |
+| Flat 13 CLI skills | Not ported | Not ported | Hub remains |
+
+Approved forks unchanged: Cursor-first, 7-skill CLI hub, project-level fff, `scripts/agent_skills/` harnesses.
