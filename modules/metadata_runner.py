@@ -12,6 +12,7 @@ from modules.indexing_policy import filter_image_rows_for_nef_policy
 logger = logging.getLogger(__name__)
 
 METADATA_VERSION = "1.0.0"
+PROGRESS_INTERVAL = 50
 
 class MetadataRunner:
     """
@@ -431,8 +432,6 @@ class MetadataRunner:
         return processed_count, skipped_count
 
     def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None, report_collector=None):
-        PROGRESS_INTERVAL = 50
-
         def log(msg: str, level: str = "INFO", image_id: Optional[int] = None) -> None:
             runner_emit(self.log_history, job_id, msg, level, phase="metadata", image_id=image_id)
 

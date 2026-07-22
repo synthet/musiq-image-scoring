@@ -20,6 +20,7 @@ from modules.indexing_policy import (
 logger = logging.getLogger(__name__)
 
 INDEXING_VERSION = "1.0.0"
+PROGRESS_INTERVAL = 50
 # Stored in images.metadata: skip full-file SHA-256 when size+mtime match (job reruns / phase retries).
 _INDEXING_CONTENT_FP_KEY = "indexing_content_fp"
 # Keep jobs.log bounded when persisting during long runs (Run detail polling + LogPanel fallback).
@@ -957,8 +958,6 @@ class IndexingRunner:
         return processed_count, skipped_count
 
     def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None, report_collector=None):
-        PROGRESS_INTERVAL = 50
-
         def log(level: str, msg: str, image_id: Optional[int] = None) -> None:
             runner_emit(self.log_history, job_id, msg, level, phase="indexing", image_id=image_id)
 
