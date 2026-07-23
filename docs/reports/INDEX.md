@@ -22,6 +22,7 @@ Historical reports, research, reviews, and debugging sessions.
 | [CLIP_MODELS_CULLING_SCORING_2026-05-23.md](CLIP_MODELS_CULLING_SCORING_2026-05-23.md) | CLIP / OpenCLIP / MetaCLIP for culling and prompt-based scoring |
 | [CULLING_MODEL_RECOMMENDATION_2026-05-29.md](CULLING_MODEL_RECOMMENDATION_2026-05-29.md) | Model choice for grouping, mishot rejection, and stack selection (post L/14 spike) |
 | [CULL_DISTRIBUTION_AUDIT_2026-06.md](CULL_DISTRIBUTION_AUDIT_2026-06.md) | Pick/reject/neutral distribution audit — policy 1.0 vs 2.0, stack/sub-stack invariants |
+| [MCP_USAGE_RELIABILITY_AUDIT_2026-07.md](MCP_USAGE_RELIABILITY_AUDIT_2026-07.md) | Compact MCP transcript usage heatmap + live probe matrix; datetime JSON worker crash fix |
 | [CODEBASE_SIZE_AUDIT_2026-07.md](CODEBASE_SIZE_AUDIT_2026-07.md) | LoC audit snapshot (July 2026) — post Phase 1 API split; pre/post Phase 1b electron router |
 | [CODEBASE_SIZE_AUDIT_2026-06.md](CODEBASE_SIZE_AUDIT_2026-06.md) | LoC audit snapshot (June 2026) — baseline; feeds refactor plan |
 | [BRANCH_DOCS_SALVAGE_2026-07.md](BRANCH_DOCS_SALVAGE_2026-07.md) | Branch cleanup audit — docs-only gallery branches archived/deleted; UNMERGED code branches retained |

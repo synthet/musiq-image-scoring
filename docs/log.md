@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-07-22] edit | MCP usage/reliability audit
+
+Published [reports/MCP_USAGE_RELIABILITY_AUDIT_2026-07.md](reports/MCP_USAGE_RELIABILITY_AUDIT_2026-07.md): transcript heatmap (SQL-heavy, skip-search), live probe matrix, fix for compact_worker `datetime` JSON serialization crashes. Updated [reports/INDEX.md](reports/INDEX.md).
+
 ## [2026-07-21] edit | Onboard Graphify (soft agent integration)
 
 Wired [Graphify](https://github.com/Graphify-Labs/graphify) as deferred CLI + soft rule (no alwaysApply): [graphify.mdc](../.cursor/rules/graphify.mdc), [AGENTS.md § Graphify](../AGENTS.md), install-tiers/mcp-code-intelligence/agent-search routing, `.graphifyignore`, optional `graphify-be` in mcp.example.json. Gallery twin. Artifacts gitignored under `graphify-out/`.
