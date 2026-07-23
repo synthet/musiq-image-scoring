@@ -1230,6 +1230,51 @@ class TaggingRunner:
         in_scope_total = len(all_images)
         final_images = []
         for row in all_images:
+            decision = explain_phase_run_decision(
+                row['id'],
+                PhaseCode.KEYWORDS,
+                current_executor_version=TAGGER_VERSION,
+                force_run=overwrite
+            )
+            if decision['should_run']:
+                final_images.append(row)
+            else:
+                logger.info("Skipping keywords image_id=%s: %s", row['id'], decision['reason'])
+                # Issue #160: record filtered-out images as skipped so job_phases.images_skipped
+                # reflects the phase-policy filter, not just per-image failures inside the loop.
+                if report_collector is not None:
+                    try:
+                        report_collector.record_skip(int(row['id']), decision.get('reason') or 'phase_policy_skip')
+                    except Exception:
+                        logger.debug("tagging: record_skip failed for image_id=%s", row.get('id'), exc_info=True)
+
+        all_images = final_images
+        log(f"Found {len(all_images)} images to process.")
+        self.total_count = len(all_images)
+        self.current_count = 0
+
+        # Issue #160: push the post-filter scope so job_phases denominator reflects what
+        # the runner will actually attempt. The dispatcher seeded with the pre-filter
+        # count (#159); this overwrites with the accurate targeted value.
+        if report_collector is not None:
+            try:
+                report_collector.set_scope_counts(in_scope=in_scope_total, targeted=len(all_images))
+            except Exception:
+                logger.debug("tagging: set_scope_counts failed for job_id=%s", job_id, exc_info=True)
+
+        # Whether to persist per-keyword relevance_weight / confidence derived
+        # from CLIP inference scores (forward-fill). Only the native CLIP path
+        # produces scores; injected tagging engines return bare keyword lists.
+        from modules import config as _rel_cfg
+        write_keyword_relevance = bool(
+            (_rel_cfg.get_config_section('tagging') or {}).get('write_keyword_relevance', True)
+        )
+
+        processed_count = 0
+        skipped_count = 0
+        processed_folders = set()
+
+        for row in all_images:
             if self.stop_event.is_set():
                 log("Tagging stopped by user.", "WARNING")
                 break

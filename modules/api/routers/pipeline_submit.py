@@ -582,7 +582,7 @@ def create_pipeline_submit_router() -> APIRouter:
         _check_rate_limit("pipeline_run_pause")
         stopped = []
         for phase in ("indexing", "metadata", "scoring", "culling", "keywords"):
-            if _stop_runner_for_phase(phase):
+            if state._stop_runner_for_phase(phase):
                 stopped.append(phase)
         return ApiResponse(
             success=True,
@@ -602,7 +602,7 @@ def create_pipeline_submit_router() -> APIRouter:
 
         stopped = []
         for phase in ("indexing", "metadata", "scoring", "culling", "keywords"):
-            if _stop_runner_for_phase(phase):
+            if state._stop_runner_for_phase(phase):
                 stopped.append(phase)
 
         cancelled_jobs = []
@@ -638,7 +638,7 @@ def create_pipeline_submit_router() -> APIRouter:
             raise HTTPException(status_code=400, detail=f"Path not found: {input_path}")
 
         for phase in ("indexing", "metadata", "scoring", "culling", "keywords"):
-            _stop_runner_for_phase(phase)
+            state._stop_runner_for_phase(phase)
 
         rp = attach_run_reason(
             augment_queue_payload_for_audit(

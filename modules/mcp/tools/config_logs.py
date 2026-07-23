@@ -15,9 +15,11 @@ from modules.mcp import tool_support as ts
 
 logger = logging.getLogger(__name__)
 
-    from modules import mcp_server as _ms
+
 def get_model_status() -> dict:
     """Get status of registered scoring models, GPU availability, and CUDA/PyTorch/TensorFlow configuration."""
+    from modules import mcp_server as _ms
+
     status = {
         "models": {},
         "gpu": {},
@@ -31,9 +33,10 @@ def get_model_status() -> dict:
         except Exception as e:
             status["models"]["registry_error"] = str(e)
 
-        if _ms._scoring_runner and _scoring_runner.shared_scorer:
+        scoring_runner = _ms._scoring_runner
+        if scoring_runner and scoring_runner.shared_scorer:
             status["scorer_available"] = True
-            scorer = _scoring_runner.shared_scorer
+            scorer = scoring_runner.shared_scorer
             try:
                 status["models"]["version"] = getattr(scorer, 'VERSION', 'unknown')
             except Exception:
@@ -85,9 +88,9 @@ def get_model_status() -> dict:
     return status
 
 
-    from modules import mcp_server as _ms
 def get_config() -> dict:
     """Get current application configuration (config.json merged with environment.json). Sensitive keys are redacted."""
+    from modules import mcp_server as _ms
     from modules.redact_sensitive import redact_json_obj
 
     cfg = redact_json_obj(config.load_config())
@@ -102,9 +105,10 @@ def get_config() -> dict:
     return cfg
 
 
-    from modules import mcp_server as _ms
 def validate_config() -> dict:
     """Validate config structure and referenced paths; optionally ping the database when available."""
+    from modules import mcp_server as _ms
+
     out = dict(config.validate_config())
     out["config_path"] = str(config.CONFIG_FILE)
     out["environment_path"] = str(config.ENVIRONMENT_FILE)

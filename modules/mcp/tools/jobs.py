@@ -10,7 +10,7 @@ import subprocess
 import time
 from typing import Any, Optional
 
-from modules import config, db
+from modules import config, db, db_postgres
 from modules.mcp import tool_support as ts
 
 logger = logging.getLogger(__name__)
@@ -389,9 +389,10 @@ def get_embedding_stats(
     }
 
 
-    from modules import mcp_server as _ms
 def get_runner_status() -> dict:
     """Get current status of scoring and tagging background runners including progress and recent logs."""
+    from modules import mcp_server as _ms
+
     status = {
         "scoring": {"available": False},
         "tagging": {"available": False},
@@ -403,7 +404,7 @@ def get_runner_status() -> dict:
 
     if _ms._scoring_runner:
         try:
-            result = _scoring_runner.get_status()
+            result = _ms._scoring_runner.get_status()
             is_running, log, status_msg, current, total = result[:5]
             status["scoring"] = {
                 "available": True,
@@ -417,7 +418,7 @@ def get_runner_status() -> dict:
 
     if _ms._tagging_runner:
         try:
-            result = _tagging_runner.get_status()
+            result = _ms._tagging_runner.get_status()
             is_running, log, status_msg, current, total = result[:5]
             status["tagging"] = {
                 "available": True,
@@ -431,7 +432,7 @@ def get_runner_status() -> dict:
 
     if _ms._clustering_runner:
         try:
-            result = _clustering_runner.get_status()
+            result = _ms._clustering_runner.get_status()
             is_running, log, status_msg, current, total = result[:5]
             status["clustering"] = {
                 "available": True,
@@ -445,7 +446,7 @@ def get_runner_status() -> dict:
 
     if _ms._selection_runner:
         try:
-            result = _selection_runner.get_status()
+            result = _ms._selection_runner.get_status()
             is_running, log, status_msg, current, total = result[:5]
             status["selection"] = {
                 "available": True,
@@ -459,7 +460,7 @@ def get_runner_status() -> dict:
 
     if _ms._indexing_runner:
         try:
-            result = _indexing_runner.get_status()
+            result = _ms._indexing_runner.get_status()
             is_running, log, status_msg, current, total = result[:5]
             status["indexing"] = {
                 "available": True,
@@ -473,7 +474,7 @@ def get_runner_status() -> dict:
 
     if _ms._metadata_runner:
         try:
-            result = _metadata_runner.get_status()
+            result = _ms._metadata_runner.get_status()
             is_running, log, status_msg, current, total = result[:5]
             status["metadata"] = {
                 "available": True,
@@ -488,7 +489,7 @@ def get_runner_status() -> dict:
     if _ms._maintenance_runner:
         try:
             if hasattr(_ms._maintenance_runner, "get_status"):
-                result = _maintenance_runner.get_status()
+                result = _ms._maintenance_runner.get_status()
                 is_running, log, status_msg, current, total = result[:5]
                 status["maintenance"] = {
                     "available": True,
@@ -513,7 +514,7 @@ def get_runner_status() -> dict:
 
     if _ms._bird_species_runner:
         try:
-            result = _bird_species_runner.get_status()
+            result = _ms._bird_species_runner.get_status()
             is_running, log, status_msg, current, total = result[:5]
             status["bird_species"] = {
                 "available": True,
@@ -634,13 +635,14 @@ def get_performance_metrics(days: int = 7) -> dict:
     return result
 
 
-    from modules import mcp_server as _ms
 def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dict:
     """Trigger a background processing job (scoring, tagging, clustering/stacks, or bird_species).
 
     Creates a ``jobs`` row and returns integer ``job_id`` / ``jobs_id`` (same value) for use with
     ``get_job_details``, ``get_run_diagnostics``, and ``get_job_execution_report``.
     """
+    from modules import mcp_server as _ms
+
     if args is None:
         args = {}
 
@@ -671,7 +673,7 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
     if job_type == "scoring":
         if not _ms._scoring_runner:
             return {"error": "Scoring runner not available"}
-        if _scoring_runner.is_running:
+        if _ms._scoring_runner.is_running:
             return {"error": "Scoring job already running"}
         jid = db.create_job(
             input_path,
@@ -679,7 +681,7 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
             queue_payload=_mcp_queue_payload("scoring", input_path),
         )
         db.create_job_phases(jid, ["scoring"])
-        res = _scoring_runner.start_batch(
+        res = _ms._scoring_runner.start_batch(
             input_path,
             jid,
             skip_existing=not args.get("rescore", False),
@@ -689,7 +691,7 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
     if job_type == "tagging":
         if not _ms._tagging_runner:
             return {"error": "Tagging runner not available"}
-        if _tagging_runner.is_running:
+        if _ms._tagging_runner.is_running:
             return {"error": "Tagging job already running"}
         jid = db.create_job(
             input_path,
@@ -699,7 +701,7 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
         db.create_job_phases(jid, ["keywords"])
         custom_keywords = args.get("custom_keywords")
         generate_captions = config.get_config_section("tagging").get("captions_default", True)
-        res = _tagging_runner.start_batch(
+        res = _ms._tagging_runner.start_batch(
             input_path,
             jid,
             custom_keywords=custom_keywords,
@@ -723,13 +725,13 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
         )
         db.create_job_phases(jid, ["culling"])
         if _ms._selection_runner and culling_runner is _ms._selection_runner:
-            res = _selection_runner.start_batch(
+            res = _ms._selection_runner.start_batch(
                 input_path or "",
                 job_id=jid,
                 force_rescan=args.get("force_rescan", False),
             )
         else:
-            res = _clustering_runner.start_batch(
+            res = _ms._clustering_runner.start_batch(
                 cluster_path,
                 threshold=args.get("threshold"),
                 time_gap=args.get("time_gap"),
@@ -741,7 +743,7 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
     if job_type == "bird_species":
         if not _ms._bird_species_runner:
             return {"error": "Bird species runner not available"}
-        if _bird_species_runner.is_running:
+        if _ms._bird_species_runner.is_running:
             return {"error": "Bird species job already running"}
         jid = db.create_job(
             input_path or "BIRD_SPECIES",
@@ -749,7 +751,7 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
             queue_payload=_mcp_queue_payload("bird species", input_path or "BIRD_SPECIES"),
         )
         db.create_job_phases(jid, ["bird_species"])
-        res = _bird_species_runner.start_batch(
+        res = _ms._bird_species_runner.start_batch(
             input_path,
             job_id=jid,
             threshold=args.get("threshold", 0.1),
@@ -762,9 +764,10 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
     return {"error": f"Unknown job type: {job_type}"}
 
 
-    from modules import mcp_server as _ms
 def manage_runners(runner: str, operation: str) -> dict:
     """Request ``stop`` or read ``status`` for an in-process background runner (WebUI / SSE context). Starting jobs is not supported here — use ``run_processing_job`` or the UI."""
+    from modules import mcp_server as _ms
+
     r = (runner or "").strip().lower()
     op = (operation or "").strip().lower()
     if op == "start":

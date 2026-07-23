@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # Type alias (avoid importing concrete classes at module level to allow
 # lazy imports inside the factory function)
-_ConnectorType = Union["PostgresConnector", "ApiConnector"]  # type: ignore[name-defined]
+_ConnectorType = Union["PostgresConnector", "ApiConnector"]  # noqa: F821  # type: ignore[name-defined]
 
 _instance: _ConnectorType | None = None
 _lock = threading.Lock()

@@ -1,0 +1,37 @@
+name: lint-f821
+
+# Guards against NameError regressions in modules/ (ruff F821 only).
+#
+# Commit 4e2cac3 mechanically extracted functions without carrying the names
+# their bodies referenced, leaving 57 undefined names. Most were masked by broad
+# `except Exception` handlers; one broke indexing for every image.
+#
+# Deliberately scoped to F821 and to modules/: full ruff adoption is a separate
+# effort, and scripts/ has pre-existing findings out of scope for this gate.
+
+on:
+  pull_request:
+    paths:
+      - 'modules/**.py'
+      - '.github/workflows/lint-f821.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'modules/**.py'
+      - '.github/workflows/lint-f821.yml'
+
+jobs:
+  f821:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Check for undefined names in modules/
+        run: ruff check --select F821 --output-format=concise modules/
