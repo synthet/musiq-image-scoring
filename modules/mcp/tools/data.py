@@ -419,6 +419,8 @@ def process_newly_imported_folders(days: int = 7, job_type: str = "scoring", pat
     Trigger background processing jobs for newly imported folders that haven't been completed yet.
     job_type can be 'scoring', 'tagging', 'clustering', or 'bird_species'.
     """
+    from modules.mcp.tools.jobs import run_processing_job
+
     try:
         folders = db.get_newly_imported_folders(days=days, min_images=1, path_pattern=path_pattern)
         triggered = []

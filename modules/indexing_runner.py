@@ -465,8 +465,12 @@ class IndexingRunner:
         log,
         processed_count,
         skipped_count,
+        scan_stop=None,
+        nef_cache=None,
     ):
         """Process one item in a batch run."""
+        if nef_cache is None:
+            nef_cache = {}
         self.current_count += 1
 
 
@@ -1084,6 +1088,8 @@ class IndexingRunner:
                 log=log,
                 processed_count=processed_count,
                 skipped_count=skipped_count,
+                scan_stop=scan_stop,
+                nef_cache=nef_cache,
             )
 
         log("INFO", f"Done. Processed: {processed_count}, Skipped: {skipped_count}")

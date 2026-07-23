@@ -92,10 +92,11 @@ def rebase_file_paths(old_root: str, new_root: str, dry_run: bool = True) -> dic
             return {"error": str(e)}
 
 
-    from modules import mcp_server as _ms
 def set_image_metadata(file_path: str, rating: Optional[int] = None, label: Optional[str] = None) -> dict:
     """Update metadata for a specific image in the database.
     Optionally updates sidecar files if background runners are active."""
+    from modules import mcp_server as _ms
+
     details = db.get_image_details(file_path)
     if not details:
         return {"error": f"Image {file_path} not found in database"}
