@@ -412,9 +412,10 @@ def get_stale_running_phase_status(min_age_seconds: int = 3600, limit: int = 50)
     )
 
 
-    from modules import mcp_server as _ms
 def get_database_engine_info() -> dict:
     """Summarize database.engine, connector mode, non-secret connection targets, and whether a simple query succeeds. Complements validate_config."""
+    from modules import mcp_server as _ms
+
     engine = config.get_database_engine()
     out: dict[str, Any] = {
         "database_engine_config": engine,
@@ -521,15 +522,17 @@ def check_stack_invariants(limit: int = 20) -> dict:
     }
 
 
-    from modules import mcp_server as _ms
 def verify_environment() -> dict:
     """Comprehensive environment check: GPU, DB, Python, and system stats."""
-    import torch
-    import psutil
     import platform
+    import sys
+
+    import psutil
+    import torch
+    from modules import mcp_server as _ms
+    from modules.mcp_server import prepare_mcp_embedded
 
     # Try to refresh DB status if it's currently marked as unavailable
-    global _ms._db_available
     if not _ms._db_available:
         prepare_mcp_embedded()
 

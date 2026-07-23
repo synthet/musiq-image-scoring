@@ -44,13 +44,12 @@
       "Bash(wsl bash -c '~/.venvs/tf/bin/pip freeze')",
       "mcp__filesystem__list_allowed_directories",
       "Bash(grep -l \"setup_server_endpoints\" modules/*.py)",
-      "mcp__image-scoring-backend-stdio__get_runner_status",
-      "mcp__image-scoring-backend-webui__get_runner_status",
-      "mcp__image-scoring-backend-webui__search_logs",
-      "mcp__image-scoring-backend-webui__get_drive_diagnostics",
+      "mcp__is-be-jobs__get_runner_status",
+      "mcp__is-be-diag__search_logs",
+      "mcp__is-be-jobs__get_drive_diagnostics",
       "mcp__is-be-jobs__get_job_phases",
-      "mcp__image-scoring-backend-stdio__get_job_details",
-      "mcp__image-scoring-backend-stdio__get_stacks_summary"
+      "mcp__is-be-jobs__get_job_details",
+      "mcp__is-be-data__get_stacks_summary"
     ],
     "additionalDirectories": [
       "<ELECTRON_IMAGE_SCORING_PATH>"
