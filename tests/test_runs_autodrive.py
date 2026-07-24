@@ -780,6 +780,8 @@ def test_auto_drive_skips_enqueue_when_in_flight_cap(monkeypatch):
     assert result["scheduled"] == []
     assert result["skipped"]
     assert result["skipped"][0]["reason"] == "in_flight_cap"
+    # The drive loop needs this flag to tell "throttled" apart from "stalled".
+    assert result["enqueue_blocked"] is True
 
 
 def test_auto_drive_passes_limit_to_build_folder_buckets(monkeypatch):
@@ -833,6 +835,98 @@ def test_recent_auto_attempt_counts_separates_completed_from_failures(monkeypatc
     assert counts["plan_a"]["failure_attempts"] == 0
     assert counts["plan_a"]["completed_attempts"] == 2
     assert counts["plan_a"]["last_completed_percent"] == 55.0
+
+
+def test_recent_auto_attempt_counts_windows_terminal_jobs_to_session(monkeypatch):
+    """``since_job_id`` forgets pre-session failures but never pre-session *active* runs.
+
+    Regression for #305: two indexing jobs that failed on an already-fixed ``scan_stop``
+    NameError kept a folder loop-blocked forever. Forgetting them must not also forget a
+    still-running job, or the in-flight double-enqueue guard (#212) regresses.
+    """
+    def _payload():
+        return json.dumps({"tool_id": "runs_auto_drive", "auto_drive_plan_key": "plan_a"})
+
+    rows = [
+        {"id": 20, "status": "failed", "queue_payload": _payload()},   # after watermark
+        {"id": 9, "status": "running", "queue_payload": _payload()},   # before, but live
+        {"id": 8, "status": "failed", "queue_payload": _payload()},    # before watermark
+        {"id": 7, "status": "completed", "queue_payload": _payload()}, # before watermark
+    ]
+    monkeypatch.setattr(runs_autodrive.db, "get_jobs", lambda **kwargs: rows)
+
+    unwindowed = runs_autodrive._recent_auto_attempt_counts(["plan_a"])
+    assert unwindowed["plan_a"]["failure_attempts"] == 3
+    assert unwindowed["plan_a"]["completed_attempts"] == 1
+
+    windowed = runs_autodrive._recent_auto_attempt_counts(["plan_a"], since_job_id=10)
+    # id 20 (failed, in session) + id 9 (running, always counts); id 8 and 7 are forgotten.
+    assert windowed["plan_a"]["failure_attempts"] == 2
+    assert windowed["plan_a"]["completed_attempts"] == 0
+
+
+def test_auto_drive_loop_guard_forgives_pre_session_failures(monkeypatch):
+    """A fresh drive session re-tries a folder stranded by failures from an earlier session."""
+    folder = "/mnt/d/Photos/Z8/105mm/2026/2026-07-04"
+    plan_key = runs_autodrive._plan_key(folder, ["indexing"])
+
+    monkeypatch.setattr(runs_autodrive, "_reconcile_stale_ips_for_drive", lambda: None)
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_folder_direct_image_counts_by_local_path_norm",
+        lambda: {},
+    )
+    monkeypatch.setattr(
+        runs_autodrive,
+        "build_folder_buckets",
+        lambda **_kwargs: {
+            "items": [
+                {
+                    "path": folder,
+                    "bucket": "awaiting_indexing",
+                    "next_phases": ["indexing"],
+                    "plan_key": plan_key,
+                }
+            ],
+            "total": 1,
+            "bucket_counts": {"awaiting_indexing": 1},
+            "phase_counts": {"indexing": 1},
+        },
+    )
+    monkeypatch.setattr(
+        runs_autodrive.utils,
+        "resolve_scope_input_path",
+        lambda _path: (folder, [folder]),
+    )
+    monkeypatch.setattr(
+        runs_autodrive,
+        "phases_with_work_from_repair_plan",
+        lambda _paths, _stages, dry_run=True, **kwargs: ["indexing"],
+    )
+    job_payload = json.dumps({"tool_id": "runs_auto_drive", "auto_drive_plan_key": plan_key})
+    monkeypatch.setattr(
+        runs_autodrive.db,
+        "get_jobs",
+        lambda **_k: [
+            {"id": 6266, "status": "failed", "queue_payload": job_payload},
+            {"id": 6254, "status": "failed", "queue_payload": job_payload},
+        ],
+    )
+    monkeypatch.setattr(runs_autodrive.db, "count_running_pipeline_jobs", lambda **_k: 0)
+    monkeypatch.setattr(
+        runs_autodrive,
+        "_enqueue_auto_bucket",
+        lambda bucket, **kwargs: (7001, 1, None),
+    )
+
+    blocked = runs_autodrive.auto_drive_runs(dry_run=False, max_repeats=2)
+    assert blocked["loop_detected"] == 1
+
+    fresh = runs_autodrive.auto_drive_runs(
+        dry_run=False, max_repeats=2, attempts_since_job_id=6300
+    )
+    assert fresh["loop_detected"] == 0
+    assert [s["job_id"] for s in fresh["scheduled"]] == [7001]
 
 
 def _bird_folder_buckets(overall_percent):
@@ -1268,6 +1362,9 @@ def _reset_drive(monkeypatch):
     """Silence broadcasts and reset the module-global drive state per test."""
     monkeypatch.setattr(runs_autodrive, "_broadcast_drive", lambda *a, **k: None)
     monkeypatch.setattr(runs_autodrive, "_config_server_loop_enabled", lambda: True)
+    # ``arm_drive`` reads the newest job id as the session watermark; keep that off the DB
+    # unless a test opts in by re-patching it.
+    monkeypatch.setattr(runs_autodrive, "_newest_job_id", lambda: None)
     with runs_autodrive._DRIVE_LOCK:
         runs_autodrive._DRIVE_STATE.update(
             {
@@ -1278,6 +1375,7 @@ def _reset_drive(monkeypatch):
                 "generate_captions": True,
                 "target_phases": None,
                 "started_at": None,
+                "started_job_id": None,
                 "last_tick_at": 0.0,
                 "last_result": None,
                 "stop_reason": None,
@@ -1446,6 +1544,81 @@ def test_drive_continues_when_all_outstanding_in_flight(monkeypatch):
     assert state["enabled"] is True
     assert state["idle_no_progress_ticks"] == 0
     assert state["last_result"]["last_tick_reason"] == "waiting_in_flight"
+
+
+def test_classify_drive_tick_waiting_when_enqueue_blocked():
+    """Candidates deferred by the in-flight cap are waiting, not a stall (#305)."""
+    health = runs_autodrive._bucket_health_from_counts({"awaiting_scoring": 6, "in_flight": 1})
+
+    assert runs_autodrive._classify_drive_tick(
+        outstanding=7, scheduled_n=0, candidates_n=6, health=health, enqueue_blocked=True
+    ) == (None, "waiting_in_flight")
+    # Without the flag the same shape is still a genuine no-progress tick.
+    assert runs_autodrive._classify_drive_tick(
+        outstanding=7, scheduled_n=0, candidates_n=6, health=health
+    ) == (None, "no_enqueue_progress")
+
+
+def test_drive_does_not_stall_while_in_flight_cap_defers_candidates(monkeypatch):
+    """A long-running job must not stop the drive after DRIVE_MAX_NOPROGRESS_TICKS (#305)."""
+    monkeypatch.setattr(
+        runs_autodrive,
+        "auto_drive_runs",
+        lambda **k: _drive_result(
+            scheduled=0,
+            outstanding=7,
+            candidates=6,
+            skipped=[{"reason": "in_flight_cap"}] * 6,
+            enqueue_blocked=True,
+            bucket_counts={"awaiting_scoring": 6, "in_flight": 1},
+        ),
+    )
+
+    runs_autodrive.start_drive(limit=5)
+
+    for _ in range(runs_autodrive.DRIVE_MAX_NOPROGRESS_TICKS + 2):
+        _force_next_tick()
+        runs_autodrive.drive_tick()
+
+    state = runs_autodrive.get_drive_state()
+    assert state["enabled"] is True
+    assert state["stop_reason"] is None
+    assert state["idle_no_progress_ticks"] == 0
+    assert state["last_result"]["last_tick_reason"] == "waiting_in_flight"
+
+
+def test_arm_drive_records_session_job_id_watermark(monkeypatch):
+    monkeypatch.setattr(runs_autodrive, "_newest_job_id", lambda: 6300)
+
+    state = runs_autodrive.arm_drive(limit=5)
+
+    assert state["started_job_id"] == 6300
+
+
+def test_drive_batch_passes_session_watermark_to_auto_drive_runs(monkeypatch):
+    monkeypatch.setattr(runs_autodrive, "_newest_job_id", lambda: 6300)
+    calls = []
+
+    def fake_auto(**kwargs):
+        calls.append(kwargs)
+        return _drive_result(scheduled=1, outstanding=5)
+
+    monkeypatch.setattr(runs_autodrive, "auto_drive_runs", fake_auto)
+
+    runs_autodrive.start_drive(limit=5)
+
+    assert calls[0]["attempts_since_job_id"] == 6300
+
+
+def test_drive_session_since_job_id_none_when_drive_disabled(monkeypatch):
+    monkeypatch.setattr(runs_autodrive, "_newest_job_id", lambda: 6300)
+    runs_autodrive.arm_drive(limit=5)
+    assert runs_autodrive._drive_session_since_job_id() == 6300
+
+    # A stale watermark from a finished drive must not loosen the guard for
+    # post-audit follow-ups that run outside a drive.
+    runs_autodrive.stop_drive("complete")
+    assert runs_autodrive._drive_session_since_job_id() is None
 
 
 def test_drive_stops_when_only_blocked_folders_remain(monkeypatch):
@@ -1705,7 +1878,7 @@ def test_auto_drive_explicit_paths_skip_library_reconcile_and_leaf_filter(monkey
         "_is_leaf_folder_for_autodrive",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("leaf filter should not run")),
     )
-    monkeypatch.setattr(runs_autodrive, "_recent_auto_attempt_counts", lambda _keys: {})
+    monkeypatch.setattr(runs_autodrive, "_recent_auto_attempt_counts", lambda _keys, **_k: {})
     monkeypatch.setattr(
         runs_autodrive,
         "_enqueue_auto_bucket",
