@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
+## [8.13.1] - 2026-07-23
+
+### Fixed
+- **Culling missing-score abort**: Selection/culling jobs with NULL `score_general` now fail instead of completing, so auto-drive post-audit follow-ups no longer spin forever while culling stays `not_started`.
+- **Post-audit follow-up loop guard**: Auto-drive post-audit re-enqueue respects `max_repeats` and skips when the same plan key is already in flight.
+- **score_general == 0**: Treat zero composite as valid for culling eligibility (issue #162); only NULL means finalize/scoring never wrote the aggregate.
+
 ## [8.13.0] - 2026-07-21
 
 ### Added

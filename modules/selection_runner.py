@@ -113,15 +113,18 @@ class SelectionRunner:
             if not target_ids:
                 return "empty_queue", images, images_for_phase
         if images:
+            # score_general == 0 is a legitimate composite (issue #162); only NULL
+            # means finalize/scoring never wrote the aggregate.
             valid_images = [
                 img for img in images
-                if img.get("score_general") is not None and img.get("score_general") > 0
+                if img.get("score_general") is not None
             ]
             missing_scores = len(images) - len(valid_images)
             if missing_scores > 0:
                 log(
-                    f"Warning: {missing_scores} images are missing valid score_general. "
-                    "They will be skipped. Ensure the Scoring phase has completed.",
+                    f"Warning: {missing_scores} images are missing score_general "
+                    "(NULL composite). They will be skipped. Run scoring finalize "
+                    "or re-score before culling.",
                     "WARNING",
                 )
             images = valid_images
@@ -220,6 +223,18 @@ class SelectionRunner:
                 )
                 with self._lock:
                     self._status_message = "Failed: missing prerequisites"
+                if job_id:
+                    # Do not mark completed — that re-triggers auto-drive post-audit
+                    # follow-ups while culling phase rows stay not_started.
+                    db.update_job_status(
+                        job_id,
+                        "failed",
+                        "Culling aborted: missing score_general (run scoring / finalize phantoms first)",
+                    )
+                    event_manager.broadcast_threadsafe("job_completed", {
+                        "job_id": job_id,
+                        "status": "failed",
+                    })
                 return
         except Exception as pe:
             log(f"Phase status eligibility check error: {pe}")
