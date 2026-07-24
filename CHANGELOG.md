@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`reset_failed_phase_rows_by_error.py`**: Maintenance tool (dry run by default) that resets `image_phase_status` rows failed with a named, already-fixed error back to `not_started`.
+
+### Fixed
+- **Drive-to-Complete false stall** (#305): Ticks where every candidate was deferred by `auto_drive.max_in_flight_jobs` now report `waiting_in_flight` instead of `no_enqueue_progress`, so a pipeline job longer than a few tick intervals no longer stops the drive as "stalled".
+- **Auto-drive loop guard strands folders** (#305): Each drive session gets a fresh `max_repeats` budget — terminal auto-drive jobs from earlier sessions no longer count, so a bug fixed between sessions can't block a folder forever. Active jobs still always count, preserving the in-flight double-enqueue guard.
+
 ### Roadmap (not yet released)
 
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):

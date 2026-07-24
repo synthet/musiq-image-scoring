@@ -381,7 +381,13 @@ def maybe_schedule_post_audit_followup(
     except Exception:
         pass
     if plan_key:
-        meta = (_recent_auto_attempt_counts([plan_key]).get(plan_key) or {})
+        meta = (
+            _recent_auto_attempt_counts(
+                [plan_key],
+                since_job_id=_drive_session_since_job_id(),
+            ).get(plan_key)
+            or {}
+        )
         last_status = _status(meta.get("last_status"))
         if last_status in ACTIVE_JOB_STATUSES:
             logger.info(
@@ -841,13 +847,49 @@ def _parse_payload(raw: Any) -> dict[str, Any]:
     return {}
 
 
-def _recent_auto_attempt_counts(plan_keys: Iterable[str], *, scan_limit: int = 500) -> dict[str, dict[str, Any]]:
+def _newest_job_id() -> Optional[int]:
+    """Newest job id, used as the drive-session watermark. ``None`` if unavailable."""
+    try:
+        rows = db.get_jobs(limit=1, offset=0) or []
+    except Exception:
+        logger.debug("runs_autodrive: newest job id query failed", exc_info=True)
+        return None
+    if not rows:
+        return None
+    job_id = _as_int(rows[0].get("id"), -1)
+    return job_id if job_id >= 0 else None
+
+
+def _drive_session_since_job_id() -> Optional[int]:
+    """Watermark for the *active* drive session, else ``None``.
+
+    Gated on ``enabled`` so a stale watermark left by a finished drive cannot loosen the
+    loop guard for callers that run outside a drive (e.g. post-audit follow-ups).
+    """
+    with _DRIVE_LOCK:
+        if not _DRIVE_STATE["enabled"]:
+            return None
+        watermark = _DRIVE_STATE.get("started_job_id")
+    return int(watermark) if watermark is not None else None
+
+
+def _recent_auto_attempt_counts(
+    plan_keys: Iterable[str],
+    *,
+    scan_limit: int = 500,
+    since_job_id: Optional[int] = None,
+) -> dict[str, dict[str, Any]]:
     """Per ``plan_key`` attempt accounting for the progress-gated loop guard.
 
     Returns for each key:
       - ``failure_attempts``     active + terminal-failure jobs (always count toward max_repeats)
       - ``completed_attempts``   completed jobs (count only when the folder made no progress)
       - ``last_completed_percent`` max ``auto_drive_overall_percent`` recorded across completed runs
+
+    ``since_job_id`` windows the scan to one drive session: **terminal** jobs at or below the
+    watermark are ignored, so a bug fixed between sessions cannot strand a folder forever.
+    **Active** jobs always count regardless of the watermark — that is what keeps the in-flight
+    double-enqueue guard honest when a run outlives the drive that started it.
     """
     wanted = {k for k in plan_keys if k}
     if not wanted:
@@ -878,6 +920,12 @@ def _recent_auto_attempt_counts(plan_keys: Iterable[str], *, scan_limit: int = 5
             continue
         status = str(row.get("status") or "")
         norm = _status(status)
+        if (
+            since_job_id is not None
+            and norm not in ACTIVE_JOB_STATUSES
+            and _as_int(row.get("id")) <= int(since_job_id)
+        ):
+            continue
         entry = counts[key]
         if _job_counts_toward_loop_guard(status):
             entry["failure_attempts"] += 1
@@ -1617,6 +1665,7 @@ def auto_drive_runs(
     max_repeats: int = 2,
     generate_captions: bool = True,
     force: bool = False,
+    attempts_since_job_id: Optional[int] = None,
 ) -> dict[str, Any]:
     limit = max(1, min(_as_int(limit, 50), 500))
     max_repeats = max(1, min(_as_int(max_repeats, 2), 20))
@@ -1714,7 +1763,10 @@ def auto_drive_runs(
             }
         )
 
-    attempts = _recent_auto_attempt_counts([p["plan_key"] for p in prepared])
+    attempts = _recent_auto_attempt_counts(
+        [p["plan_key"] for p in prepared],
+        since_job_id=attempts_since_job_id,
+    )
 
     scheduled: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
@@ -1905,6 +1957,7 @@ def auto_drive_runs(
         "total_outstanding": planned["total"],
         "loop_detected": loop_detected,
         "cooldown_skipped": cooled_out,
+        "enqueue_blocked": bool(enqueue_blocked),
         "skip_reason_counts": skip_reason_counts,
         "bucket_counts": bucket_counts,
         "phase_counts": planned.get("phase_counts", {}),
@@ -1963,6 +2016,9 @@ _DRIVE_STATE: Dict[str, Any] = {
     "generate_captions": True,
     "target_phases": None,  # None => full pipeline (includes bird_species)
     "started_at": None,
+    # Newest job id at arm time. Terminal auto-drive jobs at or below it belong to an
+    # earlier session and no longer count toward max_repeats (see _recent_auto_attempt_counts).
+    "started_job_id": None,
     "last_tick_at": 0.0,
     "last_result": None,
     "last_batch_error": None,
@@ -2023,12 +2079,19 @@ def _classify_drive_tick(
     scheduled_n: int,
     candidates_n: int,
     health: Dict[str, int],
+    enqueue_blocked: bool = False,
 ) -> tuple[Optional[str], str]:
     """Return (stop_reason or None, last_tick_reason)."""
     if outstanding <= 0:
         return "complete", "complete"
     if scheduled_n > 0:
         return None, "queued"
+    # Nothing was queued because ``max_in_flight_jobs`` deferred every candidate. That is
+    # normal throttling while a pipeline job runs, not a stall — reporting it as
+    # ``no_enqueue_progress`` would increment idle_no_progress_ticks and stop the drive
+    # after DRIVE_MAX_NOPROGRESS_TICKS for any job longer than a few tick intervals.
+    if enqueue_blocked:
+        return None, "waiting_in_flight"
     in_flight = _as_int(health.get("in_flight_folders"))
     blocked = _as_int(health.get("blocked_folders"))
     schedulable = _as_int(health.get("schedulable_folders"))
@@ -2130,6 +2193,7 @@ def arm_drive(
     This is safe for API handlers that must return quickly. Use
     ``kick_drive_batch_async(force=True)`` to enqueue work without blocking.
     """
+    started_job_id = _newest_job_id()  # read before taking the lock (DB round-trip)
     with _DRIVE_LOCK:
         _DRIVE_STATE.update(
             {
@@ -2140,6 +2204,7 @@ def arm_drive(
                 "generate_captions": bool(generate_captions),
                 "target_phases": list(target_phases) if target_phases else None,
                 "started_at": time.time(),
+                "started_job_id": started_job_id,
                 "last_tick_at": 0.0,
                 "last_result": None,
                 "last_batch_error": None,
@@ -2242,6 +2307,7 @@ def _run_drive_batch(*, force: bool = False) -> Optional[Dict[str, Any]]:
                 "max_repeats": _DRIVE_STATE["max_repeats"],
                 "generate_captions": _DRIVE_STATE["generate_captions"],
                 "target_phases": _DRIVE_STATE["target_phases"],
+                "attempts_since_job_id": _DRIVE_STATE["started_job_id"],
             }
 
         logger.info(
@@ -2271,6 +2337,7 @@ def _run_drive_batch(*, force: bool = False) -> Optional[Dict[str, Any]]:
             scheduled_n=scheduled_n,
             candidates_n=candidates_n,
             health=health,
+            enqueue_blocked=bool(result.get("enqueue_blocked")),
         )
         summary = _summarize_result(result, last_tick_reason=tick_reason)
         try:
