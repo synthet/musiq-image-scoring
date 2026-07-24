@@ -1946,3 +1946,72 @@ def test_maybe_schedule_post_audit_followup_skips_when_pipeline_clean(monkeypatc
         {"tool_id": "runs_auto_drive", "scope_paths": ["/mnt/d/foo"]},
         {"status": "clean", "pipeline_status": "clean", "stage_queues": {"culling": {"total": 0}}},
     ) is None
+
+
+def test_maybe_schedule_post_audit_followup_skips_loop_detected(monkeypatch):
+    """Repeated no-op completions must not keep re-enqueueing the same plan_key."""
+    monkeypatch.setattr(
+        runs_autodrive,
+        "_recent_auto_attempt_counts",
+        lambda keys, **kwargs: {
+            "deadbeef": {
+                "failure_attempts": 0,
+                "interrupted_attempts": 0,
+                "completed_attempts": 3,
+                "last_completed_percent": 0.0,
+                "last_run_id": 99,
+                "last_status": "completed",
+            }
+        },
+    )
+    monkeypatch.setattr(
+        runs_autodrive, "_enqueue_auto_bucket", lambda *a, **k: (_ for _ in ()).throw(AssertionError("enqueue"))
+    )
+    follow_id = runs_autodrive.maybe_schedule_post_audit_followup(
+        1,
+        {
+            "tool_id": "runs_auto_drive",
+            "scope_paths": ["/mnt/d/foo"],
+            "target_phases": ["culling", "keywords"],
+            "auto_drive_plan_key": "deadbeef",
+        },
+        {
+            "pipeline_status": "issues_remaining",
+            "stage_queues": {"culling": {"total": 1}},
+        },
+    )
+    assert follow_id is None
+
+
+def test_maybe_schedule_post_audit_followup_skips_plan_key_in_flight(monkeypatch):
+    monkeypatch.setattr(
+        runs_autodrive,
+        "_recent_auto_attempt_counts",
+        lambda keys, **kwargs: {
+            "inflight": {
+                "failure_attempts": 1,
+                "interrupted_attempts": 0,
+                "completed_attempts": 0,
+                "last_completed_percent": 0.0,
+                "last_run_id": 100,
+                "last_status": "queued",
+            }
+        },
+    )
+    monkeypatch.setattr(
+        runs_autodrive, "_enqueue_auto_bucket", lambda *a, **k: (_ for _ in ()).throw(AssertionError("enqueue"))
+    )
+    follow_id = runs_autodrive.maybe_schedule_post_audit_followup(
+        1,
+        {
+            "tool_id": "runs_auto_drive",
+            "scope_paths": ["/mnt/d/foo"],
+            "target_phases": ["culling"],
+            "auto_drive_plan_key": "inflight",
+        },
+        {
+            "pipeline_status": "issues_remaining",
+            "stage_queues": {"culling": {"total": 5}},
+        },
+    )
+    assert follow_id is None

@@ -366,6 +366,44 @@ def maybe_schedule_post_audit_followup(
     except ValueError:
         start_idx = 0
     next_phases = target[start_idx:]
+    # Post-audit follow-ups bypass the drive-loop max_repeats gate; without a local
+    # bound they re-enqueue forever when a phase completes as a no-op (e.g. culling
+    # aborting on NULL score_general while phase rows stay not_started).
+    plan_key = str(payload.get("auto_drive_plan_key") or _plan_key(resolved, next_phases) or "")
+    max_repeats = max(1, min(_as_int(_DRIVE_STATE.get("max_repeats"), 2), 20))
+    try:
+        from modules.config import get_config_value
+
+        max_repeats = max(
+            1,
+            min(_as_int(get_config_value("auto_drive.max_repeats", default=max_repeats), max_repeats), 20),
+        )
+    except Exception:
+        pass
+    if plan_key:
+        meta = (_recent_auto_attempt_counts([plan_key]).get(plan_key) or {})
+        last_status = _status(meta.get("last_status"))
+        if last_status in ACTIVE_JOB_STATUSES:
+            logger.info(
+                "runs_autodrive: post_audit follow-up skipped job_id=%s scope=%s reason=plan_key_in_flight plan_key=%s",
+                job_id,
+                resolved,
+                plan_key,
+            )
+            return None
+        completed_attempts = _as_int(meta.get("completed_attempts"))
+        failure_attempts = _as_int(meta.get("failure_attempts"))
+        if (completed_attempts + failure_attempts) >= max_repeats:
+            logger.info(
+                "runs_autodrive: post_audit follow-up skipped job_id=%s scope=%s "
+                "reason=loop_detected attempts=%s max_repeats=%s plan_key=%s",
+                job_id,
+                resolved,
+                completed_attempts + failure_attempts,
+                max_repeats,
+                plan_key,
+            )
+            return None
     try:
         follow_id, _, err = _enqueue_auto_bucket(
             {
