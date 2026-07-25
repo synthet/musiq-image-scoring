@@ -4143,6 +4143,20 @@
             "description": "Minimum technical score"
           },
           {
+            "name": "min_clip_quality_v0",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1,
+              "minimum": 0,
+              "description": "Minimum CLIP quality score (clip_quality_v0)",
+              "default": 0,
+              "title": "Min Clip Quality V0"
+            },
+            "description": "Minimum CLIP quality score (clip_quality_v0)"
+          },
+          {
             "name": "folder_path",
             "in": "query",
             "required": false,
@@ -4996,6 +5010,18 @@
               "minimum": 0,
               "default": 0,
               "title": "Min Score Technical"
+            }
+          },
+          {
+            "name": "min_clip_quality_v0",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0,
+              "title": "Min Clip Quality V0"
             }
           },
           {
@@ -6189,6 +6215,69 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AgentCullRecommendationIdsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/culling/agent-review/groups/{group_id}/delete-approved": {
+      "post": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Permanently delete files + DB records for operator-approved removals",
+        "description": "IRREVERSIBLE. Deletes the source file, thumbnails, and DB record for every\noperator-approved remove candidate in a validated group. Requires ``confirm: true``.",
+        "operationId": "delete_approved_agent_cull_group_api_culling_agent_review_groups__group_id__delete_approved_post",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCullDeleteApprovedRequest"
               }
             }
           }
@@ -9151,60 +9240,6 @@
         }
       }
     },
-    "/api/ipc/bridge": {
-      "post": {
-        "tags": [
-          "Vexlum Scoring API"
-        ],
-        "summary": "Electron IPC -> FastAPI bridge",
-        "description": "Bridges Electron-style IPC messages into FastAPI handlers so the desktop\n        main process can forward a single contract to Python.\n\n        Supported channels:\n        - `pipeline:submit` -> POST /api/pipeline/submit\n        - `pipeline:phase:skip` -> POST /api/pipeline/phase/skip\n        - `pipeline:phase:retry` -> POST /api/pipeline/phase/retry\n        - `tasks:active` -> GET /api/tasks/active\n        - `jobs:queue` -> GET /api/jobs/queue\n        - `folders:tree` -> GET /api/folders/tree\n        - `folders:phase-status` -> GET /api/folders/phase-status",
-        "operationId": "ipc_bridge_api_ipc_bridge_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IpcBridgeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IpcBridgeResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "404": {
-            "description": "Not Found - Resource not found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "description": "Service Unavailable - Runner not initialized"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/maintenance/start": {
       "post": {
         "tags": [
@@ -9357,6 +9392,60 @@
           },
           "503": {
             "description": "Service Unavailable - Runner not initialized"
+          }
+        }
+      }
+    },
+    "/api/ipc/bridge": {
+      "post": {
+        "tags": [
+          "Vexlum Scoring API"
+        ],
+        "summary": "Electron IPC -> FastAPI bridge",
+        "description": "Bridges Electron-style IPC messages into FastAPI handlers so the desktop\n        main process can forward a single contract to Python.\n\n        Supported channels:\n        - `pipeline:submit` -> POST /api/pipeline/submit\n        - `pipeline:phase:skip` -> POST /api/pipeline/phase/skip\n        - `pipeline:phase:retry` -> POST /api/pipeline/phase/retry\n        - `tasks:active` -> GET /api/tasks/active\n        - `jobs:queue` -> GET /api/jobs/queue\n        - `folders:tree` -> GET /api/folders/tree\n        - `folders:phase-status` -> GET /api/folders/phase-status",
+        "operationId": "ipc_bridge_api_ipc_bridge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IpcBridgeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IpcBridgeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "404": {
+            "description": "Not Found - Resource not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Service Unavailable - Runner not initialized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
@@ -9515,6 +9604,18 @@
               "minimum": 0,
               "default": 0,
               "title": "Min Score Technical"
+            }
+          },
+          {
+            "name": "min_clip_quality_v0",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0,
+              "title": "Min Clip Quality V0"
             }
           },
           {
@@ -9880,6 +9981,18 @@
             }
           },
           {
+            "name": "min_clip_quality_v0",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0,
+              "title": "Min Clip Quality V0"
+            }
+          },
+          {
             "name": "folder_path",
             "in": "query",
             "required": false,
@@ -9998,6 +10111,22 @@
   },
   "components": {
     "schemas": {
+      "AgentCullDeleteApprovedRequest": {
+        "properties": {
+          "actor": {
+            "type": "string",
+            "title": "Actor",
+            "default": "operator"
+          },
+          "confirm": {
+            "type": "boolean",
+            "title": "Confirm",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "AgentCullDeleteApprovedRequest"
+      },
       "AgentCullDiscoverRequest": {
         "properties": {
           "folder_path": {
@@ -10732,7 +10861,7 @@
           "path": {
             "type": "string",
             "title": "Path",
-            "description": "Absolute folder path matching a cached ``folders.path``."
+            "description": "Absolute folder path matching a cached folders.path."
           }
         },
         "type": "object",
@@ -10740,7 +10869,7 @@
           "path"
         ],
         "title": "DeleteFolderCacheRequest",
-        "description": "Remove a folder subtree from the ``folders`` cache when no images reference it."
+        "description": "Remove a folder subtree from the folders cache when no images reference it."
       },
       "DiagnosticsResponse": {
         "properties": {
@@ -12104,6 +12233,12 @@
             "title": "Generate Captions",
             "description": "Generate captions during keywords runs.",
             "default": true
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "description": "When true with explicit folder_paths, bypass the loop guard for a manual per-folder queue (Drive batch still respects max_repeats).",
+            "default": false
           }
         },
         "additionalProperties": false,

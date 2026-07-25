@@ -84,9 +84,9 @@ async def source_image_endpoint(
     if is_raw:
         img = thumbnails.extract_embedded_jpeg(file_path, min_size=1000)
         if img:
-            from PIL import ImageOps
-            img = ImageOps.exif_transpose(img)
-            
+            # Stamp Orientation from the RAW when the embedded JPEG lacks it, then bake pixels.
+            img = thumbnails.bake_orientation(img, file_path)
+
             if img.width > 1000:
                 jpeg_bytes = io.BytesIO()
                 img.save(jpeg_bytes, format="JPEG", quality=95)

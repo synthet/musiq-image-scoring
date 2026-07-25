@@ -88,7 +88,7 @@ Side-effecting dispatch (e.g. **`support.export_debug_bundle`**) requires **`con
 
 ### fff file search (optional, project MCP)
 
-**[fff](https://github.com/dmtrKovalenko/fff)** is a fast, frecency-ranked file search MCP for agents — tools **`ffgrep`**, **`fffind`**, **`fff-multi-grep`**. **Do not** register at user `~/.cursor/mcp.json` — fff exits if launched from `$HOME` or a filesystem root. Use **project** `.cursor/mcp.json` with explicit **`cwd`** and **`args`** PATH to a git repo. Templates: [`.cursor/mcp.example.json`](.cursor/mcp.example.json), [`.cursor/mcp.pair.example.json`](.cursor/mcp.pair.example.json) (`fff-be`, `fff-gallery`).
+**[fff](https://github.com/dmtrKovalenko/fff)** is a fast, frecency-ranked file search MCP for agents — tools **`grep`**, **`find_files`**, **`multi_grep`**. **Do not** register at user `~/.cursor/mcp.json` — fff exits if launched from `$HOME` or a filesystem root. Use **project** `.cursor/mcp.json` with explicit **`cwd`** and **`args`** PATH to a git repo. Templates: [`.cursor/mcp.example.json`](.cursor/mcp.example.json), [`.cursor/mcp.pair.example.json`](.cursor/mcp.pair.example.json) (`fff-be`, `fff-gallery`).
 
 | Install | Command |
 |---------|---------|
@@ -104,8 +104,23 @@ Side-effecting dispatch (e.g. **`support.export_debug_bundle`**) requires **`con
 }
 ```
 
-**Agent prompt (recommended):** For file search or grep in the current git-indexed directory, prefer **fff** MCP tools over built-in grep roundtrips. CLI guidance: [`.cursor/skills/agent-search/SKILL.md`](.cursor/skills/agent-search/SKILL.md) (tool selection + fff when connected).
+**Call shapes (check schema before calling):**
 
+```text
+grep({ query: "*.{py,ts,tsx} exif_transpose" })
+find_files({ query: "orientation" })
+multi_grep({ patterns: ["exif_transpose", "image-orientation"], constraints: "*.{py,ts,tsx}" })
+```
+
+| Tool | Required params |
+|------|-----------------|
+| `grep` | `query: string` (file constraints go **inline** in the query, e.g. `"*.py thumbnail"`) |
+| `find_files` | `query: string` |
+| `multi_grep` | `patterns: string[]`; optional `constraints: string` (e.g. `"*.{py,ts,tsx}"`) |
+
+**Anti-patterns:** do not pass `queries`; do not pass a separate `constraints` argument to **`grep`** (only `query`); on **`multi_grep`**, do not pass `constraints` as an array or object (must be a single string). Stale names `ffgrep` / `fffind` / `fff-multi-grep` are obsolete.
+
+**Agent prompt (recommended):** For file search or grep in the current git-indexed directory, prefer **fff** MCP tools over built-in grep roundtrips. CLI guidance: [`.cursor/skills/agent-search/SKILL.md`](.cursor/skills/agent-search/SKILL.md) (tool selection + fff when connected).
 ### Graphify (optional, architecture graph)
 
 **[Graphify](https://github.com/Graphify-Labs/graphify)** turns the repo into a local AST knowledge graph (no vector store). Soft integration only — [`.cursor/rules/graphify.mdc`](.cursor/rules/graphify.mdc) has **`alwaysApply: false`**. Agent skill: [`.cursor/skills/graphify/SKILL.md`](.cursor/skills/graphify/SKILL.md). Do **not** run stock `graphify cursor install` / `graphify claude install` (those enable always-on nudges/hooks).
@@ -273,7 +288,7 @@ The MCP server registers **53** tools (see [`modules/mcp_server.py`](modules/mcp
 
 | Tool | Description |
 |------|-------------|
-| `execute_code` | `exec` in WebUI process. Requires **`is-be-webui`**, WebUI running, and **`ENABLE_MCP_EXECUTE_CODE=1`**. Assign to `result` to return a value. |
+| `execute_code` | `exec` in WebUI process. Requires **`is-be-live`**, WebUI running, and **`ENABLE_MCP_EXECUTE_CODE=1`**. Assign to `result` to return a value. |
 
 ## Common Workflows
 
@@ -326,13 +341,13 @@ The MCP server registers **53** tools (see [`modules/mcp_server.py`](modules/mcp
 → `dispatch("diagnostics.check_database_health", {})` → `dispatch("diagnostics.validate_config", {})`
 
 **"How fast is processing?"**
-→ **`search`** then **`dispatch("jobs.get_runner_status", {})`** or **`dispatch("jobs.get_recent_jobs", {})`** on **`is-be-mcp`** / **`is-be-webui`**
+→ **`search`** then **`dispatch("jobs.get_runner_status", {})`** or **`dispatch("jobs.get_recent_jobs", {})`** on **`is-be-mcp`** (optional **`is-be-live`** when WebUI SSE is attached)
 
 **"Find images with X property"**
 → **`search`** then **`dispatch("data.query_images", …)`** / **`dispatch("data.get_image_details", …)`** on compact MCP
 
 **"What's in the database?"**
-→ **`is-be-webui`**: `get_database_stats` → `get_folder_tree` → `get_stacks_summary` (not yet compact dispatch)
+→ Prefer compact: `dispatch("diagnostics.check_database_health", {})`, `dispatch("data.get_embedding_stats", {})`, `dispatch("data.query_images", …)`. Legacy `get_database_stats` / `get_folder_tree` / `get_stacks_summary` are not on compact — use **`is-be-live`** with **`MCP_SSE_PROFILE=full`**, or `data.execute_sql` after `data.get_db_schema`.
 
 ## Git Configuration — Do Not Modify
 
@@ -345,7 +360,7 @@ The MCP server registers **53** tools (see [`modules/mcp_server.py`](modules/mcp
 - **Safety**: `execute_sql` only allows SELECT queries. Dangerous operations are blocked.
 - **Performance**: Some tools (like `validate_file_paths`) can be slow on large datasets. Use `limit` parameter.
 - **Real-time**: `get_runner_status` and `get_pipeline_stats` show current state, others query historical data.
-- **execute_code**: Only works when Cursor uses **`is-be-webui`**, Gradio context is present, and **`ENABLE_MCP_EXECUTE_CODE=1`**. Assign to `result` in your code to return a value. Dev/debug use only.
+- **execute_code**: Only works when Cursor uses **`is-be-live`**, Gradio context is present, and **`ENABLE_MCP_EXECUTE_CODE=1`**. Assign to `result` in your code to return a value. Dev/debug use only.
 
 ## Tool Availability
 

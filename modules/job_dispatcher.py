@@ -310,9 +310,41 @@ class JobDispatcher:
 
     @staticmethod
     def _skip_empty_phase(job_id: int, phase_code: str) -> str:
+        """Mark an empty phase completed without completing later stages.
+
+        ``set_job_phase_state(..., completed)`` advances the next pending phase to
+        ``running``. Calling ``update_job_status(..., completed)`` afterward would
+        incorrectly complete that newly-running next phase (see multi-phase sync in
+        ``db.update_job_status``). Keep the job ``running`` when phases remain so
+        the dispatcher continuation tick can start the next stage.
+        """
+        log_msg = f"Phase {phase_code}: no stale/missing work"
         try:
             db.set_job_phase_state(job_id, phase_code, "completed")
-            db.update_job_status(job_id, "completed", f"Phase {phase_code}: no stale/missing work")
+            phases = db.get_job_phases(job_id) or []
+            terminal = {"completed", "skipped", "canceled", "cancelled"}
+            remaining = [
+                p for p in phases
+                if (p.get("state") or "").strip().lower() not in terminal
+            ]
+            if remaining:
+                active = next(
+                    (
+                        p for p in remaining
+                        if (p.get("state") or "").strip().lower() == "running"
+                    ),
+                    remaining[0],
+                )
+                db.update_job_status(
+                    job_id,
+                    "running",
+                    log_msg,
+                    current_phase=active.get("phase_code"),
+                    next_phase_index=int(active.get("phase_order") or 0),
+                    runner_state="running",
+                )
+            else:
+                db.update_job_status(job_id, "completed", log_msg)
         except Exception:
             logger.exception("Failed to skip empty phase job_id=%s phase=%s", job_id, phase_code)
         return "PhaseSkipped"

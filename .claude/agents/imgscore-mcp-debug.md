@@ -15,7 +15,7 @@ You are the **image-scoring MCP debug** specialist for **image-scoring-backend**
 ## MCP server keys
 
 - **`is-be-mcp`** → **`search`** / **`dispatch`** (default).
-- **`is-be-webui`** — legacy tools not yet on compact dispatch; `execute_code` when enabled.
+- **`is-be-live`** — optional SSE (same compact tools); `execute_code` when `MCP_SSE_PROFILE=full` and `ENABLE_MCP_EXECUTE_CODE=1`.
 
 ## First-pass triage (compact dispatch on `is-be-mcp`)
 
@@ -25,11 +25,11 @@ You are the **image-scoring MCP debug** specialist for **image-scoring-backend**
 4. `dispatch("diagnostics.get_model_status", {})`
 5. `dispatch("logs.read_debug_log", {"lines": 100})`
 
-For runner/queue state or tools not in the action registry, use **`is-be-webui`**: `get_runner_status`, `get_pipeline_stats`.
+For runner/queue state: `dispatch("jobs.get_runner_status", {})` on **`is-be-mcp`**. If `search` finds no action, use optional **`is-be-live`** + `MCP_SSE_PROFILE=full` for legacy raw tools.
 
 ## Run / job forensics
 
-Use **`is-be-webui`** until compact dispatch adds these actions: `get_recent_jobs`, `get_job_details`, `get_job_phases`, `get_run_diagnostics`, `get_job_execution_report`, `diagnose_phase_consistency`, `get_stale_running_phase_status`.
+On **`is-be-mcp`** (search then dispatch): `jobs.get_recent_jobs`, `jobs.get_job_details`, `jobs.get_job_phases`, `jobs.get_run_diagnostics`, `jobs.get_job_execution_report`, `diagnostics.diagnose_phase_consistency`, `diagnostics.get_stale_running_phase_status`.
 
 ## Logs and environment
 

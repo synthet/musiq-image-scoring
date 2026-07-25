@@ -103,6 +103,7 @@ See [commands-requiring-confirmation.md](../agent-cli-hub/references/commands-re
 - **Import errors on Windows Python:** switch to WSL + `tf` venv.
 - **Wrong pytest venv for `-m wsl`:** use `run_wsl_tests.sh`, not `tf` venv.
 - **Doctor fails on DB:** document blocker; may need `docker compose up -d`.
+- **Port 7860 listens but health fails (Connection reset / refused):** `docker ps` may show `image-scoring-webui` **Up** and the host socket still bound while the app inside is dead; `webui.lock` alone is not liveness evidence. Check `docker ps -a --filter name=image-scoring-webui`, `docker logs --tail 40 image-scoring-webui`, then `docker restart image-scoring-webui`. Poll until logs show `Uvicorn running on http://0.0.0.0:7860` and `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7860/api/health` returns `200` (startup often takes 2–3 minutes for model/DB init — do not conclude failure on the first refusal).
 
 ## Verification checklist
 

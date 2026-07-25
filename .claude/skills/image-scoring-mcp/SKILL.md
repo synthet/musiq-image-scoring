@@ -1,6 +1,6 @@
 ---
 name: image-scoring-mcp
-description: Vexlum Scoring MCP — compact search+dispatch on is-be-mcp / is-be-webui and gallery is-ui-mcp / is-ui-live.
+description: Vexlum Scoring MCP — compact search+dispatch on is-be-mcp / is-be-live and gallery is-ui-mcp / is-ui-live.
 ---
 
 # Vexlum Scoring MCP server
@@ -13,11 +13,11 @@ description: Vexlum Scoring MCP — compact search+dispatch on is-be-mcp / is-be
 2. **Always `search` before `dispatch`** when the action is not already known. Use `search(..., include_schemas=True)` to read required args.
 3. **`dispatch` takes `action_id` strings** in the form `category.name` (e.g. `diagnostics.get_error_summary`). Bare legacy names like `execute_sql` are accepted when they match `legacy_tool_name` in the registry.
 4. **On `unknown_action`**, read `details.suggestions` and `details.hint` in the error envelope — do not guess another `category.tool` id from AGENTS.md.
-5. **Writes / maintenance / `execute_code`** are not on compact stdio. Use **`is-be-webui`** with `MCP_SSE_PROFILE=full` for the legacy ~54-tool surface.
+5. **Writes / maintenance / `execute_code`** are not on compact stdio. Use **`is-be-live`** with `MCP_SSE_PROFILE=full` for the legacy ~54-tool surface.
 
 ## Setup
 
-Copy [`.cursor/mcp.example.json`](../../../.cursor/mcp.example.json) → `.cursor/mcp.json`. Attach **`is-be-mcp`** (WSL + `~/.venvs/tf` via `run_mcp_compact_wsl.bat`); add **`is-be-webui`** when WebUI is running.
+Copy [`.cursor/mcp.example.json`](../../../.cursor/mcp.example.json) → `.cursor/mcp.json`. Attach **`is-be-mcp`** (WSL + `~/.venvs/tf` via `run_mcp_compact_wsl.bat`); add **`is-be-live`** when WebUI is running.
 
 ## Preferred workflow (backend)
 
@@ -67,7 +67,7 @@ Regenerate from overlay: `python scripts/generate_mcp_tool_inventory.py --update
 | Wrong | Right |
 |-------|-------|
 | `dispatch("execute_sql", …)` without registry | `dispatch("data.execute_sql", …)` or legacy name `execute_sql` (resolved automatically) |
-| `dispatch("data.execute_sql", …)` when not in registry | Run registry update; or `is-be-webui` full profile |
+| `dispatch("data.execute_sql", …)` when not in registry | Run registry update; or `is-be-live` full profile |
 | `dispatch("diagnostics.diagnose_phase_consistency", {"folder_path": "…"})` only | **Must include `image_id`**; use `data.query_images` to find candidates first |
 | `jobs.get_failed_images` for one image job trace | `jobs.get_image_pipeline_failures` with `image_id` or `file_path` |
 | Raw tool name from AGENTS.md inventory | `search("…")` → use returned `action_id` |
@@ -77,7 +77,7 @@ Regenerate from overlay: `python scripts/generate_mcp_tool_inventory.py --update
 | Key | Tools |
 |-----|-------|
 | **`is-be-mcp`** | **`search`**, **`dispatch`** (stdio; WSL launcher default) |
-| **`is-be-webui`** | Same compact tools via SSE; **`MCP_SSE_PROFILE=full`** for legacy raw tools + `execute_code` |
+| **`is-be-live`** | Same compact tools via SSE; **`MCP_SSE_PROFILE=full`** for legacy raw tools + `execute_code` |
 | **`is-ui-mcp`** | Gallery — **`search`**, **`dispatch`** |
 | **`is-ui-live`** | Gallery SSE — live IPC when Electron dev is running |
 

@@ -17,10 +17,9 @@ mcps/<server>/tools/<tool>.json
 
 Examples:
 
-- `mcps/project-0-image-scoring-is-be-data/tools/query_images.json`
-- `mcps/project-0-image-scoring-is-be-mcp/tools/search.json`
-- `mcps/project-0-image-scoring-is-be-mcp/tools/dispatch.json`
-- `mcps/project-1-image-scoring-is-ui-api/tools/api_health.json`
+- `mcps/project-0-image-scoring-backend-is-be-mcp/tools/search.json`
+- `mcps/project-0-image-scoring-backend-is-be-mcp/tools/dispatch.json`
+- `mcps/project-1-image-scoring-gallery-is-ui-mcp/tools/search.json`
 
 ## What to Check
 
@@ -30,11 +29,23 @@ Examples:
 
 ## Applies To
 
-**Backend** (project `.cursor/mcp.json`): **`is-be-mcp`** (`search`, `dispatch`), **`is-be-router`**, **`is-be-diag`**, **`is-be-jobs`**, **`is-be-data`**, **`is-be-maint`**, **`is-be-webui`**, **`is-be-pg`**
+**Backend** (project `.cursor/mcp.json` defaults):
 
-**Gallery** (project `.cursor/mcp.json`): **`is-ui-router`**, **`is-ui-local`**, **`is-ui-api`**, **`is-ui-live`**
+- **`is-be-mcp`** (`search`, `dispatch`, `sse_status`)
+- Optional **`is-be-live`** (SSE when WebUI is running)
+- Optional **`fff-be`**, **`graphify-be`**
 
-User-level: **`github`**, **`subagent-orchestrator`**, **`mcp-firebird`**, etc.
+Legacy split keys (`is-be-router`, `is-be-diag`, `is-be-jobs`, `is-be-data`, `is-be-maint`, `is-be-pg`) are **debug-only** — not in default `mcp.example.json`.
+
+**Gallery** (project `.cursor/mcp.json` defaults):
+
+- **`is-ui-mcp`** (`search`, `dispatch`, `sse_status`)
+- Optional **`is-ui-live`**
+- Optional **`fff-gallery`**, **`graphify-gallery`**
+
+Debug-only (not default): `is-ui-router`, `is-ui-local`, `is-ui-api`.
+
+User-level: **`github`**, **`subagent-orchestrator`**, etc.
 
 ## Why
 

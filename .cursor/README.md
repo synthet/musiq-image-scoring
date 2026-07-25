@@ -18,7 +18,7 @@ Project-local configuration for Cursor IDE agents. **Authority:** [AGENTS.md](..
 
 1. Copy **`mcp.example.json`** → **`.cursor/mcp.json`** (or merge from `mcp.pair.example.json` in multi-root).
 2. Attach **`is-be-mcp`** (stdio) for **`search`** + **`dispatch`**.
-3. Optional **`is-be-webui`** (SSE) when WebUI is running — `execute_code` when `ENABLE_MCP_EXECUTE_CODE=1`.
+3. Optional **`is-be-live`** (SSE) when WebUI is running — `execute_code` when `ENABLE_MCP_EXECUTE_CODE=1`.
 
 Legacy profile servers (`is-be-diag`, `is-be-jobs`, `is-be-data`, `is-be-router`, `is-be-full`) are **not** in the default config. Use compact dispatch or run `scripts/batch/run_mcp_server_windows.bat` with `MCP_TOOL_PROFILE` for debug-only stdio profiles.
 

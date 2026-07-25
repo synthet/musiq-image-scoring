@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-07-23] create | CI gates and coverage baseline
+
+Added [testing/CI_GATES.md](testing/CI_GATES.md) (blocking vs advisory workflows, local reproduction) and [testing/COVERAGE_BASELINE.md](testing/COVERAGE_BASELINE.md); updated [testing/INDEX.md](testing/INDEX.md). Backs `backend-tests.yml` (fast pytest smoke + `api-contract` route parity) and the non-blocking `coverage-artifacts.yml`. Issues #196 / #195.
+
 ## [2026-07-22] edit | MCP usage/reliability audit
 
 Published [reports/MCP_USAGE_RELIABILITY_AUDIT_2026-07.md](reports/MCP_USAGE_RELIABILITY_AUDIT_2026-07.md): transcript heatmap (SQL-heavy, skip-search), live probe matrix, fix for compact_worker `datetime` JSON serialization crashes. Updated [reports/INDEX.md](reports/INDEX.md).

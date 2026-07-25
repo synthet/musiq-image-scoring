@@ -54,7 +54,7 @@ Never paste full `config.json` or `.env` if they may contain credentials.
 
 ## fff MCP (when connected)
 
-When **project** **`fff-be`** MCP is connected (see [AGENTS.md § fff](../../../../AGENTS.md)), prefer `ffgrep` / `fffind` / `fff-multi-grep` for repeated repo search instead of unbounded shell grep loops. Still cap what you paste into agent responses.
+When **project** **`fff-be`** MCP is connected (see [AGENTS.md § fff](../../../../AGENTS.md)), prefer `grep` / `find_files` / `multi_grep` for repeated repo search instead of unbounded shell grep loops. Use `patterns: string[]` and string `constraints` on `multi_grep` (never `queries` or array constraints). Still cap what you paste into agent responses.
 
 ## Dry-run / check modes
 

@@ -4,9 +4,9 @@ This document tracks the tools registered in [`modules/mcp_server.py`](../module
 
 ## Connection modes
 
-- **Backend:** **`is-be-mcp`** (default), optional **`is-be-webui`** (SSE) — copy [`.cursor/mcp.example.json`](../.cursor/mcp.example.json) → `.cursor/mcp.json`
+- **Backend:** **`is-be-mcp`** (default), optional **`is-be-live`** (SSE) — copy [`.cursor/mcp.example.json`](../.cursor/mcp.example.json) → `.cursor/mcp.json`
 - **Gallery (sibling repo):** **`is-ui-router`**, **`is-ui-local`**, **`is-ui-api`**, **`is-ui-live`** — see gallery `mcp.example.json`
-- **`execute_code`**: requires **`is-be-webui`** and `ENABLE_MCP_EXECUTE_CODE=1` on the WebUI process.
+- **`execute_code`**: requires **`is-be-live`** and `ENABLE_MCP_EXECUTE_CODE=1` on the WebUI process.
 
 ## Postgres query patterns (operators)
 

@@ -9,15 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.13.2] - 2026-07-25
+
 ### Added
 - **`reset_failed_phase_rows_by_error.py`**: Maintenance tool (dry run by default) that resets `image_phase_status` rows failed with a named, already-fixed error back to `not_started`.
+- **CI gates**: Blocking `backend-tests` workflow (fast pytest smoke + OpenAPI contract check), coverage-artifacts workflow, `docs/testing/CI_GATES.md`, and supporting `scripts/ci/` / `requirements_ci.txt`.
 
 ### Fixed
 - **Drive-to-Complete false stall** (#305): Ticks where every candidate was deferred by `auto_drive.max_in_flight_jobs` now report `waiting_in_flight` instead of `no_enqueue_progress`, so a pipeline job longer than a few tick intervals no longer stops the drive as "stalled".
 - **Auto-drive loop guard strands folders** (#305): Each drive session gets a fresh `max_repeats` budget — terminal auto-drive jobs from earlier sessions no longer count, so a bug fixed between sessions can't block a folder forever. Active jobs still always count, preserving the in-flight double-enqueue guard.
+- **Empty-phase skip advances later stages**: Skipping a phase with no work keeps the job `running` when remaining phases exist, instead of completing the newly started next phase via `update_job_status(..., completed)`.
+- **RAW / source preview orientation**: Stamp Orientation from the RAW when the embedded JPEG lacks it, then bake pixels upright (`thumbnails.bake_orientation` / `read_orientation` on the source-image endpoint).
+
+### Changed
+- **Agent skills / MCP docs**: Sync Cursor and Claude skill mirrors, MCP search guidance, and related agent inventory docs.
 
 ### Roadmap (not yet released)
-
 Phase 4c keyword legacy column soft deprecation (target a future release; see `docs/planning/database/PHASE4_KEYWORDS_DEPRECATION.md`):
 
 ## [8.13.1] - 2026-07-23

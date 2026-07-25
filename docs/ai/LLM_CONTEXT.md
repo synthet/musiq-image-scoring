@@ -72,4 +72,4 @@ This project includes an MCP server exposing debugging tools to Cursor and agent
 
 **Similarity & tagging:** `search_similar_images`, `find_near_duplicates`, `propagate_tags`, `find_outliers`
 
-**Gradio debug:** Cursor server **`is-be-webui`** + `ENABLE_MCP_EXECUTE_CODE=1` → tool `execute_code`
+**Gradio debug:** Cursor server **`is-be-live`** + `ENABLE_MCP_EXECUTE_CODE=1` → tool `execute_code`

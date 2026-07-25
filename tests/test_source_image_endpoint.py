@@ -71,6 +71,7 @@ def test_source_image_raw_large_embedded_preview_calls_exif_transpose(monkeypatc
         "extract_embedded_jpeg",
         lambda *_a, **_kw: Image.new("RGB", (1201, 1000), color=(5, 5, 5)),
     )
+    monkeypatch.setattr(source_image_api.thumbnails, "read_orientation", lambda _p: None)
     called: list[object] = []
 
     def spy_transpose(im):
@@ -83,6 +84,57 @@ def test_source_image_raw_large_embedded_preview_calls_exif_transpose(monkeypatc
         response = client.get("/source-image", params={"path": str(raw_path)})
     assert response.status_code == 200
     assert len(called) == 1
+
+
+def test_source_image_raw_bakes_orientation_from_source_when_jpeg_lacks_exif(
+    monkeypatch, tmp_path
+):
+    """Vertical NEF: embedded JPEG often has no Orientation; stamp from RAW then bake."""
+    import io
+
+    raw_path = tmp_path / "portrait.nef"
+    raw_path.write_bytes(b"raw")
+    monkeypatch.setattr(source_image_api.utils, "resolve_file_path", lambda p: p)
+    monkeypatch.setattr(source_image_api.utils, "convert_path_to_local", lambda p: p)
+    monkeypatch.setattr(source_image_api, "_validate_file_path", lambda p: p)
+    # Storage landscape large enough that after Orientation-6 bake, width stays > 1000
+    # so the in-memory JPEG path is used (not generate_preview fallback).
+    monkeypatch.setattr(
+        source_image_api.thumbnails,
+        "extract_embedded_jpeg",
+        lambda *_a, **_kw: Image.new("RGB", (1600, 1200), color=(10, 20, 30)),
+    )
+    monkeypatch.setattr(source_image_api.thumbnails, "read_orientation", lambda _p: 6)
+
+    with _build_client() as client:
+        response = client.get("/source-image", params={"path": str(raw_path)})
+    assert response.status_code == 200
+    out = Image.open(io.BytesIO(response.content))
+    # Orientation 6 swaps storage landscape → upright portrait
+    assert out.size == (1200, 1600)
+
+
+def test_source_image_raw_orientation_noop_when_source_is_normal(monkeypatch, tmp_path):
+    """Orientation 1 / missing: leave storage dimensions unchanged."""
+    import io
+
+    raw_path = tmp_path / "landscape.nef"
+    raw_path.write_bytes(b"raw")
+    monkeypatch.setattr(source_image_api.utils, "resolve_file_path", lambda p: p)
+    monkeypatch.setattr(source_image_api.utils, "convert_path_to_local", lambda p: p)
+    monkeypatch.setattr(source_image_api, "_validate_file_path", lambda p: p)
+    monkeypatch.setattr(
+        source_image_api.thumbnails,
+        "extract_embedded_jpeg",
+        lambda *_a, **_kw: Image.new("RGB", (1201, 1000), color=(1, 1, 1)),
+    )
+    monkeypatch.setattr(source_image_api.thumbnails, "read_orientation", lambda _p: 1)
+
+    with _build_client() as client:
+        response = client.get("/source-image", params={"path": str(raw_path)})
+    assert response.status_code == 200
+    out = Image.open(io.BytesIO(response.content))
+    assert out.size == (1201, 1000)
 
 
 def test_source_image_returns_404_for_missing_file(monkeypatch, tmp_path):

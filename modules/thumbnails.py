@@ -365,6 +365,58 @@ def thumbnail_pair_needs_repair(
     return False
 
 
+# EXIF Orientation tag (TIFF / EXIF IFD).
+_EXIF_ORIENTATION = 0x0112
+
+
+def read_orientation(path: str) -> Optional[int]:
+    """
+    Read numeric EXIF Orientation from *path* via exiftool (``-n -Orientation -s3``).
+
+    Returns an int in 1..8, or None if exiftool is missing, the tag is absent, or parsing fails.
+    """
+    if not path or not shutil.which("exiftool"):
+        return None
+    try:
+        result = subprocess.run(
+            ["exiftool", "-n", "-Orientation", "-s3", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return None
+        raw = (result.stdout or "").strip()
+        if not raw:
+            return None
+        value = int(raw.splitlines()[0].strip())
+        if 1 <= value <= 8:
+            return value
+    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError, OSError):
+        return None
+    return None
+
+
+def bake_orientation(img: Image.Image, source_path: str) -> Image.Image:
+    """
+    Apply EXIF Orientation so returned pixels are upright (Orientation cleared).
+
+    Prefer Orientation already on *img* (embedded JPEG). If missing or 1, fall back to
+    Orientation from *source_path* (typically the RAW file — ``exiftool -b`` extracts often
+    omit the tag). Mirrors gallery ``nefExtractor`` stamping NEF Orientation onto extracts.
+    """
+    from PIL import ImageOps
+
+    image_exif = img.getexif()
+    existing = image_exif.get(_EXIF_ORIENTATION)
+    if existing in (None, 0, 1):
+        source_orient = read_orientation(source_path)
+        if source_orient is not None and source_orient >= 2:
+            image_exif[_EXIF_ORIENTATION] = source_orient
+
+    return ImageOps.exif_transpose(img)
+
+
 def extract_embedded_jpeg(image_path: str, min_size: int = 100) -> Optional[Image.Image]:
     """
     Extract embedded JPEG preview from RAW file.

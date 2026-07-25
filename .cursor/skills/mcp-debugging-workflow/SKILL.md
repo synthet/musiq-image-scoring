@@ -34,7 +34,7 @@ On **`is-be-mcp`**: `search("scoring failures")` → `dispatch("diagnostics.get_
 
 ### 5. Check Active Jobs (if processing expected)
 
-Use **`is-be-webui`**: `get_runner_status`, `get_pipeline_stats` (not yet compact dispatch).
+On **`is-be-mcp`**: `dispatch("jobs.get_runner_status", {})` and/or `dispatch("jobs.get_recent_jobs", {})`. If `search` finds no matching action, use optional **`is-be-live`** with **`MCP_SSE_PROFILE=full`** for legacy raw tools.
 
 ### 6. Read Debug Log (for detailed errors)
 
@@ -43,8 +43,8 @@ Use **`is-be-webui`**: `get_runner_status`, `get_pipeline_stats` (not yet compac
 ## Server Selection
 
 - **Default:** **`is-be-mcp`** → **`search`** / **`dispatch`**
-- **Legacy tools / runners:** **`is-be-webui`** (WebUI must be running)
-- **`execute_code`:** **`is-be-webui`** + `ENABLE_MCP_EXECUTE_CODE=1`
+- **Optional SSE:** **`is-be-live`** (same compact tools when WebUI is running)
+- **`execute_code` / full legacy raw tools:** **`is-be-live`** + `MCP_SSE_PROFILE=full` + `ENABLE_MCP_EXECUTE_CODE=1` when needed
 
 ## Terminology
 

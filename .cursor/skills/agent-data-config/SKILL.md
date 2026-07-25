@@ -65,6 +65,18 @@ Get-Content package.json | jq '.scripts'
 Invoke-WebRequest -Uri http://localhost:7860/api/health -UseBasicParsing
 ```
 
+### PowerShell JSON POST (file body)
+
+Inline `curl.exe -d "{\"k\":1}"` is corrupted by PowerShell quoting (`json_invalid` / bad range errors). Write the body to a file and use `--data-binary`:
+
+```powershell
+Set-Content -Encoding ascii -Path "$env:TEMP\body.json" -Value '{"limit":50,"target_phases":["bird_species"]}'
+curl.exe -sS -m 30 -X POST "http://127.0.0.1:7860/api/runs/drive/start" `
+  -H "Content-Type: application/json" --data-binary "@$env:TEMP\body.json"
+```
+
+Prefer `curl.exe` over `Invoke-RestMethod` for POST bodies. For large or multi-endpoint responses, write each response to its own file and parse with `jq` / `python -c` — concatenated stdout does not parse as a single JSON document.
+
 ## Agent-safe patterns
 
 - Select fields with `jq` — do not `cat config.json` into chat if it may hold passwords.
@@ -82,6 +94,7 @@ See [`.agent/SAFETY.md`](../../../.agent/SAFETY.md).
 
 - **Invalid JSON:** `jq empty config.json` to validate; file may be gitignored — check `config.example.json` if present
 - **Backend connection refused:** verify sibling backend running; see `.agent/workflows/debug_gallery_backend_connection.md`
+- **PowerShell POST `json_invalid`:** do not inline JSON in `-d "..."`; use the file-body pattern above.
 
 ## Verification checklist
 

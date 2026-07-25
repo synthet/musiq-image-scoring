@@ -1,6 +1,6 @@
 ---
 name: image-scoring-mcp
-description: Vexlum Scoring MCP — compact search+dispatch on is-be-mcp / is-be-webui and gallery is-ui-mcp / is-ui-live.
+description: Vexlum Scoring MCP — compact search+dispatch on is-be-mcp / is-be-live and gallery is-ui-mcp / is-ui-live.
 ---
 
 # Vexlum Scoring MCP server
@@ -15,6 +15,6 @@ description: Vexlum Scoring MCP — compact search+dispatch on is-be-mcp / is-be
 2. **`search` before `dispatch`** when unsure; use `include_schemas=True` for args.
 3. Use **`action_id`** from search results (`category.tool`). Legacy bare names (e.g. `execute_sql`) resolve when registered.
 4. On **`unknown_action`**, use `details.suggestions` — do not invent ids from AGENTS.md.
-5. Maintenance / `execute_code` → **`is-be-webui`** + `MCP_SSE_PROFILE=full`.
+5. Maintenance / `execute_code` → **`is-be-live`** + `MCP_SSE_PROFILE=full`.
 
 See canonical skill for the full compact action table and workflows.

@@ -258,10 +258,102 @@ def test_dispatcher_scoring_empty_jit_queue_skips_phase(monkeypatch):
     monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
     monkeypatch.setattr("modules.job_dispatcher.db.update_job_status", lambda *args, **kwargs: None)
     monkeypatch.setattr("modules.job_dispatcher.db.set_job_phase_state", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.get_job_phases",
+        lambda job_id: [{"phase_code": "scoring", "state": "completed", "phase_order": 0}],
+    )
 
     dispatcher._tick()
 
     assert len(scoring_runner.calls) == 0
+
+
+def test_dispatcher_empty_scoring_advances_to_culling(monkeypatch):
+    """Empty scoring must not complete a multi-phase job before culling runs."""
+    scoring_runner = DummyRunner()
+    selection_runner = DummyRunner()
+    dispatcher = JobDispatcher(
+        scoring_runner=scoring_runner,
+        selection_runner=selection_runner,
+    )
+
+    def _empty_stub(self, job_id, payload, queue_key, input_path):
+        return dict(payload), [], True
+
+    monkeypatch.setattr(JobDispatcher, "_jit_replan_phase", _empty_stub)
+
+    queued_job = {
+        "id": 6518,
+        "job_type": "scoring",
+        "input_path": "/mnt/d/Photos/Z8/105mm/2026/2026-07-04",
+        "queue_payload": json.dumps({
+            "input_path": "/mnt/d/Photos/Z8/105mm/2026/2026-07-04",
+            "scope_paths": ["/mnt/d/Photos/Z8/105mm/2026/2026-07-04"],
+            "run_mode": "process_stale_or_missing",
+            "phases": ["scoring", "culling"],
+            "target_phases": ["scoring", "culling"],
+            "resolved_image_ids_by_stage": {
+                "scoring": [],
+                "culling": [200772, 200775],
+            },
+        }),
+    }
+
+    status_calls = []
+    phase_state = {"scoring": "running", "culling": "pending"}
+
+    def _set_phase(job_id, phase_code, state, **kwargs):
+        phase_state[phase_code] = state
+        if state == "completed" and phase_code == "scoring":
+            phase_state["culling"] = "running"
+
+    def _get_phases(job_id):
+        return [
+            {"phase_code": "scoring", "state": phase_state["scoring"], "phase_order": 0},
+            {"phase_code": "culling", "state": phase_state["culling"], "phase_order": 1},
+        ]
+
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: queued_job)
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.update_job_status",
+        lambda *args, **kwargs: status_calls.append((args, kwargs)),
+    )
+    monkeypatch.setattr("modules.job_dispatcher.db.set_job_phase_state", _set_phase)
+    monkeypatch.setattr("modules.job_dispatcher.db.get_job_phases", _get_phases)
+
+    dispatcher._tick()
+
+    assert len(scoring_runner.calls) == 0
+    assert status_calls, "expected update_job_status after empty scoring skip"
+    status_args, status_kwargs = status_calls[-1]
+    assert status_args[0] == 6518
+    assert status_args[1] == "running"
+    assert "no stale/missing work" in (status_args[2] or "")
+    assert status_kwargs.get("current_phase") == "culling"
+    assert phase_state["scoring"] == "completed"
+    assert phase_state["culling"] == "running"
+
+    # Continuation tick should dispatch culling with the pre-resolved image IDs.
+    continuation_job = {
+        "id": 6518,
+        "job_type": "scoring",
+        "input_path": "/mnt/d/Photos/Z8/105mm/2026/2026-07-04",
+        "queue_payload": queued_job["queue_payload"],
+        "_active_phase_code": "culling",
+    }
+    monkeypatch.setattr("modules.job_dispatcher.db.dequeue_next_job", lambda: None)
+    monkeypatch.setattr(
+        "modules.job_dispatcher.db.get_running_job_for_phase_continuation",
+        lambda: dict(continuation_job),
+    )
+    monkeypatch.setattr("modules.job_dispatcher.db.get_image_count", lambda **k: 2)
+
+    dispatcher._tick()
+
+    assert len(selection_runner.calls) == 1
+    _, kwargs = selection_runner.calls[0]
+    assert kwargs.get("job_id") == 6518
+    assert kwargs.get("resolved_image_ids") == [200772, 200775]
 
 
 def test_dispatcher_scoring_fix_incomplete_resolves_image_ids(monkeypatch):

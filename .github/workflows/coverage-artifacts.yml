@@ -1,0 +1,53 @@
+name: Coverage Artifacts
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mondays 04:00 UTC — the full slice needs the ML stack and runs ~15 min,
+    # which is too heavy to attach to every pull request.
+    - cron: '0 4 * * 1'
+
+jobs:
+  coverage:
+    name: backend-coverage
+    runs-on: ubuntu-latest
+    # Informational: a red coverage run must never imply the backend is broken.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements/requirements_wsl_gpu.txt
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Strip the CUDA wheels: hosted runners have no GPU and the pinned
+          # nvidia-*/triton packages add several GB for no benefit here.
+          grep -Ev '^(nvidia-|cuda-bindings|cuda-pathfinder|triton==)' \
+            requirements/requirements_wsl_gpu.txt > /tmp/requirements-coverage.txt
+          pip install -r /tmp/requirements-coverage.txt
+          pip install pytest-cov coverage
+
+      - name: Run backend coverage
+        run: |
+          mkdir -p artifacts/coverage/backend
+          python -m pytest -p no:cacheprovider \
+            -m "not gpu and not db and not ml and not firebird" \
+            --ignore=tests/test_probe.py \
+            --cov=modules \
+            --cov-branch \
+            --cov-report=term-missing \
+            --cov-report=xml:artifacts/coverage/backend/coverage.xml \
+            --junitxml=artifacts/coverage/backend/pytest-junit.xml \
+            | tee artifacts/coverage/backend/pytest-term.txt
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: artifacts/coverage/backend
+          retention-days: 30

@@ -26,7 +26,7 @@ Central list of **first-party** `SKILL.md` files in this repository for governan
 | critical-commit-audit | `.cursor/skills/critical-commit-audit/SKILL.md` | High-severity post-commit review; trace paths, PR bar | L2 | Yes | 2026-04-26 |
 | imgscore-backend-implementer | `.cursor/skills/imgscore-backend-implementer/SKILL.md` | Scoped backend implementation | L1 | Yes | 2026-04-25 |
 | backend-frontend-ui | `.cursor/skills/backend-frontend-ui/SKILL.md` | React `/ui/` SPA, design tokens, Gradio CSS sync | L1 | Yes | 2026-06-21 |
-| imgscore-mcp-debug | `.cursor/skills/imgscore-mcp-debug/SKILL.md` | MCP read-only triage | L2 | Yes | 2026-04-25 |
+| imgscore-mcp-debug | `.cursor/skills/imgscore-mcp-debug/SKILL.md` | MCP read-only triage | L2 | Yes | 2026-07-25 |
 | mcp-debugging-workflow | `.cursor/skills/mcp-debugging-workflow/SKILL.md` | MCP debugging workflow | L2 | Yes | 2026-04-25 |
 | security-review | `.cursor/skills/security-review/SKILL.md` | Pre-merge security sanity | L1 | Yes | 2026-04-25 |
 | wsl-tf-python-runner | `.cursor/skills/wsl-tf-python-runner/SKILL.md` | WSL / venv / pytest commands | L2 | Yes | 2026-04-25 |
@@ -43,8 +43,8 @@ Central list of **first-party** `SKILL.md` files in this repository for governan
 | agent-cli-hub | `.cursor/skills/agent-cli-hub/SKILL.md` | CLI skill router; install tiers, agent-environment, shared references | L1 | Yes | 2026-07-21 |
 | agent-search | `.cursor/skills/agent-search/SKILL.md` | rg/grep/ast-grep/fd tool selection + fff + Graphify when connected | L1 | Yes | 2026-07-21 |
 | agent-git-workflows | `.cursor/skills/agent-git-workflows/SKILL.md` | git/gh safe status, diff, PR workflows | L2 | Yes | 2026-07-04 |
-| agent-data-config | `.cursor/skills/agent-data-config/SKILL.md` | jq/yq/curl config and API inspection | L1 | Yes | 2026-07-04 |
-| agent-dev-tooling | `.cursor/skills/agent-dev-tooling/SKILL.md` | WSL pytest, ruff, doctor, docker compose | L1 | Yes | 2026-07-04 |
+| agent-data-config | `.cursor/skills/agent-data-config/SKILL.md` | jq/yq/curl config and API inspection | L1 | Yes | 2026-07-25 |
+| agent-dev-tooling | `.cursor/skills/agent-dev-tooling/SKILL.md` | WSL pytest, ruff, doctor, docker compose | L1 | Yes | 2026-07-25 |
 | agent-platform-tooling | `.cursor/skills/agent-platform-tooling/SKILL.md` | Windows vs WSL2 environment choice | L1 | Yes | 2026-07-04 |
 | mcp-code-intelligence | `.cursor/skills/mcp-code-intelligence/SKILL.md` | MCP vs CLI tiers; fff + is-be-mcp + Graphify | L1 | Yes | 2026-07-21 |
 | graphify | `.cursor/skills/graphify/SKILL.md` | Graphify MCP (`graphify-be`) + CLI for architecture / connectivity | L1 | Yes | 2026-07-21 |
@@ -54,6 +54,8 @@ Central list of **first-party** `SKILL.md` files in this repository for governan
 | verification-before-completion | `.cursor/skills/verification-before-completion/SKILL.md` | Fresh command evidence before "done" claims; harness `scripts/agent_skills/verification_before_completion.py` | L1 | Yes | 2026-07-21 |
 | skill-authoring | `.cursor/skills/skill-authoring/SKILL.md` | Create/improve Cursor-canonical skills + sync | L1 | Yes | 2026-07-21 |
 | commit-and-push | `.cursor/skills/commit-and-push/SKILL.md` | Dry-run-first commit/push harness `scripts/agent_skills/commit_and_push.py` | L2 | Yes | 2026-07-21 |
+| lesson-to-skill | `.cursor/skills/lesson-to-skill/SKILL.md` | Turn session corrections, mistakes, and repetitions into enriched or new assets | L1 | Yes | 2026-07-25 |
+| autonomous-run-contract | `.cursor/skills/autonomous-run-contract/SKILL.md` | Metric, budget, revert rule, and stop conditions before an unattended or fanned-out run | L1 | Yes | 2026-07-25 |
 
 ## Claude Code mirror
 
