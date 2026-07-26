@@ -227,6 +227,16 @@
     "min_dist": 0.1,
     "max_points": 15000
   },
+  "bird_detection": {
+    "enabled": true,
+    "model_repo": "synthet/bird-detect-v0",
+    "model_file": "best.pt",
+    "local_path": "",
+    "confidence": 0.25,
+    "padding": 0.06,
+    "device": "auto",
+    "fail_open": true
+  },
   "embeddings": {
     "persist_clip_image": true,
     "persist_blip_image": true,

@@ -569,6 +569,7 @@ def _init_db_transaction():
                 cull_decision       VARCHAR(20),
                 cull_policy_version VARCHAR(50),
                 image_uuid          VARCHAR(36),
+                bird_bbox           JSONB,
                 created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at          TIMESTAMP
             );
@@ -585,6 +586,9 @@ def _init_db_transaction():
             cur.execute(
                 "ALTER TABLE images ADD COLUMN IF NOT EXISTS sub_stack_id "
                 "INTEGER REFERENCES sub_stacks(id) ON DELETE SET NULL;"
+            )
+            cur.execute(
+                "ALTER TABLE images ADD COLUMN IF NOT EXISTS bird_bbox JSONB;"
             )
             cur.execute(
                 "UPDATE images SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP) "

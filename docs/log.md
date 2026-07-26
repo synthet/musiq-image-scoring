@@ -381,3 +381,9 @@ Established LLM wiki system. Created [WIKI_SCHEMA.md](WIKI_SCHEMA.md) (conventio
 ## [2026-06-09] create | Lens folder normalization
 
 Added `modules/lens_folder_name.py` (Nikon EXIF quad → canonical `…mm` folders), gallery parity in `lensFolderName.ts`, and `scripts/maintenance/merge_numeric_lens_folders.py` for legacy backup trees + manifest relPath rewrite. Refactored maintenance scripts to import shared module. Tests: `tests/test_lens_folder_name.py`.
+
+---
+
+## [2026-07-26] create | Bird detection crop step (synthet/bird-detect-v0)
+
+Added `modules/bird_detection.py` (YOLO `BirdDetector` + pure `select_best_box`) wired into `BioCLIPClassifier.classify` — detects the bird, crops to the highest-confidence box before BioCLIP species classification, falls back to whole image. New `images.bird_bbox` JSONB column (migration `0033`, `db_postgres` DDL, `db.update_image_bird_bbox`), `bird_detection` config section, optional `ultralytics`/`huggingface_hub` deps. Tests: `tests/test_bird_detection.py`.

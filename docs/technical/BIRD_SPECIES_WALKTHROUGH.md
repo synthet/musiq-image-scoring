@@ -9,8 +9,11 @@ End-to-end walkthrough of the **bird species classification** feature: how a `PO
 Given a folder of images (or an explicit image selector), the runner:
 
 1. **Queries only images that already have the `birds` keyword** — everything else is ignored automatically.
-2. Runs each image through **BioCLIP 2**, a zero-shot biology foundation model.
-3. Stores the **single highest-scoring** species (BioCLIP argmax) as a **`species:Common Name`** keyword (e.g. `species:American Robin`) using the existing `image_keywords` / `keywords_dim` tables — no schema changes. Pass `top_k > 1` to store multiple candidates instead.
+2. **Localizes the bird** with the YOLO detector `synthet/bird-detect-v0` (`modules/bird_detection.py`), crops the image to the highest-confidence bird box in memory, and stores the box coordinates in `images.bird_bbox` (JSONB). If no bird is detected — or the detector is disabled/unavailable — it falls back to the whole image.
+3. Runs the crop (or whole image) through **BioCLIP 2**, a zero-shot biology foundation model.
+4. Stores the **single highest-scoring** species (BioCLIP argmax) as a **`species:Common Name`** keyword (e.g. `species:American Robin`) using the existing `image_keywords` / `keywords_dim` tables. Pass `top_k > 1` to store multiple candidates instead.
+
+> **Detector config** lives in the `bird_detection` section of `config.json` (`enabled`, `model_repo`, `model_file`, `local_path`, `confidence`, `padding`, `device`, `fail_open`). `ultralytics` + `huggingface_hub` are installed in the GPU/ML venv (`~/.venvs/tf`); when absent the step fails open to whole-image classification. Because the crop (not the whole frame) is what BioCLIP encodes, the persisted `bioclip_2_image` embedding now describes the bird crop — re-run with `overwrite` to refresh embeddings stored before this step existed.
 
 This is a standalone, asynchronous job — it does not require images to be re-scored or re-tagged first, as long as they already carry the `birds` keyword from a prior tagging run.
 

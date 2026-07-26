@@ -45,3 +45,8 @@ torchvision>=0.15.0
 # CLI (cli.py) — Typer + Rich
 typer>=0.24.0
 rich>=14.0.0
+
+# Bird detection (optional) — YOLO crop step before BioCLIP species classification.
+# Installed in the GPU/ML venv (~/.venvs/tf); modules/bird_detection.py fails open when absent.
+ultralytics>=8.0.0
+huggingface_hub>=0.20.0
