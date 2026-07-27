@@ -1,14 +1,16 @@
 """
 Tests for modules/bird_detection.py — YOLO bird localization / crop step.
 
-All tests here run without GPU, ultralytics, or huggingface_hub: the pure helpers
-(select_best_box, crop_to_box) and the fail-open detector wiring are exercised with
-stubs and real PIL images only.
+The detector tests run without GPU, ultralytics, or huggingface_hub: the pure helpers
+(select_best_box, crop_to_box) and detect_best_box are exercised with stubs and real
+PIL images only. The _ensure_detector tests are marked ``ml`` because constructing
+``BioCLIPClassifier`` imports torch.
 
 Run with:
     pytest tests/test_bird_detection.py -v
 """
 
+import pytest
 from PIL import Image
 
 from modules.bird_detection import BirdDetector, select_best_box
@@ -217,6 +219,7 @@ def test_detect_best_box_picks_highest_of_several():
 # BioCLIPClassifier._ensure_detector — fail-open wiring (no BioCLIP load)
 # ──────────────────────────────────────────────────────────────────────────────
 
+@pytest.mark.ml
 def test_ensure_detector_disabled_via_config(monkeypatch):
     from modules.bird_species import BioCLIPClassifier
 
@@ -232,6 +235,7 @@ def test_ensure_detector_disabled_via_config(monkeypatch):
     assert clf._detector_state == "disabled"
 
 
+@pytest.mark.ml
 def test_ensure_detector_fail_open_on_load_error(monkeypatch):
     from modules.bird_species import BioCLIPClassifier
 
@@ -250,6 +254,7 @@ def test_ensure_detector_fail_open_on_load_error(monkeypatch):
     assert clf._detector_state == "disabled"
 
 
+@pytest.mark.ml
 def test_ensure_detector_enabled_and_cached(monkeypatch):
     from modules.bird_species import BioCLIPClassifier
 

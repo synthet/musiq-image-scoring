@@ -21,7 +21,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements/requirements_ci.txt
       - name: Run fast pytest smoke slice
-        run: ./scripts/ci/run_fast_smoke_tests.sh
+        # Invoked via `bash` (like the `python scripts/ci/...` step below) so a
+        # missing executable bit cannot break the gate — the repo is developed on a
+        # Windows host, where the mode is easily dropped.
+        run: bash scripts/ci/run_fast_smoke_tests.sh
 
   api-contract:
     name: api-contract
