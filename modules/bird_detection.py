@@ -10,13 +10,23 @@ Heavy imports (``ultralytics``, ``huggingface_hub``) are lazy so importing this 
 cheap. When they are unavailable the detector fails open (callers fall back to the whole
 image), mirroring the ``open_clip`` handling in ``bird_species.py``.
 
+Defaults mirror the canonical detector contract in the sibling model repo
+`synthet/image-scoring-model <https://github.com/synthet/image-scoring-model>`_
+(``src/eye_quality/localization/bird_detector.py``: weights ``bird_detect_v0.pt``,
+``predict(conf=0.25, max_det=10)``, ``imgsz=640``, single class ``{0: bird}``, highest-confidence
+box wins) and its ``docs/architecture/BIRD_DETECTION.md`` (crop ``pad_frac = 0.10``).
+
 Config section ``bird_detection`` (see ``config.example.json``):
     enabled     — master toggle (default true)
     model_repo  — HuggingFace repo id (default "synthet/bird-detect-v0")
-    model_file  — weight filename within the repo (default "best.pt")
-    local_path  — optional local .pt path; used instead of downloading when set and present
+    model_file  — weight filename within the repo (default "bird_detect_v0.pt")
+    local_path  — optional local .pt path; used instead of downloading when set and present.
+                  Point this at the sibling checkout's ``models/bird_detect_v0.pt`` to share one
+                  weights file with the model repo instead of downloading a second copy.
     confidence  — YOLO detection confidence threshold (default 0.25)
-    padding     — fraction of box size to expand the crop by (default 0.06)
+    padding     — fraction of box size to expand the crop by (default 0.10)
+    imgsz       — YOLO inference image size (default 640)
+    max_det     — maximum detections per image (default 10)
     device      — "auto" | "cpu" | "cuda" (default "auto")
     fail_open   — on load/inference error, fall back to whole image (default true)
 """
@@ -28,9 +38,11 @@ from typing import List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 _DEFAULT_MODEL_REPO = "synthet/bird-detect-v0"
-_DEFAULT_MODEL_FILE = "best.pt"
+_DEFAULT_MODEL_FILE = "bird_detect_v0.pt"
 _DEFAULT_CONFIDENCE = 0.25
-_DEFAULT_PADDING = 0.06
+_DEFAULT_PADDING = 0.10
+_DEFAULT_IMGSZ = 640
+_DEFAULT_MAX_DET = 10
 
 
 def select_best_box(boxes: List[dict]) -> Optional[dict]:
@@ -73,6 +85,8 @@ class BirdDetector:
         self.local_path = config.get("local_path") or ""
         self.confidence = float(config.get("confidence", _DEFAULT_CONFIDENCE))
         self.padding = float(config.get("padding", _DEFAULT_PADDING))
+        self.imgsz = int(config.get("imgsz", _DEFAULT_IMGSZ))
+        self.max_det = int(config.get("max_det", _DEFAULT_MAX_DET))
         self.fail_open = bool(config.get("fail_open", True))
 
         cfg_device = device or config.get("device") or "auto"
@@ -109,11 +123,20 @@ class BirdDetector:
     def detect_best_box(self, image) -> Optional[dict]:
         """Detect birds in a PIL image; return the highest-confidence box or None.
 
-        Returns a dict ``{"x1", "y1", "x2", "y2", "conf", "img_w", "img_h"}`` with
-        integer pixel coordinates, or ``None`` when nothing is detected.
+        Returns a dict ``{"x1", "y1", "x2", "y2", "conf", "img_w", "img_h", "area_frac"}``
+        with integer pixel coordinates, or ``None`` when nothing is detected.
+        ``area_frac`` is the box area as a fraction of the image area (mirrors
+        ``BirdBox.area_frac`` in the model repo).
         """
         self.load_model()
-        results = self.model.predict(image, conf=self.confidence, verbose=False, device=self.device)
+        results = self.model.predict(
+            image,
+            conf=self.confidence,
+            imgsz=self.imgsz,
+            max_det=self.max_det,
+            verbose=False,
+            device=self.device,
+        )
 
         boxes: List[dict] = []
         for result in results:
@@ -131,6 +154,9 @@ class BirdDetector:
 
         img_w, img_h = image.size
         x1, y1, x2, y2 = best["xyxy"]
+        area_frac = 0.0
+        if img_w and img_h:
+            area_frac = abs(x2 - x1) * abs(y2 - y1) / float(img_w * img_h)
         return {
             "x1": int(round(x1)),
             "y1": int(round(y1)),
@@ -139,6 +165,7 @@ class BirdDetector:
             "conf": round(best["conf"], 4),
             "img_w": int(img_w),
             "img_h": int(img_h),
+            "area_frac": round(area_frac, 6),
         }
 
     def crop_to_box(self, image, box: dict, padding: Optional[float] = None):

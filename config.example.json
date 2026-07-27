@@ -230,10 +230,12 @@
   "bird_detection": {
     "enabled": true,
     "model_repo": "synthet/bird-detect-v0",
-    "model_file": "best.pt",
+    "model_file": "bird_detect_v0.pt",
     "local_path": "",
     "confidence": 0.25,
-    "padding": 0.06,
+    "padding": 0.1,
+    "imgsz": 640,
+    "max_det": 10,
     "device": "auto",
     "fail_open": true
   },

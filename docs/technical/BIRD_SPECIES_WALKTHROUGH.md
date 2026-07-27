@@ -13,7 +13,17 @@ Given a folder of images (or an explicit image selector), the runner:
 3. Runs the crop (or whole image) through **BioCLIP 2**, a zero-shot biology foundation model.
 4. Stores the **single highest-scoring** species (BioCLIP argmax) as a **`species:Common Name`** keyword (e.g. `species:American Robin`) using the existing `image_keywords` / `keywords_dim` tables. Pass `top_k > 1` to store multiple candidates instead.
 
-> **Detector config** lives in the `bird_detection` section of `config.json` (`enabled`, `model_repo`, `model_file`, `local_path`, `confidence`, `padding`, `device`, `fail_open`). `ultralytics` + `huggingface_hub` are installed in the GPU/ML venv (`~/.venvs/tf`); when absent the step fails open to whole-image classification. Because the crop (not the whole frame) is what BioCLIP encodes, the persisted `bioclip_2_image` embedding now describes the bird crop — re-run with `overwrite` to refresh embeddings stored before this step existed.
+### Detector notes
+
+- **Canonical contract.** Detector defaults mirror the sibling model repo [`synthet/image-scoring-model`](https://github.com/synthet/image-scoring-model) — `src/eye_quality/localization/bird_detector.py` (weights `bird_detect_v0.pt`, `conf=0.25`, `imgsz=640`, `max_det=10`, single class `{0: bird}`, highest-confidence box wins) and `docs/architecture/BIRD_DETECTION.md` (crop `pad_frac = 0.10`). Keep them in sync when that repo changes.
+- **Config** lives in the `bird_detection` section of `config.json` (`enabled`, `model_repo`, `model_file`, `local_path`, `confidence`, `padding`, `imgsz`, `max_det`, `device`, `fail_open`). Set `local_path` to the sibling checkout's `models/bird_detect_v0.pt` to share one weights file instead of downloading a second copy.
+- **Dependencies.** `ultralytics` + `huggingface_hub` live in the GPU/ML venv (`~/.venvs/tf`); when absent the step fails open to whole-image classification.
+- **RAW uses the full preview, not the 512px thumbnail.** `_resolve_inference_path` returns the original file so `open_image_for_ml` decodes RAW via embedded JPEG (≥1000px) → `rawpy` → ImageMagick (2048px). Localizing on a 512px thumbnail would yield a tiny, low-detail crop. The cached thumbnail is used only when the original file is missing. The trade-off is a per-image RAW decode instead of a cached thumbnail read.
+- **EXIF orientation is baked** (`bake_orientation`) before detection, so the crop and the stored `bird_bbox` coordinates are both in display orientation.
+- **`bird_bbox` payload:** `{"x1", "y1", "x2", "y2", "conf", "img_w", "img_h", "area_frac"}` in pixels; `area_frac` is the box area as a fraction of the image.
+- **Embeddings.** Because the crop (not the whole frame) is what BioCLIP encodes, the persisted `bioclip_2_image` embedding describes the bird crop — re-run with `overwrite` to refresh embeddings stored before this step existed.
+
+> **Future work (not implemented):** the model repo's `docs/guides/BACKEND_INTEGRATION.md` also specifies an `eye_quality` phase (eye localization + focus scoring, an `image_eye_quality` table, an API detail block, and optional technical-score fusion). None of that exists in this backend yet.
 
 This is a standalone, asynchronous job — it does not require images to be re-scored or re-tagged first, as long as they already carry the `birds` keyword from a prior tagging run.
 

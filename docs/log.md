@@ -387,3 +387,9 @@ Added `modules/lens_folder_name.py` (Nikon EXIF quad → canonical `…mm` folde
 ## [2026-07-26] create | Bird detection crop step (synthet/bird-detect-v0)
 
 Added `modules/bird_detection.py` (YOLO `BirdDetector` + pure `select_best_box`) wired into `BioCLIPClassifier.classify` — detects the bird, crops to the highest-confidence box before BioCLIP species classification, falls back to whole image. New `images.bird_bbox` JSONB column (migration `0033`, `db_postgres` DDL, `db.update_image_bird_bbox`), `bird_detection` config section, optional `ultralytics`/`huggingface_hub` deps. Tests: `tests/test_bird_detection.py`.
+
+---
+
+## [2026-07-27] update | Align bird detection with image-scoring-model contract
+
+Aligned `modules/bird_detection.py` defaults to the canonical detector in [`synthet/image-scoring-model`](https://github.com/synthet/image-scoring-model): weights `bird_detect_v0.pt` (was a guessed `best.pt`), crop pad `0.10` (was `0.06`), plus `imgsz`/`max_det` passthrough and `area_frac` in the stored `bird_bbox`. Fixed RAW inference to use the full embedded-JPEG preview via `open_image_for_ml` instead of the 512px thumbnail (`_resolve_inference_path`), and baked EXIF orientation before detection so crops and persisted bbox coords are in display orientation. Added `image-scoring-model` to the related-projects table. `eye_quality` phase noted as future work, not started.

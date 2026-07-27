@@ -39,7 +39,20 @@ def _load_default_species() -> List[str]:
 
 
 def _resolve_inference_path(row: dict, file_path: str) -> str:
-    """Return the best image path for ML inference — uses thumbnail for RAW files."""
+    """Return the best image path for ML inference.
+
+    Prefers the **original** file — including RAW — because ``open_image_for_ml`` decodes RAW
+    via the full-preview chain (embedded JPEG at >=1000px, then rawpy, then ImageMagick at
+    2048px). The detector needs that resolution: localizing a bird on a 512px thumbnail and
+    cropping it yields a tiny, low-detail crop for BioCLIP. See the model repo's
+    ``docs/guides/BACKEND_INTEGRATION.md`` ("resolve full embedded JPEG preview — not 512px
+    thumbnails").
+
+    Falls back to the cached thumbnail for RAW only when the original file is not present.
+    """
+    if file_path and os.path.exists(file_path):
+        return file_path
+
     ext = os.path.splitext(file_path)[1].lower()
     if ext in {".nef", ".nrw", ".arw", ".cr2", ".cr3", ".dng", ".orf", ".rw2"}:
         try:
@@ -203,6 +216,15 @@ class BioCLIPClassifier:
         self.last_bbox = None
         try:
             img = open_image_for_ml(image_path).convert("RGB")
+
+            # Bake EXIF orientation so detection, the crop, and the persisted bbox
+            # coordinates all share the image's display orientation.
+            try:
+                from modules.thumbnails import bake_orientation
+
+                img = bake_orientation(img, image_path)
+            except Exception as orient_err:  # noqa: BLE001 — orientation is best-effort
+                logger.debug("bake_orientation failed for %s: %s", image_path, orient_err)
 
             # Localize the bird and crop to its box before classifying. Falls back
             # to the whole image when the detector is unavailable or finds no bird.

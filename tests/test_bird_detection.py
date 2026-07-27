@@ -92,23 +92,125 @@ def test_detect_and_crop_with_box_crops():
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_detector_config_defaults():
+    """Defaults must match the canonical contract in synthet/image-scoring-model."""
     det = BirdDetector(config={}, device="cpu")
     assert det.enabled is True
     assert det.model_repo == "synthet/bird-detect-v0"
-    assert det.model_file == "best.pt"
+    assert det.model_file == "bird_detect_v0.pt"
     assert det.confidence == 0.25
+    assert det.padding == 0.10
+    assert det.imgsz == 640
+    assert det.max_det == 10
     assert det.fail_open is True
 
 
 def test_detector_config_overrides():
     det = BirdDetector(
-        config={"enabled": False, "model_repo": "x/y", "confidence": 0.5, "padding": 0.2},
+        config={
+            "enabled": False,
+            "model_repo": "x/y",
+            "confidence": 0.5,
+            "padding": 0.2,
+            "imgsz": 1280,
+            "max_det": 3,
+        },
         device="cpu",
     )
     assert det.enabled is False
     assert det.model_repo == "x/y"
     assert det.confidence == 0.5
     assert det.padding == 0.2
+    assert det.imgsz == 1280
+    assert det.max_det == 3
+
+
+def test_detector_local_path_preferred_over_download(tmp_path):
+    weights = tmp_path / "bird_detect_v0.pt"
+    weights.write_bytes(b"stub")
+    det = BirdDetector(config={"local_path": str(weights)}, device="cpu")
+    # Must not attempt a HuggingFace download when a local file is present.
+    assert det._resolve_weights_path() == str(weights)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# detect_best_box — box payload (stubbed YOLO)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class _FakeTensorVal:
+    def __init__(self, value):
+        self._value = value
+
+    def item(self):
+        return self._value
+
+
+class _FakeXYXY:
+    def __init__(self, coords):
+        self._coords = coords
+
+    def tolist(self):
+        return list(self._coords)
+
+
+class _FakeBox:
+    def __init__(self, coords, conf):
+        self.xyxy = [_FakeXYXY(coords)]
+        self.conf = [_FakeTensorVal(conf)]
+
+
+class _FakeResult:
+    def __init__(self, boxes):
+        self.boxes = boxes
+
+
+class _FakeYOLO:
+    def __init__(self, boxes):
+        self._boxes = boxes
+        self.predict_kwargs = None
+
+    def predict(self, image, **kwargs):
+        self.predict_kwargs = kwargs
+        return [_FakeResult(self._boxes)]
+
+
+def test_detect_best_box_payload_includes_area_frac():
+    det = BirdDetector(config={}, device="cpu")
+    # 40x40 box on a 100x100 image → area_frac = 1600 / 10000 = 0.16
+    det.model = _FakeYOLO([_FakeBox((20.0, 20.0, 60.0, 60.0), 0.87)])
+    box = det.detect_best_box(Image.new("RGB", (100, 100)))
+    assert box["x1"] == 20 and box["y1"] == 20
+    assert box["x2"] == 60 and box["y2"] == 60
+    assert box["conf"] == 0.87
+    assert box["img_w"] == 100 and box["img_h"] == 100
+    assert box["area_frac"] == 0.16
+
+
+def test_detect_best_box_passes_imgsz_and_max_det():
+    det = BirdDetector(config={"imgsz": 960, "max_det": 4}, device="cpu")
+    fake = _FakeYOLO([_FakeBox((0.0, 0.0, 10.0, 10.0), 0.5)])
+    det.model = fake
+    det.detect_best_box(Image.new("RGB", (100, 100)))
+    assert fake.predict_kwargs["imgsz"] == 960
+    assert fake.predict_kwargs["max_det"] == 4
+    assert fake.predict_kwargs["conf"] == 0.25
+
+
+def test_detect_best_box_returns_none_when_no_boxes():
+    det = BirdDetector(config={}, device="cpu")
+    det.model = _FakeYOLO([])
+    assert det.detect_best_box(Image.new("RGB", (100, 100))) is None
+
+
+def test_detect_best_box_picks_highest_of_several():
+    det = BirdDetector(config={}, device="cpu")
+    det.model = _FakeYOLO([
+        _FakeBox((0.0, 0.0, 10.0, 10.0), 0.30),
+        _FakeBox((10.0, 10.0, 50.0, 50.0), 0.95),
+        _FakeBox((5.0, 5.0, 20.0, 20.0), 0.60),
+    ])
+    box = det.detect_best_box(Image.new("RGB", (100, 100)))
+    assert box["conf"] == 0.95
+    assert (box["x1"], box["y1"], box["x2"], box["y2"]) == (10, 10, 50, 50)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
