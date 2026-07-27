@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Tuple
 
 from fastapi import HTTPException
 
@@ -19,7 +18,7 @@ from modules.run_manifest import (
 logger = logging.getLogger(__name__)
 
 
-def reset_ghost_runners() -> List[str]:
+def reset_ghost_runners() -> list[str]:
     """Reset is_running on runners whose thread is no longer alive."""
     cleared = []
     for name, runner in [
@@ -48,7 +47,7 @@ def reset_ghost_runners() -> List[str]:
     return cleared
 
 
-def resume_job_inplace(job: dict) -> Tuple[int, int]:
+def resume_job_inplace(job: dict) -> tuple[int, int]:
     """Resume a job in-place: same id back to queued, phases preserved. Returns (job_id, position)."""
     from modules import db
 
@@ -79,7 +78,7 @@ def resume_job_inplace(job: dict) -> Tuple[int, int]:
     return run_id, position
 
 
-def create_retry_job(original_job: dict, source: str) -> Tuple[int, int]:
+def create_retry_job(original_job: dict, source: str) -> tuple[int, int]:
     """Create a retry job from an original job. Returns (new_job_id, queue_position)."""
     from modules import db
     from modules.phases import sort_phase_value_strings

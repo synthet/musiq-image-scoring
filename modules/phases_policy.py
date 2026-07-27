@@ -7,7 +7,7 @@ versions.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 from modules import db
 from modules.phases import PhaseRegistry, PhaseStatus
@@ -50,8 +50,8 @@ def explain_phase_run_decision(
     phase_code,
     current_executor_version=None,
     force_run: bool = False,
-    prefetched_statuses: Dict[str, Any] | None = None,
-) -> Dict[str, Any]:
+    prefetched_statuses: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Return structured diagnostics for run/skip decision.
 
     ``prefetched_statuses`` is an optional per-image phase-status map (same shape

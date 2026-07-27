@@ -9,9 +9,11 @@ This module provides:
 All wrapper functions accept runner instances as arguments to support dependency injection
 and avoid global state dependencies.
 """
-import gradio as gr
-import os
 import json
+import os
+
+import gradio as gr
+
 from modules import db, thumbnails
 
 # Color palette for keyword tags - distinct, vibrant colors

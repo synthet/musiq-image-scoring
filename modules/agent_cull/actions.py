@@ -16,7 +16,10 @@ from modules.agent_cull.discovery_db import (
 )
 from modules.agent_cull.fingerprint import check_group_staleness
 from modules.agent_cull.operator import approve_recommendations, reject_recommendations
-from modules.agent_cull.repository import get_latest_group_for_unit, list_recommendations_for_group
+from modules.agent_cull.repository import (
+    get_latest_group_for_unit,
+    list_recommendations_for_group,
+)
 from modules.agent_cull.rollback import rollback_recommendation
 from modules.agent_cull.service import run_agent_review_for_unit
 

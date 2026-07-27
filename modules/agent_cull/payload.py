@@ -9,10 +9,10 @@ import os
 from statistics import mean, pstdev
 from typing import Any
 
-from modules.agent_cull.config import REQUEST_SCHEMA_VERSION, AgentCullConfig
-from modules.agent_cull.mode_profiles import resolve_prompt_template_version
-from modules.agent_cull.discovery import ReviewUnit, classify_image_status
 from modules import thumbnails
+from modules.agent_cull.config import REQUEST_SCHEMA_VERSION, AgentCullConfig
+from modules.agent_cull.discovery import ReviewUnit, classify_image_status
+from modules.agent_cull.mode_profiles import resolve_prompt_template_version
 from modules.db_legacy import get_batch_image_model_scores
 
 try:  # Pillow is a core dep; guard so packet build never hard-fails on import

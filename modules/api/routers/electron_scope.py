@@ -4,21 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
-import os
-from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Body, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Body, HTTPException
 
 from modules import db
-from modules.api.routers.electron_helpers import (
-    api_module,
-    logger,
-    _join_runner_threads,
-    _stop_runner_for_job_row,
-    _stop_runner_for_phase,
-)
 from modules.api.routers.electron_models import QueueReorderRequest, ScopePreviewRequest
 from modules.api.routers.electron_scope_helpers import (
     build_scope_tree_sync,
@@ -26,6 +15,7 @@ from modules.api.routers.electron_scope_helpers import (
     normalize_scope_path_input,
     scope_resolve_path,
 )
+
 
 def create_electron_scope_router() -> APIRouter:
     router = APIRouter()
@@ -39,7 +29,7 @@ def create_electron_scope_router() -> APIRouter:
         if not preview_paths:
             raise HTTPException(status_code=400, detail="paths must not be empty")
         try:
-            resolved: List[str] = []
+            resolved: list[str] = []
             for path in preview_paths:
                 resolved.append(scope_resolve_path(path))
             return compute_scope_preview_for_resolved_paths(resolved, request.recursive)
@@ -62,7 +52,6 @@ def create_electron_scope_router() -> APIRouter:
 
     @router.get("/queue", summary="Get the current Run Queue")
     async def get_run_queue(limit: int = 100):
-        from modules import db
         try:
             queued = db.get_queued_jobs(limit=limit)
             return [
@@ -81,7 +70,6 @@ def create_electron_scope_router() -> APIRouter:
 
     @router.post("/queue/reorder", summary="Reorder a queued Run")
     async def reorder_queue(request: QueueReorderRequest = Body(...)):
-        from modules import db
         try:
             db.reorder_queued_job(request.run_id, request.new_position)
             return {"success": True}

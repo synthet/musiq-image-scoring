@@ -42,7 +42,7 @@ Set ``database.engine`` in config.json (see :func:`modules.config.get_database_e
 The singleton is created lazily on the first call to ``get_connector()``.
 Use ``reset_connector()`` in tests.
 """
-from modules.db_connector.protocol import IConnector, ITransaction
 from modules.db_connector.factory import get_connector, reset_connector
+from modules.db_connector.protocol import IConnector, ITransaction
 
 __all__ = ["IConnector", "ITransaction", "get_connector", "reset_connector"]

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from functools import lru_cache
-from typing import Any, FrozenSet
+from typing import Any
 
 from modules.mcp.catalog import load_tool_catalog, tool_by_name
 
@@ -37,7 +37,7 @@ def _catalog_profile_tools() -> dict[str, frozenset[str]]:
     return out
 
 
-def get_profile_tool_names(profile: str | None = None) -> FrozenSet[str]:
+def get_profile_tool_names(profile: str | None = None) -> frozenset[str]:
     prof = (profile or get_active_profile()).strip().lower()
     mapping = _catalog_profile_tools()
     if prof == "full":

@@ -20,7 +20,7 @@ What runs on a pull request, what blocks a merge, and how to reproduce each gate
 | [`backend-tests.yml`](../../.github/workflows/backend-tests.yml) | `api-contract` | Every route in `modules/api/routers/` appears in root `openapi.json` |
 | [`validate-api-types.yml`](../../.github/workflows/validate-api-types.yml) | `api-types` | `electron/apiTypes.ts` matches root `openapi.json` |
 | [`frontend-test.yml`](../../.github/workflows/frontend-test.yml) | `frontend` | `frontend/` vitest suite |
-| [`lint-f821.yml`](../../.github/workflows/lint-f821.yml) | — | ruff `F821` (undefined names) |
+| [`lint-f821.yml`](../../.github/workflows/lint-f821.yml) | — | ruff `F821` (undefined names) + total-finding ratchet vs `scripts/ci/ruff_modules_baseline.json` |
 | [`conflict-marker-check.yml`](../../.github/workflows/conflict-marker-check.yml) | `conflict-markers` | No merge-conflict markers committed |
 | [`docs-lint.yml`](../../.github/workflows/docs-lint.yml) | `docs-dependency-lint`, `okf-bundle-lint` | Docs links and OKF frontmatter |
 | [`agent-infra.yml`](../../.github/workflows/agent-infra.yml) | `agent-infra` | Agent skill/command frontmatter |
@@ -68,6 +68,8 @@ Windows (`.venv`) or WSL (`~/.venvs/tf`) both work — the gates avoid the ML st
 ./scripts/ci/run_fast_smoke_tests.sh          # backend-pytest-fast
 python scripts/ci/contract_check.py           # api-contract
 npm run api:types:check                       # api-types
+ruff check --select F821 modules/             # undefined names (must be 0)
+python scripts/ci/check_ruff_baseline.py      # ruff ratchet for modules/
 ```
 
 CI installs [`requirements/requirements_ci.txt`](../../requirements/requirements_ci.txt) — seven

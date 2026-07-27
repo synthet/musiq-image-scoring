@@ -10,7 +10,6 @@ without dropping the underlying ``birds`` tag used for discovery.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional
 
 # Canonical filter keyword (normalized to lowercase in keywords_dim).
 BIRDS_SPECIES_EXHAUSTED_KEYWORD = "birds:species-exhausted"
@@ -59,7 +58,7 @@ def classify_image_row(
     has_birds: bool,
     has_species: bool,
     has_exhausted_marker: bool,
-    ips_status: Optional[str],
+    ips_status: str | None,
 ) -> BirdSpeciesEligibility:
     if not has_birds:
         return BirdSpeciesEligibility.NOT_IN_SCOPE

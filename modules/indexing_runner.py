@@ -3,19 +3,19 @@ import logging
 import os
 import platform
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from modules import db
-from modules.utils import is_docker_runtime, resolve_scope_input_path
-from modules.version import APP_VERSION
-from modules.phases import PhaseCode, PhaseStatus
 from modules.events import event_manager
-from modules.run_log import runner_emit
 from modules.indexing_policy import (
     discovery_extensions,
     path_is_indexing_excluded,
     prune_indexing_excluded_walk_dirs,
 )
+from modules.phases import PhaseCode, PhaseStatus
+from modules.run_log import runner_emit
+from modules.utils import is_docker_runtime, resolve_scope_input_path
+from modules.version import APP_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ _INDEXING_CONTENT_FP_KEY = "indexing_content_fp"
 _MAX_PERSISTED_JOB_LOG_CHARS = 250_000
 
 
-def _parse_metadata_dict(raw: Any) -> Dict[str, Any]:
+def _parse_metadata_dict(raw: Any) -> dict[str, Any]:
     if raw is None:
         return {}
     if isinstance(raw, dict):
@@ -94,7 +94,7 @@ def _resolve_scope_input_path_with_retry(
     return None, tried
 
 
-def _image_row_has_identity_hash(row: Optional[Dict[str, Any]]) -> bool:
+def _image_row_has_identity_hash(row: dict[str, Any] | None) -> bool:
     """True when ``images.image_hash`` is non-empty (matches ``get_phase_incomplete_sql('indexing')``)."""
     if not row:
         return False
@@ -124,7 +124,7 @@ def _content_fp_matches_file(fp: Any, file_path: str) -> bool:
     return False
 
 
-def _attach_indexing_content_fp(meta: Dict[str, Any], file_path: str) -> Dict[str, Any]:
+def _attach_indexing_content_fp(meta: dict[str, Any], file_path: str) -> dict[str, Any]:
     out = dict(meta)
     try:
         st = os.stat(file_path)
@@ -135,7 +135,7 @@ def _attach_indexing_content_fp(meta: Dict[str, Any], file_path: str) -> Dict[st
 
 
 def _persist_indexing_content_fp(
-    image_id: int, file_path: str, indexing_hash_mode: Optional[str] = None
+    image_id: int, file_path: str, indexing_hash_mode: str | None = None
 ) -> None:
     """Merge indexing_content_fp into images.metadata for duplicate-hash rows (no upsert)."""
     if not image_id:
@@ -184,7 +184,7 @@ def _path_under_or_equal(child: str, ancestor: str) -> bool:
     return c.startswith(prefix)
 
 
-def _dir_directly_contains_nef(dir_path: str, cache: Dict[str, bool]) -> bool:
+def _dir_directly_contains_nef(dir_path: str, cache: dict[str, bool]) -> bool:
     if dir_path in cache:
         return cache[dir_path]
     try:
@@ -200,7 +200,7 @@ def _dir_directly_contains_nef(dir_path: str, cache: Dict[str, bool]) -> bool:
     return False
 
 
-def _resolve_nef_folder_path(file_path: str, scan_stop: Optional[str], cache: Dict[str, bool]) -> Optional[str]:
+def _resolve_nef_folder_path(file_path: str, scan_stop: str | None, cache: dict[str, bool]) -> str | None:
     """
     Deepest directory at or above dirname(file_path) that directly contains a .nef file.
     When scan_stop is set (normalized directory), do not walk above it.
@@ -221,7 +221,7 @@ def _resolve_nef_folder_path(file_path: str, scan_stop: Optional[str], cache: Di
     return None
 
 
-def _assign_indexing_folder_id(image_id: int, file_path: str, scan_stop: Optional[str], nef_cache: Dict[str, bool]) -> None:
+def _assign_indexing_folder_id(image_id: int, file_path: str, scan_stop: str | None, nef_cache: dict[str, bool]) -> None:
     resolved = _resolve_nef_folder_path(file_path, scan_stop, nef_cache)
     new_fid = db.get_or_create_folder(resolved) if resolved else None
     try:
@@ -246,8 +246,8 @@ def _resolve_split_brain_collision(
     file_path: str,
     image_hash: str,
     hash_version: int,
-    existing: Dict[str, Any],
-    existing_by_path: Optional[Dict[str, Any]],
+    existing: dict[str, Any],
+    existing_by_path: dict[str, Any] | None,
     log,
 ) -> int:
     """Resolve the case where lookup-by-path (track_id) and lookup-by-hash (hash_row_id)
@@ -369,7 +369,7 @@ class IndexingRunner:
         self.current_count = 0
         self.total_count = 0
 
-    def _persist_log_to_job_row(self, job_id: Optional[int]) -> None:
+    def _persist_log_to_job_row(self, job_id: int | None) -> None:
         """Persist in-memory log to ``jobs.log`` without mutating ``jobs.status``."""
         if not job_id:
             return
@@ -388,7 +388,7 @@ class IndexingRunner:
     def get_status(self):
         return self.is_running, "\n".join(self.log_history), self.status_message, self.current_count, self.total_count
 
-    def start_batch(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None, report_collector=None):
+    def start_batch(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: list[int] = None, report_collector=None):
         if self.is_running:
             return "Error: Already running."
 
@@ -425,7 +425,7 @@ class IndexingRunner:
         self._thread.start()
         return "Started"
 
-    def discover_files(self, directory: str) -> List[str]:
+    def discover_files(self, directory: str) -> list[str]:
         valid_files = []
         exts = discovery_extensions()
         if os.path.isfile(directory):
@@ -553,9 +553,8 @@ class IndexingRunner:
 
 
 
-        from modules.config import get_config_value
-
         from modules import image_identity_hash
+        from modules.config import get_config_value
 
 
 
@@ -593,7 +592,7 @@ class IndexingRunner:
 
             image_hash = None
 
-            hash_version: Optional[int] = None
+            hash_version: int | None = None
 
             if (
 
@@ -961,8 +960,8 @@ class IndexingRunner:
 
         return processed_count, skipped_count
 
-    def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None, report_collector=None):
-        def log(level: str, msg: str, image_id: Optional[int] = None) -> None:
+    def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: list[int] = None, report_collector=None):
+        def log(level: str, msg: str, image_id: int | None = None) -> None:
             runner_emit(self.log_history, job_id, msg, level, phase="indexing", image_id=image_id)
 
         def fail_terminal(error_summary: str):
@@ -1059,8 +1058,8 @@ class IndexingRunner:
             targeted = len(resolved_image_ids) if resolved_image_ids is not None else len(all_files)
             report_collector.set_scope_counts(in_scope=len(all_files), targeted=targeted)
 
-        scan_stop: Optional[str] = None
-        nef_cache: Dict[str, bool] = {}
+        scan_stop: str | None = None
+        nef_cache: dict[str, bool] = {}
         if resolved_image_ids is None and input_path and os.path.exists(input_path):
             if os.path.isdir(input_path):
                 scan_stop = os.path.normpath(input_path)

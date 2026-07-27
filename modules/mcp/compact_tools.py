@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Any, Optional
+from typing import Any
 
 from modules.mcp.actions.dispatch import dispatch_action
 from modules.mcp.actions.search import search_actions
@@ -57,10 +57,10 @@ def _webui_unavailable_error(*, action_id: str, request_id: str | None, error: s
 def handle_search(
     query: str,
     limit: int = 10,
-    category: Optional[str] = None,
-    side_effect_level: Optional[str] = None,
+    category: str | None = None,
+    side_effect_level: str | None = None,
     read_only_only: bool = False,
-    pipeline_area: Optional[str] = None,
+    pipeline_area: str | None = None,
     include_schemas: bool = False,
     include_docs: bool = False,
     include_elevated: bool = False,
@@ -81,12 +81,12 @@ def handle_search(
 
 def handle_dispatch(
     action_id: str,
-    arguments: Optional[dict] = None,
+    arguments: dict | None = None,
     dry_run: bool = False,
     confirmed: bool = False,
-    request_id: Optional[str] = None,
+    request_id: str | None = None,
     allow_deprecated: bool = False,
-    expected_version: Optional[int] = None,
+    expected_version: int | None = None,
 ) -> dict[str, Any]:
     local = dispatch_action(
         action_id,

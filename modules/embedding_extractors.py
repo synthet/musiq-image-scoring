@@ -23,8 +23,8 @@ Verdicts / thresholds for each tower:
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Iterable, List, Sequence, Tuple
 
 from modules.embedding_spaces import (
     CLIP_IMAGE_DIM,
@@ -351,8 +351,8 @@ class CullingEmbedder:
                 logger.warning("embed_paths: cannot open %s: %s", p, exc)
                 return p, None
 
-        pils: List = []
-        ok_paths: List[str] = []
+        pils: list = []
+        ok_paths: list[str] = []
         workers = max(1, int(load_workers))
         if workers == 1:
             loaded = [_load(p) for p in paths]
@@ -369,7 +369,7 @@ class CullingEmbedder:
 
 def generate_and_persist(
     space_code: str,
-    rows: Iterable[Tuple[int, str]],
+    rows: Iterable[tuple[int, str]],
     *,
     batch_size: int = 32,
     model_version: str | None = None,

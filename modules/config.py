@@ -1,10 +1,10 @@
 import json
 import logging
 import os
-import time
-from pathlib import Path
 import platform
 import string
+import time
+from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_FILE = BASE_DIR / "config.json"

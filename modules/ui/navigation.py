@@ -13,9 +13,9 @@ All navigation functions maintain consistency with the Gallery's sorting and fil
 logic to ensure a smooth user experience.
 """
 import os
+
 import gradio as gr
-from modules import db, utils, ui_tree
-from modules.ui import common
+
 
 def open_folder_in_gallery(folder, sort_by, sort_order, rating_filter, label_filter, keyword_filter, min_gen, min_aes, min_tech, start_date, end_date, update_gallery_fn):
     """

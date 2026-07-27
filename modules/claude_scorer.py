@@ -25,7 +25,7 @@ import logging
 import os
 import tempfile
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PIL import Image
 
@@ -34,7 +34,7 @@ from modules import config
 logger = logging.getLogger(__name__)
 
 # Rubric dimensions the judge must score (0-100 each), in addition to `overall`.
-RUBRIC_DIMENSIONS: List[str] = ["composition", "exposure", "sharpness", "subject"]
+RUBRIC_DIMENSIONS: list[str] = ["composition", "exposure", "sharpness", "subject"]
 
 _SYSTEM_PROMPT = (
     "You are an expert photo-quality judge. You rate images objectively and "
@@ -65,7 +65,7 @@ _RUBRIC_SCHEMA = {
 }
 
 
-def parse_rubric(data: Any) -> Optional[Dict[str, float]]:
+def parse_rubric(data: Any) -> dict[str, float] | None:
     """Parse a rubric out of structured output (dict) or a JSON text response.
 
     Returns a dict with all of ``RUBRIC_DIMENSIONS`` + ``overall`` clamped to
@@ -86,7 +86,7 @@ def parse_rubric(data: Any) -> Optional[Dict[str, float]]:
     if not isinstance(data, dict):
         return None
 
-    out: Dict[str, float] = {}
+    out: dict[str, float] = {}
     for key in (*RUBRIC_DIMENSIONS, "overall"):
         value = data.get(key)
         if value is None:
@@ -109,10 +109,10 @@ class ClaudeScorer:
 
     def __init__(
         self,
-        model: Optional[str] = None,
-        max_dimension: Optional[int] = None,
-        timeout_seconds: Optional[int] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        max_dimension: int | None = None,
+        timeout_seconds: int | None = None,
+        api_key: str | None = None,
     ) -> None:
         self.available = False
         self._sdk: Any = None
@@ -161,7 +161,7 @@ class ClaudeScorer:
         return default
 
     @staticmethod
-    def _ensure_api_key() -> Optional[str]:
+    def _ensure_api_key() -> str | None:
         secret = config.get_secret("anthropic")
         key = secret.get("api_key") if isinstance(secret, dict) else None
         key = key or os.environ.get("ANTHROPIC_API_KEY")
@@ -170,12 +170,12 @@ class ClaudeScorer:
             os.environ.setdefault("ANTHROPIC_API_KEY", key)
         return key
 
-    def predict(self, image_path: str) -> Dict[str, Any]:
+    def predict(self, image_path: str) -> dict[str, Any]:
         """Score a single image. Returns score/subscores/status/score_range."""
         if not self.available:
             return {"error": "Model not loaded", "status": "failed"}
 
-        tmp_path: Optional[str] = None
+        tmp_path: str | None = None
         try:
             tmp_path = self._downscale_to_temp_jpeg(image_path)
             with open(tmp_path, "rb") as fh:
@@ -227,7 +227,7 @@ class ClaudeScorer:
         return await asyncio.wait_for(self._score_async(image_b64), self.timeout_seconds)
 
     def _run_in_thread(self, image_b64: str) -> Any:
-        box: Dict[str, Any] = {}
+        box: dict[str, Any] = {}
 
         def runner() -> None:
             try:
@@ -244,7 +244,7 @@ class ClaudeScorer:
 
     async def _score_async(self, image_b64: str) -> Any:
         sdk = self._sdk
-        opt_kwargs: Dict[str, Any] = {
+        opt_kwargs: dict[str, Any] = {
             "model": self.model,
             "system_prompt": _SYSTEM_PROMPT,
             "allowed_tools": [],
@@ -282,4 +282,4 @@ class ClaudeScorer:
         return structured if structured is not None else text
 
 
-__all__ = ["ClaudeScorer", "parse_rubric", "RUBRIC_DIMENSIONS"]
+__all__ = ["RUBRIC_DIMENSIONS", "ClaudeScorer", "parse_rubric"]

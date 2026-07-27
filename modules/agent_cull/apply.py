@@ -6,12 +6,11 @@ import hashlib
 import logging
 from typing import Any
 
-from modules.agent_cull.json_util import json_dumps
-
 from modules import audit, db
 from modules.agent_cull.config import AgentCullConfig
-from modules.agent_cull.mode_profiles import resolve_prompt_template_version
 from modules.agent_cull.discovery import ReviewUnit
+from modules.agent_cull.json_util import json_dumps
+from modules.agent_cull.mode_profiles import resolve_prompt_template_version
 from modules.agent_cull.repository import (
     insert_recommendation,
     insert_review_group,

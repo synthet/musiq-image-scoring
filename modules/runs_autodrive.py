@@ -8,20 +8,24 @@ import os
 import threading
 import time
 from collections import Counter
-from typing import Any, Dict, Iterable, Optional, Sequence
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 from modules import db, utils
-from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
-from modules.run_manifest import (
-    REASON_SOURCE_AUTO_DRIVE,
-    attach_run_reason,
-    build_auto_drive_summary,
+from modules.job_description import (
+    augment_queue_payload_for_audit,
+    build_run_submit_description,
 )
 from modules.phases import (
     PHASE_PREREQUISITES,
     PhaseCode,
     assert_prereqs_for_scope,
     sort_phase_value_strings,
+)
+from modules.run_manifest import (
+    REASON_SOURCE_AUTO_DRIVE,
+    attach_run_reason,
+    build_auto_drive_summary,
 )
 from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
 
@@ -57,8 +61,8 @@ def _log_scheduled_runs(scheduled: Sequence[dict[str, Any]]) -> None:
 def _log_drive_tick_result(
     *,
     tick_reason: str,
-    summary: Dict[str, Any],
-    stop_reason: Optional[str] = None,
+    summary: dict[str, Any],
+    stop_reason: str | None = None,
 ) -> None:
     health = summary.get("health") or {}
     msg = (
@@ -231,12 +235,16 @@ def _has_active_maintenance_job() -> bool:
     return False
 
 
-def _enqueue_maintenance_action(action: str, *, limit: int, tool_id: str) -> Optional[int]:
+def _enqueue_maintenance_action(action: str, *, limit: int, tool_id: str) -> int | None:
     from modules.maintenance_job_display import (
         build_default_maintenance_description,
         maintenance_job_input_path,
     )
-    from modules.run_manifest import REASON_SOURCE_MAINTENANCE, attach_run_reason, build_maintenance_summary
+    from modules.run_manifest import (
+        REASON_SOURCE_MAINTENANCE,
+        attach_run_reason,
+        build_maintenance_summary,
+    )
 
     queue_payload: dict[str, Any] = {"action": action, "limit": limit}
     if action == "heal_thumbnails":
@@ -261,7 +269,7 @@ def _enqueue_maintenance_action(action: str, *, limit: int, tool_id: str) -> Opt
     return int(job_id) if job_id else None
 
 
-def _maybe_enqueue_drive_self_heal_maintenance(summary: Optional[dict[str, Any]]) -> dict[str, Any]:
+def _maybe_enqueue_drive_self_heal_maintenance(summary: dict[str, Any] | None) -> dict[str, Any]:
     """Enqueue bounded maintenance when library-wide asset gaps remain."""
     out: dict[str, Any] = {"enqueued": []}
     if not _autodrive_config_bool("auto_drive.self_heal_thumbnails", default=True) and not _autodrive_config_bool(
@@ -314,7 +322,7 @@ _POST_AUDIT_FOLLOWUP_PHASE_ORDER: tuple[str, ...] = (
 
 def _first_post_audit_stage_with_work(
     stage_queues: dict[str, Any],
-) -> Optional[tuple[str, int]]:
+) -> tuple[str, int] | None:
     """Return (phase_code, remaining_count) for the earliest pipeline stage with audit work."""
     for code in _POST_AUDIT_FOLLOWUP_PHASE_ORDER:
         info = stage_queues.get(code)
@@ -330,7 +338,7 @@ def maybe_schedule_post_audit_followup(
     job_id: int,
     payload: dict[str, Any],
     post_run_audit: dict[str, Any],
-) -> Optional[int]:
+) -> int | None:
     """Re-queue auto-drive work when post-run audit still shows residual stage gaps."""
     if payload.get("tool_id") != "runs_auto_drive":
         return None
@@ -475,7 +483,7 @@ def _autodrive_new_folder_days() -> int:
         return _DEFAULT_NEW_FOLDER_DAYS
 
 
-def _new_folder_cutoff_ts(*, days: Optional[int] = None) -> float:
+def _new_folder_cutoff_ts(*, days: int | None = None) -> float:
     window = _autodrive_new_folder_days() if days is None else max(1, int(days))
     cutoff = datetime.datetime.now() - datetime.timedelta(days=window)
     return cutoff.timestamp()
@@ -503,7 +511,7 @@ def _folder_created_at_sort_ts(created_at: Any) -> float:
         return 0.0
 
 
-def _format_folder_created_at(created_at: Any) -> Optional[str]:
+def _format_folder_created_at(created_at: Any) -> str | None:
     if created_at is None:
         return None
     if isinstance(created_at, datetime.datetime):
@@ -558,7 +566,7 @@ def _folder_bucket_sort_key(
 _REPAIR_PLAN_QUEUE_SKIP = frozenset({"clustering"})
 
 
-def normalize_target_phases(raw: Optional[Sequence[Any]] = None) -> list[str]:
+def normalize_target_phases(raw: Sequence[Any] | None = None) -> list[str]:
     aliases = {"score": "scoring", "tag": "keywords", "tagging": "keywords", "cluster": "culling"}
     values: list[str] = []
     allowed = {p.value for p in PhaseCode}
@@ -847,7 +855,7 @@ def _parse_payload(raw: Any) -> dict[str, Any]:
     return {}
 
 
-def _newest_job_id() -> Optional[int]:
+def _newest_job_id() -> int | None:
     """Newest job id, used as the drive-session watermark. ``None`` if unavailable."""
     try:
         rows = db.get_jobs(limit=1, offset=0) or []
@@ -860,7 +868,7 @@ def _newest_job_id() -> Optional[int]:
     return job_id if job_id >= 0 else None
 
 
-def _drive_session_since_job_id() -> Optional[int]:
+def _drive_session_since_job_id() -> int | None:
     """Watermark for the *active* drive session, else ``None``.
 
     Gated on ``enabled`` so a stale watermark left by a finished drive cannot loosen the
@@ -877,7 +885,7 @@ def _recent_auto_attempt_counts(
     plan_keys: Iterable[str],
     *,
     scan_limit: int = 500,
-    since_job_id: Optional[int] = None,
+    since_job_id: int | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Per ``plan_key`` attempt accounting for the progress-gated loop guard.
 
@@ -996,7 +1004,7 @@ def _bird_backlog_reserved_slots(*, batch_limit: int, bird_backlog: int) -> int:
 
 
 _BUCKETS_CACHE_LOCK = threading.Lock()
-_BUCKETS_CACHE: Dict[str, Any] = {"key": None, "built_at": 0.0, "planned": None}
+_BUCKETS_CACHE: dict[str, Any] = {"key": None, "built_at": 0.0, "planned": None}
 
 
 def invalidate_autodrive_buckets_cache() -> None:
@@ -1022,9 +1030,9 @@ def _copy_planned_buckets(planned: dict[str, Any]) -> dict[str, Any]:
 
 def _autodrive_buckets_cache_key(
     *,
-    root_path: Optional[str],
-    target_phases: Optional[Sequence[Any]],
-    folder_paths: Optional[Sequence[str]],
+    root_path: str | None,
+    target_phases: Sequence[Any] | None,
+    folder_paths: Sequence[str] | None,
 ) -> str:
     phases = tuple(normalize_target_phases(target_phases))
     explicit = tuple(sorted(_path_key(p) for p in (folder_paths or []) if _path_key(p)))
@@ -1045,7 +1053,7 @@ _UNPRODUCTIVE_SKIP_REASONS = frozenset(
 )
 DRIVE_UNPRODUCTIVE_COOLDOWN_SEC = 600.0
 _FOLDER_COOLDOWN_LOCK = threading.Lock()
-_FOLDER_COOLDOWN: Dict[str, tuple[float, float]] = {}  # path_key -> (expiry_ts, percent_at_skip)
+_FOLDER_COOLDOWN: dict[str, tuple[float, float]] = {}  # path_key -> (expiry_ts, percent_at_skip)
 
 
 def _unproductive_cooldown_sec() -> float:
@@ -1149,9 +1157,9 @@ def _exhausted_failed_min_attempts() -> int:
 
 def build_folder_buckets_for_autodrive(
     *,
-    root_path: Optional[str] = None,
-    target_phases: Optional[Sequence[Any]] = None,
-    folder_paths: Optional[Sequence[str]] = None,
+    root_path: str | None = None,
+    target_phases: Sequence[Any] | None = None,
+    folder_paths: Sequence[str] | None = None,
     refresh_dirty_limit: int = AUTODRIVE_DIRTY_REFRESH_LIMIT,
 ) -> dict[str, Any]:
     """Full-library bucket scan for auto-drive with a short-lived in-process cache."""
@@ -1195,7 +1203,7 @@ def _select_autodrive_candidates(
     schedulable: Sequence[dict[str, Any]],
     *,
     limit: int,
-    bucket_counts: Dict[str, Any],
+    bucket_counts: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """Pick up to ``limit`` leaf-ready folders with fair share for large bird backlogs."""
     limit = max(1, min(_as_int(limit, 50), AUTODRIVE_CANDIDATE_SCAN_CAP))
@@ -1288,7 +1296,7 @@ def _phase_prereq_blockers(
     phase_values: Sequence[str],
     complete: set[str],
     *,
-    prereq_complete: Optional[set[str]] = None,
+    prereq_complete: set[str] | None = None,
 ) -> dict[str, list[str]]:
     requested = set(phase_values)
     satisfied = prereq_complete if prereq_complete is not None else complete
@@ -1379,8 +1387,8 @@ def _build_bucket_from_summary(
     complete = {p["code"] for p in phase_rows if _is_complete(p)}
     active = _path_intersects_active(path_key, active_path_keys) or any(_is_active_phase(p) for p in phase_rows)
 
-    first_needed_idx: Optional[int] = None
-    current_phase: Optional[str] = None
+    first_needed_idx: int | None = None
+    current_phase: str | None = None
     if not active:
         for idx, phase in enumerate(phase_rows):
             if not _is_complete(phase):
@@ -1422,14 +1430,14 @@ def _build_bucket_from_summary(
 
 def build_folder_buckets(
     *,
-    root_path: Optional[str] = None,
-    q: Optional[str] = None,
-    bucket: Optional[str] = None,
+    root_path: str | None = None,
+    q: str | None = None,
+    bucket: str | None = None,
     limit: int = 25,
     offset: int = 0,
     include_complete: bool = False,
-    target_phases: Optional[Sequence[Any]] = None,
-    folder_paths: Optional[Sequence[str]] = None,
+    target_phases: Sequence[Any] | None = None,
+    folder_paths: Sequence[str] | None = None,
     refresh_dirty_limit: int = 0,
     planner_preview_limit: int = 25,
     planner_preview_max_images: int = 500,
@@ -1553,9 +1561,9 @@ def _enqueue_auto_bucket(
     bucket: dict[str, Any],
     *,
     generate_captions: bool,
-    resolved: Optional[str] = None,
-    phase_values: Optional[Sequence[str]] = None,
-) -> tuple[Optional[int], Optional[int], Optional[dict[str, Any]]]:
+    resolved: str | None = None,
+    phase_values: Sequence[str] | None = None,
+) -> tuple[int | None, int | None, dict[str, Any] | None]:
     raw_path = str(bucket.get("path") or "")
     # ``resolved`` / ``phase_values`` are passed by the drive loop, which already
     # computed them to derive the loop-guard plan_key; reuse them so we don't build
@@ -1657,15 +1665,15 @@ def _enqueue_auto_bucket(
 
 def auto_drive_runs(
     *,
-    root_path: Optional[str] = None,
-    folder_paths: Optional[Sequence[str]] = None,
+    root_path: str | None = None,
+    folder_paths: Sequence[str] | None = None,
     limit: int = 50,
     dry_run: bool = False,
-    target_phases: Optional[Sequence[Any]] = None,
+    target_phases: Sequence[Any] | None = None,
     max_repeats: int = 2,
     generate_captions: bool = True,
     force: bool = False,
-    attempts_since_job_id: Optional[int] = None,
+    attempts_since_job_id: int | None = None,
 ) -> dict[str, Any]:
     limit = max(1, min(_as_int(limit, 50), 500))
     max_repeats = max(1, min(_as_int(max_repeats, 2), 20))
@@ -1831,7 +1839,7 @@ def auto_drive_runs(
                 # exhausted their per-image retry budget, classify it as ``failed_exhausted``
                 # (naming the bad files) rather than an opaque ``loop_detected`` — there is
                 # genuinely nothing more to retry, so the dashboard should say so.
-                failed_phase: Optional[str] = None
+                failed_phase: str | None = None
                 failed_images: list[dict[str, Any]] = []
                 if _treat_exhausted_failed_as_terminal() and prep["phase_values"] and prep["resolved"]:
                     min_attempts = _exhausted_failed_min_attempts()
@@ -2008,7 +2016,7 @@ _DRIVE_LOCK = threading.RLock()
 # Non-blocking guard so the dispatcher tick and the API "start" call never run
 # two ``auto_drive_runs`` batches concurrently (which could double-enqueue).
 _DRIVE_BATCH_LOCK = threading.Lock()
-_DRIVE_STATE: Dict[str, Any] = {
+_DRIVE_STATE: dict[str, Any] = {
     "enabled": False,
     "root_path": None,
     "limit": 50,
@@ -2038,18 +2046,18 @@ def _config_server_loop_enabled() -> bool:
         return True
 
 
-def get_drive_state() -> Dict[str, Any]:
+def get_drive_state() -> dict[str, Any]:
     with _DRIVE_LOCK:
         state = dict(_DRIVE_STATE)
     state["batch_in_progress"] = _DRIVE_BATCH_LOCK.locked()
     return state
 
 
-def _broadcast_drive(event_type: str, extra: Optional[Dict[str, Any]] = None) -> None:
+def _broadcast_drive(event_type: str, extra: dict[str, Any] | None = None) -> None:
     try:
         from modules.events import event_manager
 
-        payload: Dict[str, Any] = {"drive": get_drive_state()}
+        payload: dict[str, Any] = {"drive": get_drive_state()}
         if extra:
             payload.update(extra)
         event_manager.broadcast_threadsafe(event_type, payload)
@@ -2057,7 +2065,7 @@ def _broadcast_drive(event_type: str, extra: Optional[Dict[str, Any]] = None) ->
         logger.debug("runs_autodrive: broadcast %s failed", event_type, exc_info=True)
 
 
-def _bucket_health_from_counts(bucket_counts: Dict[str, Any]) -> Dict[str, int]:
+def _bucket_health_from_counts(bucket_counts: dict[str, Any]) -> dict[str, int]:
     """Derive folder health counters from planner bucket_counts."""
     in_flight = _as_int((bucket_counts or {}).get("in_flight"))
     blocked = _as_int((bucket_counts or {}).get("blocked"))
@@ -2078,9 +2086,9 @@ def _classify_drive_tick(
     outstanding: int,
     scheduled_n: int,
     candidates_n: int,
-    health: Dict[str, int],
+    health: dict[str, int],
     enqueue_blocked: bool = False,
-) -> tuple[Optional[str], str]:
+) -> tuple[str | None, str]:
     """Return (stop_reason or None, last_tick_reason)."""
     if outstanding <= 0:
         return "complete", "complete"
@@ -2140,11 +2148,11 @@ def _skipped_detail_for_summary(
     return out
 
 
-def _summarize_result(result: Dict[str, Any], *, last_tick_reason: str = "") -> Dict[str, Any]:
+def _summarize_result(result: dict[str, Any], *, last_tick_reason: str = "") -> dict[str, Any]:
     bucket_counts = result.get("bucket_counts", {}) or {}
     health = result.get("health") or _bucket_health_from_counts(bucket_counts)
     skipped_raw = result.get("skipped", []) or []
-    summary: Dict[str, Any] = {
+    summary: dict[str, Any] = {
         "scheduled": len(result.get("scheduled", []) or []),
         "skipped": len(skipped_raw),
         "candidates": _as_int(result.get("candidates")),
@@ -2162,12 +2170,12 @@ def _summarize_result(result: Dict[str, Any], *, last_tick_reason: str = "") -> 
 
 def start_drive(
     *,
-    root_path: Optional[str] = None,
+    root_path: str | None = None,
     limit: int = 50,
-    target_phases: Optional[Sequence[Any]] = None,
+    target_phases: Sequence[Any] | None = None,
     generate_captions: bool = True,
     max_repeats: int = 2,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Enable the durable drive and immediately schedule the first batch."""
     state = arm_drive(
         root_path=root_path,
@@ -2182,12 +2190,12 @@ def start_drive(
 
 def arm_drive(
     *,
-    root_path: Optional[str] = None,
+    root_path: str | None = None,
     limit: int = 50,
-    target_phases: Optional[Sequence[Any]] = None,
+    target_phases: Sequence[Any] | None = None,
     generate_captions: bool = True,
     max_repeats: int = 2,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Enable the durable drive without running an immediate batch.
 
     This is safe for API handlers that must return quickly. Use
@@ -2227,7 +2235,7 @@ def arm_drive(
     return state
 
 
-def kick_drive_batch_async(*, force: bool = False) -> Dict[str, Any]:
+def kick_drive_batch_async(*, force: bool = False) -> dict[str, Any]:
     """Run one drive batch in a background thread and return immediately.
 
     If a batch is already in flight the second call is a no-op (returns
@@ -2257,7 +2265,7 @@ def kick_drive_batch_async(*, force: bool = False) -> Dict[str, Any]:
     return {"started": True}
 
 
-def stop_drive(reason: str = "manual") -> Dict[str, Any]:
+def stop_drive(reason: str = "manual") -> dict[str, Any]:
     with _DRIVE_LOCK:
         was_enabled = bool(_DRIVE_STATE["enabled"])
         last_result = _DRIVE_STATE.get("last_result")
@@ -2274,7 +2282,7 @@ def stop_drive(reason: str = "manual") -> Dict[str, Any]:
     return get_drive_state()
 
 
-def _run_drive_batch(*, force: bool = False) -> Optional[Dict[str, Any]]:
+def _run_drive_batch(*, force: bool = False) -> dict[str, Any] | None:
     """Run one ``auto_drive_runs`` batch if due. Returns a summary or ``None``.
 
     ``force`` bypasses the cooldown (used by ``start_drive`` for an immediate
@@ -2284,8 +2292,8 @@ def _run_drive_batch(*, force: bool = False) -> Optional[Dict[str, Any]]:
     if not _DRIVE_BATCH_LOCK.acquire(blocking=False):
         logger.debug("runs_autodrive: drive batch skipped (another batch holds the lock)")
         return None
-    summary: Optional[Dict[str, Any]] = None
-    stop_reason: Optional[str] = None
+    summary: dict[str, Any] | None = None
+    stop_reason: str | None = None
     try:
         with _DRIVE_LOCK:
             if not _DRIVE_STATE["enabled"]:
@@ -2403,7 +2411,7 @@ def _run_drive_batch(*, force: bool = False) -> Optional[Dict[str, Any]]:
     return summary
 
 
-def drive_tick() -> Optional[Dict[str, Any]]:
+def drive_tick() -> dict[str, Any] | None:
     """Cheap no-op unless a drive is active. Called from the JobDispatcher idle path."""
     with _DRIVE_LOCK:
         if not _DRIVE_STATE["enabled"]:
@@ -2414,7 +2422,7 @@ def drive_tick() -> Optional[Dict[str, Any]]:
     return _run_drive_batch(force=False)
 
 
-def get_drive_status_with_outstanding() -> Dict[str, Any]:
+def get_drive_status_with_outstanding() -> dict[str, Any]:
     """Drive state plus a light snapshot of outstanding work for the UI."""
     state = get_drive_state()
     last = state.get("last_result")
@@ -2490,7 +2498,7 @@ def _active_auto_drive_plan_key_duplicates(jobs: Sequence[dict[str, Any]]) -> li
     return duplicates
 
 
-def get_drive_diagnostics() -> Dict[str, Any]:
+def get_drive_diagnostics() -> dict[str, Any]:
     """Drive status, health, recent auto-drive jobs, and anomaly hints for MCP/CLI."""
     status = get_drive_status_with_outstanding()
     recent_jobs = _recent_auto_drive_jobs(scan_limit=50)

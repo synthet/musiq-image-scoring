@@ -5,7 +5,7 @@ import logging
 import math
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -100,7 +100,7 @@ def _normalize_jobs_table_row(d: dict) -> dict:
     return out
 
 
-def _job_supports_execution_report(job: Optional[Dict[str, Any]], phase_codes: Optional[List[str]] = None) -> bool:
+def _job_supports_execution_report(job: dict[str, Any] | None, phase_codes: list[str] | None = None) -> bool:
     """Whether a job type/phase plan is expected to produce ``report_json``."""
     if not isinstance(job, dict):
         return False
@@ -154,7 +154,7 @@ def _json_response_db(data: Any, log_label: str) -> Response:
     return Response(content=body.encode("utf-8"), media_type="application/json")
 
 
-def _synthetic_bird_species_job_phases(job: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _synthetic_bird_species_job_phases(job: dict[str, Any]) -> list[dict[str, Any]]:
     """One job_phases row for bird_species jobs when DB rows are missing or wrong template."""
     st = (job.get("status") or "queued").strip().lower()
     if st in ("pending", "queued"):
@@ -184,8 +184,8 @@ def _synthetic_bird_species_job_phases(job: Dict[str, Any]) -> List[Dict[str, An
 
 
 def _job_phases_for_run_display(
-    job: Optional[Dict[str, Any]], phases: List[Dict[str, Any]]
-) -> List[Dict[str, Any]]:
+    job: dict[str, Any] | None, phases: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Use real job_phases when they include bird_species; else synthesize for bird-only jobs."""
     if not job:
         return phases
@@ -237,7 +237,7 @@ def _merge_model_scores_into(data: dict, ims: dict) -> None:
             data[key] = val
 
 
-def _parse_json_object_column(value) -> Optional[dict]:
+def _parse_json_object_column(value) -> dict | None:
     """Parse a TEXT/JSON column into a dict for image detail enrichments."""
     if value is None:
         return None
@@ -304,11 +304,11 @@ def _image_detail_payload(image_id: int) -> dict:
         conn.close()
 
 
-def _json_safe_metadata_row(row: Optional[dict]) -> dict:
+def _json_safe_metadata_row(row: dict | None) -> dict:
     """Serialize image_exif / image_xmp row dicts for JSON (omit binary columns)."""
     if not row:
         return {}
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     for k, v in row.items():
         if isinstance(v, bytes):
             continue
@@ -328,7 +328,7 @@ def _row_to_dict(row, exclude_keys=None):
         return row.to_dict(exclude_keys=exclude_keys)
     # Plain dict from db_connector — apply same filtering as RowWrapper.to_dict
     exclude = exclude_keys or set()
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     for k, v in row.items():
         if k in exclude:
             continue
@@ -341,7 +341,7 @@ def _row_to_dict(row, exclude_keys=None):
     return out
 
 
-def _parse_rating_filter(rating: Optional[str]) -> Optional[list]:
+def _parse_rating_filter(rating: str | None) -> list | None:
     """Parse comma-separated rating integers; raise 400 on invalid tokens."""
     if not rating or not rating.strip():
         return None
@@ -362,18 +362,18 @@ def _images_list_payload(
     page_size: int,
     sort_by: str,
     order: str,
-    rating: Optional[str],
-    label: Optional[str],
-    keyword: Optional[str],
+    rating: str | None,
+    label: str | None,
+    keyword: str | None,
     min_score_general: float,
     min_score_aesthetic: float,
     min_score_technical: float,
     min_clip_quality_v0: float,
-    folder_path: Optional[str],
-    stack_id: Optional[int],
-    phase_status_filter: Optional[str] = None,
+    folder_path: str | None,
+    stack_id: int | None,
+    phase_status_filter: str | None = None,
     unscored_only: bool = False,
-    data_gap: Optional[str] = None,
+    data_gap: str | None = None,
     keyword_exact: bool = False,
 ) -> dict:
     """Paginated image rows as JSON (embeddings excluded). Used by /api/images and /public/api/images."""
@@ -460,15 +460,15 @@ def _image_neighbors_payload(
     image_id: int,
     sort_by: str,
     order: str,
-    rating: Optional[str],
-    label: Optional[str],
-    keyword: Optional[str],
+    rating: str | None,
+    label: str | None,
+    keyword: str | None,
     min_score_general: float,
     min_score_aesthetic: float,
     min_score_technical: float,
     min_clip_quality_v0: float,
-    folder_path: Optional[str],
-    stack_id: Optional[int],
+    folder_path: str | None,
+    stack_id: int | None,
 ) -> dict:
     """Find neighbor image IDs for navigation."""
     rating_filter = _parse_rating_filter(rating)
@@ -509,7 +509,7 @@ def _image_detail_for_uuid_str(image_uuid: str) -> dict:
     return _image_detail_payload(image_id)
 
 
-def _image_detail_for_hash_str(image_hash: str, hash_version: Optional[int] = None) -> dict:
+def _image_detail_for_hash_str(image_hash: str, hash_version: int | None = None) -> dict:
     import re
 
     key = (image_hash or "").strip()

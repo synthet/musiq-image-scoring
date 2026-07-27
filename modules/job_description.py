@@ -1,16 +1,16 @@
 """Human-readable ``jobs.description`` and structured ``queue_payload`` audit fields."""
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 def augment_queue_payload_for_audit(
-    payload: Optional[Dict[str, Any]],
+    payload: dict[str, Any] | None,
     *,
     trigger: str = "api",
-    tool_id: Optional[str] = None,
-    ui_selected_scope_path: Optional[str] = None,
-) -> Dict[str, Any]:
+    tool_id: str | None = None,
+    ui_selected_scope_path: str | None = None,
+) -> dict[str, Any]:
     """Merge durable audit keys into queue_payload (does not remove existing keys)."""
     out = dict(payload) if payload else {}
     out.setdefault("trigger", trigger)
@@ -24,10 +24,10 @@ def augment_queue_payload_for_audit(
 def build_run_submit_description(
     *,
     scope_type: str,
-    scope_paths: List[str],
+    scope_paths: list[str],
     run_mode: str,
-    phase_values: Optional[List[str]] = None,
-    client_description: Optional[str] = None,
+    phase_values: list[str] | None = None,
+    client_description: str | None = None,
 ) -> str:
     """Default jobs.description for POST /runs/submit when the client omits one."""
     if client_description and str(client_description).strip():
@@ -46,9 +46,9 @@ def build_run_submit_description(
 
 
 def build_scoring_job_description(
-    input_path: Optional[str],
+    input_path: str | None,
     *,
-    resolved_count: Optional[int] = None,
+    resolved_count: int | None = None,
 ) -> str:
     """jobs.description for legacy POST /scoring/start style enqueue."""
     base = (input_path or "selector").strip() or "selector"
@@ -58,10 +58,10 @@ def build_scoring_job_description(
 
 
 def build_clustering_job_description(
-    input_path: Optional[str],
+    input_path: str | None,
     *,
     force_rescan: bool = False,
-    resolved_count: Optional[int] = None,
+    resolved_count: int | None = None,
 ) -> str:
     base = (input_path or "selector").strip() or "selector"
     extra = "force_rescan=True. " if force_rescan else ""
@@ -69,20 +69,20 @@ def build_clustering_job_description(
     return f"Clustering job from API. {extra}Input: {base}.{rc}"
 
 
-def build_tagging_job_description(input_path: Optional[str]) -> str:
+def build_tagging_job_description(input_path: str | None) -> str:
     base = (input_path or "selector").strip() or "selector"
     return f"Tagging job queued from API. Input: {base}."
 
 
-def build_bird_species_job_description(input_path: Optional[str]) -> str:
+def build_bird_species_job_description(input_path: str | None) -> str:
     base = (input_path or "selector").strip() or "selector"
     return f"Bird species job queued from API. Input: {base}."
 
 
 def build_workflow_run_description(
     first_op: str,
-    workspace_target: Optional[str],
-    stage_codes: List[str],
+    workspace_target: str | None,
+    stage_codes: list[str],
 ) -> str:
     wt = (workspace_target or "").strip() or "(default)"
     stages = ", ".join(stage_codes) if stage_codes else first_op

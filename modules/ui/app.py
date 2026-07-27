@@ -15,12 +15,20 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-from modules import scoring, db, tagging, config, thumbnails, utils, pipeline_orchestrator
-from modules.selection_runner import SelectionRunner
+from modules import (
+    config,
+    db,
+    phase_executors,
+    pipeline_orchestrator,
+    scoring,
+    tagging,
+    thumbnails,
+    utils,
+)
 from modules.indexing_runner import IndexingRunner
-from modules.metadata_runner import MetadataRunner
 from modules.maintenance_runner import MaintenanceRunner
-from modules import phase_executors
+from modules.metadata_runner import MetadataRunner
+from modules.selection_runner import SelectionRunner
 from modules.ui import status_gradio
 from modules.ui.source_image_api import router as source_image_router
 
@@ -102,12 +110,12 @@ def create_ui(clustering_runner=None):
 
 # Security helpers — re-exported from lightweight module so existing imports
 # (e.g. ``from modules.ui.app import _check_rate_limit``) keep working.
-from modules.ui.security import (          # noqa: F401
-    _check_rate_limit,
-    _validate_file_path,
+from modules.ui.security import (  # noqa: F401
     _SQL_FORBIDDEN_PATTERNS,
     _check_api_key,
+    _check_rate_limit,
     _init_api_auth,
+    _validate_file_path,
 )
 
 
@@ -140,6 +148,7 @@ def setup_server_endpoints(fastapi_app, scoring_runner=None, tagging_runner=None
     async def status_data_endpoint():
         """Live status data consumed by the /app operator page (threads, profiling, runners, log)."""
         import asyncio
+
         from modules.ui.status_gradio import render_status_data
         return await asyncio.to_thread(
             render_status_data,
@@ -152,6 +161,7 @@ def setup_server_endpoints(fastapi_app, scoring_runner=None, tagging_runner=None
         """Log sections only (webui.log + debug.log HTML) for the React SPA /ui/logs page."""
         import asyncio
         from datetime import datetime
+
         from modules.ui.status_gradio import _render_log
 
         log_html = await asyncio.to_thread(_render_log)
@@ -210,8 +220,8 @@ def setup_server_endpoints(fastapi_app, scoring_runner=None, tagging_runner=None
         },
     )
     async def raw_preview_endpoint(path: str):
-        import urllib.parse
         import io
+        import urllib.parse
 
         try:
             file_path = urllib.parse.unquote(path)

@@ -8,7 +8,8 @@ aligned with the Electron mirror in image-scoring-gallery ``electron/db.ts``.
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 
 def parse_exposure_seconds(value: Any) -> float | None:

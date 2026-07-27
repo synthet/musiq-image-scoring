@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 # Documented source literals for queue_payload.reason.source
 REASON_SOURCE_MANUAL_SUBMIT = "manual_submit"
@@ -64,15 +65,15 @@ def _format_reason_counts(counts: Mapping[str, int], *, limit: int = 4) -> str:
 
 
 def summarize_planner_reasons(
-    repair_plan: Optional[Mapping[str, Any]],
+    repair_plan: Mapping[str, Any] | None,
     *,
-    enqueued_phases: Optional[Sequence[str]] = None,
-    requested_phases: Optional[Sequence[str]] = None,
-) -> tuple[str, Dict[str, int]]:
+    enqueued_phases: Sequence[str] | None = None,
+    requested_phases: Sequence[str] | None = None,
+) -> tuple[str, dict[str, int]]:
     """Build summary fragment and ``planner_reason_counts`` from a repair plan."""
     plan = repair_plan or {}
     raw_counts = plan.get("issue_counts_by_reason") or {}
-    planner_reason_counts: Dict[str, int] = {}
+    planner_reason_counts: dict[str, int] = {}
     if isinstance(raw_counts, Mapping):
         for key, val in raw_counts.items():
             try:
@@ -103,12 +104,12 @@ def build_run_reason(
     *,
     source: str,
     summary: str,
-    criteria: Optional[Dict[str, Any]] = None,
-    trigger: Optional[str] = None,
-    tool_id: Optional[str] = None,
-) -> Dict[str, Any]:
+    criteria: dict[str, Any] | None = None,
+    trigger: str | None = None,
+    tool_id: str | None = None,
+) -> dict[str, Any]:
     """Return the structured ``reason`` object stored on ``queue_payload``."""
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "source": str(source or "").strip() or REASON_SOURCE_LEGACY_API,
         "summary": str(summary or "").strip() or "Run queued.",
     }
@@ -126,9 +127,9 @@ def build_manual_submit_summary(
     *,
     scope_paths: Sequence[str],
     enqueued_phases: Sequence[str],
-    requested_phases: Optional[Sequence[str]] = None,
-    repair_plan: Optional[Mapping[str, Any]] = None,
-) -> tuple[str, Dict[str, Any]]:
+    requested_phases: Sequence[str] | None = None,
+    repair_plan: Mapping[str, Any] | None = None,
+) -> tuple[str, dict[str, Any]]:
     primary = scope_paths[0] if scope_paths else ""
     folder = _basename(primary)
     plan_fragment, planner_counts = summarize_planner_reasons(
@@ -139,7 +140,7 @@ def build_manual_submit_summary(
     summary = f"Manual run queued {_phase_phrase(enqueued_phases)} for {folder}."
     if plan_fragment:
         summary = f"{summary} {plan_fragment}"
-    criteria: Dict[str, Any] = {
+    criteria: dict[str, Any] = {
         "enqueued_phases": list(enqueued_phases),
     }
     if requested_phases:
@@ -155,15 +156,15 @@ def build_auto_drive_summary(
     *,
     scope_paths: Sequence[str],
     enqueued_phases: Sequence[str],
-    requested_phases: Optional[Sequence[str]] = None,
-    auto_drive_bucket: Optional[str] = None,
-    auto_drive_overall_percent: Optional[int] = None,
-    auto_drive_plan_key: Optional[str] = None,
-    repair_plan: Optional[Mapping[str, Any]] = None,
-    run_mode: Optional[str] = None,
-    folder_created_at: Optional[str] = None,
-    is_newly_imported: Optional[bool] = None,
-) -> tuple[str, Dict[str, Any]]:
+    requested_phases: Sequence[str] | None = None,
+    auto_drive_bucket: str | None = None,
+    auto_drive_overall_percent: int | None = None,
+    auto_drive_plan_key: str | None = None,
+    repair_plan: Mapping[str, Any] | None = None,
+    run_mode: str | None = None,
+    folder_created_at: str | None = None,
+    is_newly_imported: bool | None = None,
+) -> tuple[str, dict[str, Any]]:
     primary = scope_paths[0] if scope_paths else ""
     folder = _basename(primary)
     bucket = str(auto_drive_bucket or "").strip()
@@ -179,7 +180,7 @@ def build_auto_drive_summary(
     )
     if plan_fragment:
         summary = f"{summary} {plan_fragment}"
-    criteria: Dict[str, Any] = {
+    criteria: dict[str, Any] = {
         "enqueued_phases": list(enqueued_phases),
         "include_stale_executor": False,
     }
@@ -210,8 +211,8 @@ def build_auto_drive_summary(
 def build_legacy_api_summary(
     *,
     job_kind: str,
-    input_path: Optional[str] = None,
-    extra: Optional[str] = None,
+    input_path: str | None = None,
+    extra: str | None = None,
 ) -> str:
     base = _basename(str(input_path or "selector"))
     kind = str(job_kind or "job").replace("_", " ")
@@ -221,7 +222,7 @@ def build_legacy_api_summary(
     return msg
 
 
-def build_maintenance_summary(*, action: str, input_path: Optional[str] = None) -> str:
+def build_maintenance_summary(*, action: str, input_path: str | None = None) -> str:
     base = _basename(str(input_path or "library"))
     return f"Maintenance job ({action}) queued for {base}."
 
@@ -231,7 +232,7 @@ def build_retry_summary(
     source: str,
     original_run_id: int,
     job_type: str,
-    input_path: Optional[str] = None,
+    input_path: str | None = None,
 ) -> str:
     base = _basename(str(input_path or ""))
     if source == REASON_SOURCE_FORCE_RUN:
@@ -240,14 +241,14 @@ def build_retry_summary(
 
 
 def attach_run_reason(
-    payload: Optional[Dict[str, Any]],
+    payload: dict[str, Any] | None,
     *,
     source: str,
     summary: str,
-    criteria: Optional[Dict[str, Any]] = None,
-    trigger: Optional[str] = None,
-    tool_id: Optional[str] = None,
-) -> Dict[str, Any]:
+    criteria: dict[str, Any] | None = None,
+    trigger: str | None = None,
+    tool_id: str | None = None,
+) -> dict[str, Any]:
     """Set ``payload['reason']`` (always overwrites). Returns the payload dict."""
     out = dict(payload) if payload else {}
     out["reason"] = build_run_reason(

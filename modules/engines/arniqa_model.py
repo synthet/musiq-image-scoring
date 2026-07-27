@@ -15,7 +15,7 @@ but excluded from fusion until calibrated (#220 phase 2).
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from modules.engines.base import IScoringModel
 
@@ -29,7 +29,7 @@ class ArniqaModelWrapper(IScoringModel):
     framework = "torch"
     score_range = (0.0, 1.0)
 
-    def __init__(self, scorer: Optional[Any] = None, device: str = "cuda") -> None:
+    def __init__(self, scorer: Any | None = None, device: str = "cuda") -> None:
         """`scorer` may be an existing `ArniqaScorer` (or duck-typed mock) for
         sharing across the process; if `None`, the backend is constructed
         lazily on first `load()`.
@@ -63,7 +63,7 @@ class ArniqaModelWrapper(IScoringModel):
         self.version = getattr(self._scorer, "VERSION", None) or self.version
         return self._loaded
 
-    def predict(self, image_path: str) -> Dict[str, Any]:
+    def predict(self, image_path: str) -> dict[str, Any]:
         if not self._loaded or self._scorer is None:
             return {"score": None, "status": "not_loaded", "error": "Model not loaded"}
         try:
@@ -83,7 +83,7 @@ class ArniqaModelWrapper(IScoringModel):
         }
 
     @property
-    def scorer(self) -> Optional[Any]:
+    def scorer(self) -> Any | None:
         """Expose the underlying `ArniqaScorer` (for sharing or shutdown)."""
         return self._scorer
 

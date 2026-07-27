@@ -1,14 +1,16 @@
+import datetime
 import hashlib
+import json
 import os
 import platform
 import re
-import datetime
 import shutil
 import subprocess
 import threading
-from PIL import Image, ImageOps, ExifTags
-import json
 import time
+
+from PIL import Image, ImageOps
+
 try:
     import exifread
 except ImportError:
@@ -345,7 +347,6 @@ def resolve_file_path(db_path, image_id=None):
         A path that exists on the local filesystem, or None if not found
     """
     # Local imports make this resilient even if module globals get into a bad state
-    import time
     t0 = time.perf_counter()
     strat = None
     resolved_len = None
@@ -519,7 +520,7 @@ def get_image_creation_time(image_path):
                 # Format "YYYY:MM:DD HH:MM:SS"
                 if dt_str and ':' in dt_str:
                      return datetime.datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S")
-        except Exception as e:
+        except Exception:
             # print(f"exifread error {image_path}: {e}")
             pass
             

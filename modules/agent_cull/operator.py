@@ -5,7 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from modules import audit, db
-from modules.agent_cull.repository import list_recommendations_for_group, update_review_group
+from modules.agent_cull.repository import (
+    list_recommendations_for_group,
+    update_review_group,
+)
 
 APPROVABLE_STATUSES = frozenset({"proposed", "agent_remove_candidate"})
 

@@ -9,8 +9,8 @@ Each executor binds:
   - depends_on:       list of phase codes that must be 'done' first
 """
 import logging
+
 from modules.phases import PhaseCode, PhaseExecutor, PhaseRegistry
-from modules.version import APP_VERSION
 
 logger = logging.getLogger(__name__)
 

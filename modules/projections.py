@@ -14,9 +14,7 @@ invalidate_embedding_map_cache(folder_path) -> int   # returns files deleted
 import hashlib
 import json
 import logging
-import os
 from datetime import datetime, timezone
-from pathlib import Path
 
 import numpy as np
 

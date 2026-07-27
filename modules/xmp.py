@@ -7,11 +7,12 @@ to .xmp sidecar files, which Lightroom Cloud can read when syncing.
 This module NEVER modifies original RAW/JPEG files.
 """
 
-import os
 import logging
-from pathlib import Path
+import os
 from datetime import datetime
+from pathlib import Path
 from xml.etree import ElementTree as ET
+
 from modules import utils
 
 logger = logging.getLogger(__name__)

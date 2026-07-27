@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
-import subprocess
-import time
-from typing import Any, Optional
 
 from modules import config, db
 from modules.mcp import tool_support as ts
@@ -128,12 +124,12 @@ def query_images(
     offset: int = 0,
     sort_by: str = "created_at",
     order: str = "desc",
-    min_score: Optional[float] = None,
-    max_score: Optional[float] = None,
-    rating: Optional[int] = None,
-    label: Optional[str] = None,
-    keyword: Optional[str] = None,
-    folder_path: Optional[str] = None
+    min_score: float | None = None,
+    max_score: float | None = None,
+    rating: int | None = None,
+    label: str | None = None,
+    keyword: str | None = None,
+    folder_path: str | None = None
 ) -> list:
     """Query images with flexible filtering and pagination. Supports filtering by score range, rating, label, keywords, and folder."""
     with db.connection() as conn:
@@ -205,7 +201,7 @@ def get_image_details(file_path: str) -> dict:
     return db.get_image_details(file_path)
 
 
-def search_images_by_hash(image_hash: str, hash_version: Optional[int] = None) -> dict:
+def search_images_by_hash(image_hash: str, hash_version: int | None = None) -> dict:
     """Find an image by content hash (image_hash column, typically SHA-256). Returns file_paths when found."""
     h = (image_hash or "").strip()
     if not h:
@@ -217,7 +213,7 @@ def search_images_by_hash(image_hash: str, hash_version: Optional[int] = None) -
 
 
 def get_db_schema(
-    table_name_prefix: Optional[str] = None,
+    table_name_prefix: str | None = None,
     max_tables: int = 200,
     max_column_rows: int = 8000,
 ) -> dict:
@@ -359,7 +355,7 @@ def execute_sql(query: str, params: list = None) -> dict:
         return {"error": str(e)}
 
 
-def get_folder_tree(root_path: Optional[str] = None) -> list:
+def get_folder_tree(root_path: str | None = None) -> list:
     """Get folder tree structure from database with image counts."""
     with db.connection() as conn:
         c = conn.cursor()
@@ -390,7 +386,7 @@ def get_folder_tree(root_path: Optional[str] = None) -> list:
             return [{"error": str(e)}]
 
 
-def get_newly_imported_folders(days: int = 7, min_images: int = 1, path_pattern: Optional[str] = None) -> list[dict]:
+def get_newly_imported_folders(days: int = 7, min_images: int = 1, path_pattern: str | None = None) -> list[dict]:
     """
     Find folders created in the last N days with at least min_images.
     Useful for identifying newly imported media that might need processing.
@@ -414,7 +410,7 @@ def get_newly_imported_folders(days: int = 7, min_images: int = 1, path_pattern:
         return [{"error": str(e)}]
 
 
-def process_newly_imported_folders(days: int = 7, job_type: str = "scoring", path_pattern: Optional[str] = None) -> dict:
+def process_newly_imported_folders(days: int = 7, job_type: str = "scoring", path_pattern: str | None = None) -> dict:
     """
     Trigger background processing jobs for newly imported folders that haven't been completed yet.
     job_type can be 'scoring', 'tagging', 'clustering', or 'bird_species'.
@@ -430,9 +426,7 @@ def process_newly_imported_folders(days: int = 7, job_type: str = "scoring", pat
         for f in folders:
             path = f["path"]
             needs_work = False
-            if job_type == "scoring" and not f["is_fully_scored"]:
-                needs_work = True
-            elif job_type == "tagging" and not f["is_keywords_processed"]:
+            if job_type == "scoring" and not f["is_fully_scored"] or job_type == "tagging" and not f["is_keywords_processed"]:
                 needs_work = True
             elif job_type in ("clustering", "bird_species"):
                 needs_work = True # Always check these if requested for recent folders
@@ -459,7 +453,7 @@ def process_newly_imported_folders(days: int = 7, job_type: str = "scoring", pat
         return {"error": str(e)}
 
 
-def get_stacks_summary(folder_path: Optional[str] = None) -> dict:
+def get_stacks_summary(folder_path: str | None = None) -> dict:
     """Get summary of image stacks/clusters including size distribution and largest stacks."""
     with db.connection() as conn:
         c = conn.cursor()

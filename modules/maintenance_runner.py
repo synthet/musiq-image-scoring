@@ -4,9 +4,10 @@ Supports heal_thumbnails, backfill_exif, prune_missing, reconcile_phases, etc.
 """
 from __future__ import annotations
 
-import logging
 import json
-from typing import Any, Callable, Dict, List
+import logging
+from collections.abc import Callable
+from typing import Any
 
 from modules import db
 from modules.maintenance_job_display import maintenance_job_input_path
@@ -27,7 +28,7 @@ class MaintenanceRunner:
         self.is_running = False
         self._thread = None
         self._cancel_requested = False
-        self.log_history: List[str] = []
+        self.log_history: list[str] = []
 
     def _persist_job_log(self, job_id: int) -> None:
         text = "\n".join(self.log_history).strip()
@@ -38,7 +39,7 @@ class MaintenanceRunner:
         except Exception as exc:
             logger.debug("MaintenanceRunner update_job_log failed (job_id=%s): %s", job_id, exc)
 
-    def _emit_backfill_stats(self, job_id: int, label: str, stats: Dict[str, Any]) -> None:
+    def _emit_backfill_stats(self, job_id: int, label: str, stats: dict[str, Any]) -> None:
         runner_emit(
             self.log_history,
             job_id,
@@ -119,7 +120,7 @@ class MaintenanceRunner:
         self._thread.start()
         return "Started"
 
-    def _run_job_internal(self, job: Dict[str, Any]):
+    def _run_job_internal(self, job: dict[str, Any]):
         job_id = job["id"]
         self.log_history = []
         try:
@@ -207,7 +208,7 @@ class MaintenanceRunner:
         finally:
             self.is_running = False
 
-    def _action_reconcile(self, job_id: int, payload: Dict[str, Any]):
+    def _action_reconcile(self, job_id: int, payload: dict[str, Any]):
         limit = payload.get("limit", 5000)
         threshold = payload.get("stale_threshold_seconds")
         logger.info(
@@ -239,7 +240,7 @@ class MaintenanceRunner:
         logger.info("Maintenance reconcile: job_id=%s done, rows_updated=%s", job_id, n)
         db.update_job_progress(job_id, 100)
 
-    def _action_heal_thumbnails(self, job_id: int, payload: Dict[str, Any]):
+    def _action_heal_thumbnails(self, job_id: int, payload: dict[str, Any]):
         from modules import thumbnail_maintenance
         repair_limit = payload.get("repair_limit", 1000)
         regen_limit = payload.get("regen_limit", 500)
@@ -265,7 +266,7 @@ class MaintenanceRunner:
         runner_emit(self.log_history, job_id, f"Regenerate results: {regen_stats['regenerated']} OK, {regen_stats['failed']} failed.", phase="maintenance")
         db.update_job_progress(job_id, 100)
 
-    def _action_backfill_exif(self, job_id: int, payload: Dict[str, Any]):
+    def _action_backfill_exif(self, job_id: int, payload: dict[str, Any]):
         from modules import exif_extractor
         limit = payload.get("limit", 1000)
         logger.info("Maintenance backfill_exif: job_id=%s limit=%s", job_id, limit)
@@ -288,7 +289,7 @@ class MaintenanceRunner:
         db.update_job_progress(job_id, 100)
         self._persist_job_log(job_id)
 
-    def _action_prune_missing(self, job_id: int, payload: Dict[str, Any]):
+    def _action_prune_missing(self, job_id: int, payload: dict[str, Any]):
         from modules import utils
         limit = payload.get("limit", 5000)
         dry_run = payload.get("dry_run", False)
@@ -361,7 +362,7 @@ class MaintenanceRunner:
         )
         db.update_job_progress(job_id, 100)
 
-    def _action_backfill_index_meta(self, job_id: int, payload: Dict[str, Any]):
+    def _action_backfill_index_meta(self, job_id: int, payload: dict[str, Any]):
         limit = payload.get("limit", 1000)
         logger.info("Maintenance backfill_index_meta: job_id=%s limit=%s", job_id, limit)
         runner_emit(self.log_history, job_id, f"Global Index/Meta backfill (limit={limit})...", phase="maintenance")
@@ -372,7 +373,7 @@ class MaintenanceRunner:
         db.update_job_progress(job_id, 100)
         self._persist_job_log(job_id)
 
-    def _action_deduplicate_images(self, job_id: int, payload: Dict[str, Any]):
+    def _action_deduplicate_images(self, job_id: int, payload: dict[str, Any]):
         limit = payload.get("limit", 1000)
         dry_run = payload.get("dry_run", False)
         logger.info("Maintenance deduplicate_images: job_id=%s limit=%s dry_run=%s", job_id, limit, dry_run)
@@ -440,7 +441,7 @@ class MaintenanceRunner:
         runner_emit(self.log_history, job_id, f"Deduplication (sync mode) completed. {merged_count} records identified/synced.", phase="maintenance")
         db.update_job_progress(job_id, 100)
 
-    def _action_heal_folder_ids(self, job_id: int, payload: Dict[str, Any]):
+    def _action_heal_folder_ids(self, job_id: int, payload: dict[str, Any]):
         limit = payload.get("limit", 10000)
         dry_run = payload.get("dry_run", False)
         logger.info("Maintenance heal_folder_ids: job_id=%s limit=%s dry_run=%s", job_id, limit, dry_run)
@@ -490,7 +491,7 @@ class MaintenanceRunner:
         runner_emit(self.log_history, job_id, f"Heal folder IDs completed. {updated_count} IDs updated, {scanned} scanned.", phase="maintenance")
         db.update_job_progress(job_id, 100)
 
-    def _action_backfill_exif_camera_lens(self, job_id: int, payload: Dict[str, Any]):
+    def _action_backfill_exif_camera_lens(self, job_id: int, payload: dict[str, Any]):
         from modules import exif_extractor
         limit = payload.get("limit", 1000)
         logger.info("Maintenance backfill_exif_camera_lens: job_id=%s limit=%s", job_id, limit)
@@ -516,7 +517,7 @@ class MaintenanceRunner:
         db.update_job_progress(job_id, 100)
         self._persist_job_log(job_id)
 
-    def _action_backfill_exif_gps(self, job_id: int, payload: Dict[str, Any]):
+    def _action_backfill_exif_gps(self, job_id: int, payload: dict[str, Any]):
         from modules import exif_extractor
         limit = payload.get("limit", 1000)
         logger.info("Maintenance backfill_exif_gps: job_id=%s limit=%s", job_id, limit)
@@ -542,7 +543,7 @@ class MaintenanceRunner:
         db.update_job_progress(job_id, 100)
         self._persist_job_log(job_id)
 
-    def _action_backfill_embeddings(self, job_id: int, payload: Dict[str, Any]):
+    def _action_backfill_embeddings(self, job_id: int, payload: dict[str, Any]):
         limit = payload.get("limit", 10000)
         logger.info("Maintenance backfill_embeddings: job_id=%s limit=%s", job_id, limit)
         runner_emit(self.log_history, job_id, f"Backfilling MobileNet Embeddings (limit={limit})...", phase="maintenance")
@@ -568,6 +569,7 @@ class MaintenanceRunner:
         errors = 0
         
         import os
+
         from modules import utils
         
         for i in range(0, total, batch_size):
@@ -624,7 +626,7 @@ class MaintenanceRunner:
         db.update_job_progress(job_id, 100)
         self._persist_job_log(job_id)
 
-    def _action_backfill_clip_vectors(self, job_id: int, payload: Dict[str, Any]):
+    def _action_backfill_clip_vectors(self, job_id: int, payload: dict[str, Any]):
         limit = payload.get("limit", 10000)
         logger.info("Maintenance backfill_clip_vectors: job_id=%s limit=%s", job_id, limit)
         runner_emit(self.log_history, job_id, f"Backfilling CLIP Vectors (limit={limit})...", phase="maintenance")
@@ -666,11 +668,13 @@ class MaintenanceRunner:
         errors = 0
         
         import os
+
         import torch
+
         from modules import utils
+        from modules.embeddings_extract import extract_clip_image_features_from_outputs
         from modules.pipeline_tool_folder_touch import touch_folders_for_image_ids
         from modules.thumbnails import open_image_for_ml
-        from modules.embeddings_extract import extract_clip_image_features_from_outputs
 
         for i in range(0, total, batch_size):
             if self._cancel_requested: break

@@ -3,7 +3,7 @@ import datetime
 import json
 import logging
 import threading
-from typing import List, Any, Dict
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -28,7 +28,7 @@ class EventManager:
     Manages WebSocket connections and broadcasts events to connected clients.
     """
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
+        self.active_connections: list[WebSocket] = []
         self.loop = None
         self._connections_lock = threading.RLock()
 
@@ -82,7 +82,7 @@ class EventManager:
                 logger.error(f"Failed to send message to client: {e}")
                 await self.disconnect(connection)
 
-    async def send_to(self, websocket: WebSocket, message: Dict[str, Any]):
+    async def send_to(self, websocket: WebSocket, message: dict[str, Any]):
         """Send a JSON-serializable message to a specific WebSocket client."""
         try:
             await websocket.send_text(json.dumps(message))

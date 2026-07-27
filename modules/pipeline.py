@@ -1,25 +1,24 @@
 
-import threading
-import queue
-import time
-import os
-import sys
-import tempfile
 import logging
-from datetime import datetime
+import os
+import queue
+import tempfile
+import threading
 import traceback
-from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List
+from pathlib import Path
+from typing import Any
+
+from modules import config as app_config
 
 # Local imports
 from modules import db, thumbnails, xmp
 from modules import score_normalization as snorm
-from modules import config as app_config
-from modules.phases import PhaseCode, PhaseStatus, SCORING_EXECUTOR_VERSION
-from modules.version import APP_VERSION
-from modules.run_log import attach_image_log_suffix, emit_run_log
+from modules.phases import SCORING_EXECUTOR_VERSION, PhaseCode, PhaseStatus
 from modules.pipeline_diagnostics import get_stall_detector, phase_timer
+from modules.run_log import attach_image_log_suffix, emit_run_log
+from modules.version import APP_VERSION
+
 # Lazy imports — TensorFlow/PyTorch live behind ScoringWorker._get_liqe_scorer()
 # so tests that only exercise phase gating or prep paths need not import LIQE.
 
@@ -37,22 +36,22 @@ class ImageJob:
     job_id: int
     skip_existing: bool = False
     status: str = "pending"
-    result: Optional[Dict[str, Any]] = None
-    temp_files: List[str] = field(default_factory=list)
+    result: dict[str, Any] | None = None
+    temp_files: list[str] = field(default_factory=list)
     retry_count: int = 0
-    error: Optional[str] = None
+    error: str | None = None
     
     # Pre-calculated data
     is_raw: bool = False
     process_path: str = "" # Path to actual image to score (original or temp jpeg)
-    external_scores: Dict[str, Any] = field(default_factory=dict)
-    thumbnail_path: Optional[str] = None
-    image_id: Optional[int] = None  # DB id, set when image is found/created
-    target_phases: List[PhaseCode] = field(default_factory=list) # List of phases to execute in this job
-    skip_reason: Optional[str] = None  # Reason from policy/runner when status is "skipped"
+    external_scores: dict[str, Any] = field(default_factory=dict)
+    thumbnail_path: str | None = None
+    image_id: int | None = None  # DB id, set when image is found/created
+    target_phases: list[PhaseCode] = field(default_factory=list) # List of phases to execute in this job
+    skip_reason: str | None = None  # Reason from policy/runner when status is "skipped"
 
 
-def _runner_audit_phase_code(runner_obj) -> Optional[str]:
+def _runner_audit_phase_code(runner_obj) -> str | None:
     """Map runner job_type to pipeline phase_code for auditlog correlation."""
     jt = getattr(runner_obj, "job_type", None)
     if not jt:
@@ -113,7 +112,7 @@ def safe_runner_thread(runner_obj, job_id, run_func, *args, phase_code=None, **k
     finally:
         runner_obj.is_running = False
 
-def _is_phase_targeted(target_phases: List[Any], phase_code: PhaseCode) -> bool:
+def _is_phase_targeted(target_phases: list[Any], phase_code: PhaseCode) -> bool:
     """
     Return True when a phase should run for this job.
 
@@ -335,7 +334,7 @@ class PrepWorker(PipelineWorker):
             
         except Exception as e:
             job.status = "failed"
-            job.error = f"Prep failed: {str(e)}"
+            job.error = f"Prep failed: {e!s}"
             self.output_queue.put(job)
 
 class ScoringWorker(PipelineWorker):
@@ -589,7 +588,7 @@ class ScoringWorker(PipelineWorker):
             
         except Exception as e:
             job.status = "failed"
-            job.error = f"Scoring failed: {str(e)}"
+            job.error = f"Scoring failed: {e!s}"
             self.output_queue.put(job)
 
 class ResultWorker(PipelineWorker):
@@ -604,7 +603,7 @@ class ResultWorker(PipelineWorker):
         self.scorer = scorer_instance
         self._folder_agg_dirty_ids = folder_agg_dirty_ids
 
-    def _progress(self, msg: str, level: str = "INFO", *, image_id: Optional[int] = None) -> None:
+    def _progress(self, msg: str, level: str = "INFO", *, image_id: int | None = None) -> None:
         if not self.progress_callback:
             return
         out = attach_image_log_suffix(msg, image_id)

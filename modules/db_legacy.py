@@ -1,20 +1,20 @@
-import sqlite3
+import datetime
 import json
+import logging
 import os
 import re
-import datetime
-import logging
-import time
+import sqlite3
 import threading
-from collections import deque
-from pathlib import Path
+import time
 import traceback
-import queue
-from typing import List, Optional, Any, Union, Dict, Tuple, Sequence
+from collections import deque
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
 
-from modules import config
-from modules import audit
+from modules import audit, config
 from modules.events import event_manager
+
 try:
     from modules import db_postgres
 except ImportError:
@@ -28,7 +28,6 @@ except ImportError:
 import shutil
 
 from modules.quality_ranking import quality_tiebreak_order_sql
-
 
 logger = logging.getLogger(__name__)
 
@@ -550,7 +549,7 @@ def execute_readonly_sql_for_api(
     with connection() as conn:
         c = conn.cursor()
         try:
-            from firebird.driver import tpb, Isolation, TraAccessMode
+            from firebird.driver import Isolation, TraAccessMode, tpb
 
             ro_tpb = tpb(
                 isolation=Isolation.READ_COMMITTED_RECORD_VERSION,
@@ -736,8 +735,8 @@ def generate_image_uuid(metadata: dict | None) -> str:
        Model + LensModel + ShutterCount (stable across machines and path changes).
     3. Fallback: random uuid4().
     """
-    import uuid
     import hashlib
+    import uuid
 
     if metadata and isinstance(metadata, dict):
         # 1. Honour existing embedded UUID
@@ -1217,6 +1216,7 @@ if DB_PASS == "masterkey" and config.get_database_engine() == "firebird":
     logger.warning("Using default Firebird password 'masterkey' — set FIREBIRD_PASSWORD env var for production")
 
 import sys
+
 if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"):
     # Tests must use only scoring_history_test.fdb — never production (e.g. SCORING_HISTORY.FDB).
     DB_FILE = "scoring_history_test.fdb"
@@ -1539,6 +1539,7 @@ def get_db():
 
 import contextlib
 
+
 @contextlib.contextmanager
 def connection():
     """Context manager for database connections. Auto-closes on exit."""
@@ -1649,7 +1650,7 @@ def get_images_paginated(page=1, page_size=None, sort_by="score", order="desc", 
     sort_by, order = _validate_sort(sort_by, order)
 
     offset = (page - 1) * page_size
-    if offset < 0: offset = 0
+    offset = max(offset, 0)
 
     query = "SELECT * FROM images"
     params = []
@@ -2164,7 +2165,7 @@ def get_images_paginated_with_count(page=1, page_size=None, **kwargs):
     except (ValueError, TypeError): page_size = 50
 
     offset = (page - 1) * page_size
-    if offset < 0: offset = 0
+    offset = max(offset, 0)
 
     q = _build_image_query_components(**kwargs)
     from_clause = q["from_clause"]
@@ -4337,8 +4338,8 @@ def verify_resolved_path(image_id):
     """
     Verifies that a resolved path still exists on disk.
     """
-    import platform
     import os
+    import platform
 
     if platform.system() != 'Windows':
         return False
@@ -4655,9 +4656,7 @@ def get_or_create_folder(folder_path, _depth=0):
     else:
         parent_path = os.path.dirname(folder_path)
 
-    if folder_path.startswith("/mnt/") and parent_path == "/mnt":
-        parent_id = None
-    elif not parent_path or parent_path == folder_path:
+    if folder_path.startswith("/mnt/") and parent_path == "/mnt" or not parent_path or parent_path == folder_path:
         parent_id = None
     else:
         parent_id = get_or_create_folder(parent_path, _depth=_depth + 1)
@@ -5537,7 +5536,7 @@ def get_images_by_folder(folder_path):
 
     if _get_db_engine() == "postgres":
         # Postgres: normalized keywords only (no legacy IMAGES.KEYWORDS fallback)
-        sql = f"""
+        sql = """
             SELECT
                 i.*,
                 COALESCE(
@@ -8274,7 +8273,7 @@ def get_jobs(limit=50, offset=0, *, history_only=False, status_filter=None):
     try: offset = int(offset)
     except (ValueError, TypeError): offset = 0
     if limit < 0: limit = 50
-    if offset < 0: offset = 0
+    offset = max(offset, 0)
     limit = min(limit, 1000)
     offset = min(offset, 10_000_000)
 
@@ -9910,8 +9909,8 @@ HAVING COUNT(*) >= 2
 def get_culling_incomplete_predicate_sql(
     table_alias: str = "i",
     *,
-    cohesion_folders_expr: Optional[str] = None,
-    include_folder_cohesion: Optional[bool] = None,
+    cohesion_folders_expr: str | None = None,
+    include_folder_cohesion: bool | None = None,
 ) -> str:
     """
     Image-level predicate (for ``WHERE ...``): culling incompleteness for workflow healing.
@@ -10098,10 +10097,10 @@ _PHANTOM_RECONCILABLE_PHASES = ("indexing", "metadata", "scoring", "keywords", "
 def reconcile_phantom_complete_image_phases(
     phases: Sequence[str] = ("scoring", "keywords"),
     *,
-    scope_path: Optional[str] = None,
+    scope_path: str | None = None,
     limit: int = 5000,
     dry_run: bool = False,
-) -> Dict[str, int]:
+) -> dict[str, int]:
     """Mark phase status ``done`` for images whose work product already exists but
     whose ``image_phase_status`` row is missing or not terminal-complete.
 
@@ -10130,7 +10129,7 @@ def reconcile_phantom_complete_image_phases(
         scope_clause = " AND (f.path = ? OR f.path LIKE ? OR f.path LIKE ?)"
         scope_params = (target, target + "/%", target + "\\%")
 
-    result: Dict[str, int] = {}
+    result: dict[str, int] = {}
     for phase in phases:
         code = (phase or "").strip().lower()
         if code not in _PHANTOM_RECONCILABLE_PHASES:
@@ -10220,7 +10219,7 @@ def scope_has_unattempted_phase_work(scope_path: str, phase_code: str) -> bool:
         return False
 
 
-def reset_image_phase_status(image_ids: List[int], phase_code: str) -> int:
+def reset_image_phase_status(image_ids: list[int], phase_code: str) -> int:
     """
     Bulk reset image phase status to 'not_started' for the specified images and phase.
     Returns the number of rows updated.
@@ -10340,7 +10339,7 @@ def get_metadata_asset_incomplete_sql(table_alias: str = "i") -> str:
     )"""
 
 
-def get_image_metadata_asset_gap_reason(image_id: int) -> Optional[str]:
+def get_image_metadata_asset_gap_reason(image_id: int) -> str | None:
     """Return a planner reason when thumbnail or capture-date assets are missing."""
     row = get_connector().query_one(
         """
@@ -10455,7 +10454,7 @@ def reset_false_complete_metadata_phases(*, limit: int = 500) -> int:
     return reset
 
 
-def count_metadata_asset_gaps(*, scope_path: Optional[str] = None) -> dict:
+def count_metadata_asset_gaps(*, scope_path: str | None = None) -> dict:
     """Count images missing thumbnails and/or capture dates (optional folder scope)."""
     incomplete_sql = get_metadata_asset_incomplete_sql("i")
     thumb_clause = (
@@ -10907,7 +10906,7 @@ def export_db_to_json(output_path, folder_path=None, keyword_filter=None, rating
         item = dict(row)
         # Handle datetime serialization if necessary (e.g. created_at)
         # SQLite returns strings for timestamps usually, but just in case
-        if 'created_at' in item and item['created_at']:
+        if item.get('created_at'):
             item['created_at'] = str(item['created_at'])
             
         # Parse nested JSON strings for cleaner output?
@@ -11100,7 +11099,7 @@ def export_db_to_excel(output_path, columns=None, rating_filter=None, label_filt
     """
     try:
         from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.styles import Alignment, Font, PatternFill
     except ImportError:
         return False, "openpyxl is required for Excel export. Install with: pip install openpyxl"
     
@@ -12314,7 +12313,7 @@ def update_culling_session(session_id, **kwargs):
         return False
 
     try:
-        set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
+        set_clause = ', '.join([f"{k} = ?" for k in updates])
         params = list(updates.values()) + [session_id]
         get_connector().execute(f"UPDATE culling_sessions SET {set_clause} WHERE id = ?", params)
         return True
@@ -12795,6 +12794,7 @@ def update_image_embeddings_batch_for_space(space_code, rows):
         if _get_db_engine() != "postgres":
             return 0
         import numpy as np
+
         from modules.embedding_spaces import SPACE_DIMS, get_embedding_space_id
 
         expected_dim = SPACE_DIMS.get(space_code)
@@ -12815,7 +12815,7 @@ def update_image_embeddings_batch_for_space(space_code, rows):
             return 0
         table = _pg_embedding_table_for_dim(expected_dim)
 
-        normalized: list[tuple[int, "np.ndarray", str | None]] = []
+        normalized: list[tuple[int, np.ndarray, str | None]] = []
         for image_id, vec, model_version in rows:
             if vec is None or image_id is None:
                 continue
@@ -14602,7 +14602,7 @@ def scope_has_exhausted_phase_work(folder_path: str, phase_code: str, min_attemp
 
 
 def get_scope_exhausted_failed_images(folder_path: str, phase_code: str, min_attempts: int = 2,
-                                      limit: int = 50) -> List[dict]:
+                                      limit: int = 50) -> list[dict]:
     """Return up to ``limit`` images in scope whose ``phase_code`` is terminally failed
     (``attempt_count >= min_attempts``). Used to surface the offending files in
     auto-drive diagnostics so a permanently-stuck folder names its bad images."""

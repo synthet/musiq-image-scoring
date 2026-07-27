@@ -2,7 +2,7 @@
 
 import logging
 import threading
-from typing import Any, Dict
+from typing import Any
 
 from modules import db
 from modules.job_dispatcher import JobDispatcher
@@ -85,7 +85,7 @@ _graceful_shutdown_lock = threading.Lock()
 _graceful_shutdown_done = False
 
 
-def _map_job_row_to_dispatch_phase(job: Dict[str, Any]) -> str:
+def _map_job_row_to_dispatch_phase(job: dict[str, Any]) -> str:
     """Map a jobs row to the phase key used by ``_stop_runner_for_phase``."""
     jt = (job.get("job_type") or "").strip().lower()
     cur = (job.get("current_phase") or "").strip().lower()
@@ -102,7 +102,7 @@ def _map_job_row_to_dispatch_phase(job: Dict[str, Any]) -> str:
     return jt or ""
 
 
-def _stop_runner_for_job_row(job: Dict[str, Any]) -> bool:
+def _stop_runner_for_job_row(job: dict[str, Any]) -> bool:
     phase = _map_job_row_to_dispatch_phase(job)
     if not phase:
         return False

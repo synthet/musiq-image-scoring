@@ -171,7 +171,7 @@ def compute_clip_quality(image_ids, *, persist: bool = True, ensure: bool = True
     ids = sorted({int(i) for i in (image_ids or []) if i is not None})
     if not ids:
         return {}
-    if db._get_db_engine() != "postgres":  # noqa: SLF001
+    if db._get_db_engine() != "postgres":
         logger.debug("clip_quality: skipped (engine != postgres)")
         return {}
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 
 # Match focal length patterns: 105mm, 180-600mm, 24-70mm, 10.5mm
-_FOCAL_MM_PATTERN = re.compile(r"(\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?mm)", re.I)
+_FOCAL_MM_PATTERN = re.compile(r"(\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?mm)", re.IGNORECASE)
 
 # Nikon EXIF quad: min focal, max focal, max aperture @ min, max aperture @ max (no "mm")
 _NIKON_LENS_QUAD_PATTERN = re.compile(

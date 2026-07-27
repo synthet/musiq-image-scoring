@@ -1,8 +1,7 @@
 
-import time
-import logging
 import functools
-from contextlib import contextmanager
+import logging
+import time
 
 logger = logging.getLogger("image_scoring.performance")
 

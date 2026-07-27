@@ -25,7 +25,6 @@ import logging
 import mmap
 import os
 import struct
-from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +70,7 @@ def _u32(data: bytes, off: int, endian: str) -> int:
 
 def _ifd_entry_value(
     data: bytes, entry_off: int, endian: str
-) -> Optional[Tuple[int, int, int, bytes]]:
+) -> tuple[int, int, int, bytes] | None:
     """Return (tag, typ, count, value_bytes) for a 12-byte IFD entry."""
     if entry_off + 12 > len(data):
         return None
@@ -91,13 +90,13 @@ def _ifd_entry_value(
     return (tag, typ, cnt, data[voff : voff + vsz])
 
 
-def _iter_ifd_entries(data: bytes, ifd_off: int, endian: str) -> List[int]:
+def _iter_ifd_entries(data: bytes, ifd_off: int, endian: str) -> list[int]:
     if ifd_off + 2 > len(data):
         return []
     n = _u16(data, ifd_off, endian)
     if n > 4096:
         return []
-    entries: List[int] = []
+    entries: list[int] = []
     for i in range(n):
         e = ifd_off + 2 + 12 * i
         if e + 12 <= len(data):
@@ -105,7 +104,7 @@ def _iter_ifd_entries(data: bytes, ifd_off: int, endian: str) -> List[int]:
     return entries
 
 
-def _find_tag_in_ifd(data: bytes, ifd_off: int, endian: str, want: int) -> Optional[bytes]:
+def _find_tag_in_ifd(data: bytes, ifd_off: int, endian: str, want: int) -> bytes | None:
     for e in _iter_ifd_entries(data, ifd_off, endian):
         parsed = _ifd_entry_value(data, e, endian)
         if not parsed:
@@ -116,7 +115,7 @@ def _find_tag_in_ifd(data: bytes, ifd_off: int, endian: str, want: int) -> Optio
     return None
 
 
-def _exif_pointer_to_ifd(data: bytes, ifd0_off: int, endian: str) -> Optional[int]:
+def _exif_pointer_to_ifd(data: bytes, ifd0_off: int, endian: str) -> int | None:
     """IFD0 tag 0x8769 (Exif IFD pointer) → offset of Exif SubIFD."""
     v = _find_tag_in_ifd(data, ifd0_off, endian, 0x8769)
     if not v or len(v) < 4:
@@ -124,7 +123,7 @@ def _exif_pointer_to_ifd(data: bytes, ifd0_off: int, endian: str) -> Optional[in
     return _u32(v, 0, endian)
 
 
-def _makernote_entry(data: bytes, exif_ifd_off: int, endian: str) -> Optional[Tuple[int, bytes]]:
+def _makernote_entry(data: bytes, exif_ifd_off: int, endian: str) -> tuple[int, bytes] | None:
     """Exif tag 0x927C (MakerNote): return (value_start_offset_in_file, raw maker bytes)."""
     for e in _iter_ifd_entries(data, exif_ifd_off, endian):
         parsed = _ifd_entry_value(data, e, endian)
@@ -146,7 +145,7 @@ def _makernote_entry(data: bytes, exif_ifd_off: int, endian: str) -> Optional[Tu
     return None
 
 
-def _find_tag_in_nikon_makernote(mk: bytes, endian_ifd: str, want: int) -> Optional[bytes]:
+def _find_tag_in_nikon_makernote(mk: bytes, endian_ifd: str, want: int) -> bytes | None:
     """Nikon MakerNote IFD usually starts at byte offset 8 (after ``Nikon\\0`` + type)."""
     if len(mk) < 10:
         return None
@@ -157,10 +156,10 @@ def _find_tag_in_nikon_makernote(mk: bytes, endian_ifd: str, want: int) -> Optio
     return _find_tag_in_ifd(mk, 8, endian_ifd, want)
 
 
-def _parse_u32_candidates(raw: bytes) -> List[int]:
+def _parse_u32_candidates(raw: bytes) -> list[int]:
     if not raw:
         return []
-    out: List[int] = []
+    out: list[int] = []
     if len(raw) >= 4:
         out.append(struct.unpack(">I", raw[:4])[0])
         out.append(struct.unpack("<I", raw[:4])[0])
@@ -171,7 +170,7 @@ def _preview_jpeg_from_preview_ifd(
     data: bytes,
     preview_ifd_off: int,
     endian: str,
-) -> Optional[Tuple[int, int]]:
+) -> tuple[int, int] | None:
     """Return (jpeg_start, jpeg_len) from a Preview IFD using 0x0201 / 0x0202."""
     if preview_ifd_off + 2 > len(data) or preview_ifd_off < 0:
         return None
@@ -186,7 +185,7 @@ def _preview_jpeg_from_preview_ifd(
     return (joff, jlen)
 
 
-def _read_jpeg_span(path: str, joff: int, jlen: int, head: bytes) -> Optional[bytes]:
+def _read_jpeg_span(path: str, joff: int, jlen: int, head: bytes) -> bytes | None:
     end = joff + jlen
     if end <= len(head):
         blob = head[joff:end]
@@ -202,7 +201,7 @@ def _read_jpeg_span(path: str, joff: int, jlen: int, head: bytes) -> Optional[by
     return blob
 
 
-def _nikon_makernote_preview_jpeg(path: str, head: bytes) -> Optional[bytes]:
+def _nikon_makernote_preview_jpeg(path: str, head: bytes) -> bytes | None:
     """
     Nikon MakerNote tag 0x0011 → Preview IFD → JPEG offset/length (0x0201 / 0x0202).
     Preview IFD offsets are usually relative to the TIFF header (byte 0 of the file).
@@ -228,7 +227,7 @@ def _nikon_makernote_preview_jpeg(path: str, head: bytes) -> Optional[bytes]:
     if mk[:5] != b"Nikon" or mk[5] != 0:
         return None
 
-    ptr_raw: Optional[bytes] = None
+    ptr_raw: bytes | None = None
     for endian_mk in (">", "<"):
         ptr_raw = _find_tag_in_nikon_makernote(mk, endian_mk, 0x0011)
         if ptr_raw:
@@ -236,7 +235,7 @@ def _nikon_makernote_preview_jpeg(path: str, head: bytes) -> Optional[bytes]:
     if not ptr_raw or len(ptr_raw) < 4:
         return None
 
-    best: Optional[bytes] = None
+    best: bytes | None = None
     ptrs: set[int] = set()
     for u in _parse_u32_candidates(ptr_raw):
         ptrs.add(u)
@@ -265,7 +264,7 @@ def _load_head(path: str) -> bytes:
         return b""
 
 
-def _largest_jpeg_in_buffer(buf: bytes | mmap.mmap) -> Optional[bytes]:
+def _largest_jpeg_in_buffer(buf: bytes | mmap.mmap) -> bytes | None:
     """Return the largest valid JPEG blob (FFD8 .. FFD9) in *buf*."""
     if not buf or len(buf) < 4:
         return None
@@ -287,7 +286,7 @@ def _largest_jpeg_in_buffer(buf: bytes | mmap.mmap) -> Optional[bytes]:
     return best if len(best) >= 64 else None
 
 
-def _largest_jpeg_mmap_path(path: str, max_bytes: int = 512 * 1024 * 1024) -> Optional[bytes]:
+def _largest_jpeg_mmap_path(path: str, max_bytes: int = 512 * 1024 * 1024) -> bytes | None:
     """Memory-map file and find largest embedded JPEG (caps read size for safety)."""
     try:
         size = os.path.getsize(path)
@@ -303,13 +302,13 @@ def _largest_jpeg_mmap_path(path: str, max_bytes: int = 512 * 1024 * 1024) -> Op
         return None
 
 
-def _embedded_jpegs_from_tiff(path: str) -> List[bytes]:
+def _embedded_jpegs_from_tiff(path: str) -> list[bytes]:
     """Use tifffile to read JPEG-compressed strips for every qualifying page (each blob is one candidate)."""
     try:
         import tifffile
     except ImportError:
         return []
-    out: List[bytes] = []
+    out: list[bytes] = []
     try:
         with tifffile.TiffFile(path) as tf, open(path, "rb") as rawf:
             for page in tf.pages:
@@ -330,7 +329,7 @@ def _embedded_jpegs_from_tiff(path: str) -> List[bytes]:
                     counts = page.databytecounts
                 except Exception:
                     continue
-                chunks: List[bytes] = []
+                chunks: list[bytes] = []
                 for off, cnt in zip(offsets, counts):
                     try:
                         rawf.seek(int(off))
@@ -347,20 +346,20 @@ def _embedded_jpegs_from_tiff(path: str) -> List[bytes]:
     return out
 
 
-def _merge_jpeg_candidates(candidates: List[bytes]) -> Optional[bytes]:
+def _merge_jpeg_candidates(candidates: list[bytes]) -> bytes | None:
     valid = [c for c in candidates if c and len(c) >= 64]
     if not valid:
         return None
     return max(valid, key=len)
 
 
-def _content_preview_payload(path: str, ext: str) -> Optional[bytes]:
+def _content_preview_payload(path: str, ext: str) -> bytes | None:
     ext_l = ext.lower()
     if ext_l not in _TIFF_RAW_EXTENSIONS:
         return None
 
     head = _load_head(path)
-    candidates: List[bytes] = []
+    candidates: list[bytes] = []
 
     is_nrw = ext_l == ".nrw"
     nikon_mk = ext_l in _NIKON_MAKERNOTE_EXTENSIONS
@@ -387,7 +386,7 @@ def _content_preview_payload(path: str, ext: str) -> Optional[bytes]:
     return _merge_jpeg_candidates(candidates)
 
 
-def compute_image_identity_hash(file_path: str) -> Optional[Tuple[str, int]]:
+def compute_image_identity_hash(file_path: str) -> tuple[str, int] | None:
     """
     Compute (hex digest, hash_version). Returns None if the file is missing or unreadable.
 

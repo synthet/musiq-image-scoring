@@ -32,7 +32,8 @@ Note on transactions:
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Sequence, TypeVar
+from collections.abc import Callable, Sequence
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ class _ApiTx:
     ``POST /api/db/transaction`` after the callback returns.
     """
 
-    def __init__(self, connector: 'ApiConnector') -> None:
+    def __init__(self, connector: ApiConnector) -> None:
         self._c = connector
         self._writes: list[dict] = []
 

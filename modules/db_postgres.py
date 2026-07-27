@@ -2,10 +2,12 @@ import logging
 import os
 import re
 import sys
+
 import psycopg2
 import psycopg2.extras
-from psycopg2.pool import ThreadedConnectionPool
 from pgvector.psycopg2 import register_vector
+from psycopg2.pool import ThreadedConnectionPool
+
 from modules import config
 from modules.test_db_constants import (
     POSTGRES_PRODUCTION_IN_PYTEST_ENV,
@@ -375,10 +377,9 @@ def execute_write(sql: str, params=None) -> int:
     Retries automatically on SQLSTATE 40P01 (deadlock detected).
     """
     def _do() -> int:
-        with PGConnectionManager(commit=True) as conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, params)
-                return cur.rowcount
+        with PGConnectionManager(commit=True) as conn, conn.cursor() as cur:
+            cur.execute(sql, params)
+            return cur.rowcount
 
     return run_with_deadlock_retry(_do, op_name="execute_write")
 

@@ -12,7 +12,8 @@ imported lazily to avoid circular-import issues.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Sequence, TypeVar
+from collections.abc import Callable, Sequence
+from typing import TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,7 @@ class PostgresConnector:
 
     def execute_returning(self, sql: str, params: Sequence | None = None) -> list[dict]:
         import psycopg2.extras
+
         from modules import db_postgres
         pg_sql, pg_params = _prepare(sql, params)
 
@@ -122,8 +124,8 @@ class PostgresConnector:
         return db_postgres.run_with_deadlock_retry(_do, op_name="execute_returning")
 
     def execute_many(self, sql: str, params_list: list[Sequence]) -> None:
-        from modules.db import _escape_pct_in_string_literals
         from modules import db_postgres
+        from modules.db import _escape_pct_in_string_literals
         pg_sql = _escape_pct_in_string_literals(_translate(sql))
         rows = [tuple(p) for p in params_list]
 

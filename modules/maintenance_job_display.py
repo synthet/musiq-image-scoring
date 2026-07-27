@@ -6,10 +6,10 @@ opaque GLOBAL_MAINTENANCE placeholder.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 # Align with frontend `frontend/src/constants/pipelineTools.ts` (Pipeline Tools tab) where applicable.
-_DEFAULT_TITLE_BY_ACTION: Dict[str, str] = {
+_DEFAULT_TITLE_BY_ACTION: dict[str, str] = {
     "reconcile": "Reconcile Finished Phases",
     "heal_thumbnails": "Heal Thumbnails",
     "backfill_exif": "Backfill EXIF Dates",
@@ -22,7 +22,7 @@ _DEFAULT_TITLE_BY_ACTION: Dict[str, str] = {
 }
 
 
-def _format_param_suffix(payload: Dict[str, Any]) -> str:
+def _format_param_suffix(payload: dict[str, Any]) -> str:
     parts: list[str] = []
     scope = payload.get("input_path") or payload.get("scope_path")
     if scope:
@@ -45,10 +45,10 @@ def _format_param_suffix(payload: Dict[str, Any]) -> str:
 
 def maintenance_job_input_path(
     action: str,
-    payload: Optional[Dict[str, Any]] = None,
+    payload: dict[str, Any] | None = None,
     *,
-    job_name: Optional[str] = None,
-    title_override: Optional[str] = None,
+    job_name: str | None = None,
+    title_override: str | None = None,
 ) -> str:
     """
     Build the persisted job label (`jobs.input_path`) for a maintenance run.
@@ -70,9 +70,9 @@ def maintenance_job_input_path(
 
 def build_default_maintenance_description(
     action: str,
-    payload: Optional[Dict[str, Any]] = None,
+    payload: dict[str, Any] | None = None,
     *,
-    job_name: Optional[str] = None,
+    job_name: str | None = None,
 ) -> str:
     """Default ``jobs.description`` when the client omits ``description`` (plain text, troubleshooting)."""
     payload = dict(payload) if payload else {}

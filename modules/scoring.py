@@ -1,15 +1,15 @@
-import os
-import threading
 import json
 import logging
-from modules import db, thumbnails
-from modules.engine import BatchImageProcessor
-from modules import pipeline
-from modules.events import event_manager
-from modules.run_log import runner_emit
+import os
+import threading
+
+from modules import db, pipeline, thumbnails
 from modules import score_normalization as snorm
-from modules.phases import PhaseCode, normalize_phase_codes
+from modules.engine import BatchImageProcessor
+from modules.events import event_manager
 from modules.indexing_policy import passes_nikon_nef_policy
+from modules.phases import PhaseCode, normalize_phase_codes
+from modules.run_log import runner_emit
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,10 @@ class ScoringRunner:
 
         log("Initializing models first (this happens once)...")
         try:
-            from modules.engines.factory import create_production_scoring_host, load_production_models
+            from modules.engines.factory import (
+                create_production_scoring_host,
+                load_production_models,
+            )
 
             host = create_production_scoring_host(liqe_scorer=self.liqe_scorer)
             ok, msg = load_production_models(host, log=log)
@@ -346,8 +349,9 @@ class ScoringRunner:
     @staticmethod
     def _compute_aggregate_before(collector):
         """Compute mean/stddev/incomplete from collector's pending before_snapshots."""
-        from modules.report_collector import SCORE_SNAPSHOT_COLUMNS
         import statistics as _stats
+
+        from modules.report_collector import SCORE_SNAPSHOT_COLUMNS
 
         scores = []
         incomplete = 0

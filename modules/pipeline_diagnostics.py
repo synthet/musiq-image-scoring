@@ -8,15 +8,13 @@ Provides deep observability for the automated workflows:
 - Full pipeline state snapshotting
 """
 
+import logging
 import sys
 import threading
-import traceback
 import time
-import logging
-from typing import Dict, Any, List, Optional
+import traceback
 from contextlib import contextmanager
-
-from modules.run_log import runner_emit
+from typing import Any
 
 logger = logging.getLogger("pipeline_diagnostics")
 
@@ -24,7 +22,7 @@ logger = logging.getLogger("pipeline_diagnostics")
 # Thread Dump Service
 # ---------------------------------------------------------------------------
 
-def capture_thread_dump(include_pipeline_only: bool = False) -> Dict[str, Any]:
+def capture_thread_dump(include_pipeline_only: bool = False) -> dict[str, Any]:
     """
     Captures a real-time stack trace of all running threads using sys._current_frames().
     """
@@ -85,7 +83,7 @@ class WorkerHeartbeat:
             self._last_beat = time.time()
             self._status = status
             
-    def get_info(self) -> Dict[str, Any]:
+    def get_info(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "worker_id": self.worker_id,
@@ -111,7 +109,7 @@ class StallDetector:
             self.check_interval_s = check_interval_s
             self.stall_threshold_s = stall_threshold_s
             
-        self._heartbeats: Dict[str, WorkerHeartbeat] = {}
+        self._heartbeats: dict[str, WorkerHeartbeat] = {}
         self._lock = threading.Lock()
         self._running = False
         self._thread = None
@@ -188,7 +186,7 @@ def get_stall_detector() -> StallDetector:
 # Telemetry & State
 # ---------------------------------------------------------------------------
 
-def log_phase_transition(job_id: int, from_phase: str, to_phase: str, reason: str, folder_path: Optional[str] = None):
+def log_phase_transition(job_id: int, from_phase: str, to_phase: str, reason: str, folder_path: str | None = None):
     """Structured logging for phase transitions."""
     msg = f"Phase transition: {from_phase} -> {to_phase} (Reason: {reason})"
     if folder_path:
@@ -229,7 +227,7 @@ def phase_timer(phase_name: str, job_id: int = None, details: str = None):
             )
 
 
-def capture_pipeline_snapshot(orchestrator, runners: Dict[str, Any]) -> Dict[str, Any]:
+def capture_pipeline_snapshot(orchestrator, runners: dict[str, Any]) -> dict[str, Any]:
     """Collects current state of orchestrator and all runners."""
     snap = {
         "timestamp": time.time(),
@@ -292,4 +290,4 @@ def get_thread_dump() -> str:
     return "\n".join(lines)
 
 
-import os # Needed for expanduser
+import os  # Needed for expanduser
