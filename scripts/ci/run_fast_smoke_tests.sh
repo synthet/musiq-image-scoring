@@ -18,4 +18,5 @@ python -m pytest -q -p no:cacheprovider \
   tests/test_command_dispatcher.py \
   tests/test_config_environment.py \
   tests/test_config_secrets.py \
-  tests/test_db_security.py
+  tests/test_db_security.py \
+  tests/test_engine_orchestration.py
