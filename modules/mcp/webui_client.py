@@ -11,11 +11,12 @@ import json
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 try:
-    from mcp import ClientSession
     from mcp.client.sse import sse_client
+
+    from mcp import ClientSession
 
     MCP_CLIENT_AVAILABLE = True
 except Exception:
@@ -67,7 +68,7 @@ def _extract_first_jsonish_payload(result: Any) -> Any:
 @dataclass(frozen=True)
 class WebuiMcpClient:
     url: str = ""
-    headers: Optional[dict[str, str]] = None
+    headers: dict[str, str] | None = None
     timeout_seconds: float = 2.5
     sse_read_timeout_seconds: float = 10.0
 
@@ -87,14 +88,13 @@ class WebuiMcpClient:
                 headers=dict(self.headers or {}),
                 timeout=float(self.timeout_seconds),
                 sse_read_timeout=float(self.sse_read_timeout_seconds),
-            ) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
+            ) as (read, write), ClientSession(read, write) as session:
+                await session.initialize()
             return True, None
         except Exception as e:
             return False, str(e)
 
-    async def call_tool(self, name: str, arguments: Optional[dict[str, Any]] = None) -> Any:
+    async def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
         """Call a tool on the WebUI MCP SSE endpoint and return its decoded payload."""
         if not MCP_CLIENT_AVAILABLE:
             raise RuntimeError("MCP client unavailable (missing mcp SDK)")
@@ -104,20 +104,19 @@ class WebuiMcpClient:
             headers=dict(self.headers or {}),
             timeout=float(self.timeout_seconds),
             sse_read_timeout=float(self.sse_read_timeout_seconds),
-        ) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                # Prevent long hangs: rely on HTTP timeouts + modest SSE read timeout.
-                res = await session.call_tool(name, arguments=arguments or {})
-                return _extract_first_jsonish_payload(res)
+        ) as (read, write), ClientSession(read, write) as session:
+            await session.initialize()
+            # Prevent long hangs: rely on HTTP timeouts + modest SSE read timeout.
+            res = await session.call_tool(name, arguments=arguments or {})
+            return _extract_first_jsonish_payload(res)
 
 
 async def call_webui_tool(
     name: str,
-    arguments: Optional[dict[str, Any]] = None,
+    arguments: dict[str, Any] | None = None,
     *,
-    url: Optional[str] = None,
-    headers: Optional[dict[str, str]] = None,
+    url: str | None = None,
+    headers: dict[str, str] | None = None,
     timeout_seconds: float = 2.5,
     sse_read_timeout_seconds: float = 10.0,
 ) -> Any:
@@ -133,10 +132,10 @@ async def call_webui_tool(
 
 def call_webui_tool_sync(
     name: str,
-    arguments: Optional[dict[str, Any]] = None,
+    arguments: dict[str, Any] | None = None,
     *,
-    url: Optional[str] = None,
-    headers: Optional[dict[str, str]] = None,
+    url: str | None = None,
+    headers: dict[str, str] | None = None,
     timeout_seconds: float = 2.5,
     sse_read_timeout_seconds: float = 10.0,
 ) -> Any:

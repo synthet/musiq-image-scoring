@@ -7,7 +7,6 @@ from typing import Any
 
 from modules import db, utils
 
-
 _MAX_IN_PARAMS = 500
 
 

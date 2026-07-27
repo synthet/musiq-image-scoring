@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import APIRouter, Query
 
 from modules.api_helpers import (
@@ -45,16 +43,16 @@ def create_public_api_router() -> APIRouter:
             description="score, date, name, rating, score_general, score_aesthetic, score_technical",
         ),
         order: str = Query("desc", description="asc or desc"),
-        rating: Optional[str] = Query(None, description="Comma-separated ratings"),
-        label: Optional[str] = Query(None, description="Comma-separated labels"),
-        keyword: Optional[str] = Query(None),
+        rating: str | None = Query(None, description="Comma-separated ratings"),
+        label: str | None = Query(None, description="Comma-separated labels"),
+        keyword: str | None = Query(None),
         keyword_exact: bool = Query(False, description="When true, match the keyword exactly instead of a substring"),
         min_score_general: float = Query(0, ge=0, le=1),
         min_score_aesthetic: float = Query(0, ge=0, le=1),
         min_score_technical: float = Query(0, ge=0, le=1),
         min_clip_quality_v0: float = Query(0, ge=0, le=1),
-        folder_path: Optional[str] = Query(None),
-        stack_id: Optional[int] = Query(None),
+        folder_path: str | None = Query(None),
+        stack_id: int | None = Query(None),
     ):
         return _images_list_payload(
             page=page,
@@ -88,7 +86,7 @@ def create_public_api_router() -> APIRouter:
     )
     async def public_get_image_by_hash(
         image_hash: str,
-        hash_version: Optional[int] = Query(None, description="images.hash_version (1=full file, 2=preview)"),
+        hash_version: int | None = Query(None, description="images.hash_version (1=full file, 2=preview)"),
     ):
         return _image_detail_for_hash_str(image_hash, hash_version=hash_version)
 
@@ -109,15 +107,15 @@ def create_public_api_router() -> APIRouter:
         image_id: int,
         sort_by: str = Query("score", description="Same sort as /public/api/images"),
         order: str = Query("desc", description="asc or desc"),
-        rating: Optional[str] = Query(None, description="Comma-separated ratings"),
-        label: Optional[str] = Query(None, description="Comma-separated labels"),
-        keyword: Optional[str] = Query(None),
+        rating: str | None = Query(None, description="Comma-separated ratings"),
+        label: str | None = Query(None, description="Comma-separated labels"),
+        keyword: str | None = Query(None),
         min_score_general: float = Query(0, ge=0, le=1),
         min_score_aesthetic: float = Query(0, ge=0, le=1),
         min_score_technical: float = Query(0, ge=0, le=1),
         min_clip_quality_v0: float = Query(0, ge=0, le=1),
-        folder_path: Optional[str] = Query(None),
-        stack_id: Optional[int] = Query(None),
+        folder_path: str | None = Query(None),
+        stack_id: int | None = Query(None),
     ):
         return _image_neighbors_payload(
             image_id=image_id,

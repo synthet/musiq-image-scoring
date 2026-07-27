@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Callable, Iterable, List, Mapping, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +38,9 @@ class EnsureResult:
         return self.covered_after / self.requested
 
 
-def collect_stacked_image_ids(by_stack: Mapping[object, Sequence[Mapping]]) -> List[int]:
+def collect_stacked_image_ids(by_stack: Mapping[object, Sequence[Mapping]]) -> list[int]:
     """Image IDs in multi-image stacks (level-2 sub-clustering scope)."""
-    ids: List[int] = []
+    ids: list[int] = []
     for stack_id, group in by_stack.items():
         if stack_id is None or len(group) < 2:
             continue
@@ -56,11 +56,11 @@ def resolve_embedding_paths(
     rows: Sequence[Mapping | tuple],
     *,
     use_thumbnails: bool = True,
-) -> Tuple[List[Tuple[int, str]], int]:
+) -> tuple[list[tuple[int, str]], int]:
     """Return ``(image_id, local_path)`` pairs; prefer on-disk thumbnails when set."""
     from modules import utils
 
-    resolved: List[Tuple[int, str]] = []
+    resolved: list[tuple[int, str]] = []
     n_thumb = 0
     for row in rows:
         if isinstance(row, dict):

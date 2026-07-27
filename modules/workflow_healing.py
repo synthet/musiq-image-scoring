@@ -16,22 +16,26 @@ This module provides logic to:
 """
 
 from __future__ import annotations
+
 import logging
 import os
 import re
-from typing import Any, List, Dict, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 from modules import db, utils
+from modules.job_description import (
+    augment_queue_payload_for_audit,
+    build_run_submit_description,
+)
 from modules.phases import PhaseCode, sort_phase_value_strings
 from modules.phases_policy import get_phase_executor_version
-from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
+from modules.pipeline_tool_folder_touch import upsert_pipeline_tool_folder_touch
 from modules.run_manifest import (
     REASON_SOURCE_WORKFLOW_HEALING,
     attach_run_reason,
     build_manual_submit_summary,
 )
-from modules.pipeline_tool_folder_touch import upsert_pipeline_tool_folder_touch
 from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
 
 logger = logging.getLogger(__name__)
@@ -39,7 +43,7 @@ logger = logging.getLogger(__name__)
 _UI_IMAGE_ID_RE = re.compile(r"/(?:ui/)?images/(\d+)(?:/|$)")
 
 
-def _resolve_image_id_to_path(image_id: int) -> Optional[str]:
+def _resolve_image_id_to_path(image_id: int) -> str | None:
     with db.connection() as conn:
         c = conn.cursor()
         c.execute("SELECT file_path FROM images WHERE id = ?", (image_id,))
@@ -47,7 +51,7 @@ def _resolve_image_id_to_path(image_id: int) -> Optional[str]:
     return row[0] if row and row[0] else None
 
 
-def normalize_heal_root(root: Optional[str]) -> Optional[str]:
+def normalize_heal_root(root: str | None) -> str | None:
     """Accept folder path, file path, or /ui/images/<id> URL; return folder path.
 
     Why: heal is folder-scoped, but callers often hand over a file path or a UI
@@ -259,10 +263,10 @@ def _canon_path_for_active_match(raw: str) -> str:
 def heal_phase_data(
     phase_code: str,
     *,
-    root_path: Optional[str] = None,
+    root_path: str | None = None,
     dry_run: bool = False,
     budget: int = 10,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Perform a healing pass for a specific pipeline phase.
     
@@ -281,7 +285,7 @@ def heal_phase_data(
     use_touch_rr = db._get_db_engine() == "postgres"
 
     # Resolve active executor version for version-aware phases.
-    current_executor_version: Optional[str] = None
+    current_executor_version: str | None = None
     if phase_code == PhaseCode.BIRD_SPECIES.value:
         current_executor_version = get_phase_executor_version(PhaseCode.BIRD_SPECIES.value)
         if not current_executor_version:
@@ -334,7 +338,7 @@ def heal_phase_data(
     if phase_code == PhaseCode.BIRD_SPECIES.value:
         # For bird_species, "done with no species predictions" is terminal for the
         # current executor version, so these are not false positives to reset.
-        false_positive_ids: List[int] = []
+        false_positive_ids: list[int] = []
     else:
         with db.connection() as conn:
             c = conn.cursor()
@@ -516,7 +520,7 @@ def heal_phase_data(
         "budget": budget
     }
 
-def _get_active_jobs_snapshot() -> List[Dict[str, Any]]:
+def _get_active_jobs_snapshot() -> list[dict[str, Any]]:
     """Retrieve currently active or queued jobs with input paths."""
     with db.connection() as conn:
         c = conn.cursor()

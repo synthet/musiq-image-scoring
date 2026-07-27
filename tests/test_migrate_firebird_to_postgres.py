@@ -1,6 +1,7 @@
 import os
 import sys
 import types
+import importlib.util
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
@@ -9,7 +10,14 @@ if project_root not in sys.path:
 # Lightweight stubs so the migration script can be imported without real
 # database drivers.  Only injected when the real packages are absent;
 # if psycopg2/pgvector are installed the real modules are used instead.
-if "psycopg2" not in sys.modules:
+def _psycopg2_pool_available() -> bool:
+    try:
+        return importlib.util.find_spec("psycopg2.pool") is not None
+    except ModuleNotFoundError:
+        return False
+
+
+if not _psycopg2_pool_available() and "psycopg2" not in sys.modules:
     _psycopg2_stub = types.ModuleType("psycopg2")
     _extras_stub = types.ModuleType("psycopg2.extras")
     _extras_stub.RealDictCursor = object

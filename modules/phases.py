@@ -11,10 +11,11 @@ Status values (for IMAGE_PHASE_STATUS):
 Folder-level summaries are computed live (no stored table).
 """
 
-from enum import Enum
-from dataclasses import dataclass, field
-from typing import Optional, List, Callable, Any, Tuple, Dict, Iterable
 import logging
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class PhaseCode(str, Enum):
 
 
 # Same execution order as PipelineOrchestrator.PHASE_ORDER — UI and job_phases must follow this.
-PIPELINE_PHASE_ORDER: Tuple[PhaseCode, ...] = (
+PIPELINE_PHASE_ORDER: tuple[PhaseCode, ...] = (
     PhaseCode.INDEXING,
     PhaseCode.METADATA,
     PhaseCode.SCORING,
@@ -50,7 +51,7 @@ PIPELINE_PHASE_ORDER: Tuple[PhaseCode, ...] = (
 _PHASE_ORDER_INDEX = {p: i for i, p in enumerate(PIPELINE_PHASE_ORDER)}
 
 # Direct prerequisites per pipeline stage (must stay aligned with ``phase_executors.register_all``).
-PHASE_PREREQUISITES: Dict[str, Tuple[str, ...]] = {
+PHASE_PREREQUISITES: dict[str, tuple[str, ...]] = {
     PhaseCode.INDEXING.value: (),
     PhaseCode.METADATA.value: (PhaseCode.INDEXING.value,),
     PhaseCode.SCORING.value: (PhaseCode.METADATA.value,),
@@ -65,14 +66,14 @@ SCORING_EXECUTOR_VERSION = "5.0.0"
 def missing_prerequisites(
     requested: Iterable[str],
     satisfied: Iterable[str],
-) -> Dict[str, List[str]]:
+) -> dict[str, list[str]]:
     """Return phases whose direct prerequisites are not met.
 
     A prerequisite *pre* for requested phase *P* is satisfied when *pre* is in
     ``satisfied`` (e.g. scope preview marks stage ``done``) or when *pre* is
     also listed in ``requested`` (same-run inclusion).
     """
-    requested_norm: List[str] = []
+    requested_norm: list[str] = []
     seen_req: set[str] = set()
     for raw in requested:
         c = (str(raw or "")).strip().lower()
@@ -84,7 +85,7 @@ def missing_prerequisites(
     requested_set = set(requested_norm)
     satisfied_set = {(str(s or "")).strip().lower() for s in satisfied}
 
-    missing_map: Dict[str, List[str]] = {}
+    missing_map: dict[str, list[str]] = {}
     for phase in requested_norm:
         prereqs = PHASE_PREREQUISITES.get(phase)
         if prereqs is None:
@@ -110,9 +111,9 @@ def compute_satisfied_phases_for_scope(scope_paths: Iterable[str]) -> set[str]:
     """
     from modules import db  # lazy: db imports phases
 
-    stage_total: Dict[str, int] = {}
-    stage_done_or_skipped: Dict[str, int] = {}
-    stage_failed: Dict[str, int] = {}
+    stage_total: dict[str, int] = {}
+    stage_done_or_skipped: dict[str, int] = {}
+    stage_failed: dict[str, int] = {}
 
     for raw_path in scope_paths or []:
         path = (str(raw_path or "")).strip()
@@ -148,7 +149,7 @@ def compute_satisfied_phases_for_scope(scope_paths: Iterable[str]) -> set[str]:
 def assert_prereqs_for_scope(
     phase_values: Iterable[str],
     scope_paths: Iterable[str],
-) -> Dict[str, List[str]]:
+) -> dict[str, list[str]]:
     """Return the {phase: [missing_prereqs]} map for the given scope.
 
     Empty dict means all requested phases have their prereqs satisfied (or
@@ -160,7 +161,7 @@ def assert_prereqs_for_scope(
     return missing_prerequisites(phase_values or [], satisfied)
 
 
-def sort_phase_codes_canonical(phases: List[PhaseCode]) -> List[PhaseCode]:
+def sort_phase_codes_canonical(phases: list[PhaseCode]) -> list[PhaseCode]:
     """Order phase codes in pipeline sequence (not insertion order)."""
     return sorted(phases, key=lambda ph: _PHASE_ORDER_INDEX.get(ph, 999))
 
@@ -176,14 +177,14 @@ def phase_string_sort_key(code: str) -> int:
         return 999
 
 
-def sort_phase_value_strings(codes: List[str]) -> List[str]:
+def sort_phase_value_strings(codes: list[str]) -> list[str]:
     """Sort phase_code strings in canonical pipeline order (bird_species after keywords)."""
     if not codes:
         return []
     return sorted(codes, key=lambda s: phase_string_sort_key(s))
 
 
-def pipeline_prefix_through(phase: str) -> List[str]:
+def pipeline_prefix_through(phase: str) -> list[str]:
     """Return the canonical contiguous prefix of required phases up to and
     including ``phase`` (transitive closure over :data:`PHASE_PREREQUISITES`).
 
@@ -213,12 +214,12 @@ def pipeline_prefix_through(phase: str) -> List[str]:
     return sort_phase_value_strings(list(collected))
 
 
-def sort_job_phase_rows_for_display(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def sort_job_phase_rows_for_display(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Sort job_phases rows for API/UI; renumbers phase_order to match display order."""
     if not rows:
         return []
     sorted_rows = sorted(rows, key=lambda r: phase_string_sort_key(str(r.get("phase_code") or "")))
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for i, r in enumerate(sorted_rows):
         d = dict(r)
         d["phase_order"] = i
@@ -233,9 +234,9 @@ PHASE_CODE_ALIASES = {
 }
 
 
-def normalize_phase_codes(phase_codes: Optional[List[Any]]) -> List[PhaseCode]:
+def normalize_phase_codes(phase_codes: list[Any] | None) -> list[PhaseCode]:
     """Normalize API/job payload phase codes into canonical PhaseCode values."""
-    normalized: List[PhaseCode] = []
+    normalized: list[PhaseCode] = []
     for phase in phase_codes or []:
         if isinstance(phase, PhaseCode):
             candidate = phase
@@ -375,9 +376,9 @@ class PhaseExecutor:
     """
     code:             str
     executor_version: str
-    run_folder:       Optional[Callable[..., Any]] = None
-    run_image:        Optional[Callable[..., Any]] = None
-    depends_on:       List[str] = field(default_factory=list)
+    run_folder:       Callable[..., Any] | None = None
+    run_image:        Callable[..., Any] | None = None
+    depends_on:       list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -400,7 +401,7 @@ class PhaseRegistry:
         cls._executors[executor.code] = executor
 
     @classmethod
-    def get(cls, code: str) -> Optional[PhaseExecutor]:
+    def get(cls, code: str) -> PhaseExecutor | None:
         return cls._executors.get(code)
 
     @classmethod

@@ -13,9 +13,9 @@ from typing import Any
 from modules.redact_sensitive import redact_json_obj
 
 __all__ = [
-    "redact_json_obj",
     "aggregate_status",
     "format_report",
+    "redact_json_obj",
     "run_doctor",
 ]
 

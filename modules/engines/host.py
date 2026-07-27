@@ -19,7 +19,8 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from modules.engines.base import IScoringEngine, IScoringModel
 from modules.engines.registry import ModelRegistry, get_registry
@@ -33,8 +34,8 @@ class MultiModelHost(IScoringEngine):
     def __init__(
         self,
         backend: Any,
-        registry: Optional[ModelRegistry] = None,
-        version: Optional[str] = None,
+        registry: ModelRegistry | None = None,
+        version: str | None = None,
     ) -> None:
         self._backend = backend
         self._registry = registry or get_registry()
@@ -49,7 +50,7 @@ class MultiModelHost(IScoringEngine):
         return self._backend
 
     @property
-    def model_sources(self) -> Dict[str, Any]:
+    def model_sources(self) -> dict[str, Any]:
         """Delegate to the MUSIQ backend for pipeline legacy-skip checks."""
         return getattr(self._backend, "model_sources", {}) or {}
 
@@ -59,18 +60,18 @@ class MultiModelHost(IScoringEngine):
     def preprocess_image(
         self,
         file_path: str,
-        output_dir: Optional[str] = None,
-        resolution_override: Optional[int] = None,
-    ) -> Optional[str]:
+        output_dir: str | None = None,
+        resolution_override: int | None = None,
+    ) -> str | None:
         return self._backend.preprocess_image(
             file_path,
             output_dir=output_dir,
             resolution_override=resolution_override,
         )
 
-    def load_enabled_and_shadow(self) -> Dict[str, bool]:
+    def load_enabled_and_shadow(self) -> dict[str, bool]:
         """Load every model the registry says is active. Returns {name: ok}."""
-        results: Dict[str, bool] = {}
+        results: dict[str, bool] = {}
         for model in self._registry.all_active():
             try:
                 ok = bool(model.load())
@@ -83,10 +84,10 @@ class MultiModelHost(IScoringEngine):
     def run_all_models(
         self,
         image_path: str,
-        external_scores: Optional[Dict[str, Any]] = None,
-        logger: Callable[..., Any] = print,  # noqa: A002 — kept to match IScoringEngine
+        external_scores: dict[str, Any] | None = None,
+        logger: Callable[..., Any] = print,
         write_metadata: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         log = logger
         active = self._registry.all_active()
         is_raw = self.is_raw_file(image_path)
@@ -96,7 +97,7 @@ class MultiModelHost(IScoringEngine):
             return self._raw_failure_result(image_path)
 
         results = self._init_result(image_path, is_raw, processing_path, active)
-        normalized: Dict[str, float] = {}
+        normalized: dict[str, float] = {}
 
         if external_scores:
             self._merge_external_scores(external_scores, results, normalized, log)
@@ -109,14 +110,14 @@ class MultiModelHost(IScoringEngine):
         self._finalize_summary(results, normalized, image_path, write_metadata)
         return results
 
-    def _resolve_processing_path(self, image_path: str, is_raw: bool, log: Callable[..., Any]) -> Optional[str]:
+    def _resolve_processing_path(self, image_path: str, is_raw: bool, log: Callable[..., Any]) -> str | None:
         if is_raw:
             log(f"RAW file detected: {image_path}")
             return self.preprocess_image(image_path)
         # Non-RAW: trust caller; PrepWorker may have preprocessed already.
         return image_path
 
-    def _raw_failure_result(self, image_path: str) -> Dict[str, Any]:
+    def _raw_failure_result(self, image_path: str) -> dict[str, Any]:
         return {
             "version": self.VERSION,
             "image_path": self._wsl_to_windows(image_path),
@@ -143,10 +144,10 @@ class MultiModelHost(IScoringEngine):
         image_path: str,
         is_raw: bool,
         processing_path: str,
-        active: List[IScoringModel],
-    ) -> Dict[str, Any]:
+        active: list[IScoringModel],
+    ) -> dict[str, Any]:
         gpu = bool(getattr(self._backend, "gpu_available", False))
-        out: Dict[str, Any] = {
+        out: dict[str, Any] = {
             "version": self.VERSION,
             "image_path": self._wsl_to_windows(image_path),
             "image_name": os.path.basename(image_path),
@@ -169,9 +170,9 @@ class MultiModelHost(IScoringEngine):
 
     def _merge_external_scores(
         self,
-        external: Dict[str, Any],
-        results: Dict[str, Any],
-        normalized: Dict[str, float],
+        external: dict[str, Any],
+        results: dict[str, Any],
+        normalized: dict[str, float],
         log: Callable[..., Any],
     ) -> None:
         for name, payload in external.items():
@@ -204,8 +205,8 @@ class MultiModelHost(IScoringEngine):
         self,
         model: IScoringModel,
         processing_path: str,
-        results: Dict[str, Any],
-        normalized: Dict[str, float],
+        results: dict[str, Any],
+        normalized: dict[str, float],
         log: Callable[..., Any],
     ) -> None:
         start = time.time()
@@ -264,8 +265,8 @@ class MultiModelHost(IScoringEngine):
 
     def _finalize_summary(
         self,
-        results: Dict[str, Any],
-        normalized: Dict[str, float],
+        results: dict[str, Any],
+        normalized: dict[str, float],
         image_path: str,
         write_metadata: bool,
     ) -> None:

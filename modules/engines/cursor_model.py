@@ -13,7 +13,7 @@ through as `subscores` (stored in `scores_json` by `MultiModelHost`). It mirrors
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from modules.engines.base import IScoringModel
 
@@ -27,7 +27,7 @@ class CursorModelWrapper(IScoringModel):
     framework = "cursor-sdk"
     score_range = (0.0, 100.0)
 
-    def __init__(self, scorer: Optional[Any] = None) -> None:
+    def __init__(self, scorer: Any | None = None) -> None:
         """`scorer` may be an existing `CursorScorer` (or duck-typed mock) for
         sharing across the process; if `None`, the backend is constructed lazily
         on first `load()`.
@@ -58,7 +58,7 @@ class CursorModelWrapper(IScoringModel):
         self.load_status = "loaded" if self._loaded else "failed"
         return self._loaded
 
-    def predict(self, image_path: str) -> Dict[str, Any]:
+    def predict(self, image_path: str) -> dict[str, Any]:
         if not self._loaded or self._scorer is None:
             return {"score": None, "status": "not_loaded", "error": "Model not loaded"}
         try:
@@ -71,7 +71,7 @@ class CursorModelWrapper(IScoringModel):
             err = result.get("error") if isinstance(result, dict) else "unknown"
             return {"score": None, "status": "failed", "error": err}
 
-        out: Dict[str, Any] = {
+        out: dict[str, Any] = {
             "score": float(result.get("score", 0.0)),
             "status": "success",
             "error": None,
@@ -82,7 +82,7 @@ class CursorModelWrapper(IScoringModel):
         return out
 
     @property
-    def scorer(self) -> Optional[Any]:
+    def scorer(self) -> Any | None:
         """Expose the underlying `CursorScorer` (for sharing or shutdown)."""
         return self._scorer
 

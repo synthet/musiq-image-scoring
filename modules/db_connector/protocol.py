@@ -31,7 +31,13 @@ Transaction context:
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Literal, Protocol, Sequence, TypeVar, runtime_checkable
+from collections.abc import Callable, Sequence
+from typing import (
+    Literal,
+    Protocol,
+    TypeVar,
+    runtime_checkable,
+)
 
 T = TypeVar("T")
 

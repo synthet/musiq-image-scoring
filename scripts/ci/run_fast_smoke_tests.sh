@@ -12,11 +12,14 @@
 # See docs/testing/CI_GATES.md.
 set -euo pipefail
 
-python -m pytest -q -p no:cacheprovider \
+python3 -m pytest -q -p no:cacheprovider \
   tests/test_api_security.py \
   tests/test_api_v2_reorg.py \
   tests/test_command_dispatcher.py \
   tests/test_config_environment.py \
   tests/test_config_secrets.py \
   tests/test_db_security.py \
+  tests/test_scoring_runner.py \
+  tests/test_utils_paths.py \
+  tests/test_xmp_sidecar.py \
   tests/test_engine_orchestration.py

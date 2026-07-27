@@ -10,10 +10,10 @@ Generic SQL endpoints (used by ApiConnector in modules/db_connector/api.py):
     POST /api/db/transaction       — execute a batch of write statements atomically
 """
 
-from fastapi import APIRouter, HTTPException, Query, Body, Path, Response, Header
-from typing import List, Dict, Any, Optional, Tuple
 import logging
-import json
+from typing import Any
+
+from fastapi import APIRouter, Body, Header, HTTPException, Path, Query
 
 from modules import db
 
@@ -34,8 +34,8 @@ def ping():
 
 @router.post("/query")
 def raw_query(
-    payload: Dict[str, Any] = Body(...),
-    x_db_write_token: Optional[str] = Header(None, alias="X-DB-Write-Token"),
+    payload: dict[str, Any] = Body(...),
+    x_db_write_token: str | None = Header(None, alias="X-DB-Write-Token"),
 ):
     """Execute a SQL statement and return results.
 
@@ -116,8 +116,8 @@ def raw_query(
 
 @router.post("/transaction")
 def raw_transaction(
-    payload: Dict[str, Any] = Body(...),
-    x_db_write_token: Optional[str] = Header(None, alias="X-DB-Write-Token"),
+    payload: dict[str, Any] = Body(...),
+    x_db_write_token: str | None = Header(None, alias="X-DB-Write-Token"),
 ):
     """Execute a batch of write statements atomically.
 
@@ -183,7 +183,7 @@ def get_image_details(file_path: str = Query(..., description="Full path to the 
 @router.get("/images/by-hash/{image_hash}")
 def get_image_by_hash(
     image_hash: str = Path(..., description="Image content hash"),
-    hash_version: Optional[int] = Query(None, description="images.hash_version"),
+    hash_version: int | None = Query(None, description="images.hash_version"),
 ):
     details = db.get_image_by_hash(image_hash, hash_version=hash_version)
     if not details:
@@ -191,7 +191,7 @@ def get_image_by_hash(
     return details
 
 @router.post("/images/upsert")
-def upsert_image(payload: Dict[str, Any] = Body(...)):
+def upsert_image(payload: dict[str, Any] = Body(...)):
     job_id = payload.get("job_id")
     result = payload.get("result")
     if job_id is None or result is None:
@@ -208,8 +208,8 @@ def delete_image(file_path: str = Query(..., description="Full path to the image
 @router.get("/images")
 def get_images(
     limit: int = Query(-1),
-    folder_path: Optional[str] = Query(None),
-    keyword: Optional[str] = Query(None)
+    folder_path: str | None = Query(None),
+    keyword: str | None = Query(None)
 ):
     if keyword:
         rows = db.get_images_with_keyword(folder_path=folder_path, keyword=keyword)
@@ -223,7 +223,7 @@ def get_incomplete_records():
     return db.get_incomplete_records()
 
 @router.patch("/images/{image_id}")
-def update_image_fields(image_id: int, updates: Dict[str, Any] = Body(...)):
+def update_image_fields(image_id: int, updates: dict[str, Any] = Body(...)):
     success = True
     for field, value in updates.items():
         if not db.update_image_field(image_id, field, value):
@@ -231,7 +231,7 @@ def update_image_fields(image_id: int, updates: Dict[str, Any] = Body(...)):
     return {"success": success}
 
 @router.post("/images/batch-update")
-def update_image_fields_batch(payload: Dict[str, Any] = Body(...)):
+def update_image_fields_batch(payload: dict[str, Any] = Body(...)):
     updates_raw = payload.get("updates", [])
     # Convert list of dicts to list of tuples
     updates = [(u["image_id"], u["fields"]) for u in updates_raw]
@@ -239,7 +239,7 @@ def update_image_fields_batch(payload: Dict[str, Any] = Body(...)):
     return {"success": True}
 
 @router.post("/images/batch-embeddings")
-def update_embeddings_batch(payload: List[Dict[str, Any]] = Body(...)):
+def update_embeddings_batch(payload: list[dict[str, Any]] = Body(...)):
     # payload: list of {"image_id": int, "embedding": list[float]}
     import numpy as np
     updates = [
@@ -271,7 +271,7 @@ def get_jobs(limit: int = Query(100)):
     return db.get_recent_jobs(limit=limit)
 
 @router.post("/jobs")
-def create_job(payload: Dict[str, Any] = Body(...)):
+def create_job(payload: dict[str, Any] = Body(...)):
     input_path = payload.pop("input_path", "")
     job_type = payload.pop("job_type", "scoring")
     status = payload.pop("status", "queued")
@@ -280,7 +280,7 @@ def create_job(payload: Dict[str, Any] = Body(...)):
     return {"job_id": job_id}
 
 @router.patch("/jobs/{job_id}")
-def update_job_status(job_id: int, payload: Dict[str, Any] = Body(...)):
+def update_job_status(job_id: int, payload: dict[str, Any] = Body(...)):
     status = payload.pop("status", "running")
     log = payload.pop("log", None)
     runner_state = payload.pop("runner_state", None)
@@ -295,13 +295,13 @@ def get_job(job_id: int):
     return job
 
 @router.post("/jobs/dequeue")
-def dequeue_job(payload: Dict[str, Any] = Body(...)):
+def dequeue_job(payload: dict[str, Any] = Body(...)):
     if payload.get("job_types"):
         raise HTTPException(status_code=400, detail="job_types filtering is not supported")
     return db.dequeue_next_job()
 
 @router.post("/jobs/enqueue")
-def enqueue_job(payload: Dict[str, Any] = Body(...)):
+def enqueue_job(payload: dict[str, Any] = Body(...)):
     input_path = payload.get("input_path", "")
     job_id, queue_position = db.enqueue_job(
         input_path,
@@ -321,7 +321,7 @@ def get_job_phases(job_id: int):
     return db.get_job_phases(job_id)
 
 @router.post("/jobs/{job_id}/phases")
-def create_job_phase(job_id: int, payload: Dict[str, Any] = Body(...)):
+def create_job_phase(job_id: int, payload: dict[str, Any] = Body(...)):
     phase_code = payload.get("phase_code")
     if not phase_code:
         raise HTTPException(status_code=400, detail="Missing phase_code")
@@ -330,7 +330,7 @@ def create_job_phase(job_id: int, payload: Dict[str, Any] = Body(...)):
     return {"success": True}
 
 @router.put("/jobs/{job_id}/phases/{phase_code}")
-def update_job_phase(job_id: int, phase_code: str, payload: Dict[str, Any] = Body(...)):
+def update_job_phase(job_id: int, phase_code: str, payload: dict[str, Any] = Body(...)):
     status = payload.get("status")
     error_message = payload.get("error_message")
     db.set_job_phase_state(job_id, phase_code, status, error_message=error_message)
@@ -350,7 +350,7 @@ def is_folder_scored(folder_path: str = Query(...)):
     return {"scored": scored}
 
 @router.post("/folders/get-or-create")
-def get_or_create_folder(payload: Dict[str, Any] = Body(...)):
+def get_or_create_folder(payload: dict[str, Any] = Body(...)):
     folder_path = payload.get("folder_path")
     if not folder_path:
         raise HTTPException(status_code=400, detail="Missing folder_path")
@@ -358,7 +358,7 @@ def get_or_create_folder(payload: Dict[str, Any] = Body(...)):
     return {"folder_id": folder_id}
 
 @router.post("/folders/sync")
-def sync_folders(payload: List[str] = Body(...)):
+def sync_folders(payload: list[str] = Body(...)):
     db.sync_folders(payload)
     return {"success": True}
 
@@ -367,7 +367,7 @@ def get_folder_phase_summary(folder_path: str = Query(...)):
     return db.get_folder_phase_summary(folder_path)
 
 @router.put("/folders/phase-status")
-def update_folder_phase_status(payload: Dict[str, Any] = Body(...)):
+def update_folder_phase_status(payload: dict[str, Any] = Body(...)):
     folder_path = payload.get("folder_path")
     phase_code = payload.get("phase_code")
     status = payload.get("status")
@@ -379,16 +379,16 @@ def update_folder_phase_status(payload: Dict[str, Any] = Body(...)):
 # =========================================================================
 
 @router.get("/stacks/count")
-def get_stacks_count(folder_id: Optional[int] = Query(None)):
+def get_stacks_count(folder_id: int | None = Query(None)):
     count = db.get_stacks_count(folder_id=folder_id)
     return {"count": count}
 
 @router.post("/stacks/by-image-ids")
-def get_stacks_by_image_ids(payload: List[int] = Body(...)):
+def get_stacks_by_image_ids(payload: list[int] = Body(...)):
     return db.get_stacks_by_image_ids(payload)
 
 @router.post("/stacks/batch-create")
-def create_stacks_batch(payload: List[Dict[str, Any]] = Body(...)):
+def create_stacks_batch(payload: list[dict[str, Any]] = Body(...)):
     # Each item: {"image_ids": [int], "folder_id": int, "stack_type": str}
     for item in payload:
         db.create_stack(item["image_ids"], item.get("folder_id"), item.get("stack_type", "similarity"))
@@ -404,7 +404,7 @@ def clear_stacks(folder_id: int = Body(..., embed=True)):
 # =========================================================================
 
 @router.post("/culling/sessions")
-def create_culling_session(payload: Dict[str, Any] = Body(...)):
+def create_culling_session(payload: dict[str, Any] = Body(...)):
     folder_path = payload.get("folder_path")
     if not folder_path:
         raise HTTPException(status_code=400, detail="Missing folder_path")
@@ -424,7 +424,7 @@ def get_culling_session(session_id: int):
 # =========================================================================
 
 @router.post("/utils/generate-uuid")
-def generate_uuid(payload: Dict[str, Any] = Body(...)):
+def generate_uuid(payload: dict[str, Any] = Body(...)):
     metadata = payload.get("metadata", {})
     image_uuid = db.generate_image_uuid(metadata)
     return {"uuid": image_uuid}

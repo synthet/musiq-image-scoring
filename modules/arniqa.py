@@ -24,7 +24,7 @@ from __future__ import annotations
 import contextlib
 import io
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from PIL import Image
 
@@ -56,8 +56,8 @@ class ArniqaScorer:
     def __init__(
         self,
         device: str = "cuda",
-        max_dimension: Optional[int] = None,
-        metric_name: Optional[str] = None,
+        max_dimension: int | None = None,
+        metric_name: str | None = None,
     ) -> None:
         self.device = device
         self.available = False
@@ -116,7 +116,7 @@ class ArniqaScorer:
             pass
         return self.DEFAULT_MAX_DIM
 
-    def predict(self, image_path: str) -> Dict[str, Any]:
+    def predict(self, image_path: str) -> dict[str, Any]:
         """Score a single image. Returns a dict with score/status/score_range."""
         if not self.available:
             return {"error": "Model not loaded", "status": "failed"}

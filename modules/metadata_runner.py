@@ -1,13 +1,13 @@
+import logging
 import os
 import threading
-import logging
-from typing import List, Optional
-from modules import db, thumbnails, xmp, exif_extractor, utils
-from modules.version import APP_VERSION
-from modules.phases import PhaseCode, PhaseStatus
+
+from modules import db, exif_extractor, thumbnails, utils, xmp
 from modules.events import event_manager
-from modules.run_log import runner_emit
 from modules.indexing_policy import filter_image_rows_for_nef_policy
+from modules.phases import PhaseCode, PhaseStatus
+from modules.run_log import runner_emit
+from modules.version import APP_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class MetadataRunner:
     def get_status(self):
         return self.is_running, "\n".join(self.log_history), self.status_message, self.current_count, self.total_count
 
-    def start_batch(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None, report_collector=None):
+    def start_batch(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: list[int] = None, report_collector=None):
         if self.is_running:
             return "Error: Already running."
 
@@ -431,8 +431,8 @@ class MetadataRunner:
 
         return processed_count, skipped_count
 
-    def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: List[int] = None, report_collector=None):
-        def log(msg: str, level: str = "INFO", image_id: Optional[int] = None) -> None:
+    def _run_batch_internal(self, input_path: str, job_id: int = None, skip_existing: bool = True, resolved_image_ids: list[int] = None, report_collector=None):
+        def log(msg: str, level: str = "INFO", image_id: int | None = None) -> None:
             runner_emit(self.log_history, job_id, msg, level, phase="metadata", image_id=image_id)
 
         # Handle WSL path conversion if needed (e.g. running on Windows but path is /mnt/d/...)

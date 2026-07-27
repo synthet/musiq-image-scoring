@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from modules import db
-from modules.phases import PhaseCode
-from modules.phases_policy import explain_phase_run_decision
 from modules.phase_work_claims import count_claimed_by_other
+from modules.phases_policy import explain_phase_run_decision
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +55,11 @@ def _reason_bucket(policy_reason: str) -> str:
     return "invalid_data"
 
 
-def _images_in_scope(scope_paths: List[str]) -> List[int]:
+def _images_in_scope(scope_paths: list[str]) -> list[int]:
     return db._query_image_ids_by_condition_for_scope(scope_paths, "1=1")
 
 
-def _apply_preflight(scope_paths: List[str]) -> Dict[str, int]:
+def _apply_preflight(scope_paths: list[str]) -> dict[str, int]:
     actions = {"reconciled_rows": 0, "backfilled_index_meta": 0}
     try:
         actions["reconciled_rows"] = int(
@@ -80,7 +79,7 @@ def _needs_work_for_phase(
     image_id: int,
     phase_code: str,
     *,
-    prefetched_statuses: Optional[Dict[str, Any]] = None,
+    prefetched_statuses: dict[str, Any] | None = None,
 ) -> tuple[bool, str]:
     decision = explain_phase_run_decision(
         image_id,
@@ -106,14 +105,14 @@ def _bulk_phase_status_enabled() -> bool:
 
 
 def plan_scope(
-    scope_paths: List[str],
-    stage_codes: Optional[List[str]] = None,
+    scope_paths: list[str],
+    stage_codes: list[str] | None = None,
     *,
     dry_run: bool = True,
-    job_id: Optional[int] = None,
+    job_id: int | None = None,
     exclude_claimed: bool = True,
     include_stale_executor: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build a scope plan with per-stage queues and reason counts."""
     selected = {_normalize_stage_code(str(s)) for s in (stage_codes or []) if str(s).strip()}
     if not selected:
@@ -127,7 +126,7 @@ def plan_scope(
     # Prefetch every image's phase-status map once for the whole scope so the
     # per-(image, stage) decision below is in-memory instead of an N+1 over the
     # folder. Gated so it can be turned off if the bulk path ever diverges.
-    statuses_by_image: Dict[int, Dict[str, Any]] = {}
+    statuses_by_image: dict[int, dict[str, Any]] = {}
     if image_ids and _bulk_phase_status_enabled():
         try:
             statuses_by_image = db.get_image_phase_statuses_bulk(image_ids) or {}
@@ -137,14 +136,14 @@ def plan_scope(
                 "falling back to per-image lookups"
             )
             statuses_by_image = {}
-    issue_counts: Dict[str, int] = defaultdict(int)
-    issue_counts_by_reason: Dict[str, int] = defaultdict(int)
-    ignored_counts: Dict[str, int] = defaultdict(int)
-    ignored_counts_by_reason: Dict[str, int] = defaultdict(int)
-    stage_queues: Dict[str, List[int]] = {}
+    issue_counts: dict[str, int] = defaultdict(int)
+    issue_counts_by_reason: dict[str, int] = defaultdict(int)
+    ignored_counts: dict[str, int] = defaultdict(int)
+    ignored_counts_by_reason: dict[str, int] = defaultdict(int)
+    stage_queues: dict[str, list[int]] = {}
 
     for stage in sorted(selected):
-        queue: List[int] = []
+        queue: list[int] = []
         for iid in image_ids:
             needs, reason = _needs_work_for_phase(
                 iid, stage, prefetched_statuses=statuses_by_image.get(iid)
@@ -172,7 +171,7 @@ def plan_scope(
         if stage == "scoring":
             actions["scoring_fix_targets"] = len(queue)
 
-    unique_issue_ids: Set[int] = set()
+    unique_issue_ids: set[int] = set()
     for ids in stage_queues.values():
         unique_issue_ids.update(int(i) for i in ids)
 
@@ -192,14 +191,14 @@ def plan_scope(
 
 
 def plan_phase(
-    scope_paths: List[str],
+    scope_paths: list[str],
     phase_code: str,
     *,
-    job_id: Optional[int] = None,
+    job_id: int | None = None,
     dry_run: bool = False,
     exclude_claimed: bool = True,
     include_stale_executor: bool = True,
-) -> List[int]:
+) -> list[int]:
     stage = _normalize_stage_code(phase_code)
     plan = plan_scope(
         scope_paths,
@@ -212,10 +211,10 @@ def plan_phase(
     return list(plan.get("stage_queues", {}).get(stage) or [])
 
 
-def to_legacy_repair_plan(plan: Dict[str, Any]) -> Dict[str, Any]:
+def to_legacy_repair_plan(plan: dict[str, Any]) -> dict[str, Any]:
     """Shape compatible with historical validation-repair consumers."""
     out = dict(plan)
-    legacy_counts: Dict[str, int] = {}
+    legacy_counts: dict[str, int] = {}
     for stage, ids in (plan.get("stage_queues") or {}).items():
         if stage == "clustering":
             continue

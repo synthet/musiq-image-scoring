@@ -1,14 +1,14 @@
+import hashlib
+import io
 import logging
 import os
 import platform
 import re
-from pathlib import Path
-from PIL import Image
-import hashlib
-import subprocess
 import shutil
-import io
-from typing import Optional, Tuple
+import subprocess
+from pathlib import Path
+
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 _HOST_THUMB_WARN_EMITTED = False
@@ -41,7 +41,7 @@ def collapse_malformed_thumbnail_segments(path: str) -> str:
     return s
 
 
-def remap_container_thumbnail_path_to_host(path: str) -> Optional[str]:
+def remap_container_thumbnail_path_to_host(path: str) -> str | None:
     """
     Map Docker / static-UI roots (``/app/thumbnails/...``, ``\\app\\thumbnails\\...``) to an absolute
     path under :data:`THUMB_DIR`. Returns None if *path* does not use those synthetic roots.
@@ -95,7 +95,7 @@ def _thumbnail_db_use_host_project_remap(proj: str) -> bool:
     return v in ("1", "true", "yes")
 
 
-def _host_project_roots_for_db() -> Tuple[str, str]:
+def _host_project_roots_for_db() -> tuple[str, str]:
     """
     Host-side project roots for DB thumbnail strings. Used together with
     :func:`_thumbnail_db_use_host_project_remap` so native WSL/Windows runs are not rewritten
@@ -122,7 +122,7 @@ def _host_project_roots_for_db() -> Tuple[str, str]:
     return wsl_h, win_h
 
 
-def _db_pair_under_host_project(rel_posix: str) -> Tuple[str, str]:
+def _db_pair_under_host_project(rel_posix: str) -> tuple[str, str]:
     """Build DB columns from a path relative to project root (POSIX slashes)."""
     rel_posix = rel_posix.replace("\\", "/").strip("/")
     wsl_h, win_h = _host_project_roots_for_db()
@@ -133,7 +133,7 @@ def _db_pair_under_host_project(rel_posix: str) -> Tuple[str, str]:
     return tp, tw
 
 
-def _rel_posix_under_project_root(path_any: str) -> Optional[str]:
+def _rel_posix_under_project_root(path_any: str) -> str | None:
     """
     If *path_any* resolves under :data:`PROJECT_ROOT`, return the relative path with POSIX slashes.
     Used to map on-disk paths (including Docker ``/app/...`` when the repo root is ``/app``) to
@@ -154,8 +154,8 @@ def _rel_posix_under_project_root(path_any: str) -> Optional[str]:
 
 
 def _synthetic_app_thumbnail_db_pair(
-    tp: Optional[str], tw: Optional[str]
-) -> Tuple[Optional[str], Optional[str]]:
+    tp: str | None, tw: str | None
+) -> tuple[str | None, str | None]:
     """
     If columns still reference ``.../app/thumbnails/...`` and host project roots are configured,
     rewrite to canonical host WSL + Windows paths (thumbnail file may be missing on disk).
@@ -179,9 +179,9 @@ def _synthetic_app_thumbnail_db_pair(
 
 
 def _resolve_thumbnail_filesystem_path(
-    thumbnail_path: Optional[str],
-    thumbnail_path_win: Optional[str],
-) -> Optional[str]:
+    thumbnail_path: str | None,
+    thumbnail_path_win: str | None,
+) -> str | None:
     """Return absolute path to an existing thumbnail file, or None."""
     candidates: list[str] = []
     for raw in (thumbnail_path, thumbnail_path_win):
@@ -213,7 +213,7 @@ def _resolve_thumbnail_filesystem_path(
             return joined
 
     for c in candidates:
-        m = re.search(r"([a-f0-9]{32}\.(?:jpg|jpeg))\s*$", c.replace("\\", "/"), re.I)
+        m = re.search(r"([a-f0-9]{32}\.(?:jpg|jpeg))\s*$", c.replace("\\", "/"), re.IGNORECASE)
         if not m:
             continue
         name = m.group(1)
@@ -272,9 +272,9 @@ def database_thumbnail_pair_from_fs_path(abs_path: str) -> tuple[str, str]:
 
 
 def normalize_stored_thumbnail_pair(
-    thumbnail_path: Optional[str],
-    thumbnail_path_win: Optional[str],
-) -> tuple[Optional[str], Optional[str]]:
+    thumbnail_path: str | None,
+    thumbnail_path_win: str | None,
+) -> tuple[str | None, str | None]:
     """
     Sanitize thumbnail DB columns: collapse bad segments, remap Docker ``/app/thumbnails/...`` to
     :data:`THUMB_DIR`, resolve to a real file under THUMB_DIR when possible.
@@ -283,7 +283,7 @@ def normalize_stored_thumbnail_pair(
     use the host project root (e.g. ``/mnt/d/Projects/...`` and ``D:\\Projects\\...``) instead of
     ``/app/...`` inside the container.
     """
-    def _prepare_column(val: Optional[str]) -> Optional[str]:
+    def _prepare_column(val: str | None) -> str | None:
         if not val or not str(val).strip():
             return None
         v = collapse_malformed_thumbnail_segments(str(val).strip())
@@ -321,8 +321,8 @@ def normalize_stored_thumbnail_pair(
 
 
 def thumbnail_pair_needs_repair(
-    thumbnail_path: Optional[str],
-    thumbnail_path_win: Optional[str],
+    thumbnail_path: str | None,
+    thumbnail_path_win: str | None,
 ) -> bool:
     """
     True if DB columns should be rewritten via normalize_stored_thumbnail_pair.
@@ -369,7 +369,7 @@ def thumbnail_pair_needs_repair(
 _EXIF_ORIENTATION = 0x0112
 
 
-def read_orientation(path: str) -> Optional[int]:
+def read_orientation(path: str) -> int | None:
     """
     Read numeric EXIF Orientation from *path* via exiftool (``-n -Orientation -s3``).
 
@@ -417,7 +417,7 @@ def bake_orientation(img: Image.Image, source_path: str) -> Image.Image:
     return ImageOps.exif_transpose(img)
 
 
-def extract_embedded_jpeg(image_path: str, min_size: int = 100) -> Optional[Image.Image]:
+def extract_embedded_jpeg(image_path: str, min_size: int = 100) -> Image.Image | None:
     """
     Extract embedded JPEG preview from RAW file.
     Tries ExifTool first (robust for modern formats like Z8/Z9 HE*), then dcraw (fast).

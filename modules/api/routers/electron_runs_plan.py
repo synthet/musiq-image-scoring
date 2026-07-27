@@ -3,28 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import logging
-import os
-from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, HTTPException, Query
-from fastapi.responses import FileResponse
 
 from modules import db
-from modules.api.routers.electron_helpers import (
-    api_module,
-    logger,
-    _join_runner_threads,
-    _stop_runner_for_job_row,
-    _stop_runner_for_phase,
-)
 from modules.api.routers.electron_models import (
     RunsAutoDriveRequest,
     RunsDriveStartRequest,
     ValidationRepairPreviewRequest,
 )
 from modules.api.routers.electron_scope_helpers import normalize_scope_path_input
+
 
 def create_electron_runs_plan_router() -> APIRouter:
     router = APIRouter()
@@ -53,9 +42,9 @@ def create_electron_runs_plan_router() -> APIRouter:
 
     @router.get("/runs/folder-buckets", summary="Paginated folder buckets for Runs auto-queue")
     async def get_run_folder_buckets(
-        root_path: Optional[str] = None,
-        q: Optional[str] = None,
-        bucket: Optional[str] = None,
+        root_path: str | None = None,
+        q: str | None = None,
+        bucket: str | None = None,
         limit: int = Query(25, ge=1, le=200),
         offset: int = Query(0, ge=0),
         include_complete: bool = False,

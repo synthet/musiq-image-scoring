@@ -29,10 +29,9 @@ validated against a labelled set.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +196,7 @@ class QptV2HiViT(nn.Module):
         return self.quality_regressor.fc_cls(x).squeeze(-1)
 
 
-def load_qpt_v2(checkpoint_path: str, device: str = "cpu") -> Optional[QptV2HiViT]:
+def load_qpt_v2(checkpoint_path: str, device: str = "cpu") -> QptV2HiViT | None:
     """Build the model and strict-load ``ckpt['params']``. Returns None on failure."""
     model = QptV2HiViT()
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)

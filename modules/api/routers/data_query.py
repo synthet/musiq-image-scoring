@@ -3,121 +3,24 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import math
-import os
-import platform
-import threading
-import time
-from datetime import date, datetime
-from decimal import Decimal
-from typing import Any, Dict, List, Literal, Optional
-from uuid import UUID
 
 from fastapi import APIRouter, Body, HTTPException, Query
-from fastapi.responses import FileResponse, Response, StreamingResponse
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
-from modules import config, db
-from modules.api import deps, state
+from modules import db
 from modules.api_helpers import (
-    _decode_db_row_blobs,
     _image_detail_for_hash_str,
     _image_detail_for_uuid_str,
     _image_detail_payload,
     _image_neighbors_payload,
     _images_list_payload,
-    _job_phases_for_run_display,
-    _job_supports_execution_report,
-    _jobs_recent_json_default,
-    _json_response_db,
     _json_safe_metadata_row,
-    _merge_model_scores_into,
-    _normalize_incident_row,
-    _normalize_jobs_table_row,
-    _parse_json_object_column,
-    _parse_rating_filter,
-    _row_to_dict,
-    _synthetic_bird_species_job_phases,
 )
 from modules.api_models import (
-    AgentCullDeleteApprovedRequest,
-    AgentCullDiscoverRequest,
-    AgentCullPickStatusRequest,
-    AgentCullRecommendationIdsRequest,
-    AgentCullRunRequest,
-    ApiResponse,
-    BirdSpeciesStartRequest,
-    ClusteringStartRequest,
-    ConfigResponse,
     CullingAnalyticsResponse,
-    DiagnosticsResponse,
-    ExportRequest,
-    FindDuplicatesRequest,
     GeocodeForwardRequest,
     GeocodeReverseRequest,
-    HealPhaseRequest,
-    HealthResponse,
-    ImageUpdateRequest,
-    ImportRegisterRequest,
-    IpcBridgeRequest,
-    IpcBridgeResponse,
-    LifecycleControlRequest,
-    MaintenanceStartRequest,
-    NeighborInfo,
-    OutlierInfo,
-    OutlierResponse,
-    PhaseDecisionResponse,
-    PipelineBackfillRequest,
-    PipelinePhaseControlRequest,
-    PipelineRestartFromStageRequest,
-    PipelineRunControlRequest,
-    PipelineStepRerunRequest,
-    PipelineSubmitRequest,
-    ScoringStartRequest,
-    SelectorRequest,
-    SingleImageRequest,
-    StatusResponse,
-    TaggingSingleRequest,
-    TaggingStartRequest,
-    TagPropagationRequest,
 )
-from modules.job_description import (
-    augment_queue_payload_for_audit,
-    build_bird_species_job_description,
-    build_clustering_job_description,
-    build_run_submit_description,
-    build_scoring_job_description,
-    build_tagging_job_description,
-    build_workflow_run_description,
-)
-from modules.job_dispatcher import JobDispatcher
-from modules.maintenance_job_display import (
-    build_default_maintenance_description,
-    maintenance_job_input_path,
-)
-from modules.phases_policy import explain_phase_run_decision
-from modules.pipeline_selector_composer import (
-    compose_selector_request,
-    serialize_queue_payload,
-    validate_and_preview,
-)
-from modules.run_manifest import (
-    REASON_SOURCE_FORCE_RUN,
-    REASON_SOURCE_LEGACY_API,
-    REASON_SOURCE_MAINTENANCE,
-    REASON_SOURCE_MANUAL_SUBMIT,
-    REASON_SOURCE_PIPELINE_SUBMIT,
-    REASON_SOURCE_RETRY,
-    attach_run_reason,
-    build_legacy_api_summary,
-    build_maintenance_summary,
-    build_manual_submit_summary,
-    build_retry_summary,
-)
-from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
-from modules.selector_resolver import resolve_selectors
 
 logger = logging.getLogger(__name__)
 
@@ -149,17 +52,17 @@ def create_data_query_router() -> APIRouter:
         page_size: int = Query(50, ge=1, le=500, description="Items per page"),
         sort_by: str = Query("score", description="Sort field (score, date, name, rating, score_general, score_aesthetic, score_technical, phases, embeddings)"),
         order: str = Query("desc", description="Sort order: asc or desc"),
-        rating: Optional[str] = Query(None, description="Comma-separated ratings to filter (e.g. '3,4,5')"),
-        label: Optional[str] = Query(None, description="Comma-separated labels to filter (e.g. 'Green,Blue')"),
-        keyword: Optional[str] = Query(None, description="Keyword to filter by (partial match)"),
+        rating: str | None = Query(None, description="Comma-separated ratings to filter (e.g. '3,4,5')"),
+        label: str | None = Query(None, description="Comma-separated labels to filter (e.g. 'Green,Blue')"),
+        keyword: str | None = Query(None, description="Keyword to filter by (partial match)"),
         keyword_exact: bool = Query(False, description="When true, match the keyword exactly instead of a substring (e.g. tag-cloud clicks)"),
         min_score_general: float = Query(0, ge=0, le=1, description="Minimum general score"),
         min_score_aesthetic: float = Query(0, ge=0, le=1, description="Minimum aesthetic score"),
         min_score_technical: float = Query(0, ge=0, le=1, description="Minimum technical score"),
         min_clip_quality_v0: float = Query(0, ge=0, le=1, description="Minimum CLIP quality score (clip_quality_v0)"),
-        folder_path: Optional[str] = Query(None, description="Filter by folder path"),
-        stack_id: Optional[int] = Query(None, description="Filter by stack ID"),
-        phase_status: Optional[str] = Query(
+        folder_path: str | None = Query(None, description="Filter by folder path"),
+        stack_id: int | None = Query(None, description="Filter by stack ID"),
+        phase_status: str | None = Query(
             None,
             description="Filter by image_phase_status as phase_code:status (e.g. keywords:not_started)",
         ),
@@ -167,7 +70,7 @@ def create_data_query_router() -> APIRouter:
             False,
             description="When true, only images with score_general null or <= 0",
         ),
-        data_gap: Optional[str] = Query(
+        data_gap: str | None = Query(
             None,
             description="Phase marked done/skipped but data missing (e.g. keywords)",
         ),
@@ -221,7 +124,7 @@ def create_data_query_router() -> APIRouter:
     )
     async def get_image_by_hash_param(
         image_hash: str,
-        hash_version: Optional[int] = Query(None, description="images.hash_version (1=full file, 2=preview)"),
+        hash_version: int | None = Query(None, description="images.hash_version (1=full file, 2=preview)"),
     ):
         return _image_detail_for_hash_str(image_hash, hash_version=hash_version)
 
@@ -250,7 +153,7 @@ def create_data_query_router() -> APIRouter:
     )
     async def post_geocode_reverse(
         image_id: int,
-        request: Optional[GeocodeReverseRequest] = Body(default=None),
+        request: GeocodeReverseRequest | None = Body(default=None),
     ):
         from modules.geocoding import image_service
 
@@ -299,15 +202,15 @@ def create_data_query_router() -> APIRouter:
         image_id: int,
         sort_by: str = Query("score", description="Sort field"),
         order: str = Query("desc", description="Sort order: asc or desc"),
-        rating: Optional[str] = Query(None, description="Comma-separated ratings"),
-        label: Optional[str] = Query(None, description="Comma-separated labels"),
-        keyword: Optional[str] = Query(None, description="Keyword filter"),
+        rating: str | None = Query(None, description="Comma-separated ratings"),
+        label: str | None = Query(None, description="Comma-separated labels"),
+        keyword: str | None = Query(None, description="Keyword filter"),
         min_score_general: float = Query(0, ge=0, le=1),
         min_score_aesthetic: float = Query(0, ge=0, le=1),
         min_score_technical: float = Query(0, ge=0, le=1),
         min_clip_quality_v0: float = Query(0, ge=0, le=1),
-        folder_path: Optional[str] = Query(None),
-        stack_id: Optional[int] = Query(None),
+        folder_path: str | None = Query(None),
+        stack_id: int | None = Query(None),
     ):
         return _image_neighbors_payload(
             image_id=image_id,
@@ -350,15 +253,15 @@ def create_data_query_router() -> APIRouter:
     async def get_image_similar(
         image_id: int,
         limit: int = Query(20, ge=1, le=100, description="Max results"),
-        folder_path: Optional[str] = Query(None, description="Scope search to folder"),
-        min_similarity: Optional[float] = Query(
+        folder_path: str | None = Query(None, description="Scope search to folder"),
+        min_similarity: float | None = Query(
             0.80, ge=0.0, le=1.0, description="Minimum similarity threshold"
         ),
-        embedding_space: Optional[str] = Query(
+        embedding_space: str | None = Query(
             None, description="Embedding-space code (default: mobilenet_v2_imagenet_gap)"
         ),
     ):
-        from modules import similar_search, db
+        from modules import db, similar_search
 
         conn = db.get_db()
         try:
@@ -423,7 +326,7 @@ def create_data_query_router() -> APIRouter:
         description="Returns stacks (image groups) with cover images and metadata. Optionally filter by folder."
     )
     async def get_stacks(
-        folder_path: Optional[str] = Query(None, description="Filter stacks by folder path"),
+        folder_path: str | None = Query(None, description="Filter stacks by folder path"),
         sort_by: str = Query("score_general", description="Sort field for cover image selection"),
         order: str = Query("desc", description="Sort order: asc or desc"),
     ):
@@ -528,8 +431,8 @@ def create_data_query_router() -> APIRouter:
         ),
     )
     async def get_culling_analytics(
-        folder_path: Optional[str] = Query(None, description="Filter to exact folder path"),
-        folder_id: Optional[int] = Query(None, description="Filter to folder id"),
+        folder_path: str | None = Query(None, description="Filter to exact folder path"),
+        folder_id: int | None = Query(None, description="Filter to folder id"),
         per_stack_limit: int = Query(50, ge=0, le=200),
         per_stack_offset: int = Query(0, ge=0),
     ):

@@ -6,8 +6,10 @@ Currently, AppState is defined but not actively used - app.py creates states
 directly. This module is kept for potential future refactoring to use the
 dataclass pattern for better type safety and organization.
 """
-import gradio as gr
 from dataclasses import dataclass
+
+import gradio as gr
+
 
 @dataclass
 class AppState:

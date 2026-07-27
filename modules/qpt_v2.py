@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 from PIL import Image
 
@@ -73,7 +73,7 @@ class QptV2Scorer:
     VERSION = "qpt-v2-1"
     SCORE_RANGE = "0.0-1.0"
 
-    def __init__(self, device: str = "cuda", max_dimension: Optional[int] = None) -> None:
+    def __init__(self, device: str = "cuda", max_dimension: int | None = None) -> None:
         self.device = device
         self.available = False
         self._model = None
@@ -181,7 +181,7 @@ class QptV2Scorer:
     # Inference
     # ------------------------------------------------------------------
 
-    def _preprocess(self, img: Image.Image) -> "torch.Tensor":
+    def _preprocess(self, img: Image.Image) -> torch.Tensor:
         """PIL image → float tensor on device at the fixed HiViT input size.
 
         HiViT-T uses a fixed-size absolute position embedding (14x14 tokens), so
@@ -197,7 +197,7 @@ class QptV2Scorer:
         tensor = self._normalize_transform(tensor)
         return tensor.unsqueeze(0).to(self.device)
 
-    def predict(self, image_path: str) -> Dict[str, Any]:
+    def predict(self, image_path: str) -> dict[str, Any]:
         """Score a single image. Returns a dict with score/status/score_range."""
         if not self.available or self._model is None:
             return {"error": "Model not loaded", "status": "failed"}

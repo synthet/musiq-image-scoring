@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Awaitable, Callable, Dict, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from modules.events import event_manager
 from modules.phases import sort_phase_value_strings
@@ -7,14 +8,14 @@ from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
 
 logger = logging.getLogger(__name__)
 
-Handler = Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]
+Handler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 
 
 class CommandDispatcher:
     """Dispatch inbound WebSocket commands to explicit action handlers."""
 
     def __init__(self):
-        self._handlers: Dict[str, Handler] = {
+        self._handlers: dict[str, Handler] = {
             "submit_image": self._handle_submit_image,
             "submit_folder": self._handle_submit_folder,
             "start_clustering": self._handle_start_clustering,
@@ -33,7 +34,7 @@ class CommandDispatcher:
     def register(self, action: str, handler: Handler):
         self._handlers[action] = handler
 
-    async def handle(self, websocket, message: Dict[str, Any]):
+    async def handle(self, websocket, message: dict[str, Any]):
         request_id = None
         if isinstance(message, dict):
             request_id = message.get("request_id")
@@ -62,8 +63,8 @@ class CommandDispatcher:
             logger.error("WebSocket command failed (action=%s): %s", action, exc)
             await self._respond(websocket, request_id, False, error=str(exc))
 
-    async def _respond(self, websocket, request_id: Optional[str], success: bool, data: Optional[Dict[str, Any]] = None, error: Optional[str] = None):
-        message: Dict[str, Any] = {
+    async def _respond(self, websocket, request_id: str | None, success: bool, data: dict[str, Any] | None = None, error: str | None = None):
+        message: dict[str, Any] = {
             "type": "command_response",
             "request_id": request_id,
             "success": success,
@@ -73,29 +74,29 @@ class CommandDispatcher:
             message["error"] = error
         await event_manager.send_to(websocket, message)
 
-    async def _handle_submit_image(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_submit_image(self, data: dict[str, Any]) -> dict[str, Any]:
         return self._enqueue_submit(data, default_scope_type="file")
 
-    async def _handle_submit_folder(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_submit_folder(self, data: dict[str, Any]) -> dict[str, Any]:
         return self._enqueue_submit(data, default_scope_type="folder_recursive")
 
-    async def _handle_start_clustering(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_start_clustering(self, data: dict[str, Any]) -> dict[str, Any]:
         clustered_data = dict(data)
         clustered_data["jobType"] = "cluster"
         clustered_data.setdefault("options", {})
         return self._enqueue_submit(clustered_data, default_scope_type="folder_recursive")
 
-    async def _handle_get_status(self, _data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_get_status(self, _data: dict[str, Any]) -> dict[str, Any]:
         return {
             "scoring": self._runner_status(self._scoring_runner),
             "tagging": self._runner_status(self._tagging_runner),
             "clustering": self._runner_status(self._clustering_runner),
         }
 
-    async def _handle_ping(self, _data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_ping(self, _data: dict[str, Any]) -> dict[str, Any]:
         return {"message": "pong"}
 
-    def _runner_status(self, runner) -> Dict[str, Any]:
+    def _runner_status(self, runner) -> dict[str, Any]:
         if runner is None:
             return {"available": False}
         raw = runner.get_status()
@@ -117,7 +118,7 @@ class CommandDispatcher:
             "progress": {"current": current, "total": total},
         }
 
-    def _enqueue_submit(self, data: Dict[str, Any], default_scope_type: str) -> Dict[str, Any]:
+    def _enqueue_submit(self, data: dict[str, Any], default_scope_type: str) -> dict[str, Any]:
         from modules import db
 
         target_paths = data.get("targetPaths") or data.get("target_paths") or []
@@ -158,7 +159,10 @@ class CommandDispatcher:
             "target_phases": phases,
             "command_source": "websocket",
         }
-        from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
+        from modules.job_description import (
+            augment_queue_payload_for_audit,
+            build_run_submit_description,
+        )
         from modules.run_manifest import REASON_SOURCE_WEBSOCKET, attach_run_reason
 
         payload = augment_queue_payload_for_audit(payload, trigger="websocket", tool_id="command_dispatcher")

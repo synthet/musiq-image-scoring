@@ -4,6 +4,8 @@ import os
 
 import pytest
 
+pytest.importorskip("psycopg2")
+
 from modules.mcp_server import _mcp_allowed_networks, is_mcp_client_ip_allowed
 
 

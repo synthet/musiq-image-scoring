@@ -31,6 +31,7 @@ _ALLOWED_IMAGE_ROOTS = None
 def _validate_file_path(file_path: str) -> str:
     """Validate and resolve a file path, rejecting traversal attempts."""
     from fastapi import HTTPException
+
     from modules import config
     if ".." in file_path:
         raise HTTPException(status_code=400, detail="Invalid path")

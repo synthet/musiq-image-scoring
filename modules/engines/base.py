@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
+from collections.abc import Callable, Iterator
+from typing import Any
 
 
 class IScoringModel(ABC):
@@ -17,7 +18,7 @@ class IScoringModel(ABC):
     name: str = ""
     version: str = "0.0.0"
     framework: str = ""
-    score_range: Tuple[float, float] = (0.0, 1.0)
+    score_range: tuple[float, float] = (0.0, 1.0)
     load_status: str = "unknown"  # "unknown" | "loaded" | "failed"
 
     @abstractmethod
@@ -26,7 +27,7 @@ class IScoringModel(ABC):
         ...
 
     @abstractmethod
-    def predict(self, image_path: str) -> Dict[str, Any]:
+    def predict(self, image_path: str) -> dict[str, Any]:
         """Return {"score": float, "status": "success"|"failed", "error": str|None}.
 
         `score` is in the model's native range (`score_range`). Fusion uses
@@ -55,19 +56,19 @@ class IScoringEngine(ABC):
     def preprocess_image(
         self,
         file_path: str,
-        output_dir: Optional[str] = None,
-        resolution_override: Optional[int] = None,
-    ) -> Optional[str]:
+        output_dir: str | None = None,
+        resolution_override: int | None = None,
+    ) -> str | None:
         ...
 
     @abstractmethod
     def run_all_models(
         self,
         image_path: str,
-        external_scores: Optional[Dict[str, Any]] = None,
+        external_scores: dict[str, Any] | None = None,
         logger: Callable[..., Any] = print,
         write_metadata: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         ...
 
 
@@ -75,7 +76,7 @@ class ILiqeScorer(ABC):
     """LIQE-style scorer used in ScoringWorker (duck-typed: predict(path) -> dict)."""
 
     @abstractmethod
-    def predict(self, image_path: str) -> Dict[str, Any]:
+    def predict(self, image_path: str) -> dict[str, Any]:
         ...
 
 
@@ -83,7 +84,7 @@ class ITaggingEngine(ABC):
     """Keyword + optional caption inference for TaggingRunner."""
 
     @abstractmethod
-    def predict_keywords(self, image_path: str, custom_keywords: Optional[List[str]] = None) -> List[str]:
+    def predict_keywords(self, image_path: str, custom_keywords: list[str] | None = None) -> list[str]:
         ...
 
     def generate_caption(self, image_path: str) -> str:
@@ -104,5 +105,5 @@ class IClusteringEngine(ABC):
         job_id=None,
         target_image_ids=None,
         progress_log=None,
-    ) -> Iterator[Union[str, Tuple[Any, ...]]]:
+    ) -> Iterator[str | tuple[Any, ...]]:
         ...

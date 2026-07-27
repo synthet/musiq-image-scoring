@@ -5,119 +5,31 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import math
-import os
-import platform
-import threading
 import time
-from datetime import date, datetime
-from decimal import Decimal
-from typing import Any, Dict, List, Literal, Optional
-from uuid import UUID
+from datetime import datetime
+from typing import Any
 
-from fastapi import APIRouter, Body, HTTPException, Query
-from fastapi.responses import FileResponse, Response, StreamingResponse
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from fastapi import APIRouter, HTTPException, Query
 
-from modules import config, db
-from modules.api import deps, state
-from modules.api_helpers import (
-    _decode_db_row_blobs,
-    _image_detail_for_hash_str,
-    _image_detail_for_uuid_str,
-    _image_detail_payload,
-    _image_neighbors_payload,
-    _images_list_payload,
-    _job_phases_for_run_display,
-    _job_supports_execution_report,
-    _jobs_recent_json_default,
-    _json_response_db,
-    _json_safe_metadata_row,
-    _merge_model_scores_into,
-    _normalize_incident_row,
-    _normalize_jobs_table_row,
-    _parse_json_object_column,
-    _parse_rating_filter,
-    _row_to_dict,
-    _synthetic_bird_species_job_phases,
-)
+from modules import db
 from modules.api_models import (
-    AgentCullDeleteApprovedRequest,
-    AgentCullDiscoverRequest,
-    AgentCullPickStatusRequest,
-    AgentCullRecommendationIdsRequest,
-    AgentCullRunRequest,
     ApiResponse,
-    BirdSpeciesStartRequest,
-    ClusteringStartRequest,
-    ConfigResponse,
-    CullingAnalyticsResponse,
     DiagnosticsResponse,
-    ExportRequest,
-    FindDuplicatesRequest,
-    GeocodeForwardRequest,
-    GeocodeReverseRequest,
     HealPhaseRequest,
-    HealthResponse,
-    ImageUpdateRequest,
-    ImportRegisterRequest,
-    IpcBridgeRequest,
-    IpcBridgeResponse,
-    LifecycleControlRequest,
     MaintenanceStartRequest,
-    NeighborInfo,
-    OutlierInfo,
-    OutlierResponse,
-    PhaseDecisionResponse,
-    PipelineBackfillRequest,
-    PipelinePhaseControlRequest,
-    PipelineRestartFromStageRequest,
-    PipelineRunControlRequest,
-    PipelineStepRerunRequest,
-    PipelineSubmitRequest,
-    ScoringStartRequest,
-    SelectorRequest,
-    SingleImageRequest,
-    StatusResponse,
-    TaggingSingleRequest,
-    TaggingStartRequest,
-    TagPropagationRequest,
 )
 from modules.job_description import (
     augment_queue_payload_for_audit,
-    build_bird_species_job_description,
-    build_clustering_job_description,
-    build_run_submit_description,
-    build_scoring_job_description,
-    build_tagging_job_description,
-    build_workflow_run_description,
 )
-from modules.job_dispatcher import JobDispatcher
 from modules.maintenance_job_display import (
     build_default_maintenance_description,
     maintenance_job_input_path,
 )
-from modules.phases_policy import explain_phase_run_decision
-from modules.pipeline_selector_composer import (
-    compose_selector_request,
-    serialize_queue_payload,
-    validate_and_preview,
-)
 from modules.run_manifest import (
-    REASON_SOURCE_FORCE_RUN,
-    REASON_SOURCE_LEGACY_API,
     REASON_SOURCE_MAINTENANCE,
-    REASON_SOURCE_MANUAL_SUBMIT,
-    REASON_SOURCE_PIPELINE_SUBMIT,
-    REASON_SOURCE_RETRY,
     attach_run_reason,
-    build_legacy_api_summary,
     build_maintenance_summary,
-    build_manual_submit_summary,
-    build_retry_summary,
 )
-from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
-from modules.selector_resolver import resolve_selectors
 
 logger = logging.getLogger(__name__)
 
@@ -145,8 +57,8 @@ def create_maintenance_router() -> APIRouter:
         tags=["General API"],
     )
     async def maintenance_heal_phase(phase_code: str, request: HealPhaseRequest):
-        from modules.ui.security import _check_rate_limit
         from modules import workflow_healing
+        from modules.ui.security import _check_rate_limit
 
         _check_rate_limit(f"maintenance_heal_phase_{phase_code}")
         try:
@@ -189,23 +101,23 @@ def create_maintenance_router() -> APIRouter:
     )
     async def maintenance_recalculate_status_from_data(
         scope: str = Query("selected_folder", pattern="^(all|selected_folder)$"),
-        scope_path: Optional[str] = Query(
+        scope_path: str | None = Query(
             None,
             description="Required when scope=selected_folder. Uses folder + descendants.",
         ),
     ):
-        from modules.ui.security import _check_rate_limit
         from modules import db, utils
+        from modules.ui.security import _check_rate_limit
 
         _check_rate_limit("maintenance_recalculate_status_from_data")
-        summary: Dict[str, Any] = {}
+        summary: dict[str, Any] = {}
 
         selected_scope = (scope or "selected_folder").strip().lower()
         if selected_scope == "selected_folder" and not (scope_path and scope_path.strip()):
             raise HTTPException(status_code=400, detail="scope_path is required when scope=selected_folder")
 
         target_scope_path = None
-        target_folder_paths: List[str] = []
+        target_folder_paths: list[str] = []
         if selected_scope == "selected_folder":
             wsl_path = (
                 utils.convert_path_to_wsl(scope_path.strip())
@@ -229,7 +141,7 @@ def create_maintenance_router() -> APIRouter:
 
         connector = db.get_connector()
         image_scope_sql = ""
-        image_scope_params: List[Any] = []
+        image_scope_params: list[Any] = []
         if selected_scope == "selected_folder":
             placeholders = ",".join(["?"] * len(target_folder_paths))
             image_scope_sql = f" AND i.folder_id IN (SELECT id FROM folders WHERE path IN ({placeholders}))"
@@ -241,7 +153,7 @@ def create_maintenance_router() -> APIRouter:
             "culling_failed_with_data_present": 0,
         }
         after = dict(before)
-        warnings: List[str] = []
+        warnings: list[str] = []
 
         before_idx_meta_sql = (
             """
@@ -629,8 +541,8 @@ def create_maintenance_router() -> APIRouter:
             description="Full scan: normalize every row where normalize_stored_thumbnail_pair changes values",
         ),
     ):
-        from modules.ui.security import _check_rate_limit
         from modules import thumbnail_maintenance
+        from modules.ui.security import _check_rate_limit
 
         _check_rate_limit("maintenance_repair_thumbnail_paths")
         try:
@@ -674,8 +586,8 @@ def create_maintenance_router() -> APIRouter:
         tags=["General API"],
     )
     async def maintenance_heal_thumbnails():
-        from modules.ui.security import _check_rate_limit
         from modules import thumbnail_maintenance
+        from modules.ui.security import _check_rate_limit
 
         _check_rate_limit("maintenance_heal_thumbnails")
         try:
@@ -703,8 +615,8 @@ def create_maintenance_router() -> APIRouter:
         tags=["General API"]
     )
     async def maintenance_start(request: MaintenanceStartRequest):
-        from modules.ui.security import _check_rate_limit
         from modules import db
+        from modules.ui.security import _check_rate_limit
         _check_rate_limit(f"maintenance_{request.action}")
 
         payload_dict = {

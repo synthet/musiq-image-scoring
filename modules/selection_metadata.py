@@ -6,6 +6,7 @@ Reuses existing xmp module functions for Lightroom compatibility.
 """
 
 import logging
+
 from modules import xmp
 
 logger = logging.getLogger(__name__)

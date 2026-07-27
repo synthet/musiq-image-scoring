@@ -6,12 +6,9 @@ from __future__ import annotations
 
 import datetime
 import logging
-from typing import Any, Optional
+from typing import Any
 
-from modules import db
-from modules import exif_extractor
-from modules import utils
-from modules import xmp
+from modules import db, exif_extractor, utils, xmp
 from modules.geocoding.provider import get_geocoding_provider
 from modules.geocoding.types import LocationParts
 
@@ -33,7 +30,7 @@ def _merge_exif_with_location(
     image_id: int, updates: dict[str, Any]
 ) -> bool:
     ex = db.get_image_exif(image_id) or {}
-    merged = exif_extractor._merge_exif_for_upsert(ex, updates)  # noqa: SLF001
+    merged = exif_extractor._merge_exif_for_upsert(ex, updates)
     return db.upsert_image_exif(image_id, merged)
 
 
@@ -45,7 +42,7 @@ def _file_path_for_image(image_id: int) -> str | None:
     return str(fp) if fp else None
 
 
-def ensure_gps_for_image(image_id: int) -> tuple[Optional[float], Optional[float], str | None]:
+def ensure_gps_for_image(image_id: int) -> tuple[float | None, float | None, str | None]:
     """
     Return (lat, lon, file_path) from cache or exiftool. Path is DB file_path.
     """
@@ -70,7 +67,7 @@ def ensure_gps_for_image(image_id: int) -> tuple[Optional[float], Optional[float
     if not data:
         return None, None, str(file_path)
     ex2 = db.get_image_exif(image_id) or {}
-    merged = exif_extractor._merge_exif_for_upsert(ex2, data)  # noqa: SLF001  # merge helper
+    merged = exif_extractor._merge_exif_for_upsert(ex2, data)  # merge helper
     db.upsert_image_exif(image_id, merged)
     ex3 = db.get_image_exif(image_id) or {}
     gla, glo = ex3.get("gps_latitude"), ex3.get("gps_longitude")

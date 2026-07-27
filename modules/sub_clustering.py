@@ -19,14 +19,14 @@ Pure compute. No I/O. The caller is responsible for fetching embeddings via
 from __future__ import annotations
 
 import logging
-from typing import Iterable, List, Mapping, Optional, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
-def _decode_embedding(blob: object) -> Optional[np.ndarray]:
+def _decode_embedding(blob: object) -> np.ndarray | None:
     """Decode a raw embedding payload to a 1D float32 vector."""
     if blob is None:
         return None
@@ -52,7 +52,7 @@ def compute_sub_clusters(
     distance_threshold: float,
     *,
     id_key: str = "id",
-) -> List[List[dict]]:
+) -> list[list[dict]]:
     """Group ``images`` into sub-clusters using cosine AgglomerativeClustering.
 
     Args:
@@ -81,11 +81,11 @@ def compute_sub_clusters(
     if len(images) == 1:
         return [list(images)]
 
-    valid_rows: List[dict] = []
-    valid_vecs: List[np.ndarray] = []
-    fallback_rows: List[dict] = []
+    valid_rows: list[dict] = []
+    valid_vecs: list[np.ndarray] = []
+    fallback_rows: list[dict] = []
 
-    expected_dim: Optional[int] = None
+    expected_dim: int | None = None
     for row in images:
         try:
             img_id = int(row[id_key])
@@ -106,7 +106,7 @@ def compute_sub_clusters(
         valid_rows.append(dict(row))
         valid_vecs.append(vec)
 
-    sub_clusters: List[List[dict]] = []
+    sub_clusters: list[list[dict]] = []
 
     if len(valid_rows) >= 2:
         try:
@@ -136,11 +136,11 @@ def compute_sub_clusters(
                 )
                 sub_clusters.append(valid_rows)
             else:
-                buckets: dict[int, List[dict]] = {}
+                buckets: dict[int, list[dict]] = {}
                 for label, row in zip(labels, valid_rows):
                     buckets.setdefault(int(label), []).append(row)
                 # Stable ordering: by first appearance of each label.
-                seen: List[int] = []
+                seen: list[int] = []
                 for label in labels:
                     li = int(label)
                     if li not in seen:
@@ -168,7 +168,7 @@ def assign_decisions_in_stack(
     score_field: str = "score_general",
     frac: float = 0.33,
     id_key: str = "id",
-) -> List[tuple]:
+) -> list[tuple]:
     """Two-level pick/reject classification for a single stack.
 
     Splits ``images`` into sub-clusters via :func:`compute_sub_clusters`, sorts
@@ -202,7 +202,7 @@ def assign_decisions_in_stack(
             i = 0
         return (-float(s) if s else 0, str(c), i)
 
-    decisions: List[tuple] = []
+    decisions: list[tuple] = []
     for sub in sub_groups:
         sorted_sub = sorted(sub, key=_sort_key)
         sorted_ids = [int(img[id_key]) for img in sorted_sub if id_key in img]

@@ -13,7 +13,6 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -351,8 +350,8 @@ def finalize_and_save_report(
     run_mode: str,
     collectors: list[ReportCollector],
     *,
-    aggregate_before: Optional[dict] = None,
-    aggregate_after: Optional[dict] = None,
+    aggregate_before: dict | None = None,
+    aggregate_after: dict | None = None,
 ) -> dict:
     """Finalize all collectors for a job and persist the combined report.
 

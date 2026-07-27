@@ -1,7 +1,8 @@
 """Queue priority resolution for job enqueue paths."""
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any
 
 _AUTO_DRIVE_TOOL_IDS = frozenset({
     "runs_auto_drive",
@@ -31,9 +32,9 @@ def _config_int(key: str, default: int) -> int:
 
 
 def resolve_job_enqueue_priority(
-    payload: Optional[Mapping[str, Any]],
+    payload: Mapping[str, Any] | None,
     *,
-    job_type: Optional[str] = None,
+    job_type: str | None = None,
 ) -> int:
     """Map queue_payload + job_type to a 1..999 priority (higher dequeues sooner)."""
     data = dict(payload) if payload else {}

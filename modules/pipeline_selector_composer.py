@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from modules.selector_resolver import resolve_selectors
-
 
 PRESET_FILE = os.path.join("tmp", "pipeline_selector_presets.json")
 

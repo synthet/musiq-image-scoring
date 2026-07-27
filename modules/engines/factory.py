@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, List, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 from modules.engines.host import MultiModelHost
 from modules.engines.liqe_model import LiqeModelWrapper
@@ -12,15 +13,15 @@ from modules.engines.registry import ModelRegistry, get_registry
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MUSIQ_NAMES: Tuple[str, ...] = ("spaq", "ava")
+_DEFAULT_MUSIQ_NAMES: tuple[str, ...] = ("spaq", "ava")
 
 
 def ensure_production_registry(
     backend: Any,
     *,
-    registry: Optional[ModelRegistry] = None,
-    musiq_names: Optional[List[str]] = None,
-    liqe_scorer: Optional[Any] = None,
+    registry: ModelRegistry | None = None,
+    musiq_names: list[str] | None = None,
+    liqe_scorer: Any | None = None,
 ) -> ModelRegistry:
     """Register MUSIQ-family and LIQE wrappers on the process registry.
 
@@ -33,17 +34,15 @@ def ensure_production_registry(
         reg.register(wrapper)
 
     liqe = reg.get("liqe")
-    if liqe is None:
-        reg.register(LiqeModelWrapper(scorer=liqe_scorer))
-    elif liqe_scorer is not None and getattr(liqe, "_scorer", None) is not liqe_scorer:
+    if liqe is None or liqe_scorer is not None and getattr(liqe, "_scorer", None) is not liqe_scorer:
         reg.register(LiqeModelWrapper(scorer=liqe_scorer))
     return reg
 
 
 def create_production_scoring_host(
     *,
-    liqe_scorer: Optional[Any] = None,
-    registry: Optional[ModelRegistry] = None,
+    liqe_scorer: Any | None = None,
+    registry: ModelRegistry | None = None,
 ) -> MultiModelHost:
     """Build ``MultiModelHost`` backed by ``MultiModelMUSIQ`` and the model registry."""
     from scripts.python.run_all_musiq_models import MultiModelMUSIQ
@@ -61,8 +60,8 @@ def create_production_scoring_host(
 def load_production_models(
     host: MultiModelHost,
     *,
-    log: Optional[Callable[[str, str], None]] = None,
-) -> Tuple[bool, str]:
+    log: Callable[[str, str], None] | None = None,
+) -> tuple[bool, str]:
     """Load every active registry model; fail only when a production model cannot load."""
     def _emit(msg: str, level: str = "INFO") -> None:
         if log is not None:

@@ -1,6 +1,6 @@
 import contextlib
 import io
-import sys
+
 from PIL import Image
 
 try:

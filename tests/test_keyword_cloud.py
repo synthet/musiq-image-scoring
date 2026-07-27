@@ -3,6 +3,10 @@
 No DB / hardware required — uses a fake connector to capture emitted SQL.
 """
 
+import pytest
+
+pytest.importorskip("psycopg2")
+
 import modules.keyword_discovery as kd
 from modules.db_legacy import _add_keyword_filter
 

@@ -10,7 +10,7 @@ backend, and reports score_range (1.0, 5.0).
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from modules.engines.base import IScoringModel
 
@@ -24,7 +24,7 @@ class LiqeModelWrapper(IScoringModel):
     framework = "torch"
     score_range = (1.0, 5.0)
 
-    def __init__(self, scorer: Optional[Any] = None, device: str = "cuda") -> None:
+    def __init__(self, scorer: Any | None = None, device: str = "cuda") -> None:
         """`scorer` may be an existing `LiqeScorer` (or duck-typed mock) for
         sharing across the process; if `None`, the backend is constructed
         lazily on first `load()`.
@@ -56,7 +56,7 @@ class LiqeModelWrapper(IScoringModel):
         self.load_status = "loaded" if self._loaded else "failed"
         return self._loaded
 
-    def predict(self, image_path: str) -> Dict[str, Any]:
+    def predict(self, image_path: str) -> dict[str, Any]:
         if not self._loaded or self._scorer is None:
             return {"score": None, "status": "not_loaded", "error": "Model not loaded"}
         try:
@@ -76,7 +76,7 @@ class LiqeModelWrapper(IScoringModel):
         }
 
     @property
-    def scorer(self) -> Optional[Any]:
+    def scorer(self) -> Any | None:
         """Expose the underlying `LiqeScorer` (for sharing or shutdown)."""
         return self._scorer
 

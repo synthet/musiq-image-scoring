@@ -1,13 +1,16 @@
 import json
 import logging
 import threading
-from typing import Any, Dict, List, Optional
-
 import time
+from typing import Any
 
 from modules import db
 from modules.audit import audit_context
-from modules.run_modes import CANONICAL_RUN_MODE, normalize_run_mode, resolve_run_mode_flags
+from modules.run_modes import (
+    CANONICAL_RUN_MODE,
+    normalize_run_mode,
+    resolve_run_mode_flags,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +40,7 @@ class JobDispatcher:
         self.maintenance_runner = maintenance_runner
         self.poll_interval = max(0.2, float(poll_interval or 1.0))
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._dispatch_lock = threading.Lock()
         self._last_busy_logged: float = 0
 
@@ -65,7 +68,7 @@ class JobDispatcher:
             self._thread.join(timeout=2)
         logger.info("JobDispatcher stopped")
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         queue = db.get_queued_jobs(limit=200)
         active = self._get_active_runner()
         return {
@@ -98,14 +101,14 @@ class JobDispatcher:
             return
 
         idle = False
-        tick_continuation: Optional[int] = None
-        tick_dequeued: Optional[int] = None
+        tick_continuation: int | None = None
+        tick_dequeued: int | None = None
         tick_stale_demotions = 0
         with self._dispatch_lock:
             if self._any_runner_busy():
                 return
 
-            busy_runner_keys: List[str] = []
+            busy_runner_keys: list[str] = []
             active_runner = self._get_active_runner()
             if active_runner:
                 busy_runner_keys.append(active_runner)
@@ -177,7 +180,7 @@ class JobDispatcher:
         except (TypeError, ValueError):
             return 1
 
-    def _reconcile_phantom_job_phases(self, busy_runner_keys: List[str]) -> list:
+    def _reconcile_phantom_job_phases(self, busy_runner_keys: list[str]) -> list:
         try:
             return db.reconcile_phantom_running_job_phases(
                 busy_runner_keys=busy_runner_keys,
@@ -204,8 +207,8 @@ class JobDispatcher:
 
     @staticmethod
     def _log_tick_summary(
-        continuation: Optional[int],
-        dequeued: Optional[int],
+        continuation: int | None,
+        dequeued: int | None,
         stale_demotions: int,
         start_tick: float,
     ) -> None:
@@ -231,8 +234,8 @@ class JobDispatcher:
             logger.debug("Dispatcher: drive_tick failed", exc_info=True)
 
     @staticmethod
-    def _parse_queue_payload(job: Dict[str, Any]) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {}
+    def _parse_queue_payload(job: dict[str, Any]) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
         raw_payload = job.get("queue_payload")
         if raw_payload:
             try:
@@ -245,7 +248,7 @@ class JobDispatcher:
         return payload
 
     @staticmethod
-    def _run_mode_flags(payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _run_mode_flags(payload: dict[str, Any]) -> dict[str, Any]:
         try:
             run_mode = normalize_run_mode(payload.get("run_mode"))
         except ValueError:
@@ -253,7 +256,7 @@ class JobDispatcher:
         return resolve_run_mode_flags(run_mode)
 
     @staticmethod
-    def _fresh_payload(job_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _fresh_payload(job_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         try:
             row = db.get_job_by_id(job_id)
             if row:
@@ -265,10 +268,10 @@ class JobDispatcher:
     @staticmethod
     def _persist_stage_queue(
         job_id: int,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         queue_key: str,
-        image_ids: List[int],
-    ) -> Dict[str, Any]:
+        image_ids: list[int],
+    ) -> dict[str, Any]:
         stage_queues = dict(payload.get("resolved_image_ids_by_stage") or {})
         stage_queues[queue_key] = list(image_ids)
         if queue_key == "culling":
@@ -285,10 +288,10 @@ class JobDispatcher:
     def _jit_replan_phase(
         self,
         job_id: int,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         queue_key: str,
         input_path: str,
-    ) -> tuple[Dict[str, Any], Optional[List[int]], bool]:
+    ) -> tuple[dict[str, Any], list[int] | None, bool]:
         """Recompute phase queue from DB truth. Returns (payload, ids, skip_phase)."""
         from modules.phase_work_claims import claim_image_phases, mark_claims_running
         from modules.run_phase_planner import plan_phase
@@ -350,7 +353,7 @@ class JobDispatcher:
         return "PhaseSkipped"
 
     @staticmethod
-    def _make_collector(job_id: int, phase_code: str, payload: Dict[str, Any]):
+    def _make_collector(job_id: int, phase_code: str, payload: dict[str, Any]):
         """Create a ReportCollector for a phase dispatch. Returns None on failure."""
         try:
             from modules.report_collector import ReportCollector
@@ -361,7 +364,7 @@ class JobDispatcher:
             return None
 
     @staticmethod
-    def _folder_scoped_payload(payload: Dict[str, Any]) -> bool:
+    def _folder_scoped_payload(payload: dict[str, Any]) -> bool:
         scope_paths = payload.get("scope_paths")
         if isinstance(scope_paths, list) and any(str(p).strip() for p in scope_paths):
             return True
@@ -369,7 +372,7 @@ class JobDispatcher:
         return bool(ip) and not ip.startswith("SELECTOR_")
 
     @staticmethod
-    def _explicit_stage_resolved_ids(payload: Dict[str, Any], queue_key: str) -> Optional[List[int]]:
+    def _explicit_stage_resolved_ids(payload: dict[str, Any], queue_key: str) -> list[int] | None:
         """Return pre-resolved image IDs when the job has no folder scope (selector API)."""
         stage_queues = payload.get("resolved_image_ids_by_stage")
         if isinstance(stage_queues, dict):
@@ -392,7 +395,7 @@ class JobDispatcher:
         return [int(i) for i in root if i is not None]
 
     @staticmethod
-    def _compute_phase_scope(payload: Dict[str, Any], resolved: Optional[List[int]]) -> tuple:
+    def _compute_phase_scope(payload: dict[str, Any], resolved: list[int] | None) -> tuple:
         """Return ``(in_scope, targeted)`` derived from ``payload['scope_paths']``
         with a fallback to ``len(resolved)``. Mirrors the scoring dispatch's
         scope computation so all phases use the same accounting (see issue #159).
@@ -414,8 +417,8 @@ class JobDispatcher:
     def _seed_phase_scope(
         job_id: int,
         phase_code: str,
-        payload: Dict[str, Any],
-        resolved: Optional[List[int]],
+        payload: dict[str, Any],
+        resolved: list[int] | None,
     ) -> None:
         """Push `job_phases.images_in_scope/targeted` for `job_id`/`phase_code` immediately.
 
@@ -440,7 +443,7 @@ class JobDispatcher:
                 job_id, phase_code, exc_info=True,
             )
 
-    def _start_job(self, job: Dict[str, Any], payload: Dict[str, Any], phase_override: Optional[str] = None) -> tuple:
+    def _start_job(self, job: dict[str, Any], payload: dict[str, Any], phase_override: str | None = None) -> tuple:
         """Try to start the job. Returns (success: bool, error_msg: str|None)."""
         phase = (phase_override or job.get("job_type") or "").lower()
         job_id = int(job["id"])
@@ -522,7 +525,7 @@ class JobDispatcher:
             return True, None
         return False, f"Runner '{runner_name}' returned: {result}"
 
-    def _dispatch_to_runner(self, phase: str, runner, job_id: int, input_path: str, payload: Dict[str, Any]) -> str:
+    def _dispatch_to_runner(self, phase: str, runner, job_id: int, input_path: str, payload: dict[str, Any]) -> str:
         """Call the appropriate start_batch method on the runner. Returns the result string."""
         phase_key = str(phase).strip().lower()
         phase_alias = {
@@ -639,8 +642,8 @@ class JobDispatcher:
             try:
                 from modules.report_collector import (
                     ReportCollector,
-                    extract_score_snapshot,
                     describe_incomplete_fields,
+                    extract_score_snapshot,
                 )
                 report_collector = ReportCollector(job_id, "scoring", run_mode_val)
                 if resolved:
@@ -784,7 +787,7 @@ class JobDispatcher:
             self._runner_busy(self.maintenance_runner),
         ])
 
-    def _get_active_runner(self) -> Optional[str]:
+    def _get_active_runner(self) -> str | None:
         if self._runner_busy(self.indexing_runner):
             return "indexing"
         if self._runner_busy(self.metadata_runner):

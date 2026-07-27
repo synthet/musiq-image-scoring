@@ -22,7 +22,6 @@ from __future__ import annotations
 import os
 import platform
 import re
-from typing import List, Optional
 
 # ---------------------------------------------------------------------------
 # Environment detection (cached at import time)
@@ -124,7 +123,7 @@ def normalize(path: str) -> str:
     return _normalize_internal(path)
 
 
-def to_windows(path: str) -> Optional[str]:
+def to_windows(path: str) -> str | None:
     r"""Convert any path format to Windows backslash form (``D:\...``).
 
     Tolerant of arbitrary input: ``/``, ``\\``, ``//``, ``\\\\``, mixed
@@ -230,7 +229,7 @@ def db_form(path: str) -> str:
     return to_wsl(path)
 
 
-def db_lookup_variants(path: str) -> List[str]:
+def db_lookup_variants(path: str) -> list[str]:
     """De-duplicated list of forms suitable for ``WHERE path IN (?, ?, …)``.
 
     Covers the common storage formats: WSL canonical, drive-letter forward,
@@ -242,7 +241,7 @@ def db_lookup_variants(path: str) -> List[str]:
     seen: set[str] = set()
     out: list[str] = []
 
-    def _add(p: Optional[str]) -> None:
+    def _add(p: str | None) -> None:
         if not p:
             return
         if p in seen:
@@ -258,7 +257,7 @@ def db_lookup_variants(path: str) -> List[str]:
     return out
 
 
-def all_variants(path: str) -> List[str]:
+def all_variants(path: str) -> list[str]:
     """Return de-duplicated list of path variants (normalized, Windows, WSL).
 
     Useful for SQL ``LIKE`` matching or scope resolution where the storage
@@ -286,7 +285,7 @@ def all_variants(path: str) -> List[str]:
 # 2. Docker remap (reads env vars; no filesystem I/O beyond that)
 # ---------------------------------------------------------------------------
 
-def remap_docker_project(path: str) -> Optional[str]:
+def remap_docker_project(path: str) -> str | None:
     """Remap a host-side project path to the local (container) project root.
 
     When running inside Docker, paths stored in the database refer to the host
@@ -329,7 +328,7 @@ def remap_docker_project(path: str) -> Optional[str]:
 # 3. Filesystem resolver (calls os.path.exists)
 # ---------------------------------------------------------------------------
 
-def resolve_to_existing(path: str) -> Optional[str]:
+def resolve_to_existing(path: str) -> str | None:
     """Try path variants and return the first that exists on disk, or ``None``.
 
     Resolution order depends on the runtime OS:

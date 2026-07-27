@@ -63,8 +63,7 @@ def get_default_embedding_space_id() -> int | None:
     if _space_id_cache is not None:
         return _space_id_cache
     try:
-        from modules import db
-        from modules import db_postgres
+        from modules import db, db_postgres
 
         if db._get_db_engine() != "postgres":
             return None
@@ -97,8 +96,7 @@ def get_embedding_space_id(code: str) -> int | None:
     if cached is not None:
         return cached
     try:
-        from modules import db
-        from modules import db_postgres
+        from modules import db, db_postgres
 
         if db._get_db_engine() != "postgres":
             return None

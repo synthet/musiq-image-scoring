@@ -18,7 +18,7 @@ import os
 import re
 import sys
 from functools import lru_cache
-from typing import Any, Optional
+from typing import Any
 
 # MCP SDK imports
 try:
@@ -39,7 +39,7 @@ except Exception:
 if __name__ == "__main__":
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from modules import db, config, db_postgres
+from modules import config, db
 
 logger = logging.getLogger(__name__)
 
@@ -229,12 +229,12 @@ def query_images(
     offset: int = 0,
     sort_by: str = "created_at",
     order: str = "desc",
-    min_score: Optional[float] = None,
-    max_score: Optional[float] = None,
-    rating: Optional[int] = None,
-    label: Optional[str] = None,
-    keyword: Optional[str] = None,
-    folder_path: Optional[str] = None
+    min_score: float | None = None,
+    max_score: float | None = None,
+    rating: int | None = None,
+    label: str | None = None,
+    keyword: str | None = None,
+    folder_path: str | None = None
 ) -> list:
     from modules.mcp.tools import data as _tool_mod
     return _tool_mod.query_images(limit=limit, offset=offset, sort_by=sort_by, order=order, min_score=min_score, max_score=max_score, rating=rating, label=label, keyword=keyword, folder_path=folder_path)
@@ -251,7 +251,7 @@ def get_image_details(file_path: str) -> dict:
 
 @mcp.tool(annotations=_RO)
 @_require_db
-def search_images_by_hash(image_hash: str, hash_version: Optional[int] = None) -> dict:
+def search_images_by_hash(image_hash: str, hash_version: int | None = None) -> dict:
     from modules.mcp.tools import data as _tool_mod
     return _tool_mod.search_images_by_hash(image_hash=image_hash, hash_version=hash_version)
 
@@ -260,7 +260,7 @@ def search_images_by_hash(image_hash: str, hash_version: Optional[int] = None) -
 @mcp.tool(annotations=_RO)
 @_require_db
 def get_db_schema(
-    table_name_prefix: Optional[str] = None,
+    table_name_prefix: str | None = None,
     max_tables: int = 200,
     max_column_rows: int = 8000,
 ) -> dict:
@@ -279,7 +279,7 @@ def execute_sql(query: str, params: list = None) -> dict:
 
 @mcp.tool(annotations=_RO)
 @_require_db
-def get_folder_tree(root_path: Optional[str] = None) -> list:
+def get_folder_tree(root_path: str | None = None) -> list:
     from modules.mcp.tools import data as _tool_mod
     return _tool_mod.get_folder_tree(root_path=root_path)
 
@@ -287,7 +287,7 @@ def get_folder_tree(root_path: Optional[str] = None) -> list:
 
 @mcp.tool(annotations=_RO)
 @_require_db
-def get_newly_imported_folders(days: int = 7, min_images: int = 1, path_pattern: Optional[str] = None) -> list[dict]:
+def get_newly_imported_folders(days: int = 7, min_images: int = 1, path_pattern: str | None = None) -> list[dict]:
     from modules.mcp.tools import data as _tool_mod
     return _tool_mod.get_newly_imported_folders(days=days, min_images=min_images, path_pattern=path_pattern)
 
@@ -295,7 +295,7 @@ def get_newly_imported_folders(days: int = 7, min_images: int = 1, path_pattern:
 
 @mcp.tool(annotations=_RW)
 @_require_db
-def process_newly_imported_folders(days: int = 7, job_type: str = "scoring", path_pattern: Optional[str] = None) -> dict:
+def process_newly_imported_folders(days: int = 7, job_type: str = "scoring", path_pattern: str | None = None) -> dict:
     from modules.mcp.tools import data as _tool_mod
     return _tool_mod.process_newly_imported_folders(days=days, job_type=job_type, path_pattern=path_pattern)
 
@@ -303,7 +303,7 @@ def process_newly_imported_folders(days: int = 7, job_type: str = "scoring", pat
 
 @mcp.tool(annotations=_RO)
 @_require_db
-def get_stacks_summary(folder_path: Optional[str] = None) -> dict:
+def get_stacks_summary(folder_path: str | None = None) -> dict:
     from modules.mcp.tools import data as _tool_mod
     return _tool_mod.get_stacks_summary(folder_path=folder_path)
 
@@ -351,7 +351,7 @@ def check_database_health() -> dict:
 @_require_db
 def validate_file_paths(
     limit: int = 100,
-    folder_path: Optional[str] = None,
+    folder_path: str | None = None,
     missing_only: bool = False,
 ) -> dict:
     from modules.mcp.tools import diagnostics as _tool_mod
@@ -361,7 +361,7 @@ def validate_file_paths(
 
 @mcp.tool(annotations=_RO)
 @_require_db
-def diagnose_phase_consistency(image_id: int, folder_path: Optional[str] = None) -> dict:
+def diagnose_phase_consistency(image_id: int, folder_path: str | None = None) -> dict:
     from modules.mcp.tools import diagnostics as _tool_mod
     return _tool_mod.diagnose_phase_consistency(image_id=image_id, folder_path=folder_path)
 
@@ -435,7 +435,7 @@ def get_drive_diagnostics() -> dict:
 
 @mcp.tool(annotations=_RO)
 @_require_db
-def get_job_execution_report(run_id: int, phase_code: Optional[str] = None, action: Optional[str] = None, offset: int = 0, limit: int = 20) -> dict:
+def get_job_execution_report(run_id: int, phase_code: str | None = None, action: str | None = None, offset: int = 0, limit: int = 20) -> dict:
     from modules.mcp.tools import jobs as _tool_mod
     return _tool_mod.get_job_execution_report(run_id=run_id, phase_code=phase_code, action=action, offset=offset, limit=limit)
 
@@ -444,8 +444,8 @@ def get_job_execution_report(run_id: int, phase_code: Optional[str] = None, acti
 @mcp.tool(annotations=_RO)
 @_require_db
 def get_image_pipeline_failures(
-    image_id: Optional[int] = None,
-    file_path: Optional[str] = None,
+    image_id: int | None = None,
+    file_path: str | None = None,
     limit: int = 50,
 ) -> dict:
     from modules.mcp.tools import jobs as _tool_mod
@@ -462,7 +462,7 @@ def get_location_stats() -> dict:
 
 
 @mcp.tool(annotations=_RO)
-def export_debug_bundle(output_path: Optional[str] = None) -> dict:
+def export_debug_bundle(output_path: str | None = None) -> dict:
     from modules.mcp.tools import maintenance as _tool_mod
     return _tool_mod.export_debug_bundle(output_path=output_path)
 
@@ -471,8 +471,8 @@ def export_debug_bundle(output_path: Optional[str] = None) -> dict:
 @mcp.tool(annotations=_RO)
 @_require_db
 def get_embedding_stats(
-    folder_path: Optional[str] = None,
-    embedding_space: Optional[str] = None,
+    folder_path: str | None = None,
+    embedding_space: str | None = None,
 ) -> dict:
     from modules.mcp.tools import jobs as _tool_mod
     return _tool_mod.get_embedding_stats(folder_path=folder_path, embedding_space=embedding_space)
@@ -508,7 +508,7 @@ def rebase_file_paths(old_root: str, new_root: str, dry_run: bool = True) -> dic
 
 @mcp.tool(annotations=_RW)
 @_require_db
-def set_image_metadata(file_path: str, rating: Optional[int] = None, label: Optional[str] = None) -> dict:
+def set_image_metadata(file_path: str, rating: int | None = None, label: str | None = None) -> dict:
     from modules.mcp.tools import maintenance as _tool_mod
     return _tool_mod.set_image_metadata(file_path=file_path, rating=rating, label=label)
 
@@ -647,12 +647,12 @@ def search_logs(
 @mcp.tool(annotations=_RO)
 @_require_db
 def search_similar_images(
-    example_path: Optional[str] = None,
-    example_image_id: Optional[int] = None,
+    example_path: str | None = None,
+    example_image_id: int | None = None,
     limit: int = 20,
-    folder_path: Optional[str] = None,
-    min_similarity: Optional[float] = None,
-    embedding_space: Optional[str] = None,
+    folder_path: str | None = None,
+    min_similarity: float | None = None,
+    embedding_space: str | None = None,
 ) -> dict:
     from modules.mcp.tools import similarity as _tool_mod
     return _tool_mod.search_similar_images(example_path=example_path, example_image_id=example_image_id, limit=limit, folder_path=folder_path, min_similarity=min_similarity, embedding_space=embedding_space)
@@ -664,15 +664,15 @@ def search_similar_images(
 def search_images_by_text(
     query: str,
     limit: int = 20,
-    folder_path: Optional[str] = None,
-    folder_ids: Optional[list[int]] = None,
-    min_similarity: Optional[float] = None,
-    min_rating: Optional[int] = None,
-    color_label: Optional[str] = None,
-    keyword: Optional[str] = None,
-    captured_date: Optional[str] = None,
-    sort_by: Optional[str] = None,
-    order: Optional[str] = None,
+    folder_path: str | None = None,
+    folder_ids: list[int] | None = None,
+    min_similarity: float | None = None,
+    min_rating: int | None = None,
+    color_label: str | None = None,
+    keyword: str | None = None,
+    captured_date: str | None = None,
+    sort_by: str | None = None,
+    order: str | None = None,
 ) -> dict:
     from modules.mcp.tools import similarity as _tool_mod
     return _tool_mod.search_images_by_text(query=query, limit=limit, folder_path=folder_path, folder_ids=folder_ids, min_similarity=min_similarity, min_rating=min_rating, color_label=color_label, keyword=keyword, captured_date=captured_date, sort_by=sort_by, order=order)
@@ -682,9 +682,9 @@ def search_images_by_text(
 @mcp.tool(annotations=_RO)
 @_require_db
 def find_near_duplicates(
-    threshold: Optional[float] = None,
-    folder_path: Optional[str] = None,
-    limit: Optional[int] = None
+    threshold: float | None = None,
+    folder_path: str | None = None,
+    limit: int | None = None
 ) -> dict:
     from modules.mcp.tools import similarity as _tool_mod
     return _tool_mod.find_near_duplicates(threshold=threshold, folder_path=folder_path, limit=limit)
@@ -694,11 +694,11 @@ def find_near_duplicates(
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False) if MCP_AVAILABLE else None)
 @_require_db
 def propagate_tags(
-    folder_path: Optional[str] = None,
+    folder_path: str | None = None,
     dry_run: bool = True,
-    k: Optional[int] = None,
-    min_similarity: Optional[float] = None,
-    min_keyword_confidence: Optional[float] = None
+    k: int | None = None,
+    min_similarity: float | None = None,
+    min_keyword_confidence: float | None = None
 ) -> dict:
     from modules.mcp.tools import similarity as _tool_mod
     return _tool_mod.propagate_tags(folder_path=folder_path, dry_run=dry_run, k=k, min_similarity=min_similarity, min_keyword_confidence=min_keyword_confidence)
@@ -709,9 +709,9 @@ def propagate_tags(
 @_require_db
 def find_outliers(
     folder_path: str = "",
-    z_threshold: Optional[float] = None,
-    k: Optional[int] = None,
-    limit: Optional[int] = None
+    z_threshold: float | None = None,
+    k: int | None = None,
+    limit: int | None = None
 ) -> dict:
     from modules.mcp.tools import similarity as _tool_mod
     return _tool_mod.find_outliers(folder_path=folder_path, z_threshold=z_threshold, k=k, limit=limit)
@@ -884,8 +884,7 @@ def _client_host_from_scope(scope: dict) -> str | None:
     if not client:
         return None
     host = (client[0] or "").strip()
-    if host.startswith("::ffff:"):
-        host = host[7:]
+    host = host.removeprefix("::ffff:")
     return host or None
 
 

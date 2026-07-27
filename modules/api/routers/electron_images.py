@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
-import logging
 import os
-from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -15,11 +11,9 @@ from modules import db
 from modules.api.routers.electron_helpers import (
     api_module,
     logger,
-    _join_runner_threads,
-    _stop_runner_for_job_row,
-    _stop_runner_for_phase,
 )
 from modules.api_models import ApiResponse, ExportRequest, ImageUpdateRequest
+
 
 def create_electron_images_router() -> APIRouter:
     router = APIRouter()
@@ -40,7 +34,6 @@ def create_electron_images_router() -> APIRouter:
         """
     )
     async def update_image(image_id: int, request: ImageUpdateRequest = Body(...)):
-        from modules import db
         from modules.ui.security import _check_rate_limit
         _check_rate_limit("image_update")
 
@@ -133,7 +126,6 @@ def create_electron_images_router() -> APIRouter:
         """
     )
     async def delete_image(image_id: int, delete_file: bool = Query(False, description="Also delete image file from disk.")):
-        from modules import db
         from modules.ui.security import _check_rate_limit
         _check_rate_limit("image_delete")
 
@@ -188,9 +180,9 @@ def create_electron_images_router() -> APIRouter:
         """
     )
     async def export_gallery(request: ExportRequest = Body(...)):
-        from modules import db
-        from modules.ui.security import _check_rate_limit
         import datetime
+
+        from modules.ui.security import _check_rate_limit
         _check_rate_limit("gallery_export")
 
         fmt = (request.format or "json").lower()

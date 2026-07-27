@@ -16,7 +16,11 @@ from modules.culling_analytics import (
     scores,
     stack_size,
 )
-from modules.culling_analytics._common import require_postgres, resolve_folder_id, utc_now_iso
+from modules.culling_analytics._common import (
+    require_postgres,
+    resolve_folder_id,
+    utc_now_iso,
+)
 
 
 def get_library_analytics(

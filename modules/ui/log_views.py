@@ -66,8 +66,7 @@ def clamp_tail_lines(lines: int) -> int:
         n = int(lines)
     except (TypeError, ValueError):
         n = DEFAULT_LOG_TAIL_LINES
-    if n < 1:
-        n = 1
+    n = max(n, 1)
     return min(n, MAX_LOG_TAIL_LINES)
 
 

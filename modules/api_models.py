@@ -1,28 +1,29 @@
 """Pydantic request/response models for the REST API (extracted from modules.api)."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+
 
 class SelectorRequest(BaseModel):
     """Shared selector schema for batch operations."""
 
-    image_ids: Optional[List[int]] = Field(
+    image_ids: list[int] | None = Field(
         None,
         description="Specific image IDs to process.",
         json_schema_extra={"example": [101, 102]}
     )
-    image_paths: Optional[List[str]] = Field(
+    image_paths: list[str] | None = Field(
         None,
         description="Specific image file paths to process.",
         json_schema_extra={"example": ["D:/Photos/2024/img001.jpg"]}
     )
-    folder_ids: Optional[List[int]] = Field(
+    folder_ids: list[int] | None = Field(
         None,
         description="Folder IDs to process.",
         json_schema_extra={"example": [12]}
     )
-    folder_paths: Optional[List[str]] = Field(
+    folder_paths: list[str] | None = Field(
         None,
         description="Folder paths to process.",
         json_schema_extra={"example": ["D:/Photos/2024"]}
@@ -56,7 +57,7 @@ class ScoringStartRequest(SelectorRequest):
             "force_rescore": false
         }
     """
-    input_path: Optional[str] = Field(
+    input_path: str | None = Field(
         None,
         description="Directory path containing images to score. Supports Windows (D:\\...) and WSL (/mnt/...) paths.",
         json_schema_extra={"example": "D:/Photos/2024"}
@@ -104,12 +105,12 @@ class TaggingStartRequest(SelectorRequest):
             "generate_accessibility": true
         }
     """
-    input_path: Optional[str] = Field(
+    input_path: str | None = Field(
         None,
         description="Optional directory path containing images to tag.",
         example="D:/Photos/2024"
     )
-    custom_keywords: Optional[List[str]] = Field(
+    custom_keywords: list[str] | None = Field(
         None,
         description="Optional list of custom keywords. If None, uses default keyword set.",
         example=["landscape", "sunset", "nature"]
@@ -157,12 +158,12 @@ class BirdSpeciesStartRequest(SelectorRequest):
             "overwrite": false
         }
     """
-    input_path: Optional[str] = Field(
+    input_path: str | None = Field(
         None,
         description="Directory path containing images to classify.",
         example="D:/Photos/2024"
     )
-    candidate_species: Optional[List[str]] = Field(
+    candidate_species: list[str] | None = Field(
         None,
         description="List of common species names to classify against. "
                     "If None, uses the bundled North American species list.",
@@ -243,7 +244,7 @@ class TaggingSingleRequest(BaseModel):
         description="Full path to the image file.",
         example="D:/Photos/2024/image.jpg"
     )
-    custom_keywords: Optional[List[str]] = Field(
+    custom_keywords: list[str] | None = Field(
         None,
         description="Optional list of custom keywords. If None, uses default keyword set.",
         example=["landscape", "sunset"]
@@ -284,7 +285,7 @@ class TagPropagationRequest(BaseModel):
         write_mode: 'replace_missing_only' (default) or 'append'.
         max_keywords: Maximum keywords to propagate per image.
     """
-    folder_path: Optional[str] = Field(
+    folder_path: str | None = Field(
         None,
         description="Optional directory path to restrict propagation to.",
         example="D:/Photos/2024"
@@ -294,37 +295,37 @@ class TagPropagationRequest(BaseModel):
         description="If True, only returns candidates without writing to database.",
         example=True
     )
-    k: Optional[int] = Field(
+    k: int | None = Field(
         None,
         description="Number of nearest neighbors to consider.",
         example=5
     )
-    min_similarity: Optional[float] = Field(
+    min_similarity: float | None = Field(
         None,
         description="Minimum cosine similarity to consider a neighbor.",
         example=0.85
     )
-    min_keyword_confidence: Optional[float] = Field(
+    min_keyword_confidence: float | None = Field(
         None,
         description="Minimum confidence score to apply a keyword.",
         example=0.6
     )
-    min_support_neighbors: Optional[int] = Field(
+    min_support_neighbors: int | None = Field(
         None,
         description="Minimum number of neighbors that must have the keyword.",
         example=2
     )
-    write_mode: Optional[str] = Field(
+    write_mode: str | None = Field(
         "replace_missing_only",
         description="'replace_missing_only' (default) or 'append'.",
         example="replace_missing_only"
     )
-    max_keywords: Optional[int] = Field(
+    max_keywords: int | None = Field(
         None,
         description="Maximum keywords to propagate per image.",
         example=10
     )
-    focus_image_id: Optional[int] = Field(
+    focus_image_id: int | None = Field(
         None,
         description=(
             "When set with dry_run=True, include propagation preview for this image even if "
@@ -352,9 +353,9 @@ class PhaseDecisionResponse(BaseModel):
     should_run: bool
     reason: str
     force_run: bool
-    current_executor_version: Optional[str] = None
-    stored_status: Optional[str] = None
-    stored_executor_version: Optional[str] = None
+    current_executor_version: str | None = None
+    stored_status: str | None = None
+    stored_executor_version: str | None = None
 
 
 class StatusResponse(BaseModel):
@@ -389,7 +390,7 @@ class StatusResponse(BaseModel):
         description="Human-readable status message (e.g., 'Running...', 'Idle', 'Done').",
         example="Running..."
     )
-    progress: Dict[str, int] = Field(
+    progress: dict[str, int] = Field(
         ...,
         description="Dictionary with 'current' and 'total' counts of processed items.",
         example={"current": 45, "total": 100}
@@ -399,7 +400,7 @@ class StatusResponse(BaseModel):
         description="Full log output from the job. May be truncated for very long logs.",
         example="Starting batch processing...\nProcessing image 1..."
     )
-    job_type: Optional[str] = Field(
+    job_type: str | None = Field(
         None,
         description="Type of job: 'scoring', 'fix_db', 'tagging', or None if idle.",
         example="scoring"
@@ -480,7 +481,7 @@ class ConfigResponse(BaseModel):
         True,
         description="True if the React DB Explorer (/ui/db) should be visible.",
     )
-    scoring_models: Dict[str, Dict[str, bool]] = Field(
+    scoring_models: dict[str, dict[str, bool]] = Field(
         default_factory=dict,
         description="scoring.models membership map: {model_name: {enabled, shadow}}. "
                     "Lets the UI show known models (and which are active vs. disabled).",
@@ -502,27 +503,27 @@ class ConfigResponse(BaseModel):
 class DiagnosticsResponse(BaseModel):
     """Response model for diagnostics check endpoint."""
     timestamp: str = Field(..., description="ISO 8601 timestamp.")
-    system: Dict[str, Any] = Field(..., description="System-level diagnostics (OS, Python, CPU, Memory).")
-    database: Dict[str, Any] = Field(..., description="Database diagnostics (Path, Reachable, Size).")
-    models: Dict[str, Any] = Field(..., description="Model and GPU diagnostics.")
-    filesystem: Dict[str, Any] = Field(..., description="FileSystem diagnostics.")
-    config: Dict[str, Any] = Field(..., description="Masked configuration summary.")
-    runners: Dict[str, Any] = Field(..., description="Status of all runners.")
+    system: dict[str, Any] = Field(..., description="System-level diagnostics (OS, Python, CPU, Memory).")
+    database: dict[str, Any] = Field(..., description="Database diagnostics (Path, Reachable, Size).")
+    models: dict[str, Any] = Field(..., description="Model and GPU diagnostics.")
+    filesystem: dict[str, Any] = Field(..., description="FileSystem diagnostics.")
+    config: dict[str, Any] = Field(..., description="Masked configuration summary.")
+    runners: dict[str, Any] = Field(..., description="Status of all runners.")
 
 
 class FindDuplicatesRequest(BaseModel):
     """Request model for finding near-duplicate images."""
-    threshold: Optional[float] = Field(
+    threshold: float | None = Field(
         None,
         description="Minimum cosine similarity threshold (default: 0.98).",
         example=0.98
     )
-    folder_path: Optional[str] = Field(
+    folder_path: str | None = Field(
         None,
         description="Optional folder path to restrict duplicate search to a specific directory.",
         example="D:/Photos/2024"
     )
-    limit: Optional[int] = Field(
+    limit: int | None = Field(
         None,
         description="Max number of duplicate pairs to return (defaults to configured duplicate_max_pairs).",
         example=5000
@@ -540,17 +541,17 @@ class ClusteringStartRequest(SelectorRequest):
         time_gap: Time gap in seconds for burst grouping.
         force_rescan: If True, re-cluster even if already processed.
     """
-    input_path: Optional[str] = Field(
+    input_path: str | None = Field(
         None,
         description="Directory path containing images to cluster. None clusters all unprocessed.",
         example="D:/Photos/2024"
     )
-    threshold: Optional[float] = Field(
+    threshold: float | None = Field(
         None,
         description="Distance threshold for clustering (lower = stricter).",
         example=0.15
     )
-    time_gap: Optional[int] = Field(
+    time_gap: int | None = Field(
         None,
         description="Time gap in seconds for burst grouping.",
         example=5
@@ -589,14 +590,14 @@ class PipelineSubmitRequest(SelectorRequest):
         stage_codes: Ordered stage run codes to execute (indexing|metadata|score|tag|cluster).
         workflow_template: Logical template name for the run (e.g., full_ingest, metadata_only, re_tag).
     """
-    workspace_target: Optional[str] = Field(
+    workspace_target: str | None = Field(
         None,
         description="WorkspaceTarget path to process (single file or folder). Optional when using selector fields.",
         example="D:/Photos/2024",
         validation_alias=AliasChoices("workspace_target", "input_path"),
         serialization_alias="workspace_target",
     )
-    stage_codes: List[str] = Field(
+    stage_codes: list[str] = Field(
         ["score", "tag"],
         description="Ordered StageRun codes. Valid values: 'indexing', 'metadata', 'score', 'tag', 'cluster'.",
         example=["indexing", "metadata", "score"],
@@ -613,7 +614,7 @@ class PipelineSubmitRequest(SelectorRequest):
         description="Skip images that already have results for each operation.",
         example=True
     )
-    custom_keywords: Optional[List[str]] = Field(
+    custom_keywords: list[str] | None = Field(
         None,
         description="Custom keywords for tagging (if 'tag' is in stage_codes)."
     )
@@ -627,11 +628,11 @@ class PipelineSubmitRequest(SelectorRequest):
         description="Generate IPTC accessibility alt/extended description during tagging.",
         example=False
     )
-    clustering_threshold: Optional[float] = Field(
+    clustering_threshold: float | None = Field(
         None,
         description="Distance threshold for clustering (if 'cluster' is in stage_codes)."
     )
-    clustering_time_gap: Optional[int] = Field(
+    clustering_time_gap: int | None = Field(
         None,
         description="Time gap in seconds for clustering burst grouping (if 'cluster' is in stage_codes)."
     )
@@ -639,7 +640,7 @@ class PipelineSubmitRequest(SelectorRequest):
         False,
         description="If True, force re-clustering even when folder was already clustered."
     )
-    exclude_image_paths: Optional[List[str]] = Field(
+    exclude_image_paths: list[str] | None = Field(
         None,
         description="Optional image paths to exclude from resolved selector targets."
     )
@@ -649,8 +650,8 @@ class PipelinePhaseControlRequest(BaseModel):
     """Request model for skip/retry controls on a pipeline phase."""
     input_path: str = Field(..., description="Folder path for phase control operation.")
     phase_code: str = Field(..., description="Phase code (e.g. scoring, culling, keywords).")
-    reason: Optional[str] = Field(None, description="Skip reason when action=skip.")
-    actor: Optional[str] = Field(None, description="Actor identifier who initiated action.")
+    reason: str | None = Field(None, description="Skip reason when action=skip.")
+    actor: str | None = Field(None, description="Actor identifier who initiated action.")
 
 
 class PipelineBackfillRequest(BaseModel):
@@ -662,7 +663,7 @@ class PipelineBackfillRequest(BaseModel):
 
 class LifecycleControlRequest(BaseModel):
     """Generic lifecycle control request for workflow/stage/step runs."""
-    reason: Optional[str] = Field(None, description="Optional reason for pause/cancel/restart request.")
+    reason: str | None = Field(None, description="Optional reason for pause/cancel/restart request.")
 
 
 class IpcBridgeRequest(BaseModel):
@@ -672,7 +673,7 @@ class IpcBridgeRequest(BaseModel):
         description="IPC channel name (e.g. 'pipeline:submit', 'tasks:active').",
         example="pipeline:submit",
     )
-    payload: Dict[str, Any] = Field(
+    payload: dict[str, Any] = Field(
         default_factory=dict,
         description="Channel-specific payload; mirrors the endpoint body/query shape.",
     )
@@ -682,12 +683,12 @@ class IpcBridgeResponse(BaseModel):
     """Response envelope for IPC bridge requests."""
     channel: str = Field(..., description="Echoed IPC channel")
     ok: bool = Field(..., description="True when handler succeeded")
-    data: Optional[Any] = Field(None, description="Handler result payload")
+    data: Any | None = Field(None, description="Handler result payload")
 
 
 class PipelineRunControlRequest(BaseModel):
     """Request model for per-run pipeline controls."""
-    input_path: Optional[str] = Field(None, description="Folder path used for restart/cancel scoping.")
+    input_path: str | None = Field(None, description="Folder path used for restart/cancel scoping.")
 
 
 class PipelineRestartFromStageRequest(BaseModel):
@@ -705,14 +706,14 @@ class PipelineStepRerunRequest(BaseModel):
 class MaintenanceStartRequest(BaseModel):
     """Request model for starting a background maintenance run."""
     action: str = Field(..., description="Maintenance action to perform (heal_thumbnails, backfill_exif, prune_missing, reconcile, backfill_index_meta).")
-    input_path: Optional[str] = Field(None, description="Optional folder path to narrow the scope.")
-    limit: Optional[int] = Field(None, description="Maximum items to process in this run.")
+    input_path: str | None = Field(None, description="Optional folder path to narrow the scope.")
+    limit: int | None = Field(None, description="Maximum items to process in this run.")
     dry_run: bool = Field(False, description="Whether to simulate changes.")
-    job_name: Optional[str] = Field(
+    job_name: str | None = Field(
         None,
         description="Optional UI display name for this run (e.g. Tools tab label); stored as jobs.input_path.",
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         None,
         description="Human-readable reason for this run (jobs.description). Server fills a default if omitted.",
     )
@@ -720,11 +721,11 @@ class MaintenanceStartRequest(BaseModel):
         "api",
         description="Audit: who queued the job (e.g. runs_tools_tab, api). Stored in queue_payload.trigger.",
     )
-    tool_id: Optional[str] = Field(
+    tool_id: str | None = Field(
         None,
         description="Optional stable id for the UI control (queue_payload.tool_id).",
     )
-    ui_selected_scope_path: Optional[str] = Field(
+    ui_selected_scope_path: str | None = Field(
         None,
         description="Scope navigator selection when relevant (queue_payload.ui_selected_scope_path).",
     )
@@ -735,7 +736,7 @@ class MaintenanceStartRequest(BaseModel):
 class HealPhaseRequest(BaseModel):
     """Request parameters for workflow healing per phase."""
 
-    root_path: Optional[str] = Field(
+    root_path: str | None = Field(
         None,
         description=(
             "Scope restriction. Accepts a folder path, a file path (parent folder is used), "
@@ -809,7 +810,7 @@ class ApiResponse(BaseModel):
         description="Human-readable message describing the result.",
         example="Scoring job started successfully"
     )
-    data: Optional[Dict[str, Any]] = Field(
+    data: dict[str, Any] | None = Field(
         None,
         description="Optional dictionary with additional result data (e.g., job_id, file_path).",
         example={"job_id": 123, "input_path": "D:/Photos/2024"}
@@ -836,13 +837,13 @@ class OutlierInfo(BaseModel):
     file_path: str = Field(..., description="Full path to the flagged image.")
     outlier_score: float = Field(..., description="Raw density/outlier score.")
     z_score: float = Field(..., description="Normalized z-score for the outlier.")
-    nearest_neighbors: List[NeighborInfo] = Field(..., description="Explained neighbors.")
+    nearest_neighbors: list[NeighborInfo] = Field(..., description="Explained neighbors.")
 
 class OutlierResponse(BaseModel):
     """Response model for visual outlier detection."""
-    outliers: List[OutlierInfo] = Field(..., description="List of detected outliers.")
-    stats: Dict[str, Any] = Field(..., description="Summary statistics (mean, std, etc.).")
-    skipped: List[Dict[str, Any]] = Field(..., description="Images skipped due to missing embeddings.")
+    outliers: list[OutlierInfo] = Field(..., description="List of detected outliers.")
+    stats: dict[str, Any] = Field(..., description="Summary statistics (mean, std, etc.).")
+    skipped: list[dict[str, Any]] = Field(..., description="Images skipped due to missing embeddings.")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -865,22 +866,22 @@ class CullingAnalyticsResponse(BaseModel):
     """Culling and stack analytics payload (library, folder, session, or stack scope)."""
 
     scope: str = Field(..., description="library | session | stack")
-    generated_at: Optional[str] = None
-    folder_id: Optional[int] = None
-    folder_path: Optional[str] = None
-    session_id: Optional[int] = None
-    stack_id: Optional[int] = None
-    error: Optional[str] = None
-    stack_size: Optional[Dict[str, Any]] = None
-    flags: Optional[Dict[str, Any]] = None
-    scores: Optional[Dict[str, Any]] = None
-    exposure: Optional[Dict[str, Any]] = None
-    labels: Optional[Dict[str, Any]] = None
-    gps: Optional[Dict[str, Any]] = None
-    keywords: Optional[Dict[str, Any]] = None
-    embeddings: Optional[Dict[str, Any]] = None
-    composite: Optional[Dict[str, Any]] = None
-    warnings: Optional[List[str]] = None
+    generated_at: str | None = None
+    folder_id: int | None = None
+    folder_path: str | None = None
+    session_id: int | None = None
+    stack_id: int | None = None
+    error: str | None = None
+    stack_size: dict[str, Any] | None = None
+    flags: dict[str, Any] | None = None
+    scores: dict[str, Any] | None = None
+    exposure: dict[str, Any] | None = None
+    labels: dict[str, Any] | None = None
+    gps: dict[str, Any] | None = None
+    keywords: dict[str, Any] | None = None
+    embeddings: dict[str, Any] | None = None
+    composite: dict[str, Any] | None = None
+    warnings: list[str] | None = None
 
     model_config = ConfigDict(extra="allow")
 
@@ -888,12 +889,12 @@ class CullingAnalyticsResponse(BaseModel):
 class ImageUpdateRequest(BaseModel):
     """Request body for PATCH /api/images/{image_id}."""
 
-    rating: Optional[int] = Field(None, ge=0, le=5, description="Star rating 0–5 (0 = unrated).")
-    label: Optional[str] = Field(None, description="Color label: Red, Yellow, Green, Blue, Purple, or empty string to clear.")
-    title: Optional[str] = Field(None, description="Image title.")
-    description: Optional[str] = Field(None, description="Image description.")
-    keywords: Optional[str] = Field(None, description="Comma-separated keywords string.")
-    pick_status: Optional[int] = Field(
+    rating: int | None = Field(None, ge=0, le=5, description="Star rating 0–5 (0 = unrated).")
+    label: str | None = Field(None, description="Color label: Red, Yellow, Green, Blue, Purple, or empty string to clear.")
+    title: str | None = Field(None, description="Image title.")
+    description: str | None = Field(None, description="Image description.")
+    keywords: str | None = Field(None, description="Comma-separated keywords string.")
+    pick_status: int | None = Field(
         None,
         ge=-1,
         le=1,
@@ -907,25 +908,25 @@ class ImageUpdateRequest(BaseModel):
 
 
 class AgentCullDiscoverRequest(BaseModel):
-    folder_path: Optional[str] = None
-    folder_id: Optional[int] = None
-    stack_id: Optional[int] = None
-    sub_stack_id: Optional[int] = None
+    folder_path: str | None = None
+    folder_id: int | None = None
+    stack_id: int | None = None
+    sub_stack_id: int | None = None
     limit: int = Field(50, ge=1, le=200)
 
 
 class AgentCullRunRequest(BaseModel):
     stack_id: int
-    sub_stack_id: Optional[int] = None
-    dry_run: Optional[bool] = None
+    sub_stack_id: int | None = None
+    dry_run: bool | None = None
     force: bool = False
-    agent: Optional[str] = None
+    agent: str | None = None
 
 
 class AgentCullRecommendationIdsRequest(BaseModel):
-    recommendation_ids: Optional[List[int]] = None
+    recommendation_ids: list[int] | None = None
     actor: str = "operator"
-    note: Optional[str] = None
+    note: str | None = None
 
 
 class AgentCullDeleteApprovedRequest(BaseModel):
@@ -942,16 +943,16 @@ class ExportRequest(BaseModel):
     """Request body for POST /api/gallery/export."""
 
     format: str = Field("json", description="Export format: json, csv, or xlsx.")
-    columns: Optional[List[str]] = Field(None, description="Subset of columns to include. Omit for all columns.")
-    folder_path: Optional[str] = Field(None, description="Filter to a specific folder path.")
-    rating: Optional[List[int]] = Field(None, description="Rating values to include (e.g. [3,4,5]).")
-    label: Optional[List[str]] = Field(None, description="Label values to include (e.g. ['Green','Blue']).")
-    keyword: Optional[str] = Field(None, description="Keyword substring to filter on.")
+    columns: list[str] | None = Field(None, description="Subset of columns to include. Omit for all columns.")
+    folder_path: str | None = Field(None, description="Filter to a specific folder path.")
+    rating: list[int] | None = Field(None, description="Rating values to include (e.g. [3,4,5]).")
+    label: list[str] | None = Field(None, description="Label values to include (e.g. ['Green','Blue']).")
+    keyword: str | None = Field(None, description="Keyword substring to filter on.")
     min_score_general: float = Field(0.0, ge=0, le=1, description="Minimum general score.")
     min_score_aesthetic: float = Field(0.0, ge=0, le=1, description="Minimum aesthetic score.")
     min_score_technical: float = Field(0.0, ge=0, le=1, description="Minimum technical score.")
-    date_from: Optional[str] = Field(None, description="Start date filter YYYY-MM-DD.")
-    date_to: Optional[str] = Field(None, description="End date filter YYYY-MM-DD.")
+    date_from: str | None = Field(None, description="Start date filter YYYY-MM-DD.")
+    date_to: str | None = Field(None, description="End date filter YYYY-MM-DD.")
 
 
 class DeleteFolderCacheRequest(BaseModel):

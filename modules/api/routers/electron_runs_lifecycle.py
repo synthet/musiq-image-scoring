@@ -4,20 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
-import os
-from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Body, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Body, HTTPException
 
 from modules import db
 from modules.api.routers.electron_helpers import (
-    api_module,
-    logger,
     _join_runner_threads,
     _stop_runner_for_job_row,
     _stop_runner_for_phase,
+    api_module,
+    logger,
 )
 from modules.api.routers.electron_models import ForceRunRequest, RunSubmitRequest
 from modules.api.routers.electron_run_helpers import (
@@ -29,10 +25,21 @@ from modules.api.routers.electron_scope_helpers import (
     normalize_scope_path_input,
     scope_resolve_path,
 )
-from modules.api_helpers import _job_phases_for_run_display, _job_supports_execution_report
-from modules.job_description import augment_queue_payload_for_audit, build_run_submit_description
-from modules.run_manifest import REASON_SOURCE_MANUAL_SUBMIT, attach_run_reason, build_manual_submit_summary
+from modules.api_helpers import (
+    _job_phases_for_run_display,
+    _job_supports_execution_report,
+)
+from modules.job_description import (
+    augment_queue_payload_for_audit,
+    build_run_submit_description,
+)
+from modules.run_manifest import (
+    REASON_SOURCE_MANUAL_SUBMIT,
+    attach_run_reason,
+    build_manual_submit_summary,
+)
 from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
+
 
 def create_electron_runs_lifecycle_router() -> APIRouter:
     router = APIRouter()
@@ -626,8 +633,8 @@ def create_electron_runs_lifecycle_router() -> APIRouter:
     )
     async def get_run_report_images(
         run_id: int,
-        phase_code: Optional[str] = None,
-        action: Optional[str] = None,
+        phase_code: str | None = None,
+        action: str | None = None,
         offset: int = 0,
         limit: int = 50,
     ):

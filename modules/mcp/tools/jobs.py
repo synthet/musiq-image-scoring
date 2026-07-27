@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-import re
-import subprocess
-import time
-from typing import Any, Optional
+from typing import Any
 
 from modules import config, db, db_postgres
 from modules.mcp import tool_support as ts
@@ -79,7 +75,7 @@ def get_drive_diagnostics() -> dict:
     return ts.sanitize_for_mcp(runs_autodrive.get_drive_diagnostics())
 
 
-def get_job_execution_report(run_id: int, phase_code: Optional[str] = None, action: Optional[str] = None, offset: int = 0, limit: int = 20) -> dict:
+def get_job_execution_report(run_id: int, phase_code: str | None = None, action: str | None = None, offset: int = 0, limit: int = 20) -> dict:
     """Structured execution report for a job: what the run did to each image.
 
     Returns report_json summary (per-phase stats, before/after aggregates) and
@@ -116,8 +112,8 @@ def get_job_execution_report(run_id: int, phase_code: Optional[str] = None, acti
 
 
 def get_image_pipeline_failures(
-    image_id: Optional[int] = None,
-    file_path: Optional[str] = None,
+    image_id: int | None = None,
+    file_path: str | None = None,
     limit: int = 50,
 ) -> dict:
     """Recent ``job_image_actions`` rows with action ``failed`` for one image (by ``image_id`` or ``file_path``).
@@ -193,8 +189,8 @@ def get_location_stats() -> dict:
 
 
 def get_embedding_stats(
-    folder_path: Optional[str] = None,
-    embedding_space: Optional[str] = None,
+    folder_path: str | None = None,
+    embedding_space: str | None = None,
 ) -> dict:
     """Counts of images with vs without a stored image embedding.
 
@@ -649,9 +645,13 @@ def run_processing_job(job_type: str, input_path: str, args: dict = None) -> dic
     if not os.path.exists(input_path) and not (job_type == "clustering" and (not input_path or not input_path.strip())):
         return {"error": f"Input path not found: {input_path}"}
 
-    from modules.run_manifest import REASON_SOURCE_MCP, attach_run_reason, build_legacy_api_summary
+    from modules.run_manifest import (
+        REASON_SOURCE_MCP,
+        attach_run_reason,
+        build_legacy_api_summary,
+    )
 
-    def _mcp_queue_payload(job_kind: str, path: str, extra: Optional[dict] = None) -> dict:
+    def _mcp_queue_payload(job_kind: str, path: str, extra: dict | None = None) -> dict:
         base = dict(extra or {})
         if path:
             base.setdefault("input_path", path)

@@ -5,9 +5,9 @@ Pure compute helpers plus orchestration helpers used by ``SelectionService``.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from math import floor
-from typing import Callable, List, Mapping, Sequence
 
 from modules.embedding_spaces import OPENCLIP_L14_IMAGE_SPACE_CODE
 from modules.selection_policy import classify_best_m
@@ -61,7 +61,7 @@ def compute_leaf_substacks(
     threshold: float,
     *,
     id_key: str = "id",
-) -> List[List[dict]]:
+) -> list[list[dict]]:
     """Single-pass sub-clustering within one root stack.
 
     Splits ``images`` into leaf sub-stacks via one agglomerative pass on
@@ -87,7 +87,7 @@ def allocate_picks_uniform(
     substacks: Sequence[SubStackSlotInfo],
     m: int,
     n: int,
-) -> List[int]:
+) -> list[int]:
     """Return per-sub-stack pick slot counts; uniform M_eff with leftover to largest.
 
     ``M_eff = min(M, max(1, floor(N / c)))``. Leftover slots go to largest sub-stacks
@@ -131,19 +131,19 @@ def build_substack_persist_rows(
     level2_space: str,
     sort_key: Callable[[Mapping], tuple],
     id_key: str = "id",
-) -> List[dict]:
+) -> list[dict]:
     """Build dicts for ``db.create_sub_stacks_batch``.
 
     Single sub-stacking pass: ``level2_space`` is recorded in the
     ``level2_visual_space`` audit column; ``level2_semantic_space`` stays NULL.
     """
-    rows: List[dict] = []
+    rows: list[dict] = []
     for idx, group in enumerate(leaf_groups):
         if not group:
             continue
         sorted_group = sorted(group, key=sort_key)
         best_id = None
-        image_ids: List[int] = []
+        image_ids: list[int] = []
         for img in sorted_group:
             try:
                 iid = int(img[id_key])
@@ -180,11 +180,11 @@ def assign_decisions_for_stack(
     score_field: str,
     embeddings_for_mmr: Mapping[int, object],
     id_key: str = "id",
-) -> List[tuple]:
+) -> list[tuple]:
     """Return ``(image_id, decision, file_path)`` tuples for one root stack."""
     from modules.diversity import reorder_with_mmr
 
-    decisions: List[tuple] = []
+    decisions: list[tuple] = []
     for group, pick_slots in zip(leaf_groups, slot_counts):
         if not group:
             continue
@@ -236,11 +236,11 @@ def process_stack_two_level(
     stack_id: int,
     images: Sequence[Mapping],
     embeddings: Mapping[int, object],
-    tl_cfg: "TwoLevelConfig",
+    tl_cfg: TwoLevelConfig,
     sort_key: Callable[[Mapping], tuple],
     *,
     id_key: str = "id",
-) -> tuple[List[dict], List[tuple], int]:
+) -> tuple[list[dict], list[tuple], int]:
     """Compute one root stack's sub-stacks + pick/reject decisions (pure).
 
     Single source of truth shared by ``SelectionService`` and the
@@ -264,7 +264,7 @@ def process_stack_two_level(
     if not leaf_groups:
         leaf_groups = [list(images)]
 
-    slot_infos: List[SubStackSlotInfo] = []
+    slot_infos: list[SubStackSlotInfo] = []
     for lg in leaf_groups:
         top_score = 0.0
         for img in lg:
@@ -281,7 +281,7 @@ def process_stack_two_level(
     )
 
     if tl_cfg.skip_single_leaf_persist and len(leaf_groups) == 1:
-        persist_rows: List[dict] = []
+        persist_rows: list[dict] = []
     else:
         persist_rows = build_substack_persist_rows(
             stack_id,

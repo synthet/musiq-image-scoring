@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 pytest.importorskip("mcp")
+pytest.importorskip("psycopg2")
 
 from modules.mcp.names import DISPATCH, SEARCH
 from modules.mcp.router_tools import register_compact_tools

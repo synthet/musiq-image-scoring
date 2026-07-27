@@ -7,16 +7,16 @@ Matches Scoring/Keywords runner contract for polling-based UI integration.
 import logging
 import os
 import threading
-from modules.selection import SelectionService, SelectionConfig
-from modules import db
-from modules import utils
+
+from modules import db, utils
 from modules.events import event_manager
-from modules.run_log import runner_emit
+from modules.job_description import augment_queue_payload_for_audit
 from modules.phases import PhaseCode, PhaseStatus
 from modules.phases_policy import explain_phase_run_decision
-from modules.version import APP_VERSION
-from modules.job_description import augment_queue_payload_for_audit
+from modules.run_log import runner_emit
 from modules.run_manifest import REASON_SOURCE_PHASE_FOLLOWUP, attach_run_reason
+from modules.selection import SelectionConfig, SelectionService
+from modules.version import APP_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,6 @@ class SelectionRunner:
     ):
         """Load images in scope and filter to culling-eligible rows."""
         from modules.phases import PhaseCode
-        from modules.phases_policy import explain_phase_run_decision
 
         images = []
         images_for_phase = []
