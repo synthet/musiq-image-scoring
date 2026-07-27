@@ -130,8 +130,8 @@ class BioCLIPClassifier:
         # "disabled" (unavailable / fail-open). ``last_bbox`` is populated as a
         # side effect of classify() so BirdSpeciesRunner can persist it.
         self.detector = None
-        self._detector_state: Optional[str] = None
-        self.last_bbox: Optional[dict] = None
+        self._detector_state: str | None = None
+        self.last_bbox: dict | None = None
 
     def load_model(self):
         """Lazily load BioCLIP 2. Call once before running a batch."""
