@@ -1,3 +1,13 @@
+---
+type: Implemented Feature
+title: Bird Species Classification — Walkthrough
+description: End-to-end flow of the bird_species phase — YOLO bird detection and crop, BioCLIP 2 zero-shot species identification, and where results land in the database.
+resource: technical/BIRD_SPECIES_WALKTHROUGH.md
+tags: [technical, bird-species, bioclip, detection, pipeline]
+timestamp: 2026-07-27T00:00:00Z
+okf_version: 0.1
+---
+
 # Bird Species Classification — Walkthrough
 
 End-to-end walkthrough of the **bird species classification** feature: how a `POST /api/bird-species/start` request flows through the job queue, the runner, and the BioCLIP 2 model, and where results land in the database.
