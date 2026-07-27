@@ -81,10 +81,18 @@ The documented fast subset is green but unsuitable as a required gate:
 
 | Slice | Tests | Time | Deps |
 |-------|------:|-----:|------|
-| `scripts/ci/run_fast_smoke_tests.sh` | 47 | ~11 s | `requirements_ci.txt` |
+| `scripts/ci/run_fast_smoke_tests.sh` | 116 | ~3 s | `requirements_ci.txt` |
 | `-m "not gpu and not db and not ml and not firebird"` | 2147 passed, 290 skipped | ~13 min | Full ML stack |
 
 The broad subset runs in the coverage workflow instead. When you add a test file that guards a
 security, config or dispatch invariant, add it to the smoke script.
+
+Fast-subset collection (no import errors when optional deps are absent):
+
+```bash
+python3 -m pytest --collect-only -q \
+  -m "not gpu and not db and not ml and not firebird" \
+  --ignore=tests/test_probe.py
+```
 
 **See also:** [INDEX.md](INDEX.md) · [TEST_STATUS.md](TEST_STATUS.md) · [WSL_TESTS.md](WSL_TESTS.md)

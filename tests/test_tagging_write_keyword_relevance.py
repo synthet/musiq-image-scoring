@@ -8,6 +8,10 @@ on keywords/tagging runs.
 """
 import inspect
 
+import pytest
+
+pytest.importorskip("torch")
+
 from modules.tagging import TaggingRunner
 
 

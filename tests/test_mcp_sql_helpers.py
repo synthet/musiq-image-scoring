@@ -1,5 +1,9 @@
 """MCP SQL normalization guards (no DB)."""
 
+import pytest
+
+pytest.importorskip("psycopg2")
+
 from modules.mcp_server import (
     _is_mcp_read_only_sql,
     _mcp_sql_single_statement,

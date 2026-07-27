@@ -20,6 +20,8 @@ from unittest.mock import patch
 
 import pytest
 
+pytest.importorskip("torch")
+
 from modules import db
 from modules.engines.mock import MockLiqeScorer, MockScoringEngine, MockTaggingEngine
 from modules.scoring import ScoringRunner

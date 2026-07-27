@@ -4,6 +4,8 @@ import json
 
 import pytest
 
+pytest.importorskip("gradio")
+
 from modules import db_legacy as dbl
 from modules.ui import common
 

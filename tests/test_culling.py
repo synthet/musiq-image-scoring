@@ -17,6 +17,8 @@ import logging
 import xml.etree.ElementTree as ET
 import pytest
 
+pytest.importorskip("sklearn")
+
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -28,7 +30,7 @@ from modules.xmp import NAMESPACES
 # Configure logging
 logging.basicConfig(level=logging.WARNING)
 
-pytestmark = pytest.mark.wsl
+pytestmark = [pytest.mark.wsl, pytest.mark.ml]
 
 
 def _assert_xmp_pick_format(xmp_path: str, expected_pick: int) -> None:

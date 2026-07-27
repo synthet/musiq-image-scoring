@@ -7,9 +7,12 @@ pure-Python wrapper around the caller's callable.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("psycopg2")
+
 from unittest.mock import patch
 
-import pytest
 from psycopg2 import DatabaseError, OperationalError
 
 from modules.db_postgres import is_deadlock_error, run_with_deadlock_retry

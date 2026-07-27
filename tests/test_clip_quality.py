@@ -6,10 +6,13 @@ the within-stack rank blend, and the obvious-reject guard.
 
 from __future__ import annotations
 
-import numpy as np
+import pytest
+
+pytest.importorskip("sklearn")
 
 from modules import clip_quality
 from modules.selection import apply_clip_reject_guard, blended_rank_value
+import numpy as np
 
 
 def _unit(vecs):

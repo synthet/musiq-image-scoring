@@ -1,5 +1,10 @@
 
 import pytest
+
+pytestmark = [pytest.mark.db, pytest.mark.postgres]
+
+pytest.importorskip("psycopg2")
+
 import os
 import sys
 
