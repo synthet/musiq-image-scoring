@@ -9,6 +9,7 @@ AI-powered image scoring, tagging, and clustering using MUSIQ, LIQE, TOPIQ, Q-Al
 | **image-scoring-backend** (this) | [github.com/synthet/image-scoring-backend](https://github.com/synthet/image-scoring-backend) | AI scoring engine, FastAPI server, PostgreSQL schema authority |
 | **image-scoring-gallery** | [github.com/synthet/image-scoring-gallery](https://github.com/synthet/image-scoring-gallery) | Electron desktop UI, IPC query layer, React/Vite |
 | **image-scoring-ui** | [github.com/synthet/image-scoring-ui](https://github.com/synthet/image-scoring-ui) | Shared design tokens (`@synthet/image-scoring-design`) |
+| **image-scoring-model** | [github.com/synthet/image-scoring-model](https://github.com/synthet/image-scoring-model) | `eye-quality` package: YOLO bird/eye localization, training, model contracts — **canonical source** for the bird detector defaults used by `modules/bird_detection.py` |
 
 **Project layout:** Keep **image-scoring-backend**, **image-scoring-gallery**, and **image-scoring-ui** as sibling directories. The backend writes `webui.lock` with its port when running (default `7860`). Gallery discovers the API via that lock file; override with `config.api.url` or `config.api.port` in gallery `config.json`.
 

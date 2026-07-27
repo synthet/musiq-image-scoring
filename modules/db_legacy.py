@@ -4110,6 +4110,24 @@ def update_image_field(image_id: int, field_name: str, value) -> bool:
         return False
 
 
+def update_image_bird_bbox(image_id: int, bbox: dict) -> bool:
+    """Store the detected bird bounding box for an image in ``images.bird_bbox`` (JSONB).
+
+    ``bbox`` is a dict such as ``{"x1","y1","x2","y2","conf","img_w","img_h"}`` (see
+    ``modules/bird_detection.BirdDetector.detect_best_box``). Passing ``None`` clears the
+    column. Serialized with ``json.dumps`` and cast to ``jsonb``. Returns True on success.
+    """
+    try:
+        payload = json.dumps(bbox) if bbox is not None else None
+        get_connector().execute(
+            "UPDATE images SET bird_bbox = ?::jsonb WHERE id = ?", (payload, image_id)
+        )
+        return True
+    except Exception as e:
+        logging.error(f"Failed to update bird_bbox for image {image_id}: {e}")
+        return False
+
+
 def update_image_path(image_hash, new_path, hash_version=None):
     from pathlib import Path
     new_name = Path(new_path).name

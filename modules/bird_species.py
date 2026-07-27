@@ -39,7 +39,20 @@ def _load_default_species() -> List[str]:
 
 
 def _resolve_inference_path(row: dict, file_path: str) -> str:
-    """Return the best image path for ML inference — uses thumbnail for RAW files."""
+    """Return the best image path for ML inference.
+
+    Prefers the **original** file — including RAW — because ``open_image_for_ml`` decodes RAW
+    via the full-preview chain (embedded JPEG at >=1000px, then rawpy, then ImageMagick at
+    2048px). The detector needs that resolution: localizing a bird on a 512px thumbnail and
+    cropping it yields a tiny, low-detail crop for BioCLIP. See the model repo's
+    ``docs/guides/BACKEND_INTEGRATION.md`` ("resolve full embedded JPEG preview — not 512px
+    thumbnails").
+
+    Falls back to the cached thumbnail for RAW only when the original file is not present.
+    """
+    if file_path and os.path.exists(file_path):
+        return file_path
+
     ext = os.path.splitext(file_path)[1].lower()
     if ext in {".nef", ".nrw", ".arw", ".cr2", ".cr3", ".dng", ".orf", ".rw2"}:
         try:
@@ -113,6 +126,13 @@ class BioCLIPClassifier:
         # as a side effect of classify() so BirdSpeciesRunner can persist it
         # under the ``bioclip_2_image`` space without an extra forward pass.
         self.last_image_embedding = None
+        # Optional YOLO bird detector used to crop to the bird before classifying.
+        # ``_detector_state`` is one of: None (not yet resolved), "enabled",
+        # "disabled" (unavailable / fail-open). ``last_bbox`` is populated as a
+        # side effect of classify() so BirdSpeciesRunner can persist it.
+        self.detector = None
+        self._detector_state: Optional[str] = None
+        self.last_bbox: Optional[dict] = None
 
     def load_model(self):
         """Lazily load BioCLIP 2. Call once before running a batch."""
@@ -139,6 +159,39 @@ class BioCLIPClassifier:
         self._cached_text_features = text_features
         return text_features
 
+    def _ensure_detector(self):
+        """Resolve the optional bird detector once (lazy, fail-open).
+
+        Returns the ``BirdDetector`` when enabled and available, else ``None``.
+        On the first call it loads the YOLO model; if the detector is disabled in
+        config or its dependencies/weights are unavailable (and ``fail_open``),
+        it is marked ``disabled`` and never retried per image.
+        """
+        if self._detector_state == "enabled":
+            return self.detector
+        if self._detector_state == "disabled":
+            return None
+
+        try:
+            from modules.bird_detection import BirdDetector
+
+            detector = BirdDetector(device=self.device)
+            if not detector.enabled:
+                logger.info("Bird detector disabled via config; classifying whole images.")
+                self._detector_state = "disabled"
+                return None
+            detector.load_model()
+            self.detector = detector
+            self._detector_state = "enabled"
+            return detector
+        except Exception as exc:  # noqa: BLE001 — fail open to whole-image classify
+            logger.warning(
+                "Bird detector unavailable (%s); falling back to whole-image classification.",
+                exc,
+            )
+            self._detector_state = "disabled"
+            return None
+
     def classify(
         self,
         image_path: str,
@@ -160,8 +213,31 @@ class BioCLIPClassifier:
 
         self.load_model()
         self.last_image_embedding = None
+        self.last_bbox = None
         try:
             img = open_image_for_ml(image_path).convert("RGB")
+
+            # Bake EXIF orientation so detection, the crop, and the persisted bbox
+            # coordinates all share the image's display orientation.
+            try:
+                from modules.thumbnails import bake_orientation
+
+                img = bake_orientation(img, image_path)
+            except Exception as orient_err:  # noqa: BLE001 — orientation is best-effort
+                logger.debug("bake_orientation failed for %s: %s", image_path, orient_err)
+
+            # Localize the bird and crop to its box before classifying. Falls back
+            # to the whole image when the detector is unavailable or finds no bird.
+            detector = self._ensure_detector()
+            if detector is not None:
+                try:
+                    box = detector.detect_best_box(img)
+                    if box:
+                        self.last_bbox = box
+                        img = detector.crop_to_box(img, box)
+                except Exception as det_err:  # noqa: BLE001 — fall back to whole image
+                    logger.debug("Bird detection failed for %s: %s", image_path, det_err)
+
             img_tensor = self.preprocess(img).unsqueeze(0).to(self.device)
 
             text_features = self._get_text_features(candidate_species)
@@ -345,6 +421,17 @@ class BirdSpeciesRunner:
                     row.get("id"),
                     exc_info=True,
                 )
+
+            bbox = getattr(self.classifier, "last_bbox", None)
+            if bbox is not None:
+                try:
+                    db.update_image_bird_bbox(int(row["id"]), bbox)
+                except Exception:
+                    logger.debug(
+                        "bird_species: bird_bbox persist failed for image_id=%s",
+                        row.get("id"),
+                        exc_info=True,
+                    )
 
             if predictions:
                 existing_kw_str = (row.get("keywords") or "").strip()

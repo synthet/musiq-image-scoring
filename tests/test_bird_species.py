@@ -99,6 +99,38 @@ def test_runner_start_batch_spawns_thread(monkeypatch):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# _resolve_inference_path — full RAW preview, not the 512px thumbnail
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_resolve_inference_path_raw_prefers_original(tmp_path):
+    """RAW must go through open_image_for_ml (full preview), not the 512px thumbnail."""
+    import modules.bird_species as bs
+
+    raw = tmp_path / "DSC_0001.NEF"
+    raw.write_bytes(b"stub")
+    row = {"id": 1, "thumbnail_path": "/thumbs/ab/abc.jpg"}
+    assert bs._resolve_inference_path(row, str(raw)) == str(raw)
+
+
+def test_resolve_inference_path_raw_falls_back_to_thumb_when_missing(tmp_path, monkeypatch):
+    import modules.bird_species as bs
+
+    thumb = tmp_path / "abc.jpg"
+    thumb.write_bytes(b"stub")
+    monkeypatch.setattr("modules.thumbnails.get_thumb_wsl", lambda row: str(thumb))
+    missing_raw = str(tmp_path / "gone.NEF")
+    assert bs._resolve_inference_path({"id": 1}, missing_raw) == str(thumb)
+
+
+def test_resolve_inference_path_jpeg_returns_original(tmp_path):
+    import modules.bird_species as bs
+
+    jpg = tmp_path / "bird.jpg"
+    jpg.write_bytes(b"stub")
+    assert bs._resolve_inference_path({"id": 1}, str(jpg)) == str(jpg)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # _get_image_ids_with_species_keyword — chunking
 # ──────────────────────────────────────────────────────────────────────────────
 
