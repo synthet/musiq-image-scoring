@@ -7,8 +7,11 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import pytest
+
+pytest.importorskip("pandas")
+
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "analysis" / "model_score_quality_report.py"

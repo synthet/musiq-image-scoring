@@ -4,6 +4,12 @@ os.environ["PYTEST_CURRENT_TEST"] = "1"
 import shutil
 import time
 import pytest
+
+from tests.support.optional_deps import require_psycopg2, require_sklearn
+
+require_sklearn()
+require_psycopg2()
+
 import tempfile
 from unittest.mock import patch
 

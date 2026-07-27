@@ -13,6 +13,12 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.support.optional_deps import require_psycopg2, require_sklearn, require_torch
+
+require_sklearn()
+require_torch()
+require_psycopg2()
+
 from modules import db
 from modules.clustering import ClusteringRunner
 from modules.engines.mock import MockClusteringEngine, MockLiqeScorer, MockScoringEngine, MockTaggingEngine

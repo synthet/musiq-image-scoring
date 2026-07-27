@@ -1,8 +1,10 @@
 import sys
 import os
 from pathlib import Path
-import exifread
 import pytest
+
+pytest.importorskip("exifread")
+import exifread
 
 pytestmark = [pytest.mark.sample_data]
 
