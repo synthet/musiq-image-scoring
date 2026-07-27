@@ -1,9 +1,11 @@
 import numpy as np
+
 try:
     import cv2
 except ImportError:
     cv2 = None
 from PIL import Image
+
 
 def compute_classical_metrics(image_path: str) -> dict:
     """

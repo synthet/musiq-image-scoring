@@ -1,22 +1,23 @@
-import os
-import logging
-import uuid
-import numpy as np
-import threading
-import time
 import json
+import logging
+import os
+import threading
+import uuid
 from datetime import datetime
+
+import numpy as np
 from PIL import Image
 from sklearn.cluster import AgglomerativeClustering
-from modules import db, utils, config
+
+from modules import config, db, utils
+from modules.engines.base import IClusteringEngine
 from modules.events import event_manager
-from modules.run_log import runner_emit
+from modules.indexing_policy import filter_image_rows_for_nef_policy
 from modules.phases import PhaseCode, PhaseStatus
 from modules.phases_policy import explain_phase_run_decision
-from modules.version import APP_VERSION
-from modules.engines.base import IClusteringEngine
-from modules.indexing_policy import filter_image_rows_for_nef_policy
 from modules.quality_ranking import quality_tiebreak_sort_key_best_first
+from modules.run_log import runner_emit
+from modules.version import APP_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +207,6 @@ class ClusteringEngine(IClusteringEngine):
     def load_model(self):
         if self.model is None:
             # Deferred import
-            import tensorflow as tf
             from tensorflow.keras.applications import MobileNetV2
             
             # Load MobileNetV2, exclude top layer, use global average pooling
@@ -283,7 +283,10 @@ class ClusteringEngine(IClusteringEngine):
             for idx, path in zip(uncached_indices, uncached_paths):
                 try:
                     # Load image, resize to 224x224
-                    from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+                    from tensorflow.keras.applications.mobilenet_v2 import (
+                        preprocess_input,
+                    )
+
                     from modules.thumbnails import open_image_for_ml
 
                     img = open_image_for_ml(path)
@@ -329,7 +332,7 @@ class ClusteringEngine(IClusteringEngine):
                     if h:
                         self.feature_cache[h] = feat
                     new_features.append((batch_indices[j], feat))
-                logger.debug(f"[Clustering] Final batch prediction complete.")
+                logger.debug("[Clustering] Final batch prediction complete.")
             
             # Add new features to results in original index order
             for orig_idx, feat in new_features:
@@ -434,7 +437,6 @@ class ClusteringEngine(IClusteringEngine):
         Get BurstUUID from image metadata if present.
         Returns None if not an Apple burst photo.
         """
-        from modules import utils
         
         # Try from database burst_uuid column first (cached)
         if row.get('burst_uuid'):
@@ -465,10 +467,6 @@ class ClusteringEngine(IClusteringEngine):
         Main function to load images from DB, cluster them, and update DB.
         Enforces: 1. Folder Isolation 2. Time Gap Splitting 3. Persistence
         """
-        import datetime
-        import json
-        from itertools import groupby
-        from modules import config
         
         # Mark as running at start
         self.is_running = True
@@ -563,8 +561,7 @@ class ClusteringEngine(IClusteringEngine):
     ):
         """Internal implementation of cluster_images."""
         import datetime
-        import json
-        from itertools import groupby
+
         from modules import config
         
         def update_status(msg, cur, tot):

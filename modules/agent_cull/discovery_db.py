@@ -8,11 +8,15 @@ from modules import db
 from modules.agent_cull.config import AgentCullConfig
 from modules.agent_cull.discovery import (
     ReviewUnit,
+    default_is_usable,
     discover_eligible_units_from_stack_rows,
     discover_review_units_from_stack_rows,
-    default_is_usable,
 )
-from modules.culling_analytics._common import images_folder_filter, require_postgres, resolve_folder_id
+from modules.culling_analytics._common import (
+    images_folder_filter,
+    require_postgres,
+    resolve_folder_id,
+)
 
 
 def _stack_member_query(

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Protocol, Tuple
+from typing import Protocol
 
 from modules.geocoding.types import LocationParts
 
@@ -15,16 +15,16 @@ class GeocodingProvider(Protocol):
 
     name: str
 
-    def reverse(self, lat: float, lon: float) -> Optional[LocationParts]:
+    def reverse(self, lat: float, lon: float) -> LocationParts | None:
         """Coordinates to structured location."""
         ...
 
-    def forward(self, query: str) -> Optional[Tuple[float, float, Optional[LocationParts]]]:
+    def forward(self, query: str) -> tuple[float, float, LocationParts | None] | None:
         """Address text to (lat, lon, optional structured parts)."""
         ...
 
 
-def get_geocoding_provider() -> Optional[GeocodingProvider]:
+def get_geocoding_provider() -> GeocodingProvider | None:
     """
     Return configured provider, or None if geocoding is disabled or misconfigured.
     """

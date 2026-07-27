@@ -2,20 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-import re
-import subprocess
-import time
-from typing import Any, Optional
 
-from modules import config, db
-from modules.mcp import tool_support as ts
+from modules import db
 
 logger = logging.getLogger(__name__)
 
-def export_debug_bundle(output_path: Optional[str] = None) -> dict:
+def export_debug_bundle(output_path: str | None = None) -> dict:
     """Write a redacted support zip (config, environment, doctor JSON, log tails). Same content as ``scripts/export_debug_bundle.py``."""
     from pathlib import Path
 
@@ -92,7 +86,7 @@ def rebase_file_paths(old_root: str, new_root: str, dry_run: bool = True) -> dic
             return {"error": str(e)}
 
 
-def set_image_metadata(file_path: str, rating: Optional[int] = None, label: Optional[str] = None) -> dict:
+def set_image_metadata(file_path: str, rating: int | None = None, label: str | None = None) -> dict:
     """Update metadata for a specific image in the database.
     Optionally updates sidecar files if background runners are active."""
     from modules import mcp_server as _ms

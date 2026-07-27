@@ -10,10 +10,10 @@ Provides Aftershoot-style AI culling workflow:
 Mode: AI-Automated (AI picks best, user reviews)
 """
 
-import os
 import logging
-from datetime import datetime
-from modules import db, clustering, xmp
+import os
+
+from modules import clustering, db, xmp
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ class CullingEngine:
         # Verify images were added
         verify_groups = db.get_session_groups(session_id)
         if not verify_groups and len(image_ids) > 0:
-            logger.warning(f"Images added but get_session_groups returned empty. This may indicate a database issue.")
+            logger.warning("Images added but get_session_groups returned empty. This may indicate a database issue.")
         
         # Count unique groups
         unique_groups = set(group_assignments.values())
@@ -202,6 +202,7 @@ class CullingEngine:
             sub_clusters_processed}
         """
         import math
+
         from modules.config import get_config_value
         from modules.sub_clustering import compute_sub_clusters
 

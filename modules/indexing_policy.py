@@ -18,7 +18,8 @@ remain on disk and are read by metadata/thumbnail code for NEF paths.
 from __future__ import annotations
 
 import os
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 # When policy is off, match ``indexing_runner.SUPPORTED_EXTENSIONS``.
 DEFAULT_INDEXING_EXTENSIONS = frozenset(

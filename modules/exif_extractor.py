@@ -9,7 +9,8 @@ import json
 import logging
 import os
 import subprocess
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from modules import utils
 
@@ -476,7 +477,9 @@ def backfill_exif_camera_lens(
                 if use_rr:
                     fid = row.get("folder_id")
                     if fid is not None:
-                        from modules.pipeline_tool_folder_touch import upsert_pipeline_tool_folder_touch
+                        from modules.pipeline_tool_folder_touch import (
+                            upsert_pipeline_tool_folder_touch,
+                        )
 
                         upsert_pipeline_tool_folder_touch(tool_key, int(fid))
             else:
@@ -620,7 +623,9 @@ def backfill_exif_gps(
                 if use_rr:
                     fid = row.get("folder_id")
                     if fid is not None:
-                        from modules.pipeline_tool_folder_touch import upsert_pipeline_tool_folder_touch
+                        from modules.pipeline_tool_folder_touch import (
+                            upsert_pipeline_tool_folder_touch,
+                        )
 
                         upsert_pipeline_tool_folder_touch(tool_key, int(fid))
             else:

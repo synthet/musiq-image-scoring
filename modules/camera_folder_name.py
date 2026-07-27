@@ -40,25 +40,25 @@ def camera_folder_from_exif_model(model: str | None) -> str:
         return override
 
     # Nikon Z series — "Nikon Z 6 II", "NIKON Z 6_2", "Z8"
-    nikon_z = re.search(r"Z\s*(\d+)(\s*(?:_2|II|ii))?", m, re.I)
+    nikon_z = re.search(r"Z\s*(\d+)(\s*(?:_2|II|ii))?", m, re.IGNORECASE)
     if nikon_z:
         gen2 = nikon_z.group(2) or ""
-        suffix = "ii" if re.search(r"_2|II|ii", gen2, re.I) else ""
+        suffix = "ii" if re.search(r"_2|II|ii", gen2, re.IGNORECASE) else ""
         return f"Z{nikon_z.group(1)}{suffix}"
 
     # Nikon D series — "NIKON D90", "Nikon D300", "NIKOND90", optional S/X/H suffix
-    nikon_d = re.search(r"(?:NIKON\s*)?D(\d+)(\s*(?:S|X|H))?", m, re.I)
+    nikon_d = re.search(r"(?:NIKON\s*)?D(\d+)(\s*(?:S|X|H))?", m, re.IGNORECASE)
     if nikon_d:
         suffix = nikon_d.group(2).strip().upper() if nikon_d.group(2) else ""
         return f"D{nikon_d.group(1)}{suffix}"
 
     # Canon EOS R series
-    canon_r = re.search(r"EOS\s*R\s*(\d+)", m, re.I)
+    canon_r = re.search(r"EOS\s*R\s*(\d+)", m, re.IGNORECASE)
     if canon_r:
         return f"R{canon_r.group(1)}"
 
     # Fallback: remove common brands from start, take last 2 tokens
-    m_clean = re.sub(r"^(Nikon|Canon|Camera|Sony)\s+", "", m, flags=re.I)
+    m_clean = re.sub(r"^(Nikon|Canon|Camera|Sony)\s+", "", m, flags=re.IGNORECASE)
     tokens = re.findall(r"[A-Za-z0-9]+", m_clean)
     if len(tokens) >= 1:
         return "".join(tokens[-2:]) if len(tokens) >= 2 else tokens[0]

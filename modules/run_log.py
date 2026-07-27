@@ -8,15 +8,13 @@ DEBUG lines are broadcast live but should not be appended to persisted jobs.log
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 RUN_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR"})
 
 # UI + persisted job logs: optional suffix for clickable image refs (parsed in React/Electron).
 IMAGE_LOG_LINK_SUFFIX_RE = r"\[\[img:\d+\]\]"
 
 
-def attach_image_log_suffix(body: str, image_id: Optional[int]) -> str:
+def attach_image_log_suffix(body: str, image_id: int | None) -> str:
     if image_id is None:
         return body
     try:
@@ -38,10 +36,10 @@ def normalize_run_log_level(level: str) -> str:
 def format_run_log_message(
     message: str,
     *,
-    phase: Optional[str] = None,
-    step: Optional[str] = None,
+    phase: str | None = None,
+    step: str | None = None,
 ) -> str:
-    parts: List[str] = []
+    parts: list[str] = []
     if phase:
         parts.append(f"[{phase}]")
     if step:
@@ -52,13 +50,13 @@ def format_run_log_message(
 
 
 def emit_run_log(
-    run_id: Optional[int],
+    run_id: int | None,
     message: str,
     level: str = "INFO",
     *,
-    phase: Optional[str] = None,
-    step: Optional[str] = None,
-    image_id: Optional[int] = None,
+    phase: str | None = None,
+    step: str | None = None,
+    image_id: int | None = None,
 ) -> str:
     """
     Push one line to WebSocket clients when run_id is set.
@@ -78,21 +76,21 @@ def should_persist_run_log_line(level: str) -> bool:
     return normalize_run_log_level(level) != "DEBUG"
 
 
-def append_persisted_job_log(log_history: List[str], message: str, level: str = "INFO") -> None:
+def append_persisted_job_log(log_history: list[str], message: str, level: str = "INFO") -> None:
     """Append to runner log_history only if the line should be stored on the job row."""
     if should_persist_run_log_line(level):
         log_history.append(message)
 
 
 def runner_emit(
-    log_history: List[str],
-    job_id: Optional[int],
+    log_history: list[str],
+    job_id: int | None,
     message: str,
     level: str = "INFO",
     *,
-    phase: Optional[str] = None,
-    step: Optional[str] = None,
-    image_id: Optional[int] = None,
+    phase: str | None = None,
+    step: str | None = None,
+    image_id: int | None = None,
 ) -> str:
     """
     Format one line, optionally persist to log_history (omits DEBUG), and broadcast when job_id is set.

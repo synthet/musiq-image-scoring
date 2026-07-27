@@ -11,7 +11,7 @@ import json
 import logging
 import threading
 import time
-from typing import Any, Optional, Tuple
+from typing import Any
 from urllib.parse import urljoin
 
 import httpx
@@ -89,7 +89,7 @@ class NominatimProvider:
             t = 10
         self._timeout = httpx.Timeout(max(3, min(t, 120)))
 
-    def _get(self, path: str, params: dict[str, str]) -> Optional[dict | list]:
+    def _get(self, path: str, params: dict[str, str]) -> dict | list | None:
         _throttle()
         url = urljoin(self._base, path)
         with httpx.Client(follow_redirects=True, timeout=self._timeout) as client:
@@ -103,7 +103,7 @@ class NominatimProvider:
             logger.warning("Nominatim JSON error: %s", e)
             return None
 
-    def reverse(self, lat: float, lon: float) -> Optional[LocationParts]:
+    def reverse(self, lat: float, lon: float) -> LocationParts | None:
         data = self._get(
             "reverse",
             {
@@ -119,7 +119,7 @@ class NominatimProvider:
 
     def forward(
         self, query: str
-    ) -> Optional[Tuple[float, float, Optional[LocationParts]]]:
+    ) -> tuple[float, float, LocationParts | None] | None:
         q = (query or "").strip()
         if not q:
             return None
@@ -140,7 +140,7 @@ class NominatimProvider:
             lon = float(first["lon"])
         except (KeyError, TypeError, ValueError):
             return None
-        parts: Optional[LocationParts] = None
+        parts: LocationParts | None = None
         if isinstance(first, dict):
             parts = _nominatim_parsed_to_parts(first)
         return (lat, lon, parts)

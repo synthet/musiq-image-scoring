@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from modules.agent_cull.config import AgentCullConfig, REQUEST_SCHEMA_VERSION
+from modules.agent_cull.config import AgentCullConfig
 from modules.agent_cull.discovery import ReviewUnit
 from modules.agent_cull.json_util import json_dumps
 from modules.agent_cull.mode_profiles import resolve_prompt_template_version

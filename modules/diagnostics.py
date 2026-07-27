@@ -1,17 +1,17 @@
+import datetime
+import logging
 import os
 import platform
-import sys
 import shutil
-import logging
-from typing import Dict, Any, List
-import datetime
+import sys
+from typing import Any
 
 # Internal modules
 from modules import config, db
 
 logger = logging.getLogger(__name__)
 
-def get_diagnostics() -> Dict[str, Any]:
+def get_diagnostics() -> dict[str, Any]:
     """Collect comprehensive system and application diagnostics data."""
     
     # 1. System Information

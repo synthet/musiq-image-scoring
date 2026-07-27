@@ -9,19 +9,22 @@ import logging
 import os
 import threading
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 
-from modules import db, clustering, utils
-from modules.selection_policy import classify_sorted_ids, POLICY_VERSION
-from modules.quality_ranking import quality_tiebreak_sort_key_best_first
-from modules.selection_metadata import write_selection_metadata
-from modules.indexing_policy import filter_image_rows_for_nef_policy
-from modules.sub_clustering import compute_sub_clusters
+from modules import clustering, db, utils
 from modules.config import get_config_value
-from modules.culling_embeddings import collect_stacked_image_ids, ensure_embeddings_for_space
+from modules.culling_embeddings import (
+    collect_stacked_image_ids,
+    ensure_embeddings_for_space,
+)
 from modules.embedding_extractors import is_supported
 from modules.embedding_spaces import OPENCLIP_L14_IMAGE_SPACE_CODE
+from modules.indexing_policy import filter_image_rows_for_nef_policy
+from modules.quality_ranking import quality_tiebreak_sort_key_best_first
+from modules.selection_metadata import write_selection_metadata
+from modules.selection_policy import POLICY_VERSION, classify_sorted_ids
+from modules.sub_clustering import compute_sub_clusters
 from modules.two_level_culling import (
     LEVEL2_DEFAULT_DISTANCE_THRESHOLD,
     TWO_LEVEL_POLICY_VERSION,
@@ -32,7 +35,7 @@ from modules.two_level_culling import (
 
 logger = logging.getLogger(__name__)
 
-ProgressCb = Callable[[float, str, Optional[int], Optional[int]], None]
+ProgressCb = Callable[[float, str, int | None, int | None], None]
 
 # Threshold and time_gap are now read from config.json at runtime
 # via cluster_images() defaults (clustering.default_threshold / clustering.default_time_gap).
@@ -55,9 +58,9 @@ class SelectionConfig:
     # Two-level (sub-)clustering: tighter cosine threshold applied within each
     # stack so the pick/reject policy is run per visually-distinct sub-group
     # rather than the whole stack. Set to None to disable.
-    sub_cluster_distance_threshold: Optional[float] = None
+    sub_cluster_distance_threshold: float | None = None
     # Two-level culling (persisted sub-stacks, best-M with N cap). None = read config.
-    two_level_enabled: Optional[bool] = None
+    two_level_enabled: bool | None = None
 
 
 def _load_two_level_config(cfg: SelectionConfig) -> TwoLevelConfig:
@@ -179,11 +182,11 @@ class SelectionService:
 
     def _progress(
         self,
-        progress_cb: Optional[ProgressCb],
+        progress_cb: ProgressCb | None,
         pct: float,
         msg: str,
-        cur: Optional[int] = None,
-        tot: Optional[int] = None,
+        cur: int | None = None,
+        tot: int | None = None,
     ):
         if progress_cb:
             try:
@@ -200,8 +203,8 @@ class SelectionService:
     def run(
         self,
         input_path: str,
-        cfg: Optional[SelectionConfig] = None,
-        progress_cb: Optional[ProgressCb] = None,
+        cfg: SelectionConfig | None = None,
+        progress_cb: ProgressCb | None = None,
     ) -> SelectionSummary:
         cfg = cfg or SelectionConfig()
         self._stop_requested.clear()
@@ -429,8 +432,8 @@ class SelectionService:
                         sorted_sub = sorted(sub_group, key=sort_key)
 
                         if cfg.diversity_enabled and len(sorted_sub) > 2:
-                            from modules.selection_policy import band_sizes
                             from modules.diversity import reorder_with_mmr
+                            from modules.selection_policy import band_sizes
                             k_picks, _ = band_sizes(len(sorted_sub), cfg.pick_fraction)
                             if k_picks > 0:
                                 sub_ids = [img["id"] for img in sorted_sub]

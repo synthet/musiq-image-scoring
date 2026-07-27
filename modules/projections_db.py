@@ -14,15 +14,14 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
 def get_embeddings_with_metadata_for_space(
     space_code: str,
-    folder_path: Optional[str] = None,
-    limit: Optional[int] = None,
+    folder_path: str | None = None,
+    limit: int | None = None,
 ) -> list[dict]:
     """Return embedding vectors + display metadata for ``space_code``.
 

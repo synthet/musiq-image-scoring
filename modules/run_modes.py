@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
-
 CANONICAL_RUN_MODE = "process_stale_or_missing"
 
 # Legacy run_mode strings on in-flight jobs map to the canonical mode.
@@ -11,7 +9,7 @@ _LEGACY_RUN_MODE_ALIASES = {
     "validate_and_repair",
 }
 
-RUN_MODE_FLAGS: Dict[str, Dict[str, bool]] = {
+RUN_MODE_FLAGS: dict[str, dict[str, bool]] = {
     CANONICAL_RUN_MODE: {
         "skip_done": False,
         "skip_existing": False,
@@ -23,7 +21,7 @@ RUN_MODE_FLAGS: Dict[str, Dict[str, bool]] = {
 }
 
 
-def normalize_run_mode(run_mode: Optional[str]) -> str:
+def normalize_run_mode(run_mode: str | None) -> str:
     """Return canonical run_mode; map legacy persisted values to the single mode."""
     mode = (run_mode or "").strip()
     if not mode or mode in _LEGACY_RUN_MODE_ALIASES:
@@ -37,12 +35,12 @@ def normalize_run_mode(run_mode: Optional[str]) -> str:
 
 
 def infer_run_mode(
-    run_mode: Optional[str],
+    run_mode: str | None,
     *,
     run_mode_explicit: bool = True,
-    skip_done: Optional[bool] = None,
-    force_rerun: Optional[bool] = None,
-    fix_incomplete_stages: Optional[bool] = None,
+    skip_done: bool | None = None,
+    force_rerun: bool | None = None,
+    fix_incomplete_stages: bool | None = None,
 ) -> str:
     """Resolve canonical run_mode (legacy boolean args are ignored)."""
     _ = (skip_done, force_rerun, fix_incomplete_stages, run_mode_explicit)
@@ -51,6 +49,6 @@ def infer_run_mode(
     return CANONICAL_RUN_MODE
 
 
-def resolve_run_mode_flags(run_mode: Optional[str]) -> Dict[str, bool]:
+def resolve_run_mode_flags(run_mode: str | None) -> dict[str, bool]:
     mode = normalize_run_mode(run_mode)
     return dict(RUN_MODE_FLAGS[mode])

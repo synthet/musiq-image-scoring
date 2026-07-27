@@ -12,7 +12,9 @@ pgvector cosine distance (Postgres-only).
 """
 
 import logging
+
 import numpy as np
+
 from modules import db
 
 logger = logging.getLogger(__name__)
@@ -289,6 +291,7 @@ def _get_clip_text_embedding(query: str) -> np.ndarray:
 
     if "model" not in _clip_model_cache:
         from transformers import CLIPModel, CLIPProcessor
+
         from modules import config
 
         tagging_cfg = config.get_config_section("tagging")

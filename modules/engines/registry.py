@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Dict, List, Optional
 
 from modules.engines.base import IScoringModel
 
@@ -38,7 +37,7 @@ class ModelRegistry:
     callers register at import time before workers spin up."""
 
     def __init__(self) -> None:
-        self._models: Dict[str, IScoringModel] = {}
+        self._models: dict[str, IScoringModel] = {}
         self._lock = threading.Lock()
 
     def register(self, model: IScoringModel) -> None:
@@ -59,33 +58,33 @@ class ModelRegistry:
         with self._lock:
             self._models.pop(name, None)
 
-    def get(self, name: str) -> Optional[IScoringModel]:
+    def get(self, name: str) -> IScoringModel | None:
         return self._models.get(name)
 
-    def all_registered(self) -> List[IScoringModel]:
+    def all_registered(self) -> list[IScoringModel]:
         return list(self._models.values())
 
-    def enabled(self, config_section: Optional[Dict[str, Dict]] = None) -> List[IScoringModel]:
+    def enabled(self, config_section: dict[str, dict] | None = None) -> list[IScoringModel]:
         """Production models: enabled, not shadow."""
         cfg = self._resolve_config(config_section)
         return [m for m in self._models.values() if _is_enabled(m.name, cfg) and not _is_shadow(m.name, cfg)]
 
-    def shadow(self, config_section: Optional[Dict[str, Dict]] = None) -> List[IScoringModel]:
+    def shadow(self, config_section: dict[str, dict] | None = None) -> list[IScoringModel]:
         """Shadow models: run and store, do not fuse."""
         cfg = self._resolve_config(config_section)
         return [m for m in self._models.values() if _is_shadow(m.name, cfg) and _is_active(m.name, cfg)]
 
-    def all_active(self, config_section: Optional[Dict[str, Dict]] = None) -> List[IScoringModel]:
+    def all_active(self, config_section: dict[str, dict] | None = None) -> list[IScoringModel]:
         """Models that should run for an image (production ∪ shadow)."""
         cfg = self._resolve_config(config_section)
         return [m for m in self._models.values() if _is_active(m.name, cfg)]
 
-    def is_shadow(self, name: str, config_section: Optional[Dict[str, Dict]] = None) -> bool:
+    def is_shadow(self, name: str, config_section: dict[str, dict] | None = None) -> bool:
         cfg = self._resolve_config(config_section)
         return _is_shadow(name, cfg)
 
     @staticmethod
-    def _resolve_config(config_section: Optional[Dict[str, Dict]]) -> Dict[str, Dict]:
+    def _resolve_config(config_section: dict[str, dict] | None) -> dict[str, dict]:
         if config_section is not None:
             return config_section
         try:
@@ -97,16 +96,16 @@ class ModelRegistry:
             return {}
 
 
-def _entry(name: str, cfg: Dict[str, Dict]) -> Dict:
+def _entry(name: str, cfg: dict[str, dict]) -> dict:
     entry = cfg.get(name)
     return entry if isinstance(entry, dict) else {}
 
 
-def _is_shadow(name: str, cfg: Dict[str, Dict]) -> bool:
+def _is_shadow(name: str, cfg: dict[str, dict]) -> bool:
     return bool(_entry(name, cfg).get("shadow", False))
 
 
-def _is_enabled(name: str, cfg: Dict[str, Dict]) -> bool:
+def _is_enabled(name: str, cfg: dict[str, dict]) -> bool:
     """Default True if the model is registered but absent from config."""
     entry = _entry(name, cfg)
     if not entry:
@@ -114,12 +113,12 @@ def _is_enabled(name: str, cfg: Dict[str, Dict]) -> bool:
     return bool(entry.get("enabled", True))
 
 
-def _is_active(name: str, cfg: Dict[str, Dict]) -> bool:
+def _is_active(name: str, cfg: dict[str, dict]) -> bool:
     """A model runs if it is enabled OR shadow."""
     return _is_enabled(name, cfg) or _is_shadow(name, cfg)
 
 
-_registry: Optional[ModelRegistry] = None
+_registry: ModelRegistry | None = None
 _singleton_lock = threading.Lock()
 
 

@@ -2,24 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
-import logging
-import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from fastapi import APIRouter, Body, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Body, HTTPException
 
-from modules import db
-from modules.api.routers.electron_helpers import (
-    api_module,
-    logger,
-    _join_runner_threads,
-    _stop_runner_for_job_row,
-    _stop_runner_for_phase,
-)
 from modules.api_models import ApiResponse
+
 
 def create_electron_config_router() -> APIRouter:
     router = APIRouter()
@@ -50,7 +38,7 @@ def create_electron_config_router() -> APIRouter:
         for a specific section.
         """
     )
-    async def save_config(section: str, body: Dict[str, Any] = Body(...)):
+    async def save_config(section: str, body: dict[str, Any] = Body(...)):
         from modules.config import save_config_section
         from modules.ui.security import _check_rate_limit
         _check_rate_limit("config_save")

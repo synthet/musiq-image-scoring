@@ -9,14 +9,17 @@ BLIP; Title/Caption remain the captioning model's job in tagging.
 from __future__ import annotations
 
 import logging
-import re
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from modules import config, db
-from modules.embedding_spaces import CLIP_IMAGE_DIM, CLIP_IMAGE_SPACE_CODE, get_embedding_space_id
+from modules.embedding_spaces import (
+    CLIP_IMAGE_DIM,
+    CLIP_IMAGE_SPACE_CODE,
+    get_embedding_space_id,
+)
 from modules.embeddings_extract import l2_normalize
 
 logger = logging.getLogger(__name__)

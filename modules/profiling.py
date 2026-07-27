@@ -14,8 +14,7 @@ import threading
 import time
 import uuid
 from collections import deque
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from dataclasses import dataclass
 
 logger = logging.getLogger("image_scoring.performance")
 
@@ -31,9 +30,9 @@ class RequestRecord:
     start_time: float        # perf_counter
     start_wall: float        # time.time
     loop_lag_at_start: float  # ms
-    end_time: Optional[float] = None
-    status_code: Optional[int] = None
-    error: Optional[str] = None
+    end_time: float | None = None
+    status_code: int | None = None
+    error: str | None = None
 
     @property
     def duration_ms(self) -> float:
@@ -52,7 +51,7 @@ class RequestTracker:
                  very_slow_threshold_ms: float = 5000,
                  history_size: int = 200):
         self._lock = threading.Lock()
-        self._in_flight: Dict[str, RequestRecord] = {}
+        self._in_flight: dict[str, RequestRecord] = {}
         self._slow_history: deque = deque(maxlen=history_size)
         self._total_requests = 0
         self._total_slow = 0
@@ -66,8 +65,7 @@ class RequestTracker:
             self._in_flight[record.request_id] = record
             self._total_requests += 1
             concurrent = len(self._in_flight)
-            if concurrent > self._peak_concurrent:
-                self._peak_concurrent = concurrent
+            self._peak_concurrent = max(self._peak_concurrent, concurrent)
 
     def finish_request(self, request_id: str, status_code: int, error: str = None):
         with self._lock:
@@ -107,7 +105,7 @@ class RequestTracker:
             with self._lock:
                 self._total_errors += 1
 
-    def get_in_flight(self) -> List[dict]:
+    def get_in_flight(self) -> list[dict]:
         with self._lock:
             return [
                 {
@@ -120,7 +118,7 @@ class RequestTracker:
                 for r in self._in_flight.values()
             ]
 
-    def get_slow_history(self, limit: int = 50) -> List[dict]:
+    def get_slow_history(self, limit: int = 50) -> list[dict]:
         with self._lock:
             items = list(self._slow_history)[-limit:]
         return [
@@ -167,7 +165,7 @@ class EventLoopMonitor:
         self._current_lag: float = 0.0
         self._peak_lag: float = 0.0
         self._total_warnings: int = 0
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._running = False
 
     @property
@@ -200,8 +198,7 @@ class EventLoopMonitor:
             lag_ms = max(0, elapsed_ms - self.interval_ms)
 
             self._current_lag = lag_ms
-            if lag_ms > self._peak_lag:
-                self._peak_lag = lag_ms
+            self._peak_lag = max(self._peak_lag, lag_ms)
 
             self._history.append((time.time(), lag_ms))
 
@@ -232,7 +229,7 @@ class EventLoopMonitor:
             "monitoring_interval_ms": self.interval_ms,
         }
 
-    def get_recent_lags(self, limit: int = 60) -> List[dict]:
+    def get_recent_lags(self, limit: int = 60) -> list[dict]:
         items = list(self._history)[-limit:]
         return [{"timestamp": ts, "lag_ms": round(lag, 1)} for ts, lag in items]
 
@@ -285,7 +282,7 @@ class ProfilingMiddleware:
         )
         self.tracker.start_request(record)
 
-        status_code: Optional[int] = None
+        status_code: int | None = None
 
         async def send_wrapper(message):
             nonlocal status_code
@@ -305,15 +302,15 @@ class ProfilingMiddleware:
 # Module-level singletons
 # ---------------------------------------------------------------------------
 
-_tracker: Optional[RequestTracker] = None
-_loop_monitor: Optional[EventLoopMonitor] = None
+_tracker: RequestTracker | None = None
+_loop_monitor: EventLoopMonitor | None = None
 
 
-def get_tracker() -> Optional[RequestTracker]:
+def get_tracker() -> RequestTracker | None:
     return _tracker
 
 
-def get_loop_monitor() -> Optional[EventLoopMonitor]:
+def get_loop_monitor() -> EventLoopMonitor | None:
     return _loop_monitor
 
 

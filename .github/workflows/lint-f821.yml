@@ -1,6 +1,7 @@
 name: lint-f821
 
-# Guards against NameError regressions in modules/ (ruff F821 only).
+# Guards against NameError regressions in modules/ (ruff F821 only) and
+# enforces a committed Ruff finding ceiling (ratchet) via check_ruff_baseline.py.
 #
 # Commit 4e2cac3 mechanically extracted functions without carrying the names
 # their bodies referenced, leaving 57 undefined names. Most were masked by broad
@@ -14,11 +15,15 @@ on:
     paths:
       - 'modules/**.py'
       - '.github/workflows/lint-f821.yml'
+      - 'scripts/ci/check_ruff_baseline.py'
+      - 'scripts/ci/ruff_modules_baseline.json'
   push:
     branches: [master]
     paths:
       - 'modules/**.py'
       - '.github/workflows/lint-f821.yml'
+      - 'scripts/ci/check_ruff_baseline.py'
+      - 'scripts/ci/ruff_modules_baseline.json'
 
 jobs:
   f821:
@@ -35,3 +40,6 @@ jobs:
 
       - name: Check for undefined names in modules/
         run: ruff check --select F821 --output-format=concise modules/
+
+      - name: Ruff baseline ratchet (modules/)
+        run: python scripts/ci/check_ruff_baseline.py

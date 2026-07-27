@@ -31,7 +31,7 @@ def _server_name() -> str:
     return BE_MCP if prof == "compact" else BE_ROUTER
 
 
-def create_router_mcp() -> "FastMCP":
+def create_router_mcp() -> FastMCP:
     name = _server_name()
     mcp = FastMCP(name)
     register_tools_for_profile(mcp)

@@ -1,6 +1,8 @@
 
 import os
+
 from modules import db, utils
+
 
 def build_tree_dict(paths):
     # Sort paths

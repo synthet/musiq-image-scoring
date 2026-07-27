@@ -10,6 +10,7 @@ New PostgreSQL-native code should prefer the granular helpers that will
 migrate into a submodule when the surrounding area is extracted.
 """
 import sys as _sys
+
 from modules import db_legacy as _db_legacy
 
 

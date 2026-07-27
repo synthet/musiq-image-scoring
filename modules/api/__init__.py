@@ -76,41 +76,43 @@ Endpoints:
         POST /api/db/query - See ``modules/api_db.py`` (SQL bridge for gallery ``engine: api`` mode)
 """
 
-from fastapi import APIRouter, HTTPException, Body, Query
-from fastapi.responses import FileResponse, Response, StreamingResponse
 import asyncio
 import json
+import logging
 import math
-from datetime import date, datetime
-from decimal import Decimal
-from uuid import UUID
-
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
-from typing import Optional, List, Dict, Any, Literal
 import os
 import platform
-import logging
-import time
 import threading
-from modules.phases_policy import explain_phase_run_decision
-from modules.selector_resolver import resolve_selectors
-from modules.pipeline_selector_composer import (
-    compose_selector_request,
-    validate_and_preview,
-    serialize_queue_payload,
-)
-from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
+import time
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Any, Dict, List, Literal, Optional
+from uuid import UUID
 
-from modules.job_dispatcher import JobDispatcher
-from modules.maintenance_job_display import maintenance_job_input_path, build_default_maintenance_description
+from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi.responses import FileResponse, Response, StreamingResponse
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+
+from modules import config, db
 from modules.job_description import (
     augment_queue_payload_for_audit,
+    build_bird_species_job_description,
+    build_clustering_job_description,
     build_run_submit_description,
     build_scoring_job_description,
-    build_clustering_job_description,
     build_tagging_job_description,
-    build_bird_species_job_description,
     build_workflow_run_description,
+)
+from modules.job_dispatcher import JobDispatcher
+from modules.maintenance_job_display import (
+    build_default_maintenance_description,
+    maintenance_job_input_path,
+)
+from modules.phases_policy import explain_phase_run_decision
+from modules.pipeline_selector_composer import (
+    compose_selector_request,
+    serialize_queue_payload,
+    validate_and_preview,
 )
 from modules.run_manifest import (
     REASON_SOURCE_FORCE_RUN,
@@ -125,112 +127,112 @@ from modules.run_manifest import (
     build_manual_submit_summary,
     build_retry_summary,
 )
-from modules import db, config
+from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
+from modules.selector_resolver import resolve_selectors
 
 logger = logging.getLogger(__name__)
 
 
+from modules.api import state as _state
+from modules.api.deps import (
+    control_job,
+    control_stage,
+    control_step,
+    http_for_transition_error,
+)
+from modules.api.state import (
+    _finalize_running_jobs_after_worker_stop,
+    _join_runner_threads,
+    graceful_shutdown_processing,
+    stop_dispatcher,
+)
 from modules.api_helpers import (
-    _jobs_recent_json_default,
     _decode_db_row_blobs,
-    _normalize_jobs_table_row,
-    _job_supports_execution_report,
-    _normalize_incident_row,
-    _json_response_db,
-    _synthetic_bird_species_job_phases,
-    _job_phases_for_run_display,
-    _merge_model_scores_into,
-    _parse_json_object_column,
-    _image_detail_payload,
-    _json_safe_metadata_row,
-    _row_to_dict,
-    _parse_rating_filter,
-    _images_list_payload,
-    _image_neighbors_payload,
-    _image_detail_for_uuid_str,
     _image_detail_for_hash_str,
+    _image_detail_for_uuid_str,
+    _image_detail_payload,
+    _image_neighbors_payload,
+    _images_list_payload,
+    _job_phases_for_run_display,
+    _job_supports_execution_report,
+    _jobs_recent_json_default,
+    _json_response_db,
+    _json_safe_metadata_row,
+    _merge_model_scores_into,
+    _normalize_incident_row,
+    _normalize_jobs_table_row,
+    _parse_json_object_column,
+    _parse_rating_filter,
+    _row_to_dict,
+    _synthetic_bird_species_job_phases,
 )
 from modules.api_models import (
-    SelectorRequest,
-    ScoringStartRequest,
-    TaggingStartRequest,
+    AgentCullDeleteApprovedRequest,
+    AgentCullDiscoverRequest,
+    AgentCullPickStatusRequest,
+    AgentCullRecommendationIdsRequest,
+    AgentCullRunRequest,
+    ApiResponse,
     BirdSpeciesStartRequest,
-    SingleImageRequest,
-    TaggingSingleRequest,
-    TagPropagationRequest,
-    PhaseDecisionResponse,
-    StatusResponse,
-    HealthResponse,
-    ConfigResponse,
-    DiagnosticsResponse,
-    FindDuplicatesRequest,
     ClusteringStartRequest,
+    ConfigResponse,
+    CullingAnalyticsResponse,
+    DiagnosticsResponse,
+    ExportRequest,
+    FindDuplicatesRequest,
+    GeocodeForwardRequest,
+    GeocodeReverseRequest,
+    HealPhaseRequest,
+    HealthResponse,
+    ImageUpdateRequest,
     ImportRegisterRequest,
-    PipelineSubmitRequest,
-    PipelinePhaseControlRequest,
-    PipelineBackfillRequest,
-    LifecycleControlRequest,
     IpcBridgeRequest,
     IpcBridgeResponse,
-    PipelineRunControlRequest,
-    PipelineRestartFromStageRequest,
-    PipelineStepRerunRequest,
+    LifecycleControlRequest,
     MaintenanceStartRequest,
-    HealPhaseRequest,
-    GeocodeReverseRequest,
-    GeocodeForwardRequest,
-    ApiResponse,
     NeighborInfo,
     OutlierInfo,
     OutlierResponse,
-    CullingAnalyticsResponse,
-    ImageUpdateRequest,
-    AgentCullDiscoverRequest,
-    AgentCullRunRequest,
-    AgentCullRecommendationIdsRequest,
-    AgentCullDeleteApprovedRequest,
-    AgentCullPickStatusRequest,
-    ExportRequest,
-)
-
-
-from modules.pipeline_selector_composer import (
-    compose_selector_request,
-    serialize_queue_payload,
-    validate_and_preview,
-)
-from modules.api.deps import control_job, control_stage, control_step, http_for_transition_error
-from modules.api import state as _state
-from modules.api.state import (
-    graceful_shutdown_processing,
-    stop_dispatcher,
-    _join_runner_threads,
-    _finalize_running_jobs_after_worker_stop,
+    PhaseDecisionResponse,
+    PipelineBackfillRequest,
+    PipelinePhaseControlRequest,
+    PipelineRestartFromStageRequest,
+    PipelineRunControlRequest,
+    PipelineStepRerunRequest,
+    PipelineSubmitRequest,
+    ScoringStartRequest,
+    SelectorRequest,
+    SingleImageRequest,
+    StatusResponse,
+    TaggingSingleRequest,
+    TaggingStartRequest,
+    TagPropagationRequest,
 )
 
 # Test / monkeypatch compatibility (see tests/test_phase_reconcile.py)
 _graceful_shutdown_done = False
-from modules.api.routers.public import create_public_api_router
-from modules.api.routers.shutdown_schema import create_shutdown_schema_router
-from modules.api.routers.scoring import create_scoring_router
-from modules.api.routers.tagging import create_tagging_router
+from modules.api.routers.agent_cull import create_agent_cull_router
 from modules.api.routers.bird_species import create_bird_species_router
-from modules.api.routers.general import create_general_router
-from modules.api.routers.debug import create_debug_router
-from modules.api.routers.utility import create_utility_router
-from modules.api.routers.tasks import create_tasks_router
-from modules.api.routers.geo import create_geo_router
-from modules.api.routers.similar import create_similar_router
-from modules.api.routers.duplicates import create_duplicates_router
-from modules.api.routers.embedding import create_embedding_router
 from modules.api.routers.clustering import create_clustering_router
 from modules.api.routers.data_query import create_data_query_router
-from modules.api.routers.agent_cull import create_agent_cull_router
-from modules.api.routers.import_register import create_import_register_router
-from modules.api.routers.pipeline_submit import create_pipeline_submit_router
+from modules.api.routers.debug import create_debug_router
+from modules.api.routers.duplicates import create_duplicates_router
 from modules.api.routers.electron import create_electron_router
-from modules.api.routers.maintenance import create_maintenance_router
+from modules.api.routers.embedding import create_embedding_router
+from modules.api.routers.general import create_general_router
+from modules.api.routers.geo import create_geo_router
+from modules.api.routers.import_register import create_import_register_router
 from modules.api.routers.ipc_bridge import create_ipc_bridge_router
+from modules.api.routers.maintenance import create_maintenance_router
+from modules.api.routers.pipeline_submit import create_pipeline_submit_router
+from modules.api.routers.public import create_public_api_router
+from modules.api.routers.scoring import create_scoring_router
+from modules.api.routers.shutdown_schema import create_shutdown_schema_router
+from modules.api.routers.similar import create_similar_router
+from modules.api.routers.tagging import create_tagging_router
+from modules.api.routers.tasks import create_tasks_router
+from modules.api.routers.utility import create_utility_router
+
 
 def create_api_router() -> APIRouter:
     """Create and configure the API router with comprehensive documentation."""

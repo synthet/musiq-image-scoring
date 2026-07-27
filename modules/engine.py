@@ -1,15 +1,17 @@
 
+import logging
 import os
 import queue
-import time
 import threading
-import logging
-from modules import pipeline, db, config
+import time
+
+from modules import config, db, pipeline
 from modules.indexing_policy import (
     discovery_extensions,
     path_is_indexing_excluded,
     prune_indexing_excluded_walk_dirs,
 )
+
 
 class BatchImageProcessor:
     """

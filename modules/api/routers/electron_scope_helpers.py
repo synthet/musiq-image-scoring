@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import platform
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from fastapi import HTTPException
 
@@ -69,9 +69,13 @@ def scope_resolve_path(raw_path: str) -> str:
     return local_path
 
 
-def scope_count_images_on_disk(local_path: str, recursive: bool) -> Tuple[int, int]:
+def scope_count_images_on_disk(local_path: str, recursive: bool) -> tuple[int, int]:
     """Count images and folders on disk. Returns (image_count, folder_count)."""
-    from modules.indexing_policy import discovery_extensions, path_is_indexing_excluded, prune_indexing_excluded_walk_dirs
+    from modules.indexing_policy import (
+        discovery_extensions,
+        path_is_indexing_excluded,
+        prune_indexing_excluded_walk_dirs,
+    )
 
     exts = discovery_extensions()
     if not os.path.isdir(local_path):
@@ -98,23 +102,23 @@ def scope_count_images_on_disk(local_path: str, recursive: bool) -> Tuple[int, i
 
 
 def compute_scope_preview_for_resolved_paths(
-    resolved_paths: List[str],
+    resolved_paths: list[str],
     recursive: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Aggregate scope preview for paths already resolved via ``scope_resolve_path``."""
     from modules import db
     from modules.phases import PhaseCode
 
     total_images = 0
     folder_count = 0
-    stage_done: Dict[str, int] = {}
-    stage_failed: Dict[str, int] = {}
-    stage_skipped: Dict[str, int] = {}
-    stage_total: Dict[str, int] = {}
+    stage_done: dict[str, int] = {}
+    stage_failed: dict[str, int] = {}
+    stage_skipped: dict[str, int] = {}
+    stage_total: dict[str, int] = {}
     phase_codes = [p.value for p in PhaseCode]
 
-    stage_running: Dict[str, int] = {}
-    stage_queued: Dict[str, int] = {}
+    stage_running: dict[str, int] = {}
+    stage_queued: dict[str, int] = {}
     for local_path in resolved_paths:
         summary = db.get_folder_phase_summary(local_path, force_refresh=True)
         db_img_count = (summary[0].get("total_count", 0) if summary else 0)
@@ -141,8 +145,8 @@ def compute_scope_preview_for_resolved_paths(
                     stage_failed[code] = stage_failed.get(code, 0)
                     stage_skipped[code] = stage_skipped.get(code, 0)
 
-    stage_statuses: Dict[str, str] = {}
-    stage_counts: Dict[str, Any] = {}
+    stage_statuses: dict[str, str] = {}
+    stage_counts: dict[str, Any] = {}
     for code in phase_codes:
         total = stage_total.get(code, 0)
         done = stage_done.get(code, 0)
@@ -158,9 +162,7 @@ def compute_scope_preview_for_resolved_paths(
             status = "queued"
         elif failed > 0:
             status = "failed"
-        elif done == total:
-            status = "done"
-        elif (done + skipped) == total and failed == 0:
+        elif done == total or (done + skipped) == total and failed == 0:
             status = "done"
         elif done > 0 or skipped > 0:
             status = "partial"
@@ -205,7 +207,7 @@ def build_scope_tree_sync(include_phase_status: bool = True):
 
     dc_map = db.get_folder_direct_image_counts_by_local_path_norm()
 
-    def rollup_image_counts(node: Dict) -> int:
+    def rollup_image_counts(node: dict) -> int:
         pkey = os.path.normpath(node.get("path") or "")
         meta = dc_map.get(pkey) or {}
         direct = int(meta.get("direct_count") or 0)
@@ -223,7 +225,7 @@ def build_scope_tree_sync(include_phase_status: bool = True):
 
     bulk_cache = db.get_all_folder_phase_summaries_bulk()
 
-    def enrich(nodes: List[Dict]) -> List[Dict]:
+    def enrich(nodes: list[dict]) -> list[dict]:
         result = []
         for node in nodes:
             path = node.get("path", "")

@@ -23,7 +23,8 @@ flips the phase status and never backfills the composite columns.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from modules import db
 from modules import score_normalization as snorm
@@ -31,7 +32,7 @@ from modules import score_normalization as snorm
 logger = logging.getLogger(__name__)
 
 
-def _scope_clause(scope_path: Optional[str]) -> tuple[str, tuple]:
+def _scope_clause(scope_path: str | None) -> tuple[str, tuple]:
     """Return (sql_fragment, params) restricting to a folder subtree, or ("", ())."""
     if not scope_path or not str(scope_path).strip():
         return "", ()
@@ -43,8 +44,8 @@ def _scope_clause(scope_path: Optional[str]) -> tuple[str, tuple]:
 
 
 def _find_candidates(
-    scope_path: Optional[str],
-    image_ids: Optional[Sequence[int]],
+    scope_path: str | None,
+    image_ids: Sequence[int] | None,
     limit: int,
 ) -> list[dict[str, Any]]:
     """Images that are scoring-*complete* (per-model rows present) but not finalized:
@@ -117,8 +118,8 @@ def _model_scores_by_image(image_ids: Sequence[int]) -> dict[int, dict[str, floa
 
 def finalize_phantom_scores(
     *,
-    scope_path: Optional[str] = None,
-    image_ids: Optional[Sequence[int]] = None,
+    scope_path: str | None = None,
+    image_ids: Sequence[int] | None = None,
     dry_run: bool = True,
     limit: int = 5000,
 ) -> dict[str, Any]:

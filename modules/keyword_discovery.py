@@ -6,14 +6,14 @@ Uses KEYWORDS_DIM + IMAGE_KEYWORDS instead of scanning IMAGES table.
 """
 
 import logging
-from typing import List, Dict, Tuple, Optional
-from modules import db, db_postgres
+
+from modules import db
 from modules.db_connector import get_connector
 
 logger = logging.getLogger(__name__)
 
 
-def get_top_keywords(limit: int = 50, folder_path: Optional[str] = None) -> List[Dict]:
+def get_top_keywords(limit: int = 50, folder_path: str | None = None) -> list[dict]:
     """
     Get top N keywords by usage count.
 
@@ -33,7 +33,7 @@ def get_top_keywords(limit: int = 50, folder_path: Optional[str] = None) -> List
                 if not folder_id:
                     return []
 
-                sql = f"""
+                sql = """
                     SELECT
                         kd.keyword_norm,
                         kd.keyword_display,
@@ -48,7 +48,7 @@ def get_top_keywords(limit: int = 50, folder_path: Optional[str] = None) -> List
                 """
                 rows = conn.query(sql, (folder_id, limit))
             else:
-                sql = f"""
+                sql = """
                     SELECT
                         kd.keyword_norm,
                         kd.keyword_display,
@@ -67,7 +67,7 @@ def get_top_keywords(limit: int = 50, folder_path: Optional[str] = None) -> List
                 if not folder_id:
                     return []
 
-                sql = f"""
+                sql = """
                     SELECT
                         kd.keyword_norm,
                         kd.keyword_display,
@@ -82,7 +82,7 @@ def get_top_keywords(limit: int = 50, folder_path: Optional[str] = None) -> List
                 """
                 rows = conn.query(sql, (folder_id, limit))
             else:
-                sql = f"""
+                sql = """
                     SELECT
                         kd.keyword_norm,
                         kd.keyword_display,
@@ -109,8 +109,8 @@ SPECIES_PREFIX = "species:"
 def get_keyword_cloud(
     kind: str = "general",
     limit: int = 200,
-    folder_path: Optional[str] = None,
-) -> List[Dict]:
+    folder_path: str | None = None,
+) -> list[dict]:
     """Top keywords by usage count, split by whether they are ``species:`` tags.
 
     Args:
@@ -139,7 +139,7 @@ def get_keyword_cloud(
                 return []
 
         where = [species_pred_db]
-        params: List = [species_arg]
+        params: list = [species_arg]
         join_images = ""
         if folder_id:
             join_images = "JOIN images i ON ik.image_id = i.id"
@@ -183,7 +183,7 @@ def get_keyword_cloud(
         return []
 
 
-def search_keywords(search_term: str, limit: int = 20) -> List[Dict]:
+def search_keywords(search_term: str, limit: int = 20) -> list[dict]:
     """
     Keyword autocomplete/search.
 
@@ -199,7 +199,7 @@ def search_keywords(search_term: str, limit: int = 20) -> List[Dict]:
 
     try:
         if conn.type == 'postgres':
-            sql = f"""
+            sql = """
                 SELECT
                     kd.keyword_norm,
                     kd.keyword_display,
@@ -214,7 +214,7 @@ def search_keywords(search_term: str, limit: int = 20) -> List[Dict]:
             rows = conn.query(sql, (search_pattern, search_pattern, limit))
         else:
             # Firebird
-            sql = f"""
+            sql = """
                 SELECT
                     kd.keyword_norm,
                     kd.keyword_display,
@@ -236,7 +236,7 @@ def search_keywords(search_term: str, limit: int = 20) -> List[Dict]:
         return []
 
 
-def get_keywords_for_folder(folder_path: str, limit: int = 100) -> List[Dict]:
+def get_keywords_for_folder(folder_path: str, limit: int = 100) -> list[dict]:
     """
     Get all keywords used in a folder, ordered by frequency.
 
@@ -250,7 +250,7 @@ def get_keywords_for_folder(folder_path: str, limit: int = 100) -> List[Dict]:
     return get_top_keywords(limit=limit, folder_path=folder_path)
 
 
-def get_keyword_cooccurrence(keyword: str, limit: int = 20) -> List[Dict]:
+def get_keyword_cooccurrence(keyword: str, limit: int = 20) -> list[dict]:
     """
     Get keywords that frequently co-occur with a given keyword.
 
@@ -265,7 +265,7 @@ def get_keyword_cooccurrence(keyword: str, limit: int = 20) -> List[Dict]:
 
     try:
         if conn.type == 'postgres':
-            sql = f"""
+            sql = """
                 SELECT
                     kd2.keyword_norm,
                     kd2.keyword_display,
@@ -283,7 +283,7 @@ def get_keyword_cooccurrence(keyword: str, limit: int = 20) -> List[Dict]:
             rows = conn.query(sql, (keyword, limit))
         else:
             # Firebird
-            sql = f"""
+            sql = """
                 SELECT
                     kd2.keyword_norm,
                     kd2.keyword_display,
@@ -308,7 +308,7 @@ def get_keyword_cooccurrence(keyword: str, limit: int = 20) -> List[Dict]:
         return []
 
 
-def get_keyword_stats() -> Dict:
+def get_keyword_stats() -> dict:
     """
     Get overall keyword statistics.
 

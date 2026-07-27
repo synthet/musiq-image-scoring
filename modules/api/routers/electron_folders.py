@@ -3,23 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import logging
 import os
-from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, HTTPException, Query
-from fastapi.responses import FileResponse
 
 from modules import db
-from modules.api.routers.electron_helpers import (
-    api_module,
-    logger,
-    _join_runner_threads,
-    _stop_runner_for_job_row,
-    _stop_runner_for_phase,
-)
 from modules.api_models import DeleteFolderCacheRequest
+
 
 def create_electron_folders_router() -> APIRouter:
     router = APIRouter()
@@ -40,7 +30,6 @@ def create_electron_folders_router() -> APIRouter:
     async def get_folder_tree():
         from modules import db, utils
         from modules.ui_tree import build_tree_dict
-        import os
 
         try:
             raw_folders = db.get_all_folders()

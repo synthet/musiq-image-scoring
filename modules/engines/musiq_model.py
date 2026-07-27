@@ -13,7 +13,7 @@ load / predict / normalize so the registry can iterate them generically.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from modules.engines.base import IScoringModel
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Native score ranges, mirroring `MultiModelMUSIQ.model_ranges` so we don't
 # couple to import-time TF loading. Source of truth remains the backend.
-_MUSIQ_RANGES: Dict[str, Tuple[float, float]] = {
+_MUSIQ_RANGES: dict[str, tuple[float, float]] = {
     "spaq": (0.0, 100.0),
     "ava": (1.0, 10.0),
     "koniq": (0.0, 100.0),
@@ -74,7 +74,7 @@ class MusiqModelWrapper(IScoringModel):
         self.load_status = "loaded" if ok else "failed"
         return ok
 
-    def predict(self, image_path: str) -> Dict[str, Any]:
+    def predict(self, image_path: str) -> dict[str, Any]:
         if not self._loaded:
             return {"score": None, "status": "not_loaded", "error": "Model not loaded"}
         try:
@@ -87,7 +87,7 @@ class MusiqModelWrapper(IScoringModel):
         return {"score": float(score), "status": "success", "error": None}
 
 
-def make_musiq_wrappers(backend: Any, names: Optional[list[str]] = None) -> list[MusiqModelWrapper]:
+def make_musiq_wrappers(backend: Any, names: list[str] | None = None) -> list[MusiqModelWrapper]:
     """Build wrappers for the requested MUSIQ models, sharing one backend.
 
     Defaults to the production set (`spaq`, `ava`). Deprecated variants

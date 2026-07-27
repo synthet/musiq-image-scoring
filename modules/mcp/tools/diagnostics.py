@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-import re
-import subprocess
-import time
-from typing import Any, Optional
+from typing import Any
 
 from modules import config, db
 from modules.mcp import tool_support as ts
@@ -263,7 +259,7 @@ def check_database_health() -> dict:
 
 def validate_file_paths(
     limit: int = 100,
-    folder_path: Optional[str] = None,
+    folder_path: str | None = None,
     missing_only: bool = False,
 ) -> dict:
     """Validate that image ``file_path`` values exist on disk. Optional ``folder_path`` restricts to images under that folder path (exact ``folders.path`` match or descendants). When ``missing_only`` is true, only missing files are listed (scans up to ``limit`` missing rows, expanding the DB fetch window)."""
@@ -333,7 +329,7 @@ def validate_file_paths(
     return results
 
 
-def diagnose_phase_consistency(image_id: int, folder_path: Optional[str] = None) -> dict:
+def diagnose_phase_consistency(image_id: int, folder_path: str | None = None) -> dict:
     """Diagnose folder vs per-image phase status mismatch (e.g. folder shows 69/69 KEYWORDS done but image shows Pending).
     Returns image info, folder info, phase statuses, and whether the image is in the folder's phase aggregate set."""
     result = {"image_id": image_id, "image": None, "folder": None, "phase_statuses": None, "in_folder_set": None}
@@ -529,6 +525,7 @@ def verify_environment() -> dict:
 
     import psutil
     import torch
+
     from modules import mcp_server as _ms
     from modules.mcp_server import prepare_mcp_embedded
 

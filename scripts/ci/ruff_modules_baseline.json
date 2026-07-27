@@ -1,0 +1,6 @@
+{
+  "scope": "modules/",
+  "total_max": 1601,
+  "updated": "2026-07-26",
+  "note": "Ratchet ceiling after mechanical ruff --fix. CI fails when total findings exceed total_max. F821 must stay at 0."
+}

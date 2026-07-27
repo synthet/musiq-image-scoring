@@ -22,7 +22,7 @@ import logging
 import os
 import re
 import tempfile
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PIL import Image
 
@@ -31,7 +31,7 @@ from modules import config
 logger = logging.getLogger(__name__)
 
 # Rubric dimensions the judge must score (0-100 each), in addition to `overall`.
-RUBRIC_DIMENSIONS: List[str] = ["composition", "exposure", "sharpness", "subject"]
+RUBRIC_DIMENSIONS: list[str] = ["composition", "exposure", "sharpness", "subject"]
 
 _RUBRIC_PROMPT = (
     "You are an expert photo-quality judge. Rate the attached image on a 0-100 "
@@ -49,7 +49,7 @@ _RUBRIC_PROMPT = (
 )
 
 
-def parse_rubric(text: Any) -> Optional[Dict[str, float]]:
+def parse_rubric(text: Any) -> dict[str, float] | None:
     """Parse a rubric out of an LLM response (dict or text).
 
     Returns a dict with all of ``RUBRIC_DIMENSIONS`` + ``overall`` clamped to
@@ -71,7 +71,7 @@ def parse_rubric(text: Any) -> Optional[Dict[str, float]]:
     if not isinstance(data, dict):
         return None
 
-    out: Dict[str, float] = {}
+    out: dict[str, float] = {}
     for key in (*RUBRIC_DIMENSIONS, "overall"):
         value = data.get(key)
         if value is None:
@@ -114,10 +114,10 @@ class CursorScorer:
 
     def __init__(
         self,
-        model: Optional[str] = None,
-        max_dimension: Optional[int] = None,
-        timeout_seconds: Optional[int] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        max_dimension: int | None = None,
+        timeout_seconds: int | None = None,
+        api_key: str | None = None,
     ) -> None:
         self.available = False
         self._sdk: Any = None
@@ -164,18 +164,18 @@ class CursorScorer:
         return default
 
     @staticmethod
-    def _load_api_key() -> Optional[str]:
+    def _load_api_key() -> str | None:
         secret = config.get_secret("cursor")
         if isinstance(secret, dict) and secret.get("api_key"):
             return str(secret["api_key"])
         return os.environ.get("CURSOR_API_KEY")
 
-    def predict(self, image_path: str) -> Dict[str, Any]:
+    def predict(self, image_path: str) -> dict[str, Any]:
         """Score a single image. Returns score/subscores/status/score_range."""
         if not self.available:
             return {"error": "Model not loaded", "status": "failed"}
 
-        tmp_path: Optional[str] = None
+        tmp_path: str | None = None
         try:
             tmp_path = self._downscale_to_temp_jpeg(image_path)
             text = self._run_agent(tmp_path)
@@ -227,4 +227,4 @@ class CursorScorer:
             return _extract_text(run)
 
 
-__all__ = ["CursorScorer", "parse_rubric", "RUBRIC_DIMENSIONS"]
+__all__ = ["RUBRIC_DIMENSIONS", "CursorScorer", "parse_rubric"]

@@ -10,7 +10,7 @@ import logging
 import os
 import platform
 import re
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 from modules import config, db, thumbnails
 
@@ -68,7 +68,7 @@ def filesystem_path_for_image(db_file_path: str) -> str | None:
                 return wsl
     if platform.system() == "Windows":
         norm = p.replace("\\", "/")
-        m2 = re.match(r"^/mnt/([a-zA-Z])/(.*)", norm, re.I)
+        m2 = re.match(r"^/mnt/([a-zA-Z])/(.*)", norm, re.IGNORECASE)
         if m2:
             win = f"{m2.group(1).upper()}:{os.sep}{m2.group(2).replace('/', os.sep)}"
             if os.path.isfile(win):
@@ -99,7 +99,7 @@ def folder_like_patterns(prefix: str) -> list[str]:
 
     add(p + os.sep + "%")
     add(p.replace("\\", "/") + "/%")
-    m = re.match(r"^/mnt/([a-zA-Z])/(.*)", p.replace("\\", "/"), re.I)
+    m = re.match(r"^/mnt/([a-zA-Z])/(.*)", p.replace("\\", "/"), re.IGNORECASE)
     if m:
         drive = m.group(1).upper()
         rest = m.group(2).replace("/", "\\")
@@ -195,7 +195,7 @@ def regenerate_missing_thumbnails_batch(limit: int = 500) -> RegenerateBatchResu
 
 
 def repair_thumbnail_paths_batch(
-    limit: Optional[int] = 1000,
+    limit: int | None = 1000,
     *,
     repair_all_pairs: bool = False,
     dry_run: bool = False,
@@ -208,7 +208,7 @@ def repair_thumbnail_paths_batch(
     ``repair_all_pairs`` matches ``--all`` on the CLI: normalize every row where
     values change, not only ``thumbnail_pair_needs_repair``.
     """
-    cap: Optional[int]
+    cap: int | None
     if limit is None:
         cap = None
     else:

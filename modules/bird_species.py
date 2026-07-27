@@ -8,11 +8,10 @@ Only images that already have the "birds" keyword are processed — all others a
 Top predicted species are stored as "species:Common Name" keywords.
 """
 
-import os
 import logging
+import os
 import threading
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from modules import db
 
@@ -24,7 +23,7 @@ BIRD_SPECIES_RUNNER_VERSION = "1.0.0"
 _DEFAULT_SPECIES_LIST_PATH = Path(__file__).resolve().parent.parent / "data" / "bird_species_list.txt"
 
 
-def _load_default_species() -> List[str]:
+def _load_default_species() -> list[str]:
     """Load species names from the bundled list file."""
     try:
         with open(_DEFAULT_SPECIES_LIST_PATH, "r", encoding="utf-8") as f:
@@ -65,7 +64,7 @@ def _resolve_inference_path(row: dict, file_path: str) -> str:
     return file_path
 
 
-def _get_image_ids_with_species_keyword(image_ids: List[int]) -> set:
+def _get_image_ids_with_species_keyword(image_ids: list[int]) -> set:
     """Return the subset of image_ids that already have at least one 'species:' keyword."""
     if not image_ids:
         return set()
@@ -120,7 +119,7 @@ class BioCLIPClassifier:
         self.preprocess = None
         self.tokenizer = None
         # Cache text embeddings when species list is stable across a batch
-        self._cached_species_list: Optional[List[str]] = None
+        self._cached_species_list: list[str] | None = None
         self._cached_text_features = None
         # Most-recent BioCLIP image embedding (768-d, L2-normalized) populated
         # as a side effect of classify() so BirdSpeciesRunner can persist it
@@ -145,7 +144,7 @@ class BioCLIPClassifier:
         self.tokenizer = open_clip.get_tokenizer(self.MODEL_ID)
         logger.info("BioCLIP 2 loaded.")
 
-    def _get_text_features(self, species_names: List[str]):
+    def _get_text_features(self, species_names: list[str]):
         """Return cached (or freshly computed) normalized text embeddings."""
         import torch
         if species_names == self._cached_species_list and self._cached_text_features is not None:
@@ -195,10 +194,10 @@ class BioCLIPClassifier:
     def classify(
         self,
         image_path: str,
-        candidate_species: List[str],
+        candidate_species: list[str],
         threshold: float = 0.1,
         top_k: int = 1,
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """
         Classify a single image against candidate_species.
 
@@ -280,12 +279,12 @@ class BirdSpeciesRunner:
 
     def __init__(self):
         self.stop_event = threading.Event()
-        self.classifier: Optional[BioCLIPClassifier] = None
+        self.classifier: BioCLIPClassifier | None = None
 
         self.is_running = False
-        self.log_history: List[str] = []
+        self.log_history: list[str] = []
         self.status_message = "Idle"
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self.current_count = 0
         self.total_count = 0
 
@@ -337,11 +336,11 @@ class BirdSpeciesRunner:
         self,
         input_path: str,
         job_id: int = None,
-        candidate_species: List[str] = None,
+        candidate_species: list[str] = None,
         threshold: float = 0.1,
         top_k: int = 1,
         overwrite: bool = False,
-        resolved_image_ids: List[int] = None,
+        resolved_image_ids: list[int] = None,
     ) -> str:
         """Start classification in a background thread. Returns 'Started' or error string."""
         if self.is_running:
@@ -495,12 +494,12 @@ class BirdSpeciesRunner:
     def _run_batch_internal(
         self,
         input_path: str,
-        candidate_species: Optional[List[str]],
+        candidate_species: list[str] | None,
         threshold: float,
         top_k: int,
         overwrite: bool,
         job_id: int = None,
-        resolved_image_ids: Optional[List[int]] = None,
+        resolved_image_ids: list[int] | None = None,
     ):
         from modules import db
         from modules.events import event_manager

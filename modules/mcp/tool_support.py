@@ -6,8 +6,6 @@ import json
 import re
 from typing import Any
 
-from modules import db
-
 # Per-model labels reported as "missing" by ``get_failed_images``.
 PER_MODEL_FAIL_LABELS = ("spaq", "ava", "liqe", "koniq", "paq2piq")
 AGGREGATE_FAIL_COLUMNS = (("score_general", "general"), ("score_technical", "technical"))

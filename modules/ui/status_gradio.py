@@ -258,8 +258,8 @@ def _render_runners(scoring_runner, tagging_runner, selection_runner, orchestrat
         cards.append(card)
 
     grid = (
-        f"<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));"
-        f"gap:10px;margin-bottom:10px'>" + "".join(cards) + "</div>"
+        "<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));"
+        "gap:10px;margin-bottom:10px'>" + "".join(cards) + "</div>"
     )
 
     orch = orchestrator.get_status()
@@ -307,7 +307,7 @@ def _render_threads() -> str:
 
 
 def _render_profiling() -> str:
-    from modules.profiling import get_tracker, get_loop_monitor
+    from modules.profiling import get_loop_monitor, get_tracker
 
     tracker = get_tracker()
     monitor = get_loop_monitor()

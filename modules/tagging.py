@@ -1,14 +1,15 @@
-import os
-import torch
 import logging
+import os
 import threading
-from typing import List, Dict, Optional
+
+import torch
+
 from modules import db, xmp
 from modules.events import event_manager
+from modules.indexing_policy import filter_image_rows_for_nef_policy
 from modules.phases import PhaseCode, PhaseStatus
 from modules.phases_policy import explain_phase_run_decision
 from modules.version import APP_VERSION
-from modules.indexing_policy import filter_image_rows_for_nef_policy
 
 TAGGER_VERSION = "1.0.0"  # bump when CLIP model or tagging logic changes
 
@@ -25,8 +26,8 @@ def propagate_tags(
     min_support_neighbors: int = None,
     write_mode: str = None,
     max_keywords: int = None,
-    focus_image_id: Optional[int] = None,
-) -> Dict:
+    focus_image_id: int | None = None,
+) -> dict:
     """
     Propagate keywords from tagged images to untagged neighbors using embedding similarity.
 
@@ -51,6 +52,7 @@ def propagate_tags(
         Dict with 'propagated', 'skipped', 'total_untagged', and 'candidates' (dry_run only).
     """
     import numpy as np
+
     from modules import config
     from modules.similar_search import _normalize
 
@@ -290,7 +292,7 @@ class KeywordScorer:
     def predict(
         self,
         image_path: str,
-        keywords: List[str] = None,
+        keywords: list[str] = None,
         threshold: float = 0.2,
         top_k: int = 5,
         return_scores: bool = False,
@@ -353,7 +355,9 @@ class KeywordScorer:
                     outputs = self.model(**inputs)
 
                 try:
-                    from modules.embeddings_extract import extract_clip_image_features_from_outputs
+                    from modules.embeddings_extract import (
+                        extract_clip_image_features_from_outputs,
+                    )
 
                     self.last_image_embedding = extract_clip_image_features_from_outputs(outputs)
                 except Exception as emb_err:  # noqa: BLE001 — best-effort side effect
@@ -477,7 +481,7 @@ class TaggingRunner:
     def get_status(self):
         return self.is_running, "\n".join(self.log_history), self.status_message, self.current_count, self.total_count
         
-    def start_batch(self, input_path: str, job_id: int = None, custom_keywords: List[str] = None, overwrite: bool = False, generate_captions: Optional[bool] = None, generate_accessibility: Optional[bool] = None, resolved_image_ids: List[int] = None, report_collector=None):
+    def start_batch(self, input_path: str, job_id: int = None, custom_keywords: list[str] = None, overwrite: bool = False, generate_captions: bool | None = None, generate_accessibility: bool | None = None, resolved_image_ids: list[int] = None, report_collector=None):
         # Resolve generate_captions from config if not provided
         if generate_captions is None:
             from modules import config
@@ -625,9 +629,9 @@ class TaggingRunner:
 
             # Run inference
 
-            confidence_map: Dict[str, float] = {}
+            confidence_map: dict[str, float] = {}
 
-            relevance_map: Dict[str, float] = {}
+            relevance_map: dict[str, float] = {}
 
             if self.tagging_engine is not None:
 
@@ -1094,13 +1098,13 @@ class TaggingRunner:
 
         return processed_count, skipped_count
 
-    def _run_batch_internal(self, input_path: str, custom_keywords: List[str] = None, overwrite: bool = False, generate_captions: bool = False, generate_accessibility: bool = False, job_id: int = None, resolved_image_ids: List[int] = None, report_collector=None):
+    def _run_batch_internal(self, input_path: str, custom_keywords: list[str] = None, overwrite: bool = False, generate_captions: bool = False, generate_accessibility: bool = False, job_id: int = None, resolved_image_ids: list[int] = None, report_collector=None):
         """
         Internal sync runner for tagging process.
         """
         from modules.run_log import runner_emit
 
-        def log(msg: str, level: str = "INFO", image_id: Optional[int] = None) -> None:
+        def log(msg: str, level: str = "INFO", image_id: int | None = None) -> None:
             runner_emit(self.log_history, job_id, msg, level, phase="keywords", image_id=image_id)
 
         # Convert Windows path to WSL path if running in WSL
@@ -1435,7 +1439,7 @@ class TaggingRunner:
     def write_metadata(
         self,
         image_path: str,
-        keywords: List[str],
+        keywords: list[str],
         title: str = "",
         description: str = "",
         rating: int = 0,

@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -32,10 +32,10 @@ class TechnicalFailurePayload(BaseModel):
 
     model_config = {"extra": "allow"}
 
-    def technical_failures_dict(self) -> Dict[str, float]:
+    def technical_failures_dict(self) -> dict[str, float]:
         return {key: float(getattr(self, key)) for key in TECHNICAL_FAILURE_METRIC_KEYS}
 
-    def to_detection_dict(self) -> Dict[str, Any]:
+    def to_detection_dict(self) -> dict[str, Any]:
         """API / scores_json shape: metrics nested under ``technical_failures``."""
         return {
             "version": self.version,

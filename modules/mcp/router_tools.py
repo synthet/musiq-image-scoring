@@ -3,13 +3,22 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Optional
+from typing import Any
 
 from modules.mcp.actions.dispatch import dispatch_action
-from modules.mcp.actions.registry import action_by_id, load_action_registry, registry_actions
+from modules.mcp.actions.registry import (
+    action_by_id,
+    load_action_registry,
+    registry_actions,
+)
 from modules.mcp.actions.search import search_actions
 from modules.mcp.bm25 import Bm25Index, format_when_to_use
-from modules.mcp.catalog import catalog_tools, domain_summary, load_tool_catalog, tool_by_name
+from modules.mcp.catalog import (
+    catalog_tools,
+    domain_summary,
+    load_tool_catalog,
+    tool_by_name,
+)
 from modules.mcp.names import (
     BE_CARD,
     BE_DOMAINS,
@@ -72,17 +81,17 @@ def _legacy_tool_result_from_action(action: dict[str, Any], score: float) -> dic
     }
 
 
-def register_compact_tools(mcp: "FastMCP") -> None:
+def register_compact_tools(mcp: FastMCP) -> None:
     """Register search + dispatch only (is-be-mcp compact profile)."""
 
     @mcp.tool(name=SEARCH, annotations=_RO)
     def search(
         query: str,
         limit: int = 10,
-        category: Optional[str] = None,
-        side_effect_level: Optional[str] = None,
+        category: str | None = None,
+        side_effect_level: str | None = None,
         read_only_only: bool = False,
-        pipeline_area: Optional[str] = None,
+        pipeline_area: str | None = None,
         include_schemas: bool = False,
         include_docs: bool = False,
         include_elevated: bool = False,
@@ -104,12 +113,12 @@ def register_compact_tools(mcp: "FastMCP") -> None:
     @mcp.tool(name=DISPATCH, annotations=_RO)
     def dispatch(
         action_id: str,
-        arguments: Optional[dict] = None,
+        arguments: dict | None = None,
         dry_run: bool = False,
         confirmed: bool = False,
-        request_id: Optional[str] = None,
+        request_id: str | None = None,
         allow_deprecated: bool = False,
-        expected_version: Optional[int] = None,
+        expected_version: int | None = None,
     ) -> dict:
         """Execute a registry action by action_id with schema validation and policy checks."""
         return dispatch_action(
@@ -123,7 +132,7 @@ def register_compact_tools(mcp: "FastMCP") -> None:
         )
 
 
-def register_router_tools(mcp: "FastMCP") -> None:
+def register_router_tools(mcp: FastMCP) -> None:
     """Register compact tools plus deprecated be_* aliases on is-be-router."""
     register_compact_tools(mcp)
 
@@ -131,9 +140,9 @@ def register_router_tools(mcp: "FastMCP") -> None:
     def be_find(
         query: str,
         limit: int = 10,
-        domain: Optional[str] = None,
-        repo: Optional[str] = None,
-        risk: Optional[str] = None,
+        domain: str | None = None,
+        repo: str | None = None,
+        risk: str | None = None,
     ) -> dict:
         """Deprecated: use search(). BM25 over legacy tool catalog for server dispatch."""
         del repo
@@ -219,7 +228,7 @@ def register_router_tools(mcp: "FastMCP") -> None:
         return {"tool": entry, "when_to_use": format_when_to_use(entry), "deprecated": True}
 
 
-def register_tools_for_profile(mcp: "FastMCP", profile: str | None = None) -> None:
+def register_tools_for_profile(mcp: FastMCP, profile: str | None = None) -> None:
     prof = (profile or get_active_profile() or os.environ.get("MCP_TOOL_PROFILE") or "router").strip().lower()
     if prof == "compact":
         register_compact_tools(mcp)

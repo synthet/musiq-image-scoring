@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from modules import db
 
@@ -13,17 +13,17 @@ logger = logging.getLogger(__name__)
 def claim_image_phases(
     job_id: int,
     phase_code: str,
-    image_ids: List[int],
-) -> Dict[str, Any]:
+    image_ids: list[int],
+) -> dict[str, Any]:
     """Claim ``image_ids`` for ``phase_code`` on ``job_id``. Skip IDs already claimed elsewhere."""
     phase = (phase_code or "").strip().lower()
-    claimed: List[int] = []
-    skipped: List[int] = []
+    claimed: list[int] = []
+    skipped: list[int] = []
     if not phase or not image_ids:
         return {"claimed": claimed, "skipped_already_claimed": skipped}
 
-    unique_ids: List[int] = []
-    seen: Set[int] = set()
+    unique_ids: list[int] = []
+    seen: set[int] = set()
     for raw in image_ids:
         try:
             iid = int(raw)
@@ -49,7 +49,7 @@ def claim_image_phases(
         """,
         tuple([phase] + unique_ids),
     )
-    blocked: Dict[int, int] = {}
+    blocked: dict[int, int] = {}
     for r in rows or []:
         try:
             blocked[int(r["image_id"])] = int(r["job_id"])
@@ -96,7 +96,7 @@ def claim_image_phases(
     return {"claimed": claimed, "skipped_already_claimed": skipped}
 
 
-def mark_claims_running(job_id: int, phase_code: str, image_ids: Optional[List[int]] = None) -> None:
+def mark_claims_running(job_id: int, phase_code: str, image_ids: list[int] | None = None) -> None:
     phase = (phase_code or "").strip().lower()
     if not phase:
         return
@@ -234,7 +234,7 @@ def release_claims_for_job(job_id: int) -> int:
     return count
 
 
-def count_claimed_by_other(job_id: int, phase_code: str, image_ids: List[int]) -> int:
+def count_claimed_by_other(job_id: int, phase_code: str, image_ids: list[int]) -> int:
     phase = (phase_code or "").strip().lower()
     if not phase or not image_ids:
         return 0

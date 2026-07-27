@@ -12,7 +12,6 @@ Composite scores use empirical percentile rescaling for better discrimination.
 """
 
 import logging
-from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +144,7 @@ def rescale_percentile(score: float, p02: float, p98: float) -> float:
     return max(0.0, min(1.0, rescaled))
 
 
-def rescale_scores(scores: Dict[str, float]) -> Dict[str, float]:
+def rescale_scores(scores: dict[str, float]) -> dict[str, float]:
     """
     Apply percentile rescaling to a dict of {model_name: normalized_score}.
     Returns new dict with rescaled values.
@@ -161,7 +160,7 @@ def rescale_scores(scores: Dict[str, float]) -> Dict[str, float]:
     return rescaled
 
 
-def compute_composites(scores: Dict[str, float]) -> Dict[str, float]:
+def compute_composites(scores: dict[str, float]) -> dict[str, float]:
     """
     Compute technical, aesthetic, and general scores from raw model scores.
     Applies percentile rescaling before weighting.
@@ -206,7 +205,7 @@ def score_to_rating(general_score: float) -> int:
     return 1
 
 
-def determine_label(scores: Dict[str, float]) -> str:
+def determine_label(scores: dict[str, float]) -> str:
     """
     Determine Lightroom color label from raw model scores.
     Applies percentile rescaling internally.
@@ -230,7 +229,7 @@ def determine_label(scores: Dict[str, float]) -> str:
     return "Yellow"
 
 
-def compute_all(scores: Dict[str, float]) -> Dict:
+def compute_all(scores: dict[str, float]) -> dict:
     """
     One-shot: compute composites, rating, and label from raw model scores.
 

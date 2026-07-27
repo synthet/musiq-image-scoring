@@ -7,7 +7,7 @@ from modules.geocoding.types import LocationParts, location_parts_to_dict
 
 __all__ = [
     "GeocodingProvider",
-    "get_geocoding_provider",
     "LocationParts",
+    "get_geocoding_provider",
     "location_parts_to_dict",
 ]

@@ -1,9 +1,9 @@
 import logging
 import threading
-from typing import Dict, List, Optional
-from modules import db, config
+
+from modules import config, db
 from modules.phases import PhaseCode
-from modules.pipeline_diagnostics import log_phase_transition, get_stall_detector
+from modules.pipeline_diagnostics import get_stall_detector, log_phase_transition
 
 logger = logging.getLogger(__name__)
 
@@ -36,19 +36,19 @@ class PipelineOrchestrator:
             PhaseCode.KEYWORDS.value: tagging_runner,
             PhaseCode.CULLING.value: selection_runner,
         }
-        self.folder_path: Optional[str] = None
-        self.root_job_id: Optional[int] = None
-        self.current_phase: Optional[str] = None
-        self.current_phase_job_id: Optional[int] = None
+        self.folder_path: str | None = None
+        self.root_job_id: int | None = None
+        self.current_phase: str | None = None
+        self.current_phase_job_id: int | None = None
         self._active: bool = False
         self._lock = threading.Lock()
         self._phase_drain_ticks: int = 0
         self._resume_policy: bool = bool(config.get_config_value("pipeline.auto_resume_interrupted", False))
-        self._last_recovery_info: Dict = {}
+        self._last_recovery_info: dict = {}
         self._stall_detector = get_stall_detector()
         
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         if enable_background_tick:
             self._thread = threading.Thread(target=self._run_loop, daemon=True)
             self._thread.start()
@@ -161,7 +161,7 @@ class PipelineOrchestrator:
                 logger.error(f"PipelineOrchestrator tick error: {e}")
             self._stop_event.wait(2.0)
 
-    def start(self, folder_path: str, target_phases: List[str] = None, force_rerun: bool = False) -> Optional[int]:
+    def start(self, folder_path: str, target_phases: list[str] = None, force_rerun: bool = False) -> int | None:
         """Starts the pipeline for the given folder and persists phase plan. Returns root_job_id."""
         with self._lock:
             if self._active:
@@ -174,7 +174,7 @@ class PipelineOrchestrator:
             summary_by_code = {item["code"]: item for item in summary_list}
             phases_by_code = {p["code"]: p for p in db.get_all_phases(enabled_only=True)}
 
-            phase_plan: List[str] = []
+            phase_plan: list[str] = []
             indexing_in_plan = False
             for phase in self.PHASE_ORDER:
                 code = phase.value
@@ -336,9 +336,9 @@ class PipelineOrchestrator:
             if self.root_job_id:
                 db.update_job_status(self.root_job_id, "failed", str(e), runner_state="failed")
             logger.error("Pipeline: Failed to start phase %s: %s", next_phase, e)
-            return f"Failed to start {next_phase}: {str(e)}"
+            return f"Failed to start {next_phase}: {e!s}"
 
-    def on_tick(self) -> Optional[Dict]:
+    def on_tick(self) -> dict | None:
         """Checks if current runner finished and advances to the next phase."""
         with self._lock:
             if not self._active:
@@ -432,7 +432,7 @@ class PipelineOrchestrator:
             return "Pipeline wasn't running."
 
 
-    def recover_interrupted_jobs(self) -> Dict:
+    def recover_interrupted_jobs(self) -> dict:
         """Recover stale running jobs and optionally auto-resume the pipeline."""
         folder_to_resume = None
         resumed_job_id = None
@@ -487,7 +487,7 @@ class PipelineOrchestrator:
         with self._lock:
             return self._active
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         phases = db.get_job_phases(self.root_job_id) if self.root_job_id else []
         return {
             "active": self._active,

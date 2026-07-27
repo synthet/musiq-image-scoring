@@ -5,7 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from modules import db
-from modules.culling_analytics._common import STACK_MEMBER_CAP, images_folder_filter, safe_float
+from modules.culling_analytics._common import (
+    STACK_MEMBER_CAP,
+    images_folder_filter,
+    safe_float,
+)
 from modules.embedding_spaces import get_default_embedding_space_id
 
 

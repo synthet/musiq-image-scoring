@@ -32,8 +32,9 @@ import datetime
 import json
 import logging
 import threading
+from collections.abc import Iterable, Mapping, Sequence
 from contextlib import contextmanager
-from typing import Any, Iterable, Mapping, Optional, Sequence
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ OP_REMOVE = "remove"
 # Sentinel: a key absent from the "before" snapshot (so we emit ``add`` not ``replace``).
 _MISSING = object()
 
-_audit_ctx: contextvars.ContextVar[Optional[dict]] = contextvars.ContextVar(
+_audit_ctx: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
     "audit_ctx", default=None
 )
 
@@ -58,7 +59,7 @@ def audit_context(
     *,
     run_id: Any = None,
     phase_code: Any = None,
-    source: Optional[str] = None,
+    source: str | None = None,
 ):
     """Bind ambient audit attributes for the duration of the ``with`` block.
 
@@ -151,7 +152,7 @@ def _path(field: str) -> str:
     return "/" + _escape_token(field)
 
 
-def _coerce_phase(phase_code: Any) -> Optional[str]:
+def _coerce_phase(phase_code: Any) -> str | None:
     if phase_code is None:
         return None
     # Tolerate PhaseCode enums (``.value``) and plain strings.
@@ -194,7 +195,7 @@ def build_insert_patch(
 
 
 def build_update_patch(
-    before: Optional[Mapping[str, Any]],
+    before: Mapping[str, Any] | None,
     after: Mapping[str, Any],
     *,
     include_old: bool = True,
@@ -244,7 +245,7 @@ _INSERT_SQL = (
 )
 
 
-def _coerce_int(value: Any) -> Optional[int]:
+def _coerce_int(value: Any) -> int | None:
     if value is None:
         return None
     try:
@@ -260,7 +261,7 @@ def _resolve_params(
     patch: Sequence,
     run_id: Any,
     phase_code: Any,
-    source: Optional[str],
+    source: str | None,
 ) -> tuple:
     ctx = current_audit_context()
     eff_run = run_id if run_id is not None else ctx.get("run_id")
@@ -288,7 +289,7 @@ def record_audit(
     *,
     run_id: Any = None,
     phase_code: Any = None,
-    source: Optional[str] = None,
+    source: str | None = None,
     tx: Any = None,
 ) -> None:
     """Persist one audit record. No-op when disabled, non-Postgres, or empty patch.
@@ -322,7 +323,7 @@ def record_audit_batch(
     *,
     run_id: Any = None,
     phase_code: Any = None,
-    source: Optional[str] = None,
+    source: str | None = None,
 ) -> None:
     """Persist many audit records via a single ``execute_many``.
 

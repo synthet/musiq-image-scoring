@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import os
 import shutil
-from typing import Any, Callable, Dict, Iterator, List, Optional
+from collections.abc import Callable, Iterator
+from typing import Any
 
-from modules.engines.base import IClusteringEngine, ILiqeScorer, IScoringEngine, ITaggingEngine
+from modules.engines.base import (
+    IClusteringEngine,
+    ILiqeScorer,
+    IScoringEngine,
+    ITaggingEngine,
+)
 
 
 class MockScoringEngine(IScoringEngine):
@@ -21,9 +27,9 @@ class MockScoringEngine(IScoringEngine):
     def preprocess_image(
         self,
         file_path: str,
-        output_dir: Optional[str] = None,
-        resolution_override: Optional[int] = None,
-    ) -> Optional[str]:
+        output_dir: str | None = None,
+        resolution_override: int | None = None,
+    ) -> str | None:
         if not file_path or not os.path.isfile(file_path):
             return None
         if output_dir:
@@ -40,12 +46,12 @@ class MockScoringEngine(IScoringEngine):
     def run_all_models(
         self,
         image_path: str,
-        external_scores: Optional[Dict[str, Any]] = None,
+        external_scores: dict[str, Any] | None = None,
         logger: Callable[..., Any] = print,
         write_metadata: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         ext_scores = external_scores or {}
-        models: Dict[str, Any] = {}
+        models: dict[str, Any] = {}
         if "liqe" in ext_scores and isinstance(ext_scores["liqe"], dict):
             liqe = ext_scores["liqe"]
             models["liqe"] = {
@@ -73,16 +79,16 @@ class MockScoringEngine(IScoringEngine):
 
 
 class MockLiqeScorer(ILiqeScorer):
-    def predict(self, image_path: str) -> Dict[str, Any]:
+    def predict(self, image_path: str) -> dict[str, Any]:
         return {"score": 0.5, "status": "success"}
 
 
 class MockTaggingEngine(ITaggingEngine):
-    def __init__(self, keywords: Optional[List[str]] = None, caption: str = ""):
+    def __init__(self, keywords: list[str] | None = None, caption: str = ""):
         self._keywords = keywords or ["mock", "test"]
         self._caption = caption
 
-    def predict_keywords(self, image_path: str, custom_keywords: Optional[List[str]] = None) -> List[str]:
+    def predict_keywords(self, image_path: str, custom_keywords: list[str] | None = None) -> list[str]:
         if custom_keywords:
             return list(custom_keywords)[:3]
         return list(self._keywords)

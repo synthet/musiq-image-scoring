@@ -3,121 +3,25 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import math
-import os
-import platform
-import threading
-import time
-from datetime import date, datetime
-from decimal import Decimal
-from typing import Any, Dict, List, Literal, Optional
-from uuid import UUID
+from datetime import datetime
+from typing import Any
 
-from fastapi import APIRouter, Body, HTTPException, Query
-from fastapi.responses import FileResponse, Response, StreamingResponse
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from fastapi import APIRouter, HTTPException, Query
 
-from modules import config, db
-from modules.api import deps, state
+from modules import db
+from modules.api import deps
 from modules.api_helpers import (
     _decode_db_row_blobs,
-    _image_detail_for_hash_str,
-    _image_detail_for_uuid_str,
-    _image_detail_payload,
-    _image_neighbors_payload,
-    _images_list_payload,
-    _job_phases_for_run_display,
     _job_supports_execution_report,
-    _jobs_recent_json_default,
     _json_response_db,
-    _json_safe_metadata_row,
-    _merge_model_scores_into,
     _normalize_incident_row,
     _normalize_jobs_table_row,
-    _parse_json_object_column,
-    _parse_rating_filter,
-    _row_to_dict,
-    _synthetic_bird_species_job_phases,
 )
 from modules.api_models import (
-    AgentCullDeleteApprovedRequest,
-    AgentCullDiscoverRequest,
-    AgentCullPickStatusRequest,
-    AgentCullRecommendationIdsRequest,
-    AgentCullRunRequest,
     ApiResponse,
-    BirdSpeciesStartRequest,
-    ClusteringStartRequest,
-    ConfigResponse,
-    CullingAnalyticsResponse,
-    DiagnosticsResponse,
-    ExportRequest,
-    FindDuplicatesRequest,
-    GeocodeForwardRequest,
-    GeocodeReverseRequest,
-    HealPhaseRequest,
-    HealthResponse,
-    ImageUpdateRequest,
-    ImportRegisterRequest,
-    IpcBridgeRequest,
-    IpcBridgeResponse,
     LifecycleControlRequest,
-    MaintenanceStartRequest,
-    NeighborInfo,
-    OutlierInfo,
-    OutlierResponse,
-    PhaseDecisionResponse,
-    PipelineBackfillRequest,
-    PipelinePhaseControlRequest,
-    PipelineRestartFromStageRequest,
-    PipelineRunControlRequest,
-    PipelineStepRerunRequest,
-    PipelineSubmitRequest,
-    ScoringStartRequest,
-    SelectorRequest,
-    SingleImageRequest,
-    StatusResponse,
-    TaggingSingleRequest,
-    TaggingStartRequest,
-    TagPropagationRequest,
 )
-from modules.job_description import (
-    augment_queue_payload_for_audit,
-    build_bird_species_job_description,
-    build_clustering_job_description,
-    build_run_submit_description,
-    build_scoring_job_description,
-    build_tagging_job_description,
-    build_workflow_run_description,
-)
-from modules.job_dispatcher import JobDispatcher
-from modules.maintenance_job_display import (
-    build_default_maintenance_description,
-    maintenance_job_input_path,
-)
-from modules.phases_policy import explain_phase_run_decision
-from modules.pipeline_selector_composer import (
-    compose_selector_request,
-    serialize_queue_payload,
-    validate_and_preview,
-)
-from modules.run_manifest import (
-    REASON_SOURCE_FORCE_RUN,
-    REASON_SOURCE_LEGACY_API,
-    REASON_SOURCE_MAINTENANCE,
-    REASON_SOURCE_MANUAL_SUBMIT,
-    REASON_SOURCE_PIPELINE_SUBMIT,
-    REASON_SOURCE_RETRY,
-    attach_run_reason,
-    build_legacy_api_summary,
-    build_maintenance_summary,
-    build_manual_submit_summary,
-    build_retry_summary,
-)
-from modules.run_modes import CANONICAL_RUN_MODE, resolve_run_mode_flags
-from modules.selector_resolver import resolve_selectors
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +40,7 @@ def create_tasks_router() -> APIRouter:
 
     @router.get(
         "/tasks/active",
-        response_model=Dict[str, Any],
+        response_model=dict[str, Any],
         summary="Get active tasks (unified)",
         description="""
         Returns a unified view of active tasks, workers, and jobs in a single response.
@@ -370,11 +274,11 @@ def create_tasks_router() -> APIRouter:
     async def list_incidents(
         limit: int = Query(50, ge=1, le=500),
         offset: int = Query(0, ge=0),
-        folder_id: Optional[int] = None,
-        job_id: Optional[int] = None,
-        phase_code: Optional[str] = None,
-        kind: Optional[str] = None,
-        since: Optional[str] = Query(
+        folder_id: int | None = None,
+        job_id: int | None = None,
+        phase_code: str | None = None,
+        kind: str | None = None,
+        since: str | None = Query(
             None,
             description="ISO-8601 datetime; return rows with created_at >= since",
         ),
