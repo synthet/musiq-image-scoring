@@ -21,4 +21,5 @@ python3 -m pytest -q -p no:cacheprovider \
   tests/test_db_security.py \
   tests/test_scoring_runner.py \
   tests/test_utils_paths.py \
-  tests/test_xmp_sidecar.py
+  tests/test_xmp_sidecar.py \
+  tests/test_engine_orchestration.py

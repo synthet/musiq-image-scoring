@@ -81,7 +81,7 @@ The documented fast subset is green but unsuitable as a required gate:
 
 | Slice | Tests | Time | Deps |
 |-------|------:|-----:|------|
-| `scripts/ci/run_fast_smoke_tests.sh` | 116 | ~3 s | `requirements_ci.txt` |
+| `scripts/ci/run_fast_smoke_tests.sh` | 132 | ~3 s | `requirements_ci.txt` |
 | `-m "not gpu and not db and not ml and not firebird"` | 2147 passed, 290 skipped | ~13 min | Full ML stack |
 
 The broad subset runs in the coverage workflow instead. When you add a test file that guards a
