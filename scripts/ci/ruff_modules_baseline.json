@@ -1,6 +1,6 @@
 {
   "scope": "modules/",
-  "total_max": 1601,
+  "total_max": 388,
   "updated": "2026-07-26",
-  "note": "Ratchet ceiling after mechanical ruff --fix. CI fails when total findings exceed total_max. F821 must stay at 0."
+  "note": "Ratchet ceiling after mechanical ruff --fix, rebased onto master (incl. bird_detection). Measured with ruff==0.15.5. CI fails when total findings exceed total_max. F821 must stay at 0."
 }

@@ -36,7 +36,9 @@ jobs:
           python-version: '3.11'
 
       - name: Install ruff
-        run: pip install ruff
+        # Pin to match requirements/requirements_wsl_gpu.txt — unpinned latest
+        # (e.g. 0.16) reports a different finding total and breaks the ratchet.
+        run: pip install 'ruff==0.15.5'
 
       - name: Check for undefined names in modules/
         run: ruff check --select F821 --output-format=concise modules/
