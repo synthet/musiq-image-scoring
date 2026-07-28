@@ -10,12 +10,11 @@ Two operating modes (select with --only-needing-species):
     regardless of whether species classification has already run.
 
   Gap mode (--only-needing-species)
-    List only folders that still have at least one image that has a birds keyword
-    but lacks any 'species:*' keyword — i.e. classification is genuinely pending.
-    This matches analyzer GAP-I (see scripts/analysis/analyze_phase_status.py ::
-    check_bird_species / birds_no_species).  In this mode --chunk-size defaults
-    to 1 so every folder becomes its own queued job, keeping the queue granular
-    and resumable.
+    List only folders that still have at least one image that has a birds keyword,
+    lacks any 'species:*' keyword, and is not marked birds:species-exhausted —
+    i.e. classification is genuinely pending (see bird_species_eligibility).
+    In this mode --chunk-size defaults to 1 so every folder becomes its own queued
+    job, keeping the queue granular and resumable.
 
 Usage (WSL, project root, per CLAUDE.md):
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/FirebirdLinux/Firebird-5.0.0.1306-0-linux-x64/opt/firebird/lib
@@ -73,9 +72,8 @@ ORDER BY 1
 """
 
 # ── Gap SQL: folders with at least one image that needs species ID ────────────
-# Mirrors check_bird_species / birds_no_species in analyze_phase_status.py:
-# images that have a birds keyword AND have no 'species:*' keyword yet.
-# Firebird uses STARTING WITH for prefix matching (more efficient than LIKE).
+# Pending = birds keyword, no species:*, and not birds:species-exhausted
+# (see modules/bird_species_eligibility.py). PostgreSQL prefix via LIKE.
 
 _SQL_GAP_LIKE = """
 SELECT DISTINCT f.path
@@ -93,7 +91,14 @@ AND NOT EXISTS (
     FROM image_keywords ik2
     JOIN keywords_dim kd2 ON kd2.keyword_id = ik2.keyword_id
     WHERE ik2.image_id = i.id
-      AND kd2.keyword_norm STARTING WITH 'species:'
+      AND kd2.keyword_norm LIKE 'species:%'
+)
+AND NOT EXISTS (
+    SELECT 1
+    FROM image_keywords ik3
+    JOIN keywords_dim kd3 ON kd3.keyword_id = ik3.keyword_id
+    WHERE ik3.image_id = i.id
+      AND kd3.keyword_norm = 'birds:species-exhausted'
 )
 ORDER BY 1
 """
@@ -114,7 +119,14 @@ AND NOT EXISTS (
     FROM image_keywords ik2
     JOIN keywords_dim kd2 ON kd2.keyword_id = ik2.keyword_id
     WHERE ik2.image_id = i.id
-      AND kd2.keyword_norm STARTING WITH 'species:'
+      AND kd2.keyword_norm LIKE 'species:%'
+)
+AND NOT EXISTS (
+    SELECT 1
+    FROM image_keywords ik3
+    JOIN keywords_dim kd3 ON kd3.keyword_id = ik3.keyword_id
+    WHERE ik3.image_id = i.id
+      AND kd3.keyword_norm = 'birds:species-exhausted'
 )
 ORDER BY 1
 """

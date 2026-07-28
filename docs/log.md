@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-07-26] edit | Bird bbox backfill + sentinel semantics
+
+Documented `images.bird_bbox` NULL vs `{"detected": false}` sentinel, and detector-only backfill via `scripts/backfill_bird_bbox.py`, in [technical/BIRD_SPECIES_WALKTHROUGH.md](technical/BIRD_SPECIES_WALKTHROUGH.md) and migration `0033` docstring.
+
 ## [2026-07-23] create | CI gates and coverage baseline
 
 Added [testing/CI_GATES.md](testing/CI_GATES.md) (blocking vs advisory workflows, local reproduction) and [testing/COVERAGE_BASELINE.md](testing/COVERAGE_BASELINE.md); updated [testing/INDEX.md](testing/INDEX.md). Backs `backend-tests.yml` (fast pytest smoke + `api-contract` route parity) and the non-blocking `coverage-artifacts.yml`. Issues #196 / #195.

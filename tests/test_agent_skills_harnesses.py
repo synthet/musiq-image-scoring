@@ -38,6 +38,11 @@ def backlog_stage():
     return _load("backlog_stage")
 
 
+@pytest.fixture(scope="module")
+def release_bump():
+    return _load("release_bump")
+
+
 def test_parse_pytest_failures(test_and_fix):
     sample = """
 =========================== short test summary info ============================
@@ -128,3 +133,20 @@ def test_stage_options_complete(backlog_stage):
         "done",
     }
     assert set(backlog_stage.STAGE_OPTIONS) == expected
+
+
+def test_inspect_next_actions_needs_llm_and_dirty(release_bump):
+    clean = release_bump._inspect_next_actions(False, ["(clean)"])
+    assert any("overriding rubric" in a for a in clean)
+    assert not any(a.startswith("Dirty tree:") for a in clean)
+
+    llm = release_bump._inspect_next_actions(True, [" M modules/foo.py"])
+    assert any("Write Keep-a-Changelog bullets" in a for a in llm)
+    assert any(a.startswith("Dirty tree:") for a in llm)
+    assert llm[-1].startswith("Commit/push only")
+
+
+def test_git_status_is_dirty(release_bump):
+    assert not release_bump._git_status_is_dirty(["(clean)"])
+    assert not release_bump._git_status_is_dirty(["(git status unavailable)"])
+    assert release_bump._git_status_is_dirty([" M CHANGELOG.md"])

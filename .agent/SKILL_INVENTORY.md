@@ -36,7 +36,7 @@ Central list of **first-party** `SKILL.md` files in this repository for governan
 | subagent-review | `.cursor/skills/subagent-review/SKILL.md` | External Codex/Gemini review via subagent-orchestrator MCP | L2 | Yes | 2026-05-26 |
 | codebase-size-audit | `.cursor/skills/codebase-size-audit/SKILL.md` | Large-file / long-method read-only audit script + report | L1 | Yes | 2026-06-30 |
 | validate-implementation | `.cursor/skills/validate-implementation/SKILL.md` | Per-AC gate via compiled harness `scripts/agent_skills/validate_implementation.py` | L1 | Yes | 2026-07-19 |
-| release-bump | `.cursor/skills/release-bump/SKILL.md` | Semver + changelog via compiled harness `scripts/agent_skills/release_bump.py` | L1 | Yes | 2026-07-19 |
+| release-bump | `.cursor/skills/release-bump/SKILL.md` | Semver + changelog via compiled harness `scripts/agent_skills/release_bump.py`; LLM fills Unreleased when empty, dirty-tree gate | L1 | Yes | 2026-07-26 |
 | threat-modeling-agentic-tools | `.cursor/skills/threat-modeling-agentic-tools/SKILL.md` | MCP/hook/prompt-injection threat modeling | L1 | Yes | 2026-07-01 |
 | mcp-server-design | `.cursor/skills/mcp-server-design/SKILL.md` | Safe MCP server design patterns | L1 | Yes | 2026-07-01 |
 | eval | `.cursor/skills/eval/SKILL.md` | Task quality signals → agent memory feedback loop | L1 | Yes | 2026-07-01 |

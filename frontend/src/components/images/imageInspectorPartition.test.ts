@@ -69,6 +69,15 @@ describe('partitionScalars', () => {
     expect(keys(parts.scores)).toContain('clip_quality_v0_score')
     expect(keys(parts.unmapped)).not.toContain('clip_quality_v0_score')
   })
+
+  it('keeps bird_bbox out of unmapped (rendered by the preview overlay instead)', () => {
+    const row = {
+      ...sample,
+      bird_bbox: { x1: 1, y1: 2, x2: 3, y2: 4, conf: 0.9, img_w: 100, img_h: 80 },
+    } as ImageDetail
+    const parts = partitionScalars(row)
+    expect(keys(parts.unmapped)).not.toContain('bird_bbox')
+  })
 })
 
 describe('buildPathsTableEntries', () => {

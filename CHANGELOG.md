@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.14.0] - 2026-07-26
+
+### Added
+- **Bird detection crop for species ID**: Ultralytics YOLO (`synthet/bird-detect-v0`) localizes the bird before BioCLIP classification; persists `images.bird_bbox` (migration 0033) and falls open to the full image when detection is disabled or finds nothing.
+- **PipelineOrchestrator unit tests**: Phase-order / cancel / failure coverage with stubbed DB (`tests/test_engine_orchestration.py`); wired into CI smoke (#309).
+- **CI smoke expansion**: Larger fast-smoke slice (scoring_runner / utils_paths / xmp_sidecar) and optional-dep collection guards so the fast marker subset imports cleanly (#310).
+- **Ruff baseline ratchet**: `scripts/ci/check_ruff_baseline.py` plus mechanical `ruff --fix` on `modules/` (#308).
+
+### Fixed
+- **Bird detector contract**: Align weights (`bird_detect_v0.pt`), crop pad, `imgsz`/`max_det`, `area_frac`, RAW/full-resolution inference path, and EXIF orientation bake with `image-scoring-model`.
+- **backend-tests smoke gate exit 126**: Invoke the smoke script via `bash` and mark torch-heavy detector tests `ml` so CI no longer dies on a missing executable bit.
+- **bird-species typing**: Replace leftover `Optional` annotations with PEP 604 unions after the ruff pass removed the `typing` import.
+
+### Changed
+- **CI**: Pin ruff 0.15.5 and lower the modules baseline ceiling after master rebase; OKF frontmatter on `BIRD_SPECIES_WALKTHROUGH.md`.
+
 ## [8.13.2] - 2026-07-25
 
 ### Added

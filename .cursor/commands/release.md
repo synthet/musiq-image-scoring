@@ -12,8 +12,8 @@ python scripts/agent_skills/release_bump.py apply --level <major|minor|patch>
 ```
 
 - Skill: `release-bump` (`.cursor/skills/release-bump/SKILL.md`)
-- If `needs_llm_judgment` is true: classify changes from `git log` / diff, then pass `--level`.
-- Do **not** hand-edit `modules/version.py` / `CHANGELOG.md` unless the harness fails.
+- If `needs_llm_judgment` is true: classify `--level` from `git log` / diff, **write Keep-a-Changelog bullets under `## [Unreleased]` for committed work since the last version**, then `plan` / `apply`. Hand-editing Unreleased is the LLM slot (empty Unreleased otherwise becomes “Release housekeeping”). Do **not** hand-edit `modules/version.py`.
+- If `inspect.git_status` shows related dirty paths: include them in Unreleased **and** stage with the release commit, or leave them out of notes and tell the user — do not document uncommitted work as shipped.
 
 ## Before you start
 
