@@ -422,15 +422,19 @@ class BirdSpeciesRunner:
                 )
 
             bbox = getattr(self.classifier, "last_bbox", None)
-            if bbox is not None:
-                try:
-                    db.update_image_bird_bbox(int(row["id"]), bbox)
-                except Exception:
-                    logger.debug(
-                        "bird_species: bird_bbox persist failed for image_id=%s",
-                        row.get("id"),
-                        exc_info=True,
-                    )
+            try:
+                from modules.bird_detection import BBOX_NOT_DETECTED
+
+                db.update_image_bird_bbox(
+                    int(row["id"]),
+                    bbox if bbox is not None else BBOX_NOT_DETECTED,
+                )
+            except Exception:
+                logger.debug(
+                    "bird_species: bird_bbox persist failed for image_id=%s",
+                    row.get("id"),
+                    exc_info=True,
+                )
 
             if predictions:
                 existing_kw_str = (row.get("keywords") or "").strip()

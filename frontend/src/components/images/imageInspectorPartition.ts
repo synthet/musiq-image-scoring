@@ -9,6 +9,7 @@ export const INSPECTOR_SKIP_KEYS = new Set([
   'embeddings_present',
   'technical_failure_detection',
   'indexing_metadata',
+  'bird_bbox',
 ])
 
 /** All keys the inspector explicitly maps; anything else goes to `unmapped`. */

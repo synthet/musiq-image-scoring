@@ -49,7 +49,7 @@ python scripts/agent_skills/profile_skill_usage.py
 
 | Harness | Bootloader skill / command | Code | LLM remains for |
 |---------|----------------------------|------|-----------------|
-| Release bump | `release-bump`, `/release` | `scripts/agent_skills/release_bump.py` | Ambiguous Unreleased / git-history classification when `needs_llm_judgment` |
+| Release bump | `release-bump`, `/release` | `scripts/agent_skills/release_bump.py` | Ambiguous Unreleased / git-history classification when `needs_llm_judgment`; draft Unreleased bullets before `apply`; dirty-tree include/exclude call |
 | Validate implementation | `validate-implementation` | `scripts/agent_skills/validate_implementation.py` | Assigning Verified/Failed when evidence is not a clean command exit |
 | PR-ready hygiene | `/pr-ready` | `scripts/agent_skills/pr_ready_checks.py` | Summary / Motivation prose |
 | Verification before completion | `verification-before-completion` | `scripts/agent_skills/verification_before_completion.py` | Claim naming; interpreting incomplete output |
@@ -103,7 +103,7 @@ python scripts/agent_skills/wiki_scaffold.py lint
 
 ## Next compilation candidates
 
-1. **wsl-tf-python-runner** — already mostly command recipes; optional thin wrapper for venv + `LD_LIBRARY_PATH` only if agents still rediscover env setup.
+1. **wsl-tf-python-runner** — already mostly command recipes; optional thin wrapper for venv + `LD_LIBRARY_PATH` only if agents still rediscover env setup. **2026-07-26:** still not ready (no rediscovery evidence this session; enrich `release-bump` instead).
 2. **docs-wiki query** — keep LLM (retrieval + synthesis); no compile planned.
 
 ## Replay / measurement

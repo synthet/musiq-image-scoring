@@ -516,6 +516,38 @@ export interface ImagePhaseStatusRow {
   } | null
 }
 
+/**
+ * Bird detection box from `images.bird_bbox`, written by the `bird_species` phase
+ * or `scripts/backfill_bird_bbox.py`. Absolute pixel `xyxy` in EXIF-oriented space;
+ * `img_w`/`img_h` are the dimensions of the image the detector saw, so overlays must
+ * position by fraction rather than raw pixels.
+ */
+export interface BirdBoundingBox {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  conf: number
+  img_w: number
+  img_h: number
+  area_frac?: number
+}
+
+/**
+ * Sentinel written when the detector ran and found no bird.
+ * Distinct from `null` / missing, which means the column was never scanned.
+ */
+export interface BirdBboxNotDetected {
+  detected: false
+}
+
+export type BirdBboxValue = BirdBoundingBox | BirdBboxNotDetected
+
+/** True when `bird_bbox` is a drawable xyxy box (not a no-detection sentinel). */
+export function isBirdBoundingBox(bbox: BirdBboxValue | null | undefined): bbox is BirdBoundingBox {
+  return !!bbox && 'x1' in bbox
+}
+
 /** Payload from GET /api/images/{id}, by-uuid, or by-hash */
 export interface ImageDetail extends Image {
   file_paths?: string[] | null
@@ -525,6 +557,8 @@ export interface ImageDetail extends Image {
   /** Parsed `images.metadata` when valid JSON (indexing fingerprints). */
   indexing_metadata?: Record<string, unknown> | null
   technical_failure_detection?: TechnicalFailureDetection | null
+  /** Null when never scanned; `BirdBboxNotDetected` when scanned with no bird; else a box. */
+  bird_bbox?: BirdBboxValue | null
 }
 
 // ─── WebSocket events ────────────────────────────────────────────────────

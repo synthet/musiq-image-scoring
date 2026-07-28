@@ -15,6 +15,7 @@ import {
   formatScoreValue,
 } from '@/components/images/InspectorPrimitives'
 import { partitionScalars } from '@/components/images/imageInspectorPartition'
+import { BirdBoxPreview } from '@/components/images/BirdBoxPreview'
 import {
   CullingInspectorSection,
   ProvenanceInspectorSection,
@@ -26,6 +27,7 @@ import {
 import { statusLabel } from '@/components/ui/badge'
 import { PhaseStatusIcon, normalizeLegacyPhaseStatus } from '@/components/status/PhaseStatusIcon'
 import type { ImageDetail, ImagePhaseStatusRow, ModelScoreEntry } from '@/types/api'
+import { isBirdBoundingBox } from '@/types/api'
 
 function detailPreviewSrc(image: ImageDetail): string | null {
   const full = image.resolved_path || image.file_path
@@ -479,11 +481,7 @@ export function ImageInspectorPage() {
           <div className="w-full lg:w-[min(42%,520px)] shrink-0 lg:sticky lg:top-0 lg:self-start">
             <div className="rounded border border-[var(--color-border-muted)] bg-[var(--color-bg-preview)] min-h-[200px] max-h-[50vh] lg:max-h-[calc(100vh-8rem)] flex items-center justify-center p-2">
               {src ? (
-                <img
-                  src={src}
-                  alt={data.file_name}
-                  className="max-w-full max-h-[min(50vh,480px)] object-contain"
-                />
+                <BirdBoxPreview src={src} alt={data.file_name} bbox={data.bird_bbox} />
               ) : (
                 <span className="text-sm text-[var(--color-text-muted)]">No preview path</span>
               )}
@@ -567,6 +565,14 @@ export function ImageInspectorPage() {
                 modelScores={data.model_scores ?? {}}
                 visibleModels={visibleModels}
               />
+              {isBirdBoundingBox(data.bird_bbox) && (
+                <KeyValueTable
+                  entries={[['bird_detection', data.bird_bbox.conf]]}
+                  dense
+                  labelFor={() => 'Bird detection'}
+                  renderValue={(_, v) => formatScoreValue(v)}
+                />
+              )}
             </CollapsibleInspectorSection>
 
             <CollapsibleInspectorSection

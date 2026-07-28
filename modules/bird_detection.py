@@ -44,6 +44,11 @@ _DEFAULT_PADDING = 0.10
 _DEFAULT_IMGSZ = 640
 _DEFAULT_MAX_DET = 10
 
+#: Stored in ``images.bird_bbox`` when the detector ran and found no bird, so
+#: backfills and reruns can tell "no bird here" apart from "never scanned" (NULL).
+#: Deliberately omits ``img_w``/``img_h`` so UI overlay checks treat it as undrawable.
+BBOX_NOT_DETECTED = {"detected": False}
+
 
 def select_best_box(boxes: List[dict]) -> Optional[dict]:
     """Return the highest-confidence box from a list of ``{"xyxy", "conf"}`` dicts.

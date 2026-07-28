@@ -298,26 +298,55 @@ def apply_plan(plan: ReleasePlan) -> None:
     )
 
 
+def _git_status_is_dirty(lines: list[str]) -> bool:
+    """True when short status lists paths (not clean / unavailable)."""
+    skip = {"(clean)", "(git status unavailable)", ""}
+    return any(line.strip() and line.strip() not in skip for line in lines)
+
+
+def _inspect_next_actions(needs_llm: bool, git_status: list[str]) -> list[str]:
+    actions = [
+        "Review `plan` output, then `apply --level …` (no commit/push)",
+        "Commit/push only when the user explicitly asks",
+    ]
+    if needs_llm:
+        actions = [
+            "needs_llm_judgment: classify --level from git log since last version",
+            "Write Keep-a-Changelog bullets under ## [Unreleased] for "
+            "committed work (else apply promotes 'Release housekeeping')",
+            *actions,
+        ]
+    else:
+        actions = [
+            "If overriding rubric: `plan --level …` then `apply --level …`",
+            *actions,
+        ]
+    if _git_status_is_dirty(git_status):
+        # Before the human-gate line.
+        actions.insert(
+            -1,
+            "Dirty tree: include related WIP in Unreleased only if staging "
+            "it with the release; else omit from notes and tell the user",
+        )
+    return actions
+
+
 def cmd_inspect(_: argparse.Namespace) -> int:
     current = _read_version()
     changelog = CHANGELOG_PATH.read_text(encoding="utf-8")
     bucket = _parse_unreleased(changelog)
     level, rationale, needs_llm = _classify(bucket)
+    git_status = _git_short_status().splitlines()
     payload = {
         "current_version": current,
         "suggested_level": level,
         "rationale": rationale,
         "needs_llm_judgment": needs_llm,
         "unreleased": asdict(bucket),
-        "git_status": _git_short_status().splitlines(),
+        "git_status": git_status,
         "version_path": str(VERSION_PATH.relative_to(ROOT)),
         "changelog_path": str(CHANGELOG_PATH.relative_to(ROOT)),
-        "next_actions": [
-            "If needs_llm_judgment: classify git log since last tag, then "
-            "`plan --level …`",
-            "Review `plan` output, then `apply --level …` (no commit/push)",
-            "Commit/push only when the user explicitly asks",
-        ],
+        "next_actions": _inspect_next_actions(needs_llm, git_status),
     }
     print(json.dumps(payload, indent=2))
     return 0
