@@ -1,0 +1,14 @@
+{
+  "experiment_id": "E2",
+  "backbone": "convnext_tiny",
+  "fine_tune": "last_stage",
+  "input": "P0",
+  "loss_coeffs": {
+    "teacher": 1.0,
+    "rank": 0.0,
+    "human": 0.0,
+    "consistency": 0.1
+  },
+  "seed": 42,
+  "notes": "Primary production reference screen; ranking/human are named ablations."
+}

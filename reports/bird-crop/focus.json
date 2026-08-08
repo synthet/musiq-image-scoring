@@ -1,0 +1,176 @@
+{
+  "config": {
+    "n_images": 236,
+    "long_edge": 512,
+    "work_long_edge": 3000,
+    "crop_variant": "crop",
+    "measures": [
+      "laplacian_variance",
+      "tenengrad",
+      "dog_energy",
+      "haar_energy",
+      "local_entropy",
+      "canny_edge_density"
+    ],
+    "noise_fooled": [
+      "laplacian_variance",
+      "tenengrad",
+      "dog_energy",
+      "haar_energy",
+      "canny_edge_density"
+    ],
+    "tracks_blur": [
+      "laplacian_variance",
+      "tenengrad",
+      "dog_energy",
+      "haar_energy",
+      "canny_edge_density"
+    ],
+    "folders": "all",
+    "image_ids_file": "reports/bird-crop/study_image_ids.txt",
+    "n_pinned_ids": 236,
+    "n_af_available": 216,
+    "n_af_agree": 158,
+    "n_af_disagree": 58
+  },
+  "af_coverage": {
+    "NIKON Z 8": {
+      "n": 127,
+      "af_area": 115,
+      "focus_distance": 127
+    },
+    "NIKON Z 6_2": {
+      "n": 101,
+      "af_area": 101,
+      "focus_distance": 101
+    },
+    "NIKON D300": {
+      "n": 8,
+      "af_area": 0,
+      "focus_distance": 8
+    }
+  },
+  "arm_a_predicts_af_disagreement": {
+    "crop/laplacian_variance": {
+      "auc": 0.4772,
+      "median_af_agree": 779.593484,
+      "median_af_disagree": 789.058747,
+      "noise_fooled": true
+    },
+    "crop/tenengrad": {
+      "auc": 0.465,
+      "median_af_agree": 12394.239674,
+      "median_af_disagree": 15015.337353,
+      "noise_fooled": true
+    },
+    "crop/dog_energy": {
+      "auc": 0.5012,
+      "median_af_agree": 3.759313,
+      "median_af_disagree": 3.69062,
+      "noise_fooled": true
+    },
+    "crop/haar_energy": {
+      "auc": 0.5295,
+      "median_af_agree": 14.518955,
+      "median_af_disagree": 13.285987,
+      "noise_fooled": true
+    },
+    "crop/local_entropy": {
+      "auc": 0.6082,
+      "median_af_agree": 7.402239,
+      "median_af_disagree": 7.070281,
+      "noise_fooled": false
+    },
+    "crop/canny_edge_density": {
+      "auc": 0.508,
+      "median_af_agree": 0.110822,
+      "median_af_disagree": 0.114327,
+      "noise_fooled": true
+    },
+    "full/laplacian_variance": {
+      "auc": 0.4646,
+      "median_af_agree": 1477.033499,
+      "median_af_disagree": 1859.886672,
+      "noise_fooled": true
+    },
+    "full/tenengrad": {
+      "auc": 0.4983,
+      "median_af_agree": 17773.417877,
+      "median_af_disagree": 15835.170506,
+      "noise_fooled": true
+    },
+    "full/dog_energy": {
+      "auc": 0.5404,
+      "median_af_agree": 4.513282,
+      "median_af_disagree": 4.023285,
+      "noise_fooled": true
+    },
+    "full/haar_energy": {
+      "auc": 0.528,
+      "median_af_agree": 15.780098,
+      "median_af_disagree": 15.25143,
+      "noise_fooled": true
+    },
+    "full/local_entropy": {
+      "auc": 0.5198,
+      "median_af_agree": 7.253756,
+      "median_af_disagree": 7.230852,
+      "noise_fooled": false
+    },
+    "full/canny_edge_density": {
+      "auc": 0.5614,
+      "median_af_agree": 0.144835,
+      "median_af_disagree": 0.11648,
+      "noise_fooled": true
+    },
+    "_crop_vs_full": {
+      "delta_abs_auc_crop_minus_full": {
+        "laplacian_variance": -0.0126,
+        "tenengrad": 0.0333,
+        "dog_energy": -0.0392,
+        "haar_energy": 0.0015,
+        "local_entropy": 0.0884,
+        "canny_edge_density": -0.0534
+      },
+      "crop_wins": 3,
+      "n_measures": 6
+    }
+  },
+  "arm_b_rule_proposal": {
+    "available": true,
+    "rule": "flag when crop laplacian_variance <= p10 AND the AF centre falls outside the bird box",
+    "threshold_laplacian_variance_p10": 327.7379,
+    "n_with_af": 216,
+    "n_soft_crop": 22,
+    "n_af_outside_bird": 58,
+    "n_flagged_by_both": 7,
+    "flag_rate": 0.0324,
+    "flagged_image_ids": [
+      41937,
+      41938,
+      42743,
+      46233,
+      66476,
+      146835,
+      153651
+    ],
+    "vs_labels": {
+      "available": true,
+      "ground_truth_kind": "agent-derived",
+      "ground_truth_sidecar": "label_set_judges-57c86c08-6a1e-41d0-88b7-bf9d5e0a2f59.json",
+      "positive_class": "reject",
+      "n_eligible": 216,
+      "n_flagged": 7,
+      "n_reject_eligible": 64,
+      "base_reject_rate": 0.2963,
+      "true_positives": 1,
+      "false_positives": 6,
+      "false_negatives": 63,
+      "precision_vs_reject": 0.1429,
+      "recall_vs_reject": 0.0156,
+      "precision_lift_vs_base": 0.4821,
+      "note": "Agent-derived labels are not human ground truth; treat lift as directional only. Do not productionize on this alone."
+    },
+    "validation": "Scored against agent-derived labels (reject = positive): precision 0.1429, recall 0.0156, lift vs base reject rate 0.4821. Agent-derived labels are not human ground truth; treat lift as directional only. Do not productionize on this alone."
+  }
+}

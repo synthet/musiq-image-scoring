@@ -1,12 +1,14 @@
 import numpy as np
 import tempfile
 import os
+from pathlib import Path
 from PIL import Image
 
 from modules.technical_failures.classical_metrics import compute_classical_metrics
 from modules.technical_failures.detector import detect_technical_failures
 from modules.technical_failures.schemas import (
     PRIMARY_REJECT_REASONS,
+    TECHNICAL_FAILURE_ALL_KEYS,
     TECHNICAL_FAILURE_METRIC_KEYS,
     TechnicalFailurePayload,
 )
@@ -51,7 +53,7 @@ def test_payload_detection_dict_shape():
     det = payload.to_detection_dict()
     assert det["technical_failure_score"] == 42.0
     assert det["primary_reject_reason"] == "blur"
-    assert set(det["technical_failures"].keys()) == set(TECHNICAL_FAILURE_METRIC_KEYS)
+    assert set(det["technical_failures"].keys()) == set(TECHNICAL_FAILURE_ALL_KEYS)
     assert set(PRIMARY_REJECT_REASONS) >= set(TECHNICAL_FAILURE_METRIC_KEYS) | {"none"}
 
 
@@ -69,3 +71,45 @@ def test_calibration_and_detector():
     finally:
         if os.path.exists(path):
             os.remove(path)
+
+
+def test_persisted_metric_keys_match_the_insert_placeholders():
+    """`TECHNICAL_FAILURE_METRIC_KEYS` is a schema contract, not a free list.
+
+    `db_legacy._write_image_technical_failures` builds its row from this tuple
+    against a hand-written INSERT with a fixed placeholder count, and swallows
+    failures with a warning. Growing the tuple without a migration therefore
+    stops persistence *silently*. Adding `noise` to the payload did exactly this
+    before it was split into TECHNICAL_FAILURE_EXTRA_KEYS.
+    """
+    import re
+
+    from modules.technical_failures.schemas import (
+        TECHNICAL_FAILURE_ALL_KEYS,
+        TECHNICAL_FAILURE_EXTRA_KEYS,
+        TECHNICAL_FAILURE_METRIC_KEYS,
+    )
+
+    source = Path("modules/db_legacy.py").read_text(encoding="utf-8")
+    insert = source.split("INSERT INTO image_technical_failures", 1)[1][:600]
+    values = re.search(r"VALUES \(([^)]*)\)", insert).group(1)
+    placeholders = values.count("%s")
+
+    # image_id + technical_failure_score + primary_reject_reason + the metrics.
+    assert placeholders == 3 + len(TECHNICAL_FAILURE_METRIC_KEYS), (
+        f"INSERT takes {placeholders} placeholders but "
+        f"{3 + len(TECHNICAL_FAILURE_METRIC_KEYS)} values would be supplied"
+    )
+    assert set(TECHNICAL_FAILURE_EXTRA_KEYS).isdisjoint(TECHNICAL_FAILURE_METRIC_KEYS)
+    assert set(TECHNICAL_FAILURE_ALL_KEYS) == set(TECHNICAL_FAILURE_METRIC_KEYS) | set(
+        TECHNICAL_FAILURE_EXTRA_KEYS
+    )
+
+
+def test_noise_is_reported_in_the_payload():
+    """Noise is computed and surfaced even though it is not persisted."""
+    from modules.technical_failures.schemas import TechnicalFailurePayload
+
+    payload = TechnicalFailurePayload(blur=0.2, noise=0.4)
+
+    assert payload.technical_failures_dict()["noise"] == 0.4

@@ -8,7 +8,10 @@ def calibrate_technical_failure_score(metrics: dict) -> float:
         "overexposed": 80.0,
         "underexposed": 80.0,
         "highlight_clipping": 90.0,
-        "shadow_crushing": 70.0
+        "shadow_crushing": 70.0,
+        # Below blur: heavy grain degrades an image but rarely ruins it outright,
+        # and it is often a deliberate consequence of getting the shot at all.
+        "noise": 60.0,
     }
     
     max_score = 0.0
@@ -21,7 +24,7 @@ def calibrate_technical_failure_score(metrics: dict) -> float:
 def determine_primary_reject_reason(metrics: dict, threshold: float = 0.3) -> str:
     """
     Determines the primary reject reason based on severity thresholds.
-    Tie-break priority (highest to lowest): blur > overexposed > underexposed > highlight_clipping > shadow_crushing
+    Tie-break priority (highest to lowest): blur > overexposed > underexposed > highlight_clipping > shadow_crushing > noise
     """
     # Priority order
     priorities = [
@@ -29,7 +32,8 @@ def determine_primary_reject_reason(metrics: dict, threshold: float = 0.3) -> st
         "overexposed",
         "underexposed",
         "highlight_clipping",
-        "shadow_crushing"
+        "shadow_crushing",
+        "noise",
     ]
     
     # Return the first metric that exceeds the threshold (they are checked in priority order)

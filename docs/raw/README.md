@@ -21,3 +21,6 @@ Drop articles, papers, PDFs, images, and other reference material here. Use `/wi
 | [codebase-size-audit-2026-07-01-backend.json](codebase-size-audit-2026-07-01-backend.json) | Backend LoC audit machine output (2026-07-01) |
 | [codebase-size-audit-2026-07-01-gallery.json](codebase-size-audit-2026-07-01-gallery.json) | Gallery LoC audit machine output (2026-07-01) |
 | [picked-advisory-forensics-2026-06-21.json](picked-advisory-forensics-2026-06-21.json) | Agent cull picked-advisory forensics |
+| [2026-08-05-bird-crop-closeout-cursor.md](2026-08-05-bird-crop-closeout-cursor.md) | Cursor bird-crop study close-out session scratch (2026-08-05) |
+| [2026-08-05-student-scorer-e2-cursor.md](2026-08-05-student-scorer-e2-cursor.md) | Cursor student-scorer E2 session scratch (2026-08-05) |
+| [2026-08-01-student-scorer-e2-claude.md](2026-08-01-student-scorer-e2-claude.md) | Claude E2 P0 render → train session scratch (2026-08-01→05) |

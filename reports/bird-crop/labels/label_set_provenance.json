@@ -1,0 +1,17 @@
+{
+  "folders": "all",
+  "per_tercile": 18,
+  "burst_size_range": [
+    3,
+    8
+  ],
+  "gap_seconds": 2.0,
+  "seed": 20260729,
+  "n_bursts": 54,
+  "n_images": 236,
+  "images_per_tercile": {
+    "1": 80,
+    "2": 81,
+    "3": 75
+  }
+}

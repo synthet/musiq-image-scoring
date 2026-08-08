@@ -8,6 +8,7 @@ numpy / dict structures so experiments stay decoupled from the DB layer.
 from __future__ import annotations
 
 import logging
+import os
 
 import numpy as np
 
@@ -17,7 +18,33 @@ from modules.embedding_spaces import get_embedding_space_id
 
 logger = logging.getLogger("clip_culling.data")
 
-FOLDERS = [62, 44, 45, 676]
+DEFAULT_FOLDERS = [62, 44, 45, 676]
+
+
+def _folders_from_env() -> list[int]:
+    """Folder scope for every read here, overridable via ``CLIP_CULLING_FOLDERS``.
+
+    The default is the corpus seeded into E2E. The override exists because the
+    bird-crop study's population is pinned to a human-labelled set that spans 34
+    folders; without it the eval would filter those images out and silently
+    evaluate nothing.
+    """
+    raw = os.environ.get("CLIP_CULLING_FOLDERS", "").strip()
+    if not raw:
+        return list(DEFAULT_FOLDERS)
+    try:
+        folders = sorted({int(x) for x in raw.split(",") if x.strip()})
+    except ValueError as exc:
+        raise ValueError(
+            f"CLIP_CULLING_FOLDERS={raw!r} is not a comma-separated list of ints ({exc})"
+        ) from exc
+    if not folders:
+        raise ValueError("CLIP_CULLING_FOLDERS is set but empty; unset it to use the default.")
+    logger.info("Folder scope overridden by CLIP_CULLING_FOLDERS: %d folder(s)", len(folders))
+    return folders
+
+
+FOLDERS = _folders_from_env()
 _FCSV = ",".join(str(f) for f in FOLDERS)
 
 

@@ -90,6 +90,13 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | [reference/models/MODEL_WEIGHTS.md](reference/models/MODEL_WEIGHTS.md) | Current model weights and scoring logic. |
 | [MODEL_RECOMMENDATIONS_PIPELINES.md](MODEL_RECOMMENDATIONS_PIPELINES.md) | Canonical pipeline model roadmap (ARNIQA, DINOv2, SigLIP2, RAM++; CLIP/OpenCLIP alternate) for scoring, culling, keywords. |
 | [planning/models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md](planning/models/IQA_MODEL_STACK_UPDATE_PROPOSAL.md) | Planned model stack changes. |
+| [research/STUDENT_SCORER_STUDY.md](research/STUDENT_SCORER_STUDY.md) | Ensemble → single multi-head student research program. |
+| [research/STUDENT_SCORER_PROTOCOL.md](research/STUDENT_SCORER_PROTOCOL.md) | Locked protocol / gates / commands for the student scorer. |
+| [research/STUDENT_SCORER_RESULTS.md](research/STUDENT_SCORER_RESULTS.md) | Append-only experiment results. |
+| [research/STUDENT_SCORER_MODEL_CARD.md](research/STUDENT_SCORER_MODEL_CARD.md) | Model card template for a shadow-ready checkpoint. |
+| [research/INDEX.md](research/INDEX.md) | Research index — active programs, protocols, results, session records. |
+| [research/SESSION_STUDENT_SCORER_E2_2026-08-05.md](research/SESSION_STUDENT_SCORER_E2_2026-08-05.md) | Session record — E2 P0 render and ConvNeXt train (2026-08-05 pause). |
+| [reports/RESEARCH_SESSIONS_2026-08-05.md](reports/RESEARCH_SESSIONS_2026-08-05.md) | Hub — bird-crop (#317) + student-scorer E2 (#323) sessions. |
 
 ## Embeddings
 
@@ -167,6 +174,7 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 | Page | Purpose |
 |---|---|
 | [reports/INDEX.md](reports/INDEX.md) | Reports index. |
+| [reports/RESEARCH_SESSIONS_2026-08-05.md](reports/RESEARCH_SESSIONS_2026-08-05.md) | Router for bird-crop (#317) and student-scorer E2 (#323) sessions paused 2026-08-05. |
 | [reports/PICKED_ADVISORY_GAP_195193_2026-06-21.md](reports/PICKED_ADVISORY_GAP_195193_2026-06-21.md) | Agent cull picked-image advisory gap — forensics and strict_v2 fix. |
 | [reports/RUN_ORCHESTRATION_AUDIT_2026-04-17.md](reports/RUN_ORCHESTRATION_AUDIT_2026-04-17.md) | Run orchestration audit. |
 | [reports/CODE_REVIEW_2026-04-15.md](reports/CODE_REVIEW_2026-04-15.md) | Code review report. |

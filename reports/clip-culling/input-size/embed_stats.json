@@ -1,0 +1,74 @@
+[
+  {
+    "model": "blip",
+    "source": "file",
+    "long_edge": 224,
+    "skipped": true
+  },
+  {
+    "model": "blip",
+    "source": "file",
+    "long_edge": 384,
+    "skipped": true
+  },
+  {
+    "model": "blip",
+    "source": "file",
+    "long_edge": 512,
+    "skipped": true
+  },
+  {
+    "model": "blip",
+    "source": "crop",
+    "long_edge": 224,
+    "skipped": true
+  },
+  {
+    "model": "blip",
+    "source": "crop",
+    "long_edge": 384,
+    "skipped": true
+  },
+  {
+    "model": "blip",
+    "source": "crop",
+    "long_edge": 512,
+    "skipped": true
+  },
+  {
+    "model": "blip",
+    "source": "croppad25",
+    "long_edge": 224,
+    "skipped": true
+  },
+  {
+    "model": "blip",
+    "source": "croppad25",
+    "long_edge": 384,
+    "skipped": true
+  },
+  {
+    "model": "blip",
+    "source": "croppad25",
+    "long_edge": 512,
+    "skipped": true
+  },
+  {
+    "model": "blip",
+    "source": "croppad50",
+    "long_edge": 224,
+    "skipped": true
+  },
+  {
+    "model": "blip",
+    "source": "croppad50",
+    "long_edge": 384,
+    "skipped": true
+  },
+  {
+    "model": "blip",
+    "source": "croppad50",
+    "long_edge": 512,
+    "skipped": true
+  }
+]

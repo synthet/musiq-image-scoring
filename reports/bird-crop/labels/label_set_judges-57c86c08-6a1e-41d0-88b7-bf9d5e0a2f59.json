@@ -1,0 +1,2955 @@
+{
+  "ground_truth_kind": "agent-derived",
+  "note": "Verdicts produced by CLI vision-LLM judges, not a human labeller. Any claim of non-circular ground truth must be qualified accordingly.",
+  "harness": "run-bird-crop-label.ps1 + merge-bird-crop-verdicts.ps1",
+  "repo": "image-scoring-skills",
+  "persona": "prompts/burst-judge.md",
+  "timestamp": "2026-08-04T02:32:12Z",
+  "judges": {
+    "antigravity": {
+      "files": [
+        "antigravity-c09-cb927bb8-787d-40bc-b747-e32f215d4c8c.md",
+        "antigravity-c08-6d80708f-841f-4f6b-8f2e-08d14654c71e.md",
+        "antigravity-c07-93d02944-5577-4e46-9399-8bb80055b11a.md",
+        "antigravity-c06-bf5b7866-5cf6-41c1-8813-2a38fa212896.md",
+        "antigravity-c05-59031e85-48a5-4166-9634-2f96ea82b926.md",
+        "antigravity-c04-f09f9703-b222-49d9-8814-54b8023b6edf.md",
+        "antigravity-c03-faacb027-8911-4bb5-a474-a2df06e95280.md",
+        "antigravity-c02-d2922f56-95d3-42ab-9857-df210a8252a5.md",
+        "antigravity-c01-18a9d3a9-c705-497f-8d31-b6b5defebc25.md",
+        "antigravity-c01-9109fb01-227d-44e4-a411-2055875f29db.md",
+        "antigravity-c01-be8cb697-35d5-49e6-853a-c9f676047f5c.md",
+        "antigravity-c09-a59a7276-6fd2-4e5d-98d9-204c71a5be28.md",
+        "antigravity-c08-7fa2c714-80d0-4dd5-b41a-d1d7bb0531bd.md",
+        "antigravity-c07-c765cbed-82c3-46a6-a3f4-fa898fe81db4.md",
+        "antigravity-c06-3055064c-fcee-42fc-be22-c69d9c393036.md",
+        "antigravity-c05-659e84fc-6a3b-4930-9b91-73489d8e1a0b.md",
+        "antigravity-c04-6f33359c-31ff-4cd2-b1b9-fcddb93c02f9.md",
+        "antigravity-c03-d119eb86-b059-4b31-b11a-19781933c741.md",
+        "antigravity-c02-60003b03-5de3-4459-802d-2765fe941347.md",
+        "antigravity-c01-876c69e7-7391-49b1-9b2a-a82123f80a1e.md",
+        "antigravity-c09-74d6e170-5ea7-4427-bdb6-31c1ae3538d2.md",
+        "antigravity-c08-d53df1eb-0719-44f7-bff7-f967559c2373.md",
+        "antigravity-c07-cdf4c61a-cd1c-4ae6-a383-ed4952777dfe.md",
+        "antigravity-c06-561c88eb-37f0-41ba-8adf-74a4108727c8.md",
+        "antigravity-c05-98da6654-3001-47e7-8053-451c6ea223f6.md",
+        "antigravity-c04-d6bdc1ef-8c57-486b-ab09-cfc6318ff074.md",
+        "antigravity-c03-9c9b0a86-7c1e-4f5f-9282-37e39c74f705.md",
+        "antigravity-c02-d32e9c03-ea5b-4a31-b9d9-fde9317e3ca6.md",
+        "antigravity-c01-88ab8c1a-db2f-441e-8d54-bf2e9308b3db.md",
+        "antigravity-c01-857829c8-959e-4a3a-ade8-0644d3b1c205.md"
+      ],
+      "burstsAccepted": 54,
+      "burstsTotal": 54,
+      "coverage": 1.0,
+      "weight": 1.0,
+      "gate": "ok",
+      "missingBursts": [],
+      "parseProblems": [],
+      "rejectedBlocks": []
+    },
+    "codex": {
+      "files": [
+        "codex-c09-e84a4f77-ea9e-49d0-93d7-0ccdee75555a.md",
+        "codex-c08-83455d50-65b7-459e-a1c6-e2ca7941b79c.md",
+        "codex-c07-cc37faad-f534-4af7-9d43-0cd4dfa14446.md",
+        "codex-c06-9b848cd1-8169-45fd-b68f-d9da502009f2.md",
+        "codex-c05-896a512a-66ea-4f5d-b128-1f8fb6daf321.md",
+        "codex-c04-cf2de36f-33c3-49b1-a251-713896b7d0f8.md",
+        "codex-c03-080526e3-c616-4362-b71c-0033d5dbcab3.md",
+        "codex-c02-e1b828bc-9d4f-4080-b63a-217b8a6a8f5c.md",
+        "codex-c01-b63531ea-3bf0-4b2e-9991-3cb979ecd39c.md",
+        "codex-c01-4aadfbb5-b7cb-4e02-8a0f-e2f6334ef393.md",
+        "codex-c01-508e35b1-f850-4c9e-91d5-682b14bfd035.md",
+        "codex-c01-56917927-d32b-4961-b1ed-d8f3093f98c5.md",
+        "codex-c01-17397556-3035-4ce7-a684-72fbac64bb3a.md",
+        "codex-c01-8103074d-0c19-499d-87f5-5f62f191fb9c.md",
+        "codex-c01-2259dcb6-133e-4f4d-be86-9d5e0857d45a.md",
+        "codex-c09-5178a048-ba8c-4ee8-ab6d-71bad5881691.md",
+        "codex-c08-344e2cdb-7556-4afc-b979-6a311e60bc91.md",
+        "codex-c07-52e3ba3b-7a64-4c70-b589-f2ece9107dbd.md",
+        "codex-c09-31e0c86e-4b7b-49dd-8bfc-21848f589821.md",
+        "codex-c06-2e27c3a4-0aa7-4e10-bc4f-d01e632110ef.md",
+        "codex-c08-8035420f-ed9e-4f30-84aa-c8c7134cd807.md",
+        "codex-c05-11291f2d-65e8-46bf-895f-02ad48bdd597.md",
+        "codex-c04-1a97d63f-8852-4958-a4bd-60330779b305.md",
+        "codex-c07-9fb65580-1310-47d9-84be-47583bb8e87f.md",
+        "codex-c03-fdf0e47a-955a-4e49-9a2e-02b5eee2a413.md",
+        "codex-c06-00c470e7-9a68-4410-bfa4-f16b64ed6c40.md",
+        "codex-c02-1861b3a7-4669-450f-99a4-dafcbfa48fd4.md",
+        "codex-c05-0e98a729-3ba5-4846-bdf2-3537f47e4204.md",
+        "codex-c04-a1887475-c3f4-4fe7-a1a6-9426f6b01369.md",
+        "codex-c03-f621d131-25bb-4b38-bb0d-615e484d19e8.md",
+        "codex-c01-8c92ce13-0705-40ed-9a9d-a03367105fbf.md",
+        "codex-c02-00af4e54-78f0-4fa2-8296-a3ff7064a578.md",
+        "codex-c01-ab6d81c2-753e-422e-b00d-ff9e371197ab.md",
+        "codex-c01-e39e2f0f-a47c-4ce2-b307-6704b88f82d8.md",
+        "codex-c01-00ca4057-1b53-4833-b55e-8f48e4ccd1bd.md"
+      ],
+      "burstsAccepted": 54,
+      "burstsTotal": 54,
+      "coverage": 1.0,
+      "weight": 0.0,
+      "gate": "low-trust: reported a missing or unreadable contact sheet",
+      "missingBursts": [],
+      "parseProblems": [
+        "codex-c09-5178a048-ba8c-4ee8-ab6d-71bad5881691.md: burst 7765: duplicate block, kept first",
+        "codex-c09-5178a048-ba8c-4ee8-ab6d-71bad5881691.md: burst 7790: duplicate block, kept first",
+        "codex-c09-5178a048-ba8c-4ee8-ab6d-71bad5881691.md: burst 7808: duplicate block, kept first",
+        "codex-c09-5178a048-ba8c-4ee8-ab6d-71bad5881691.md: burst 7877: duplicate block, kept first",
+        "codex-c09-5178a048-ba8c-4ee8-ab6d-71bad5881691.md: burst 8060: duplicate block, kept first",
+        "codex-c09-5178a048-ba8c-4ee8-ab6d-71bad5881691.md: burst 8067: duplicate block, kept first",
+        "codex-c08-344e2cdb-7556-4afc-b979-6a311e60bc91.md: burst 7633: duplicate block, kept first",
+        "codex-c08-344e2cdb-7556-4afc-b979-6a311e60bc91.md: burst 7671: duplicate block, kept first",
+        "codex-c08-344e2cdb-7556-4afc-b979-6a311e60bc91.md: burst 7708: duplicate block, kept first",
+        "codex-c08-344e2cdb-7556-4afc-b979-6a311e60bc91.md: burst 7727: duplicate block, kept first",
+        "codex-c08-344e2cdb-7556-4afc-b979-6a311e60bc91.md: burst 7756: duplicate block, kept first",
+        "codex-c08-344e2cdb-7556-4afc-b979-6a311e60bc91.md: burst 7764: duplicate block, kept first",
+        "codex-c07-52e3ba3b-7a64-4c70-b589-f2ece9107dbd.md: burst 6994: duplicate block, kept first",
+        "codex-c07-52e3ba3b-7a64-4c70-b589-f2ece9107dbd.md: burst 7272: duplicate block, kept first",
+        "codex-c07-52e3ba3b-7a64-4c70-b589-f2ece9107dbd.md: burst 7290: duplicate block, kept first",
+        "codex-c07-52e3ba3b-7a64-4c70-b589-f2ece9107dbd.md: burst 7384: duplicate block, kept first",
+        "codex-c07-52e3ba3b-7a64-4c70-b589-f2ece9107dbd.md: burst 7495: duplicate block, kept first",
+        "codex-c07-52e3ba3b-7a64-4c70-b589-f2ece9107dbd.md: burst 7497: duplicate block, kept first",
+        "codex-c09-31e0c86e-4b7b-49dd-8bfc-21848f589821.md: burst 7765: duplicate block, kept first",
+        "codex-c09-31e0c86e-4b7b-49dd-8bfc-21848f589821.md: burst 7790: duplicate block, kept first",
+        "codex-c09-31e0c86e-4b7b-49dd-8bfc-21848f589821.md: burst 7808: duplicate block, kept first",
+        "codex-c09-31e0c86e-4b7b-49dd-8bfc-21848f589821.md: burst 7877: duplicate block, kept first",
+        "codex-c09-31e0c86e-4b7b-49dd-8bfc-21848f589821.md: burst 8060: duplicate block, kept first",
+        "codex-c09-31e0c86e-4b7b-49dd-8bfc-21848f589821.md: burst 8067: duplicate block, kept first",
+        "codex-c06-2e27c3a4-0aa7-4e10-bc4f-d01e632110ef.md: burst 6692: duplicate block, kept first",
+        "codex-c06-2e27c3a4-0aa7-4e10-bc4f-d01e632110ef.md: burst 6854: duplicate block, kept first",
+        "codex-c06-2e27c3a4-0aa7-4e10-bc4f-d01e632110ef.md: burst 6947: duplicate block, kept first",
+        "codex-c06-2e27c3a4-0aa7-4e10-bc4f-d01e632110ef.md: burst 6959: duplicate block, kept first",
+        "codex-c06-2e27c3a4-0aa7-4e10-bc4f-d01e632110ef.md: burst 6966: duplicate block, kept first",
+        "codex-c06-2e27c3a4-0aa7-4e10-bc4f-d01e632110ef.md: burst 6990: duplicate block, kept first",
+        "codex-c08-8035420f-ed9e-4f30-84aa-c8c7134cd807.md: burst 7633: duplicate block, kept first",
+        "codex-c08-8035420f-ed9e-4f30-84aa-c8c7134cd807.md: burst 7671: duplicate block, kept first",
+        "codex-c08-8035420f-ed9e-4f30-84aa-c8c7134cd807.md: burst 7708: duplicate block, kept first",
+        "codex-c08-8035420f-ed9e-4f30-84aa-c8c7134cd807.md: burst 7727: duplicate block, kept first",
+        "codex-c08-8035420f-ed9e-4f30-84aa-c8c7134cd807.md: burst 7756: duplicate block, kept first",
+        "codex-c08-8035420f-ed9e-4f30-84aa-c8c7134cd807.md: burst 7764: duplicate block, kept first",
+        "codex-c05-11291f2d-65e8-46bf-895f-02ad48bdd597.md: burst 2972: duplicate block, kept first",
+        "codex-c05-11291f2d-65e8-46bf-895f-02ad48bdd597.md: burst 3048: duplicate block, kept first",
+        "codex-c05-11291f2d-65e8-46bf-895f-02ad48bdd597.md: burst 3155: duplicate block, kept first",
+        "codex-c05-11291f2d-65e8-46bf-895f-02ad48bdd597.md: burst 3159: duplicate block, kept first",
+        "codex-c05-11291f2d-65e8-46bf-895f-02ad48bdd597.md: burst 3182: duplicate block, kept first",
+        "codex-c05-11291f2d-65e8-46bf-895f-02ad48bdd597.md: burst 6478: duplicate block, kept first",
+        "codex-c04-1a97d63f-8852-4958-a4bd-60330779b305.md: burst 2670: duplicate block, kept first",
+        "codex-c04-1a97d63f-8852-4958-a4bd-60330779b305.md: burst 2781: duplicate block, kept first",
+        "codex-c04-1a97d63f-8852-4958-a4bd-60330779b305.md: burst 2835: duplicate block, kept first",
+        "codex-c04-1a97d63f-8852-4958-a4bd-60330779b305.md: burst 2851: duplicate block, kept first",
+        "codex-c04-1a97d63f-8852-4958-a4bd-60330779b305.md: burst 2896: duplicate block, kept first",
+        "codex-c04-1a97d63f-8852-4958-a4bd-60330779b305.md: burst 2939: duplicate block, kept first",
+        "codex-c07-9fb65580-1310-47d9-84be-47583bb8e87f.md: burst 6994: duplicate block, kept first",
+        "codex-c07-9fb65580-1310-47d9-84be-47583bb8e87f.md: burst 7272: duplicate block, kept first",
+        "codex-c07-9fb65580-1310-47d9-84be-47583bb8e87f.md: burst 7290: duplicate block, kept first",
+        "codex-c07-9fb65580-1310-47d9-84be-47583bb8e87f.md: burst 7384: duplicate block, kept first",
+        "codex-c07-9fb65580-1310-47d9-84be-47583bb8e87f.md: burst 7495: duplicate block, kept first",
+        "codex-c07-9fb65580-1310-47d9-84be-47583bb8e87f.md: burst 7497: duplicate block, kept first",
+        "codex-c03-fdf0e47a-955a-4e49-9a2e-02b5eee2a413.md: burst 2071: duplicate block, kept first",
+        "codex-c03-fdf0e47a-955a-4e49-9a2e-02b5eee2a413.md: burst 2217: duplicate block, kept first",
+        "codex-c03-fdf0e47a-955a-4e49-9a2e-02b5eee2a413.md: burst 2515: duplicate block, kept first",
+        "codex-c03-fdf0e47a-955a-4e49-9a2e-02b5eee2a413.md: burst 2558: duplicate block, kept first",
+        "codex-c03-fdf0e47a-955a-4e49-9a2e-02b5eee2a413.md: burst 2568: duplicate block, kept first",
+        "codex-c03-fdf0e47a-955a-4e49-9a2e-02b5eee2a413.md: burst 2668: duplicate block, kept first",
+        "codex-c06-00c470e7-9a68-4410-bfa4-f16b64ed6c40.md: burst 6692: duplicate block, kept first",
+        "codex-c06-00c470e7-9a68-4410-bfa4-f16b64ed6c40.md: burst 6854: duplicate block, kept first",
+        "codex-c06-00c470e7-9a68-4410-bfa4-f16b64ed6c40.md: burst 6947: duplicate block, kept first",
+        "codex-c06-00c470e7-9a68-4410-bfa4-f16b64ed6c40.md: burst 6959: duplicate block, kept first",
+        "codex-c06-00c470e7-9a68-4410-bfa4-f16b64ed6c40.md: burst 6966: duplicate block, kept first",
+        "codex-c06-00c470e7-9a68-4410-bfa4-f16b64ed6c40.md: burst 6990: duplicate block, kept first",
+        "codex-c02-1861b3a7-4669-450f-99a4-dafcbfa48fd4.md: burst 1010: duplicate block, kept first",
+        "codex-c02-1861b3a7-4669-450f-99a4-dafcbfa48fd4.md: burst 1400: duplicate block, kept first",
+        "codex-c02-1861b3a7-4669-450f-99a4-dafcbfa48fd4.md: burst 1501: duplicate block, kept first",
+        "codex-c02-1861b3a7-4669-450f-99a4-dafcbfa48fd4.md: burst 1504: duplicate block, kept first",
+        "codex-c02-1861b3a7-4669-450f-99a4-dafcbfa48fd4.md: burst 1557: duplicate block, kept first",
+        "codex-c02-1861b3a7-4669-450f-99a4-dafcbfa48fd4.md: burst 1896: duplicate block, kept first",
+        "codex-c05-0e98a729-3ba5-4846-bdf2-3537f47e4204.md: burst 2972: duplicate block, kept first",
+        "codex-c05-0e98a729-3ba5-4846-bdf2-3537f47e4204.md: burst 3048: duplicate block, kept first",
+        "codex-c05-0e98a729-3ba5-4846-bdf2-3537f47e4204.md: burst 3155: duplicate block, kept first",
+        "codex-c05-0e98a729-3ba5-4846-bdf2-3537f47e4204.md: burst 3159: duplicate block, kept first",
+        "codex-c05-0e98a729-3ba5-4846-bdf2-3537f47e4204.md: burst 3182: duplicate block, kept first",
+        "codex-c05-0e98a729-3ba5-4846-bdf2-3537f47e4204.md: burst 6478: duplicate block, kept first",
+        "codex-c04-a1887475-c3f4-4fe7-a1a6-9426f6b01369.md: burst 2670: duplicate block, kept first",
+        "codex-c04-a1887475-c3f4-4fe7-a1a6-9426f6b01369.md: burst 2781: duplicate block, kept first",
+        "codex-c04-a1887475-c3f4-4fe7-a1a6-9426f6b01369.md: burst 2835: duplicate block, kept first",
+        "codex-c04-a1887475-c3f4-4fe7-a1a6-9426f6b01369.md: burst 2851: duplicate block, kept first",
+        "codex-c04-a1887475-c3f4-4fe7-a1a6-9426f6b01369.md: burst 2896: duplicate block, kept first",
+        "codex-c04-a1887475-c3f4-4fe7-a1a6-9426f6b01369.md: burst 2939: duplicate block, kept first",
+        "codex-c03-f621d131-25bb-4b38-bb0d-615e484d19e8.md: burst 2071: duplicate block, kept first",
+        "codex-c03-f621d131-25bb-4b38-bb0d-615e484d19e8.md: burst 2217: duplicate block, kept first",
+        "codex-c03-f621d131-25bb-4b38-bb0d-615e484d19e8.md: burst 2515: duplicate block, kept first",
+        "codex-c03-f621d131-25bb-4b38-bb0d-615e484d19e8.md: burst 2558: duplicate block, kept first",
+        "codex-c03-f621d131-25bb-4b38-bb0d-615e484d19e8.md: burst 2568: duplicate block, kept first",
+        "codex-c03-f621d131-25bb-4b38-bb0d-615e484d19e8.md: burst 2668: duplicate block, kept first",
+        "codex-c01-8c92ce13-0705-40ed-9a9d-a03367105fbf.md: burst 98: duplicate block, kept first",
+        "codex-c01-8c92ce13-0705-40ed-9a9d-a03367105fbf.md: burst 274: duplicate block, kept first",
+        "codex-c01-8c92ce13-0705-40ed-9a9d-a03367105fbf.md: burst 284: duplicate block, kept first",
+        "codex-c01-8c92ce13-0705-40ed-9a9d-a03367105fbf.md: burst 505: duplicate block, kept first",
+        "codex-c01-8c92ce13-0705-40ed-9a9d-a03367105fbf.md: burst 733: duplicate block, kept first",
+        "codex-c01-8c92ce13-0705-40ed-9a9d-a03367105fbf.md: burst 856: duplicate block, kept first",
+        "codex-c02-00af4e54-78f0-4fa2-8296-a3ff7064a578.md: burst 1010: duplicate block, kept first",
+        "codex-c02-00af4e54-78f0-4fa2-8296-a3ff7064a578.md: burst 1400: duplicate block, kept first",
+        "codex-c02-00af4e54-78f0-4fa2-8296-a3ff7064a578.md: burst 1501: duplicate block, kept first",
+        "codex-c02-00af4e54-78f0-4fa2-8296-a3ff7064a578.md: burst 1504: duplicate block, kept first",
+        "codex-c02-00af4e54-78f0-4fa2-8296-a3ff7064a578.md: burst 1557: duplicate block, kept first",
+        "codex-c02-00af4e54-78f0-4fa2-8296-a3ff7064a578.md: burst 1896: duplicate block, kept first",
+        "codex-c01-ab6d81c2-753e-422e-b00d-ff9e371197ab.md: burst 98: duplicate block, kept first",
+        "codex-c01-ab6d81c2-753e-422e-b00d-ff9e371197ab.md: burst 274: duplicate block, kept first",
+        "codex-c01-ab6d81c2-753e-422e-b00d-ff9e371197ab.md: burst 284: duplicate block, kept first",
+        "codex-c01-ab6d81c2-753e-422e-b00d-ff9e371197ab.md: burst 505: duplicate block, kept first",
+        "codex-c01-ab6d81c2-753e-422e-b00d-ff9e371197ab.md: burst 733: duplicate block, kept first",
+        "codex-c01-ab6d81c2-753e-422e-b00d-ff9e371197ab.md: burst 856: duplicate block, kept first",
+        "codex-c01-00ca4057-1b53-4833-b55e-8f48e4ccd1bd.md: burst 98: duplicate block, kept first",
+        "codex-c01-00ca4057-1b53-4833-b55e-8f48e4ccd1bd.md: burst 98: duplicate block, kept first"
+      ],
+      "rejectedBlocks": []
+    },
+    "claude": {
+      "files": [
+        "claude-c09-b2ad8516-10d3-47b1-9f2d-2f257b5a4589.md",
+        "claude-c08-55cf5488-32dc-439b-b901-b40d19470c61.md",
+        "claude-c07-3ad0b92c-7ab8-40e5-a39b-608d0963a8d2.md",
+        "claude-c06-fbe6b666-88b4-4d50-9014-ddd37bb13ece.md",
+        "claude-c05-9866e85c-3f6a-4752-a1b2-b93135f69821.md",
+        "claude-c04-ea8ca2e5-9ba5-4a2b-a7d9-f821057d9ff2.md",
+        "claude-c03-bb57b19c-0918-42a6-9a4d-ba31d993cf38.md",
+        "claude-c02-107ba9b3-aff0-44d2-88b5-29ce2439f4bf.md",
+        "claude-c01-f0303814-0b50-41df-afac-12f533b17a1d.md",
+        "claude-c09-48da1ee7-3c40-4b4f-9beb-43a7212020be.md",
+        "claude-c08-570a4949-6a63-4dbe-9758-7abfe9e489ef.md",
+        "claude-c07-10a90c7d-4318-4f9b-8c1c-f58033a8d54e.md",
+        "claude-c06-2a9ffe33-2c73-4c5d-bb0d-85931707fed5.md",
+        "claude-c09-7a0b1136-e283-4b34-a203-20b21aab9400.md",
+        "claude-c05-9ef36b4e-5f73-47d8-bdcc-a896f85bbb11.md",
+        "claude-c08-3720c3c2-9e45-4993-a0d2-52f24a018080.md",
+        "claude-c04-71a4e2d2-eabd-47e5-aba5-efe39617d55d.md",
+        "claude-c03-8398604f-9c45-4085-8a81-2ed8479e38ab.md",
+        "claude-c07-bd40673b-bad6-41dd-bd30-3e62f6e2362c.md",
+        "claude-c02-1afe1685-5552-4d3b-944f-48402ea1c357.md",
+        "claude-c06-c38f503f-c587-4ab6-b999-4544eee1236f.md",
+        "claude-c05-98532b59-8b4b-48c3-8705-daa545ed5f05.md",
+        "claude-c01-b1033f47-0f1e-468a-afff-06ef251a627e.md",
+        "claude-c04-321c1c6e-5b6b-4315-8bfa-4e73a2950f06.md",
+        "claude-c01-4297fcc3-cc93-42ca-ae81-0ac80fc4adb8.md",
+        "claude-c03-1b1b0c38-12f2-406d-843a-a0c07cc2dc84.md",
+        "claude-c01-7a6f50b9-198f-493f-956f-1f8029484e96.md",
+        "claude-c02-140e7c0e-54cd-46f3-9976-ea611f712189.md",
+        "claude-c01-8f9eeedd-5a3c-4014-b6b5-1ed351dfca37.md",
+        "claude-c01-5c18e809-9893-4bd6-997d-9912922de396.md",
+        "claude-c01-5aad7edf-dfd3-419f-aa29-b437f54edafe.md",
+        "claude-c01-1272fc00-de59-4254-9828-1e28ff9b8366.md",
+        "claude-c01-ace5541c-6842-4cc7-8f01-4b08867ae561.md"
+      ],
+      "burstsAccepted": 54,
+      "burstsTotal": 54,
+      "coverage": 1.0,
+      "weight": 2.0,
+      "gate": "ok",
+      "missingBursts": [],
+      "parseProblems": [
+        "claude-c02-107ba9b3-aff0-44d2-88b5-29ce2439f4bf.md: burst 1010: BURST without END, discarded",
+        "claude-c02-107ba9b3-aff0-44d2-88b5-29ce2439f4bf.md: burst 1400: BURST without END, discarded",
+        "claude-c02-107ba9b3-aff0-44d2-88b5-29ce2439f4bf.md: burst 1501: BURST without END, discarded",
+        "claude-c02-107ba9b3-aff0-44d2-88b5-29ce2439f4bf.md: burst 1504: BURST without END, discarded",
+        "claude-c02-107ba9b3-aff0-44d2-88b5-29ce2439f4bf.md: burst 1557: BURST without END, discarded",
+        "claude-c02-107ba9b3-aff0-44d2-88b5-29ce2439f4bf.md: burst 1896: file ended before END, discarded"
+      ],
+      "rejectedBlocks": []
+    },
+    "cursor": {
+      "files": [
+        "cursor-verdicts-13ee57ae-72e1-42f2-be5d-2365f4fdba58.md"
+      ],
+      "burstsAccepted": 54,
+      "burstsTotal": 54,
+      "coverage": 1.0,
+      "weight": 2.0,
+      "gate": "ok",
+      "missingBursts": [],
+      "parseProblems": [],
+      "rejectedBlocks": []
+    }
+  },
+  "effective_judges": [
+    "antigravity",
+    "claude",
+    "cursor"
+  ],
+  "weights": {
+    "codex": 1.0,
+    "claude": 2.0,
+    "cursor": 2.0,
+    "antigravity": 1.0
+  },
+  "n_images": 236,
+  "n_bursts": 54,
+  "n_split_bursts": 53,
+  "split_bursts": [
+    98,
+    274,
+    284,
+    505,
+    733,
+    856,
+    1010,
+    1400,
+    1501,
+    1504,
+    1896,
+    2071,
+    2217,
+    2515,
+    2558,
+    2568,
+    2668,
+    2670,
+    2781,
+    2835,
+    2851,
+    2896,
+    2939,
+    2972,
+    3048,
+    3155,
+    3159,
+    3182,
+    6478,
+    6692,
+    6854,
+    6947,
+    6959,
+    6966,
+    6990,
+    6994,
+    7272,
+    7290,
+    7384,
+    7495,
+    7497,
+    7633,
+    7671,
+    7708,
+    7727,
+    7756,
+    7764,
+    7765,
+    7790,
+    7808,
+    7877,
+    8060,
+    8067
+  ],
+  "tied_best_bursts": [
+    1010,
+    2071,
+    3159,
+    6854,
+    7495,
+    7708
+  ],
+  "verdict_counts": {
+    "best": 60,
+    "good": 105,
+    "reject": 71
+  },
+  "per_image": {
+    "8994": {
+      "burst_id": 98,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "best",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "8995": {
+      "burst_id": 98,
+      "consensus": "reject",
+      "mean_rank": 0.2,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "8996": {
+      "burst_id": 98,
+      "consensus": "best",
+      "mean_rank": 2.0,
+      "judges": {
+        "antigravity": "best",
+        "codex": "reject",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "9624": {
+      "burst_id": 274,
+      "consensus": "good",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "9625": {
+      "burst_id": 274,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "9626": {
+      "burst_id": 274,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "9649": {
+      "burst_id": 284,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "9650": {
+      "burst_id": 284,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "9651": {
+      "burst_id": 284,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "reject"
+      }
+    },
+    "9653": {
+      "burst_id": 284,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "6351": {
+      "burst_id": 505,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "74725": {
+      "burst_id": 505,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "74726": {
+      "burst_id": 505,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "5493": {
+      "burst_id": 733,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "5494": {
+      "burst_id": 733,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "5495": {
+      "burst_id": 733,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "7041": {
+      "burst_id": 856,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "7042": {
+      "burst_id": 856,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "7044": {
+      "burst_id": 856,
+      "consensus": "best",
+      "mean_rank": 2.0,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "11100": {
+      "burst_id": 1010,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "11101": {
+      "burst_id": 1010,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "11102": {
+      "burst_id": 1010,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "11103": {
+      "burst_id": 1010,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "11104": {
+      "burst_id": 1010,
+      "consensus": "reject",
+      "mean_rank": 0.2,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "11105": {
+      "burst_id": 1010,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "17608": {
+      "burst_id": 1400,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "17610": {
+      "burst_id": 1400,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "17611": {
+      "burst_id": 1400,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "17915": {
+      "burst_id": 1501,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "best"
+      }
+    },
+    "17916": {
+      "burst_id": 1501,
+      "consensus": "best",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "reject",
+        "claude": "best",
+        "cursor": "reject"
+      }
+    },
+    "17917": {
+      "burst_id": 1501,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "17918": {
+      "burst_id": 1501,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "best",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "17919": {
+      "burst_id": 1501,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "17923": {
+      "burst_id": 1504,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "17924": {
+      "burst_id": 1504,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "17925": {
+      "burst_id": 1504,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "17926": {
+      "burst_id": 1504,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "17927": {
+      "burst_id": 1504,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "17928": {
+      "burst_id": 1504,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "18270": {
+      "burst_id": 1557,
+      "consensus": "best",
+      "mean_rank": 2.0,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "18271": {
+      "burst_id": 1557,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "18272": {
+      "burst_id": 1557,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "20413": {
+      "burst_id": 1896,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "20414": {
+      "burst_id": 1896,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "reject",
+        "cursor": "best"
+      }
+    },
+    "20415": {
+      "burst_id": 1896,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "20416": {
+      "burst_id": 1896,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "21339": {
+      "burst_id": 2071,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "21848": {
+      "burst_id": 2071,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "21849": {
+      "burst_id": 2071,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "21340": {
+      "burst_id": 2071,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "reject"
+      }
+    },
+    "22208": {
+      "burst_id": 2217,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "best"
+      }
+    },
+    "22207": {
+      "burst_id": 2217,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "reject",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "22790": {
+      "burst_id": 2217,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "34965": {
+      "burst_id": 2515,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "34966": {
+      "burst_id": 2515,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "34967": {
+      "burst_id": 2515,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "35585": {
+      "burst_id": 2558,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "35587": {
+      "burst_id": 2558,
+      "consensus": "best",
+      "mean_rank": 2.0,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "35589": {
+      "burst_id": 2558,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "35833": {
+      "burst_id": 2568,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "35835": {
+      "burst_id": 2568,
+      "consensus": "good",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "35836": {
+      "burst_id": 2568,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "35837": {
+      "burst_id": 2568,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "reject"
+      }
+    },
+    "35838": {
+      "burst_id": 2568,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "37813": {
+      "burst_id": 2668,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "37811": {
+      "burst_id": 2668,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "37812": {
+      "burst_id": 2668,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "37814": {
+      "burst_id": 2668,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "37816": {
+      "burst_id": 2668,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "37815": {
+      "burst_id": 2668,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "37817": {
+      "burst_id": 2668,
+      "consensus": "reject",
+      "mean_rank": 0.2,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "37840": {
+      "burst_id": 2670,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "37841": {
+      "burst_id": 2670,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "37839": {
+      "burst_id": 2670,
+      "consensus": "best",
+      "mean_rank": 1.8,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "41937": {
+      "burst_id": 2781,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "41938": {
+      "burst_id": 2781,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "41939": {
+      "burst_id": 2781,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "42740": {
+      "burst_id": 2835,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "42741": {
+      "burst_id": 2835,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "42742": {
+      "burst_id": 2835,
+      "consensus": "good",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "42743": {
+      "burst_id": 2835,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "42872": {
+      "burst_id": 2851,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "42873": {
+      "burst_id": 2851,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "reject"
+      }
+    },
+    "42874": {
+      "burst_id": 2851,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "43147": {
+      "burst_id": 2896,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "43148": {
+      "burst_id": 2896,
+      "consensus": "good",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "43149": {
+      "burst_id": 2896,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "43150": {
+      "burst_id": 2896,
+      "consensus": "reject",
+      "mean_rank": 0.2,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "43295": {
+      "burst_id": 2939,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "best",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "43296": {
+      "burst_id": 2939,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "43297": {
+      "burst_id": 2939,
+      "consensus": "best",
+      "mean_rank": 1.8,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "43450": {
+      "burst_id": 2972,
+      "consensus": "good",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "43451": {
+      "burst_id": 2972,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "43452": {
+      "burst_id": 2972,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "43821": {
+      "burst_id": 3048,
+      "consensus": "best",
+      "mean_rank": 1.8,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "43822": {
+      "burst_id": 3048,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "reject"
+      }
+    },
+    "43823": {
+      "burst_id": 3048,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "46177": {
+      "burst_id": 3155,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "46178": {
+      "burst_id": 3155,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "46179": {
+      "burst_id": 3155,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "46180": {
+      "burst_id": 3155,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "46181": {
+      "burst_id": 3155,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "46182": {
+      "burst_id": 3155,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "46227": {
+      "burst_id": 3159,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "46228": {
+      "burst_id": 3159,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "46229": {
+      "burst_id": 3159,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "46230": {
+      "burst_id": 3159,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "46231": {
+      "burst_id": 3159,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "46232": {
+      "burst_id": 3159,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "46233": {
+      "burst_id": 3159,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "46698": {
+      "burst_id": 3182,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "46699": {
+      "burst_id": 3182,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "46700": {
+      "burst_id": 3182,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "46702": {
+      "burst_id": 3182,
+      "consensus": "best",
+      "mean_rank": 2.0,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "46703": {
+      "burst_id": 3182,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "46705": {
+      "burst_id": 3182,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "15227": {
+      "burst_id": 6478,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "15228": {
+      "burst_id": 6478,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "15232": {
+      "burst_id": 6478,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "15233": {
+      "burst_id": 6478,
+      "consensus": "good",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "59326": {
+      "burst_id": 6692,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "59327": {
+      "burst_id": 6692,
+      "consensus": "best",
+      "mean_rank": 2.0,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "59328": {
+      "burst_id": 6692,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "59329": {
+      "burst_id": 6692,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "best",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "64764": {
+      "burst_id": 6854,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "64766": {
+      "burst_id": 6854,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "64768": {
+      "burst_id": 6854,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "64770": {
+      "burst_id": 6854,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "66472": {
+      "burst_id": 6947,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "66473": {
+      "burst_id": 6947,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "66474": {
+      "burst_id": 6947,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "66475": {
+      "burst_id": 6947,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "66476": {
+      "burst_id": 6947,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "best",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "66519": {
+      "burst_id": 6959,
+      "consensus": "good",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "66520": {
+      "burst_id": 6959,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "66521": {
+      "burst_id": 6959,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "66538": {
+      "burst_id": 6966,
+      "consensus": "best",
+      "mean_rank": 1.8,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "66539": {
+      "burst_id": 6966,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "66540": {
+      "burst_id": 6966,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "66717": {
+      "burst_id": 6990,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "66718": {
+      "burst_id": 6990,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "66719": {
+      "burst_id": 6990,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "66720": {
+      "burst_id": 6990,
+      "consensus": "good",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "66721": {
+      "burst_id": 6990,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "66722": {
+      "burst_id": 6990,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "66742": {
+      "burst_id": 6994,
+      "consensus": "best",
+      "mean_rank": 2.0,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "66744": {
+      "burst_id": 6994,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "66746": {
+      "burst_id": 6994,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "66748": {
+      "burst_id": 6994,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "66750": {
+      "burst_id": 6994,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "reject"
+      }
+    },
+    "66752": {
+      "burst_id": 6994,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "66754": {
+      "burst_id": 6994,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "69715": {
+      "burst_id": 7272,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "69716": {
+      "burst_id": 7272,
+      "consensus": "best",
+      "mean_rank": 1.8,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "69717": {
+      "burst_id": 7272,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "69718": {
+      "burst_id": 7272,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "69931": {
+      "burst_id": 7290,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "69932": {
+      "burst_id": 7290,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "best"
+      }
+    },
+    "69933": {
+      "burst_id": 7290,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "72432": {
+      "burst_id": 7384,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "72433": {
+      "burst_id": 7384,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "72434": {
+      "burst_id": 7384,
+      "consensus": "good",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "72435": {
+      "burst_id": 7384,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "72436": {
+      "burst_id": 7384,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "71442": {
+      "burst_id": 7495,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "71443": {
+      "burst_id": 7495,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "71444": {
+      "burst_id": 7495,
+      "consensus": "best",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "71446": {
+      "burst_id": 7495,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "71447": {
+      "burst_id": 7495,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "best"
+      }
+    },
+    "71448": {
+      "burst_id": 7495,
+      "consensus": "best",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "71456": {
+      "burst_id": 7497,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "71457": {
+      "burst_id": 7497,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "71458": {
+      "burst_id": 7497,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "reject",
+        "cursor": "best"
+      }
+    },
+    "71459": {
+      "burst_id": 7497,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "71460": {
+      "burst_id": 7497,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "134999": {
+      "burst_id": 7633,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "135000": {
+      "burst_id": 7633,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "135001": {
+      "burst_id": 7633,
+      "consensus": "best",
+      "mean_rank": 2.0,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "146834": {
+      "burst_id": 7671,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "146835": {
+      "burst_id": 7671,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "146836": {
+      "burst_id": 7671,
+      "consensus": "best",
+      "mean_rank": 2.0,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "146837": {
+      "burst_id": 7671,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "147131": {
+      "burst_id": 7708,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "147132": {
+      "burst_id": 7708,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "reject",
+        "cursor": "best"
+      }
+    },
+    "147133": {
+      "burst_id": 7708,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "147134": {
+      "burst_id": 7708,
+      "consensus": "best",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "147135": {
+      "burst_id": 7708,
+      "consensus": "best",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "147249": {
+      "burst_id": 7727,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "147250": {
+      "burst_id": 7727,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "147251": {
+      "burst_id": 7727,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "147252": {
+      "burst_id": 7727,
+      "consensus": "best",
+      "mean_rank": 2.0,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "147253": {
+      "burst_id": 7727,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "147254": {
+      "burst_id": 7727,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "153149": {
+      "burst_id": 7756,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "161166": {
+      "burst_id": 7756,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "161167": {
+      "burst_id": 7756,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "153163": {
+      "burst_id": 7756,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "161170": {
+      "burst_id": 7756,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "161173": {
+      "burst_id": 7756,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "153176": {
+      "burst_id": 7756,
+      "consensus": "good",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "153646": {
+      "burst_id": 7764,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "best"
+      }
+    },
+    "153647": {
+      "burst_id": 7764,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "153648": {
+      "burst_id": 7764,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "153649": {
+      "burst_id": 7764,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "153652": {
+      "burst_id": 7764,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "153650": {
+      "burst_id": 7765,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "153651": {
+      "burst_id": 7765,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "153654": {
+      "burst_id": 7765,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "reject",
+        "cursor": "best"
+      }
+    },
+    "153983": {
+      "burst_id": 7790,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "153986": {
+      "burst_id": 7790,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "153987": {
+      "burst_id": 7790,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "153988": {
+      "burst_id": 7790,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "best"
+      }
+    },
+    "153989": {
+      "burst_id": 7790,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "153994": {
+      "burst_id": 7790,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "153991": {
+      "burst_id": 7790,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "153992": {
+      "burst_id": 7790,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "reject",
+        "claude": "best",
+        "cursor": "good"
+      }
+    },
+    "154353": {
+      "burst_id": 7808,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "154354": {
+      "burst_id": 7808,
+      "consensus": "reject",
+      "mean_rank": 0.4,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "154355": {
+      "burst_id": 7808,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "154362": {
+      "burst_id": 7808,
+      "consensus": "best",
+      "mean_rank": 2.0,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "155855": {
+      "burst_id": 7877,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "155856": {
+      "burst_id": 7877,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "155861": {
+      "burst_id": 7877,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "155863": {
+      "burst_id": 7877,
+      "consensus": "best",
+      "mean_rank": 2.0,
+      "judges": {
+        "antigravity": "best",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "best"
+      }
+    },
+    "155862": {
+      "burst_id": 7877,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "198862": {
+      "burst_id": 8060,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "198860": {
+      "burst_id": 8060,
+      "consensus": "best",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "198859": {
+      "burst_id": 8060,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "198858": {
+      "burst_id": 8060,
+      "consensus": "good",
+      "mean_rank": 1.2,
+      "judges": {
+        "antigravity": "best",
+        "codex": "reject",
+        "claude": "best",
+        "cursor": "reject"
+      }
+    },
+    "202163": {
+      "burst_id": 8067,
+      "consensus": "reject",
+      "mean_rank": 0.6,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "good"
+      }
+    },
+    "202164": {
+      "burst_id": 8067,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "202168": {
+      "burst_id": 8067,
+      "consensus": "good",
+      "mean_rank": 0.8,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "good",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "202175": {
+      "burst_id": 8067,
+      "consensus": "reject",
+      "mean_rank": 0.0,
+      "judges": {
+        "antigravity": "reject",
+        "codex": "reject",
+        "claude": "reject",
+        "cursor": "reject"
+      }
+    },
+    "202169": {
+      "burst_id": 8067,
+      "consensus": "good",
+      "mean_rank": 1.0,
+      "judges": {
+        "antigravity": "good",
+        "codex": "reject",
+        "claude": "good",
+        "cursor": "good"
+      }
+    },
+    "202170": {
+      "burst_id": 8067,
+      "consensus": "best",
+      "mean_rank": 1.6,
+      "judges": {
+        "antigravity": "best",
+        "codex": "best",
+        "claude": "good",
+        "cursor": "best"
+      }
+    },
+    "202171": {
+      "burst_id": 8067,
+      "consensus": "good",
+      "mean_rank": 1.4,
+      "judges": {
+        "antigravity": "good",
+        "codex": "good",
+        "claude": "best",
+        "cursor": "good"
+      }
+    }
+  }
+}
