@@ -1,3 +1,13 @@
+---
+type: Report
+title: "Student scorer results"
+description: "Append-only results log keyed by run ID. Records failures and abandoned runs alongside winners, so the gate history cannot be read selectively."
+resource: docs/research/STUDENT_SCORER_RESULTS.md
+tags: [research, student-scorer, results, evaluation]
+timestamp: 2026-07-30T00:00:00Z
+okf_version: 0.1
+---
+
 # Student Scorer Results
 
 Append-only by run ID. Record failures and abandoned runs, not only winners.

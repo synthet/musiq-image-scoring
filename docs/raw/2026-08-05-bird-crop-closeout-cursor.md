@@ -1,3 +1,13 @@
+---
+type: Archive
+title: "Raw session — bird-crop study close-out (Cursor, 2026-08-05)"
+description: "Immutable Cursor Agent session scratch for the bird-crop close-out: multi-agent labelling, sequential Track A recovery, Arm B vs labels, CSV exporter. Ingested into docs/reports/SESSION_BIRD_CROP_CLOSEOUT_2026-08-05.md."
+resource: docs/raw/2026-08-05-bird-crop-closeout-cursor.md
+tags: [raw, session, bird-detection, focus, labelling]
+timestamp: 2026-08-05T00:00:00Z
+okf_version: 0.1
+---
+
 # Session summary — bird-crop study close-out
 
 | Field | Value |

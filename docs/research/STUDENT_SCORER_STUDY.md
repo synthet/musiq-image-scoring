@@ -1,3 +1,13 @@
+---
+type: Feature Spec
+title: "Vexlum student scorer study"
+description: "Can one multi-head student model replace the teacher ensemble at fidelity? Study design, phases, and the shadow-only constraint. Tracked by issue #323."
+resource: docs/research/STUDENT_SCORER_STUDY.md
+tags: [research, student-scorer, distillation, planning]
+timestamp: 2026-07-29T00:00:00Z
+okf_version: 0.1
+---
+
 # Vexlum Student Scorer Study
 
 Ingested and adapted for [image-scoring-backend](../../). Source research notes:

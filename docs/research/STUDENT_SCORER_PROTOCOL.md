@@ -1,3 +1,13 @@
+---
+type: Technical Reference
+title: "Student scorer protocol"
+description: "Frozen evaluation protocol for the student-scorer study — splits, fidelity gates, and the rule that evaluator changes never ship in the same commit that claims a metric win. Lock protocol_id after Phase 0 review."
+resource: docs/research/STUDENT_SCORER_PROTOCOL.md
+tags: [research, student-scorer, protocol, evaluation]
+timestamp: 2026-07-29T00:00:00Z
+okf_version: 0.1
+---
+
 # Student Scorer Protocol
 
 **Status:** Draft freeze template — lock `protocol_id` after Phase 0 review; do not change

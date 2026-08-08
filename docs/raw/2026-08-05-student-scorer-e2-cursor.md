@@ -1,3 +1,13 @@
+---
+type: Archive
+title: "Raw session — student scorer E2 / P0 render (Cursor, 2026-08-05)"
+description: "Immutable Cursor Agent session scratch for the student-scorer E2 arc. Ingested into docs/research/SESSION_STUDENT_SCORER_E2_2026-08-05.md."
+resource: docs/raw/2026-08-05-student-scorer-e2-cursor.md
+tags: [raw, session, student-scorer, render]
+timestamp: 2026-08-05T00:00:00Z
+okf_version: 0.1
+---
+
 # Session summary — Student scorer E2 / P0 render
 
 | Field | Value |

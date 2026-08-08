@@ -1,3 +1,13 @@
+---
+type: Report
+title: "Student scorer E2 — activity checkpoint"
+description: "Human review gate before any E2 ConvNeXt GPU train: P0 render cache result for manifest msm_8ef568a5db3d9f79, decode failures, and what must be decided before spending GPU time. Tracked by issue #323."
+resource: docs/research/STUDENT_SCORER_E2_CHECKPOINT.md
+tags: [research, student-scorer, checkpoint, training]
+timestamp: 2026-08-03T00:00:00Z
+okf_version: 0.1
+---
+
 # Student scorer E2 — activity checkpoint (2026-08-03)
 
 **Repo:** `synthet/image-scoring-backend`  

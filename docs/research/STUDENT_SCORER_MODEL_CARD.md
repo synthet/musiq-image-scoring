@@ -1,3 +1,13 @@
+---
+type: Feature Spec
+title: "Student scorer model card (template)"
+description: "Template to fill once a checkpoint clears the locked shadow gates. Weights are not published without human approval."
+resource: docs/research/STUDENT_SCORER_MODEL_CARD.md
+tags: [research, student-scorer, model-card, template]
+timestamp: 2026-07-29T00:00:00Z
+okf_version: 0.1
+---
+
 # Student Scorer Model Card (template)
 
 Fill after a checkpoint clears locked shadow gates. Do not publish weights without human approval.
