@@ -320,12 +320,55 @@ def eval_caption_run(
         kw = db_keywords.get(iid, set())
         if kw:
             overlaps.append(_jaccard_sets(_tokenize_caption(cap), {k.lower() for k in kw}))
+    texts = [c.strip().lower() for c in captions.values()]
     return {
         "burst_caption_uniqueness": burst_uniqueness,
         "mean_keyword_token_jaccard": round(float(np.mean(overlaps)), 4) if overlaps else None,
         "mean_caption_words": round(float(np.mean(lengths)), 2) if lengths else None,
+        "distinct_caption_frac": (
+            round(len(set(texts)) / len(texts), 4) if texts else None
+        ),
+        "bare_bird_frac": (
+            round(sum(1 for t in texts if _is_bare_bird(t)) / len(texts), 4)
+            if texts else None
+        ),
+        "generic_bird_frac": (
+            round(sum(1 for t in texts if _is_generic_bird(t)) / len(texts), 4)
+            if texts else None
+        ),
+        "mentions_bird_frac": (
+            round(sum(1 for t in texts if "bird" in t) / len(texts), 4) if texts else None
+        ),
         "n_captions": len(captions),
     }
+
+
+#: A caption that says only that a bird is somewhere — no species, no action beyond a
+#: perch verb, no scene detail. The degenerate output BLIP produces when the subject is
+#: a few dozen pixels wide.
+_BARE_BIRD_RE = re.compile(
+    r"^(a|an|the)?\s*(small|large|little|big|beautiful|brown|black|white|grey|gray)?\s*"
+    r"bird\s*(is\s+)?(sitting|perched|standing|flying|resting|is)?\s*"
+    r"(on|in|at|upon)?\s*(a|an|the)?\s*"
+    r"(tree\s+)?(branch|tree|limb|perch|wire|fence|post|ground|rock|water)?\s*[.!]?$"
+)
+
+#: Looser: the caption's *subject* is the generic word "bird" rather than a species.
+#: Measured on production over the 22,048 captioned boxed images: bare 0.105, generic
+#: 0.428, mentions-a-bird-at-all 0.461. The study plan quotes 52.7% from an earlier and
+#: smaller boxed population; both readings are reported here because they answer
+#: different questions and neither should be quoted as the other.
+_GENERIC_BIRD_RE = re.compile(r"^(a|an|the)?\s*(\w+\s+)?bird\b")
+
+
+def _is_bare_bird(text: str) -> bool:
+    """True when the caption says only that a bird is somewhere, naming no species."""
+    return bool(_BARE_BIRD_RE.match(text))
+
+
+def _is_generic_bird(text: str) -> bool:
+    """True when the caption's subject is the generic word "bird"."""
+    return bool(_GENERIC_BIRD_RE.match(text))
 
 
 def discover_npz_runs(track: str = "embedding") -> list[tuple[str, str, int, Path]]:
@@ -500,6 +543,31 @@ def run_tagging_eval() -> dict:
     return _tag_eval()
 
 
+def _assert_prod_target() -> None:
+    """Verify the app connector really landed on production, not E2E.
+
+    ``common`` pins ``POSTGRES_DB``/``POSTGRES_PORT`` with ``os.environ.setdefault``
+    at import time, so retargeting has to happen in the environment *before* the
+    process starts. This turns a silent wrong-database eval — which would join
+    production NPZ ids against E2E metadata and quietly find nothing — into an
+    error that says what to export.
+    """
+    import os
+
+    dbname = os.environ.get("POSTGRES_DB")
+    if dbname != common.PROD_DB:
+        raise SystemExit(
+            f"--from-prod but POSTGRES_DB={dbname!r}. The crop NPZs carry production "
+            f"image ids, and E2E is a separate id space, so the joins would silently "
+            f"return nothing. Export POSTGRES_DB={common.PROD_DB} and "
+            f"POSTGRES_PORT={common.PROD_PORT} before invoking this module."
+        )
+    from scripts.research.bird_crop import prod
+
+    prod.assert_prod()
+    logger.info("Evaluating against production, folder scope %s", data.FOLDERS)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--all", action="store_true", help="embedding + iqa + tagging + caption eval")
@@ -507,11 +575,24 @@ def main():
     ap.add_argument("--iqa", action="store_true")
     ap.add_argument("--tagging", action="store_true")
     ap.add_argument("--caption", action="store_true")
+    ap.add_argument(
+        "--from-prod",
+        action="store_true",
+        help=(
+            "Evaluate NPZs that were produced against production (the bird-crop crop "
+            "sweep) instead of the seeded E2E corpus. Requires POSTGRES_DB / "
+            "POSTGRES_PORT to point at production in the environment, and usually "
+            "CLIP_CULLING_FOLDERS to cover the pinned population's folders."
+        ),
+    )
     args = ap.parse_args()
     if not (args.all or args.embedding or args.iqa or args.tagging or args.caption):
         args.all = True
 
-    common.assert_e2e()
+    if args.from_prod:
+        _assert_prod_target()
+    else:
+        common.assert_e2e()
     payload: dict = {}
     if args.all or args.embedding:
         payload["embedding"] = run_embedding_eval()
