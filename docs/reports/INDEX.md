@@ -27,6 +27,11 @@ Historical reports, research, reviews, and debugging sessions.
 | [CODEBASE_SIZE_AUDIT_2026-06.md](CODEBASE_SIZE_AUDIT_2026-06.md) | LoC audit snapshot (June 2026) — baseline; feeds refactor plan |
 | [BRANCH_DOCS_SALVAGE_2026-07.md](BRANCH_DOCS_SALVAGE_2026-07.md) | Branch cleanup audit — docs-only gallery branches archived/deleted; UNMERGED code branches retained |
 | [PICKED_ADVISORY_GAP_195193_2026-06-21.md](PICKED_ADVISORY_GAP_195193_2026-06-21.md) | Agent cull picked-image advisory gap — forensics, strict_v2 A/B, production defaults |
+| [BIRD_BBOX_CROP_STUDY_2026-08-01.md](BIRD_BBOX_CROP_STUDY_2026-08-01.md) | Bird-bbox crop vs full frame per pipeline phase — pinned 236-image re-sweep; IQA 2.4–17.5× more sensitive, culling no benefit |
+| [BIRD_CROP_FOCUS_MEASURES_2026-08-03.md](BIRD_CROP_FOCUS_MEASURES_2026-08-03.md) | Classical focus measures + camera AF metadata for bird-crop focus decisions — measures at chance; AF geometry available on 91.5% and informative |
+| [RESEARCH_SESSIONS_2026-08-05.md](RESEARCH_SESSIONS_2026-08-05.md) | **Hub** — concurrent bird-crop (#317) and student-scorer E2 (#323) research sessions paused 2026-08-05; start here |
+| [SESSION_BIRD_CROP_FOCUS_2026-08-05.md](SESSION_BIRD_CROP_FOCUS_2026-08-05.md) | Session record (Claude Code) — pinned re-sweep → Phase 4 focus research → `modules/focus_quality.py`; 15 corrections |
+| [SESSION_BIRD_CROP_CLOSEOUT_2026-08-05.md](SESSION_BIRD_CROP_CLOSEOUT_2026-08-05.md) | Session record (Cursor Agent) — multi-agent labelling, sequential Track A recovery, Arm B vs labels, CSV exporter |
 | [INPUT_SIZE_CULLING_2026-05-29.md](INPUT_SIZE_CULLING_2026-05-29.md) | Thumbnail / long-edge sweep for culling embeddings + IQA signal quality |
 | [INPUT_SIZE_CULLING_PRELIMINARY_2026-05-30.md](INPUT_SIZE_CULLING_PRELIMINARY_2026-05-30.md) | Input-size study Phase 0 results, run blockers, future plan (partial run) |
 | [AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md](AUTO_CULLING_ALGORITHMS_RESEARCH_2026-05-23.md) | Image auto-culling algorithms and best practices |

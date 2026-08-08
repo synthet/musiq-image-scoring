@@ -6,6 +6,26 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-08-05] ingest | Reconciled 2026-08-05 research session ingest (bird-crop + student scorer)
+
+Two agents ingested the same four session summaries concurrently, producing overlapping pages; this entry records the reconciled layout, which supersedes the path list in the earlier `[2026-08-05] ingest` entry above. Final shape: hub [`docs/reports/RESEARCH_SESSIONS_2026-08-05.md`](reports/RESEARCH_SESSIONS_2026-08-05.md) routes both arcs; bird-crop (#317) keeps two records — the Claude Code one ([`SESSION_BIRD_CROP_FOCUS_2026-08-05.md`](reports/SESSION_BIRD_CROP_FOCUS_2026-08-05.md)) and the Cursor close-out, now a standalone page ([`SESSION_BIRD_CROP_CLOSEOUT_2026-08-05.md`](reports/SESSION_BIRD_CROP_CLOSEOUT_2026-08-05.md)) rather than an addendum, so the two accounts cannot drift; student scorer (#323) consolidates both agent records into [`docs/research/SESSION_STUDENT_SCORER_E2_2026-08-05.md`](research/SESSION_STUDENT_SCORER_E2_2026-08-05.md). New [`docs/research/INDEX.md`](research/INDEX.md) — the folder had no index. Duplicate pages (`SESSIONS_2026-08-05.md`, `reports/SESSION_STUDENT_SCORER_E2_2026-08-05.md`) and duplicate raw copies under `docs/raw/sessions/` were removed; raw sources stay flat under `docs/raw/2026-08-*.md`. Nothing in production changed: `technical_failures.enabled` stays false, student scorer stays shadow-only. Both tracked jobs (Track A classical measures, E2 seed-42 train) were still in flight at the source pause, so no result is recorded.
+
+## [2026-08-05] ingest | Research sessions hub 2026-08-05 (bird-crop + student-scorer E2)
+
+Ingested concurrent research session summaries into the wiki: hub docs/reports/RESEARCH_SESSIONS_2026-08-05.md; new SESSION_STUDENT_SCORER_E2_2026-08-05.md (Claude+Cursor E2 render/train); Cursor close-out addendum on SESSION_BIRD_CROP_FOCUS_2026-08-05.md; raw archives under docs/raw/2026-08-*.md. Issues #317 / #323. Track A and E2 full train were still in flight at source pause.
+
+## [2026-08-03] create | Student scorer P0 render checkpoint
+
+Full P0 cache for `msm_8ef568a5db3d9f79` complete (66,473 ok / 66,485; rawpy_half + exiftool:JpgFromRaw; ~2.7 GB). Status: [research/STUDENT_SCORER_E2_CHECKPOINT.md](research/STUDENT_SCORER_E2_CHECKPOINT.md). Tracking: https://github.com/synthet/image-scoring-backend/issues/323. E2 train gated on review.
+
+## [2026-07-30] edit | Student scorer E0/E1 MobileNet baselines
+
+Exported MobileNet NPZ for `msm_8ef568a5db3d9f79` (99.4% overlap) and ran E0 ridge + E1 MLP. Both fail locked fidelity gates (val general Spearman ~0.56–0.60). Results: [research/STUDENT_SCORER_RESULTS.md](research/STUDENT_SCORER_RESULTS.md). Next: E2 ConvNeXt image student.
+
+## [2026-07-29] create | Student scorer research program scaffold
+
+Landed offline research package `scripts/research/student_scorer/` (audit, manifest/splits, E0–E8 trainers, evaluators), shared runtime `modules/student_scoring.py` + shadow proxies `modules/engines/student_model.py`, config.example student entries (default off), requirements_student_scorer.txt, and docs under `docs/research/STUDENT_SCORER_*.md`. Shadow-only; no fusion/API contract change. Fast unit tests in `tests/test_student_scorer_*.py` / `tests/test_student_scoring.py` / `tests/test_student_model_engine.py`.
+
 ## [2026-07-26] edit | Bird bbox backfill + sentinel semantics
 
 Documented `images.bird_bbox` NULL vs `{"detected": false}` sentinel, and detector-only backfill via `scripts/backfill_bird_bbox.py`, in [technical/BIRD_SPECIES_WALKTHROUGH.md](technical/BIRD_SPECIES_WALKTHROUGH.md) and migration `0033` docstring.
@@ -397,3 +417,25 @@ Added `modules/bird_detection.py` (YOLO `BirdDetector` + pure `select_best_box`)
 ## [2026-07-27] update | Align bird detection with image-scoring-model contract
 
 Aligned `modules/bird_detection.py` defaults to the canonical detector in [`synthet/image-scoring-model`](https://github.com/synthet/image-scoring-model): weights `bird_detect_v0.pt` (was a guessed `best.pt`), crop pad `0.10` (was `0.06`), plus `imgsz`/`max_det` passthrough and `area_frac` in the stored `bird_bbox`. Fixed RAW inference to use the full embedded-JPEG preview via `open_image_for_ml` instead of the 512px thumbnail (`_resolve_inference_path`), and baked EXIF orientation before detection so crops and persisted bbox coords are in display orientation. Added `image-scoring-model` to the related-projects table. `eye_quality` phase noted as future work, not started.
+
+---
+
+## [2026-08-01] add | Bird-bbox crop study close-out (pinned re-sweep)
+
+Added [`docs/reports/BIRD_BBOX_CROP_STUDY_2026-08-01.md`](reports/BIRD_BBOX_CROP_STUDY_2026-08-01.md) — close-out for [#317](https://github.com/synthet/image-scoring-backend/issues/317). The first sweep produced four mutually incomparable populations (strided sampling of a `bird_bbox` set that a backfill was growing mid-run); those 38 NPZs stay quarantined in `npz/archive_mixed_population/`. Re-ran phases 1/2/2b/3 against a pinned 236-image population bound to the human label set, with `pin_study_set --verify` as a gate (100 NPZs, one id set, 0 mismatched). Verdicts: crop is a complementary signal for IQA (2.42×–17.51× subject-degradation sensitivity), captions (+0.105 within-burst uniqueness) and small-subject species (+0.053 agreement), and **no benefit** for culling embeddings (+0.0028 burst pair-margin). No accuracy claims — the 236 human verdicts are still unfilled. Registered in `docs/reports/INDEX.md`.
+
+## [2026-08-01] add | Bird-crop human labelling runbook
+
+Added [`docs/guides/BIRD_CROP_LABELLING.md`](guides/BIRD_CROP_LABELLING.md) — step-by-step runbook for filling the 236-row `verdict` column in `reports/bird-crop/labels/label_set.csv`, the bird-crop study's only non-circular ground truth (see [`docs/reports/BIRD_BBOX_CROP_STUDY_2026-08-01.md`](reports/BIRD_BBOX_CROP_STUDY_2026-08-01.md)). Covers the `best`/`good`/`reject` vocabulary, contact-sheet layout, both validator rules (no blanks; every burst needs a `best`), and the CPU-only `PHASE=1` re-run that turns the geometry verdict from "not yet measured" into a real accuracy claim. All commands verified against the live repo. Registered in `docs/guides/INDEX.md`, which also gained OKF frontmatter and a guides table listing the previously unlisted `CULLING_EMBEDDING_BACKFILL.md`.
+
+## [2026-08-03] add | Bird-crop focus decision study (Phase 4)
+
+Added [`docs/reports/BIRD_CROP_FOCUS_MEASURES_2026-08-03.md`](reports/BIRD_CROP_FOCUS_MEASURES_2026-08-03.md) — Phase 4 of the bird-bbox crop study ([#317](https://github.com/synthet/image-scoring-backend/issues/317)): can zero-inference signals decide bird-crop focus? **Classical focus measures sit at chance** against real (AF-proxy) misfocus — best blur-tracking AUC 0.5295, `laplacian_variance` 0.4772; the only measure above the bar (`local_entropy`, 0.6082) provably does not track blur and is a confound. Camera **AF geometry is available on 216/236 pinned images (91.5%)** despite literature warnings about Z-series, and its centre falls inside the detected bird box 73.1% of the time — an independent cue, unvalidatable until human verdicts exist. New harness: `focus_measures.py`, `af_metadata.py`, `focus_eval.py`, `PHASE=4`, a Focus verdict row, and 61 tests. Registered in `docs/reports/INDEX.md`.
+
+## [2026-08-05] add | Session record — bird-crop re-sweep, focus research, algorithmic scorer
+
+Added [`docs/reports/SESSION_BIRD_CROP_FOCUS_2026-08-05.md`](reports/SESSION_BIRD_CROP_FOCUS_2026-08-05.md) — session record for Claude Code session `135af92f` (model `claude-opus-5`), covering the pinned Phase 2 re-sweep, Phase 4 classical-focus/AF research, and the new `modules/focus_quality.py`. Records what was decided, what was measured (crop sensitivity 2.42–17.51×; classical measures at chance for real misfocus, best blur-tracking AUC 0.5295; AF geometry on 91.5% of the pin at 73.1% agreement; native-subject measurement lifting blur response +0.144 → +0.464; first Track A row showing `laplacian_variance` competitive on blur/motion but inverting on noise at ρ=+0.996), and — deliberately — the 15 corrections made along the way, including two silent-failure classes caught before they shipped (model clobbering in `degradation_eval`, and a DB INSERT placeholder mismatch that would have stopped technical-failure writes with only a `logger.warning`). Production untouched: `technical_failures.enabled` stays `false`. Registered in `docs/reports/INDEX.md`.
+
+## [2026-08-08] edit | Bird-crop Arc A close-out — Track A complete, Arm B scored (negative)
+
+Closed out the bird-crop / focus workstream ([#317](https://github.com/synthet/image-scoring-backend/issues/317)). **Track A completed** — all 7 models on the pinned 236-image population, merges clean (`Carried forward 6 previously measured model(s)`, no `replacing it rather than merging`). On *constructed* degradation the classical measures top the study: `dog_energy` **8.80×** and `haar_energy` **7.20×** crop sensitivity to subject-only blur, above LIQE's 3.61× — but on the noise ladder three of four are flagged **Suspect**, `laplacian_variance` scoring ρ **+0.996** as sharpness rises with grain. **Arm B was scored for the first time and fails**: precision **0.1429** against a base reject rate of **0.2963** — lift **×0.48**, recall **0.0156**, TP 1 / FP 6 / FN 63 — on the agent-derived label set, i.e. worse than the base rate, consistent with Arm A's at-chance AUC 0.5295 against real misfocus. Updated [`docs/reports/BIRD_CROP_FOCUS_MEASURES_2026-08-03.md`](reports/BIRD_CROP_FOCUS_MEASURES_2026-08-03.md) (headline, Arm B, and a Track A section replacing “Still in flight”), and appended dated resolution sections to [`RESEARCH_SESSIONS_2026-08-05.md`](reports/RESEARCH_SESSIONS_2026-08-05.md) and both `SESSION_BIRD_CROP_*_2026-08-05.md` records rather than rewriting their pause snapshots. Added a `focus_arm_b_rule` CSV/TSV exporter carrying `ground_truth_kind`, so an agent-derived precision cannot be quoted as if it were human-validated. Production untouched: `technical_failures.enabled` stays `false`, no DDL, no migration.
