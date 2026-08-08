@@ -1,0 +1,13 @@
+measure,source,auc_vs_af_disagreement,median_af_agree,median_af_disagree,crop_minus_full_abs_auc,tracks_blur,noise_fooled,n_af_agree,n_af_disagree,long_edge,image_ids_file
+laplacian_variance,crop,0.4772,779.593484,789.058747,-0.0126,True,True,158,58,512,reports/bird-crop/study_image_ids.txt
+laplacian_variance,full,0.4646,1477.033499,1859.886672,,True,True,158,58,512,reports/bird-crop/study_image_ids.txt
+tenengrad,crop,0.465,12394.239674,15015.337353,0.0333,True,True,158,58,512,reports/bird-crop/study_image_ids.txt
+tenengrad,full,0.4983,17773.417877,15835.170506,,True,True,158,58,512,reports/bird-crop/study_image_ids.txt
+dog_energy,crop,0.5012,3.759313,3.69062,-0.0392,True,True,158,58,512,reports/bird-crop/study_image_ids.txt
+dog_energy,full,0.5404,4.513282,4.023285,,True,True,158,58,512,reports/bird-crop/study_image_ids.txt
+haar_energy,crop,0.5295,14.518955,13.285987,0.0015,True,True,158,58,512,reports/bird-crop/study_image_ids.txt
+haar_energy,full,0.528,15.780098,15.25143,,True,True,158,58,512,reports/bird-crop/study_image_ids.txt
+local_entropy,crop,0.6082,7.402239,7.070281,0.0884,False,False,158,58,512,reports/bird-crop/study_image_ids.txt
+local_entropy,full,0.5198,7.253756,7.230852,,False,False,158,58,512,reports/bird-crop/study_image_ids.txt
+canny_edge_density,crop,0.508,0.110822,0.114327,-0.0534,True,True,158,58,512,reports/bird-crop/study_image_ids.txt
+canny_edge_density,full,0.5614,0.144835,0.11648,,True,True,158,58,512,reports/bird-crop/study_image_ids.txt

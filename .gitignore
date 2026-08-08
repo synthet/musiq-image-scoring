@@ -81,6 +81,11 @@ logs/
 reports/model-score-quality/
 reports/clip-culling/rollout_recluster.checkpoint.json
 
+# Bird-crop labelling contact sheets: regenerable from label_set_provenance.json
+# (seed + burst params) and carry no verdict data — verdicts key off image_id in
+# label_set.csv. 6.3 MB of JPEGs would otherwise go through LFS.
+reports/bird-crop/labels/sheets/
+
 *.tmp
 *.temp
 *.swp

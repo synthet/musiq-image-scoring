@@ -1,0 +1,284 @@
+{
+  "folders": "all",
+  "bias_probe": {
+    "n": 37417,
+    "feature_correlations": {
+      "area_frac": {
+        "spearman_vs_score_general": 0.0273,
+        "spearman_vs_rating": 0.0212
+      },
+      "offset_center": {
+        "spearman_vs_score_general": -0.0322,
+        "spearman_vs_rating": -0.0295
+      },
+      "offset_thirds": {
+        "spearman_vs_score_general": -0.0032,
+        "spearman_vs_rating": 0.0026
+      },
+      "aspect": {
+        "spearman_vs_score_general": -0.0401,
+        "spearman_vs_rating": -0.0367
+      },
+      "edges_touched": {
+        "spearman_vs_score_general": -0.1153,
+        "spearman_vs_rating": -0.1127
+      },
+      "conf": {
+        "spearman_vs_score_general": 0.1717,
+        "spearman_vs_rating": 0.1589
+      }
+    },
+    "score_by_subject_size_decile": [
+      {
+        "decile": 1,
+        "area_frac_range": [
+          0.012,
+          0.0399
+        ],
+        "n": 3742,
+        "mean_score_general": 0.652,
+        "mean_subject_px_at_224": 38.9
+      },
+      {
+        "decile": 2,
+        "area_frac_range": [
+          0.0399,
+          0.0539
+        ],
+        "n": 3742,
+        "mean_score_general": 0.6652,
+        "mean_subject_px_at_224": 49.0
+      },
+      {
+        "decile": 3,
+        "area_frac_range": [
+          0.0539,
+          0.0697
+        ],
+        "n": 3741,
+        "mean_score_general": 0.6788,
+        "mean_subject_px_at_224": 56.4
+      },
+      {
+        "decile": 4,
+        "area_frac_range": [
+          0.0697,
+          0.0912
+        ],
+        "n": 3742,
+        "mean_score_general": 0.6806,
+        "mean_subject_px_at_224": 64.5
+      },
+      {
+        "decile": 5,
+        "area_frac_range": [
+          0.0912,
+          0.1173
+        ],
+        "n": 3741,
+        "mean_score_general": 0.6992,
+        "mean_subject_px_at_224": 74.1
+      },
+      {
+        "decile": 6,
+        "area_frac_range": [
+          0.1173,
+          0.1529
+        ],
+        "n": 3742,
+        "mean_score_general": 0.7099,
+        "mean_subject_px_at_224": 83.8
+      },
+      {
+        "decile": 7,
+        "area_frac_range": [
+          0.1529,
+          0.2065
+        ],
+        "n": 3742,
+        "mean_score_general": 0.6829,
+        "mean_subject_px_at_224": 96.9
+      },
+      {
+        "decile": 8,
+        "area_frac_range": [
+          0.2065,
+          0.2922
+        ],
+        "n": 3741,
+        "mean_score_general": 0.6886,
+        "mean_subject_px_at_224": 113.4
+      },
+      {
+        "decile": 9,
+        "area_frac_range": [
+          0.2922,
+          0.4471
+        ],
+        "n": 3742,
+        "mean_score_general": 0.6627,
+        "mean_subject_px_at_224": 138.2
+      },
+      {
+        "decile": 10,
+        "area_frac_range": [
+          0.4471,
+          0.9998
+        ],
+        "n": 3742,
+        "mean_score_general": 0.6012,
+        "mean_subject_px_at_224": 183.2
+      }
+    ],
+    "frame_edge_effect": {
+      "n_touching_frame_edge": 4648,
+      "pct_touching_frame_edge": 12.42,
+      "mean_score_touching": 0.5969,
+      "mean_score_not_touching": 0.6828
+    },
+    "detected_vs_not_detected": {
+      "n_detected": 37417,
+      "n_not_detected": 29065,
+      "mean_score_detected": 0.6721,
+      "mean_score_not_detected": 0.5923,
+      "note": "Compares images where the detector found a bird against the {'detected': false} sentinel population. Both score columns are pipeline-derived, so this is a property of the incumbent stack, not evidence about human preference."
+    },
+    "subject_resolution": {
+      "full_frame_resize_to_224": {
+        "p10": 42.8,
+        "p50": 77.6,
+        "p90": 157.4
+      },
+      "full_frame_resize_to_384": {
+        "p10": 73.4,
+        "p50": 133.1,
+        "p90": 269.7
+      },
+      "full_frame_resize_to_512": {
+        "p10": 97.9,
+        "p50": 177.4,
+        "p90": 359.7
+      }
+    },
+    "area_frac": {
+      "p10": 0.0399,
+      "p50": 0.1173,
+      "p90": 0.4471
+    },
+    "ground_truth": "none \u2014 derived columns only; no accuracy claim"
+  },
+  "label_eval": {
+    "status": "ok",
+    "n_matched": 236,
+    "n_bursts": 54,
+    "verdict_counts": {
+      "reject": 71,
+      "good": 105,
+      "best": 60
+    },
+    "per_feature": {
+      "area_frac": {
+        "spearman_vs_verdict_rank_within_burst": 0.001,
+        "roc_auc_best_vs_rest": 0.463,
+        "roc_auc_reject_vs_rest": 0.5323,
+        "top1_pick_best": {
+          "top1_accuracy": 0.2407,
+          "chance_rate": 0.2737,
+          "n_bursts": 54
+        }
+      },
+      "offset_center": {
+        "spearman_vs_verdict_rank_within_burst": 0.023,
+        "roc_auc_best_vs_rest": 0.5241,
+        "roc_auc_reject_vs_rest": 0.5024,
+        "top1_pick_best": {
+          "top1_accuracy": 0.3333,
+          "chance_rate": 0.2737,
+          "n_bursts": 54
+        }
+      },
+      "offset_thirds": {
+        "spearman_vs_verdict_rank_within_burst": -0.0305,
+        "roc_auc_best_vs_rest": 0.4502,
+        "roc_auc_reject_vs_rest": 0.5119,
+        "top1_pick_best": {
+          "top1_accuracy": 0.2593,
+          "chance_rate": 0.2737,
+          "n_bursts": 54
+        }
+      },
+      "aspect": {
+        "spearman_vs_verdict_rank_within_burst": -0.0234,
+        "roc_auc_best_vs_rest": 0.4832,
+        "roc_auc_reject_vs_rest": 0.491,
+        "top1_pick_best": {
+          "top1_accuracy": 0.2222,
+          "chance_rate": 0.2737,
+          "n_bursts": 54
+        }
+      },
+      "edges_touched": {
+        "spearman_vs_verdict_rank_within_burst": -0.1213,
+        "roc_auc_best_vs_rest": 0.4548,
+        "roc_auc_reject_vs_rest": 0.474,
+        "top1_pick_best": {
+          "top1_accuracy": 0.1667,
+          "chance_rate": 0.2737,
+          "n_bursts": 54
+        }
+      },
+      "conf": {
+        "spearman_vs_verdict_rank_within_burst": 0.3099,
+        "roc_auc_best_vs_rest": 0.6591,
+        "roc_auc_reject_vs_rest": 0.6724,
+        "top1_pick_best": {
+          "top1_accuracy": 0.4259,
+          "chance_rate": 0.2737,
+          "n_bursts": 54
+        }
+      },
+      "score_general": {
+        "spearman_vs_verdict_rank_within_burst": 0.0663,
+        "roc_auc_best_vs_rest": 0.5121,
+        "roc_auc_reject_vs_rest": 0.5554,
+        "top1_pick_best": {
+          "top1_accuracy": 0.2222,
+          "chance_rate": 0.2737,
+          "n_bursts": 54
+        }
+      },
+      "score_technical": {
+        "spearman_vs_verdict_rank_within_burst": 0.0284,
+        "roc_auc_best_vs_rest": 0.5282,
+        "roc_auc_reject_vs_rest": 0.5043,
+        "top1_pick_best": {
+          "top1_accuracy": 0.2963,
+          "chance_rate": 0.2737,
+          "n_bursts": 54
+        }
+      }
+    },
+    "combined_model": {
+      "geometry_only": {
+        "roc_auc_loo_burst": 0.6077,
+        "n": 236,
+        "n_features": 6
+      },
+      "score_only": {
+        "roc_auc_loo_burst": 0.3827,
+        "n": 236,
+        "n_features": 1
+      },
+      "geometry_plus_score": {
+        "roc_auc_loo_burst": 0.6002,
+        "n": 236,
+        "n_features": 7
+      },
+      "delta_auc_from_adding_geometry": 0.2175,
+      "decision_gate": "Plan gate: geometry earns first-class exposure if it adds >= 0.03 ROC-AUC over score-alone."
+    },
+    "ground_truth": "agent-derived within-burst verdicts (vision-LLM consensus; not human)",
+    "ground_truth_kind": "agent-derived",
+    "ground_truth_sidecar": "label_set_judges-57c86c08-6a1e-41d0-88b7-bf9d5e0a2f59.json"
+  }
+}

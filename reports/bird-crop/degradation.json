@@ -1,0 +1,889 @@
+{
+  "config": {
+    "models": [
+      "haar_energy"
+    ],
+    "n_images_requested": 236,
+    "long_edge": 512,
+    "work_long_edge": 3000,
+    "crop_variant": "crop",
+    "ladders": {
+      "blur": [
+        0.0,
+        0.8,
+        1.6,
+        3.2,
+        6.4
+      ],
+      "motion": [
+        0.0,
+        5.0,
+        11.0,
+        21.0,
+        41.0
+      ],
+      "noise": [
+        0.0,
+        4.0,
+        8.0,
+        16.0,
+        32.0
+      ]
+    },
+    "folders": "all",
+    "image_ids_file": "reports/bird-crop/study_image_ids.txt",
+    "n_pinned_ids": 236
+  },
+  "by_model": {
+    "liqe": {
+      "blur/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9966,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.705,
+        "pct_strongly_monotonic": 99.6
+      },
+      "blur/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -0.9996,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.415,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.978,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.539,
+        "pct_strongly_monotonic": 96.2
+      },
+      "blur/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -0.9254,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.1495,
+        "pct_strongly_monotonic": 94.9
+      },
+      "motion/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9979,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.7618,
+        "pct_strongly_monotonic": 99.6
+      },
+      "motion/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -0.9996,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.6467,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9945,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.7218,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -0.9767,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.2977,
+        "pct_strongly_monotonic": 97.5
+      },
+      "noise/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9818,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.4328,
+        "pct_strongly_monotonic": 97.0
+      },
+      "noise/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -0.8356,
+        "median_spearman": -0.9,
+        "mean_relative_drop": 0.0936,
+        "pct_strongly_monotonic": 74.2
+      },
+      "noise/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9758,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.3923,
+        "pct_strongly_monotonic": 94.9
+      },
+      "noise/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -0.6627,
+        "median_spearman": -0.9,
+        "mean_relative_drop": 0.0224,
+        "pct_strongly_monotonic": 54.2
+      }
+    },
+    "topiq": {
+      "blur/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.7335,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.4708,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9517,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.3495,
+        "pct_strongly_monotonic": 92.8
+      },
+      "blur/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -0.9165,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.1203,
+        "pct_strongly_monotonic": 89.0
+      },
+      "motion/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9987,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.8155,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.5674,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9856,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.5216,
+        "pct_strongly_monotonic": 97.9
+      },
+      "motion/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -0.9581,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.1671,
+        "pct_strongly_monotonic": 91.9
+      },
+      "noise/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9966,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.3751,
+        "pct_strongly_monotonic": 100.0
+      },
+      "noise/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -0.972,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.1312,
+        "pct_strongly_monotonic": 96.2
+      },
+      "noise/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9945,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.2891,
+        "pct_strongly_monotonic": 100.0
+      },
+      "noise/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -0.9258,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.0413,
+        "pct_strongly_monotonic": 88.6
+      }
+    },
+    "arniqa": {
+      "blur/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.8733,
+        "median_spearman": -0.9,
+        "mean_relative_drop": 0.4478,
+        "pct_strongly_monotonic": 75.8
+      },
+      "blur/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -0.8475,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.2072,
+        "pct_strongly_monotonic": 75.8
+      },
+      "blur/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.5047,
+        "median_spearman": -0.7,
+        "mean_relative_drop": 0.0936,
+        "pct_strongly_monotonic": 49.2
+      },
+      "blur/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -0.3398,
+        "median_spearman": -0.7,
+        "mean_relative_drop": 0.0238,
+        "pct_strongly_monotonic": 44.9
+      },
+      "motion/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9839,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.5982,
+        "pct_strongly_monotonic": 98.7
+      },
+      "motion/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -0.9564,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.4347,
+        "pct_strongly_monotonic": 93.2
+      },
+      "motion/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.5267,
+        "median_spearman": -0.7,
+        "mean_relative_drop": 0.1385,
+        "pct_strongly_monotonic": 47.0
+      },
+      "motion/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -0.386,
+        "median_spearman": -0.7,
+        "mean_relative_drop": 0.0369,
+        "pct_strongly_monotonic": 46.6
+      },
+      "noise/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9008,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.2453,
+        "pct_strongly_monotonic": 86.0
+      },
+      "noise/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -0.553,
+        "median_spearman": -0.9,
+        "mean_relative_drop": 0.0433,
+        "pct_strongly_monotonic": 58.5
+      },
+      "noise/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.8119,
+        "median_spearman": -0.9,
+        "mean_relative_drop": 0.1345,
+        "pct_strongly_monotonic": 72.5
+      },
+      "noise/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -0.414,
+        "median_spearman": -0.7,
+        "mean_relative_drop": 0.0114,
+        "pct_strongly_monotonic": 42.4
+      }
+    },
+    "laplacian_variance": {
+      "blur/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.9897,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.9473,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9919,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.7612,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.2405,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.9196,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.8369,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -0.9996,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.7071,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.2143,
+        "pct_strongly_monotonic": 100.0
+      },
+      "noise/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": 0.9996,
+        "median_spearman": 1.0,
+        "mean_relative_drop": 0.0,
+        "pct_strongly_monotonic": 0.0
+      },
+      "noise/frame/full": {
+        "n_images": 236,
+        "mean_spearman": 0.597,
+        "median_spearman": 1.0,
+        "mean_relative_drop": 0.0062,
+        "pct_strongly_monotonic": 10.6
+      },
+      "noise/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": 0.9958,
+        "median_spearman": 1.0,
+        "mean_relative_drop": 0.0,
+        "pct_strongly_monotonic": 0.0
+      },
+      "noise/subject/full": {
+        "n_images": 236,
+        "mean_spearman": 0.0326,
+        "median_spearman": 0.0,
+        "mean_relative_drop": 0.0033,
+        "pct_strongly_monotonic": 35.6
+      }
+    },
+    "tenengrad": {
+      "blur/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.8538,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.6279,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.6568,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.142,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.757,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.5761,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.5843,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.1315,
+        "pct_strongly_monotonic": 100.0
+      },
+      "noise/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": 0.5034,
+        "median_spearman": 1.0,
+        "mean_relative_drop": 0.0078,
+        "pct_strongly_monotonic": 19.5
+      },
+      "noise/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -0.7186,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.045,
+        "pct_strongly_monotonic": 68.2
+      },
+      "noise/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": 0.422,
+        "median_spearman": 1.0,
+        "mean_relative_drop": 0.0073,
+        "pct_strongly_monotonic": 22.0
+      },
+      "noise/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -0.9237,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.0144,
+        "pct_strongly_monotonic": 88.6
+      }
+    },
+    "dog_energy": {
+      "blur/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.6827,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.3024,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.5137,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.0584,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.5486,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -0.9979,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.3268,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.4166,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.0639,
+        "pct_strongly_monotonic": 100.0
+      },
+      "noise/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": 0.7627,
+        "median_spearman": 1.0,
+        "mean_relative_drop": 0.0023,
+        "pct_strongly_monotonic": 6.4
+      },
+      "noise/frame/full": {
+        "n_images": 236,
+        "mean_spearman": 0.0013,
+        "median_spearman": 0.0,
+        "mean_relative_drop": 0.0128,
+        "pct_strongly_monotonic": 31.8
+      },
+      "noise/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": 0.7208,
+        "median_spearman": 1.0,
+        "mean_relative_drop": 0.0019,
+        "pct_strongly_monotonic": 7.2
+      },
+      "noise/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -0.5758,
+        "median_spearman": -0.9,
+        "mean_relative_drop": 0.004,
+        "pct_strongly_monotonic": 61.0
+      }
+    },
+    "haar_energy": {
+      "blur/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.5276,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.2947,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.3925,
+        "pct_strongly_monotonic": 100.0
+      },
+      "blur/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.0545,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.4786,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/frame/full": {
+        "n_images": 236,
+        "mean_spearman": -0.9979,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.3058,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.3579,
+        "pct_strongly_monotonic": 100.0
+      },
+      "motion/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -1.0,
+        "median_spearman": -1.0,
+        "mean_relative_drop": 0.0564,
+        "pct_strongly_monotonic": 100.0
+      },
+      "noise/frame/crop": {
+        "n_images": 236,
+        "mean_spearman": 0.9758,
+        "median_spearman": 1.0,
+        "mean_relative_drop": 0.0002,
+        "pct_strongly_monotonic": 0.4
+      },
+      "noise/frame/full": {
+        "n_images": 236,
+        "mean_spearman": 0.4979,
+        "median_spearman": 1.0,
+        "mean_relative_drop": 0.0054,
+        "pct_strongly_monotonic": 13.6
+      },
+      "noise/subject/crop": {
+        "n_images": 236,
+        "mean_spearman": 0.9775,
+        "median_spearman": 1.0,
+        "mean_relative_drop": 0.0002,
+        "pct_strongly_monotonic": 0.4
+      },
+      "noise/subject/full": {
+        "n_images": 236,
+        "mean_spearman": -0.0242,
+        "median_spearman": -0.1,
+        "mean_relative_drop": 0.0019,
+        "pct_strongly_monotonic": 28.4
+      }
+    }
+  },
+  "verdict": {
+    "liqe": {
+      "blur": {
+        "subject_degraded_full_frame_drop": 0.1495,
+        "subject_degraded_crop_drop": 0.539,
+        "crop_sensitivity_ratio": 3.61,
+        "whole_frame_control_drop": 0.415,
+        "monotonicity_check": {
+          "subject_full_spearman": -0.9254,
+          "subject_crop_spearman": -0.978,
+          "whole_frame_spearman": -0.9996
+        }
+      },
+      "motion": {
+        "subject_degraded_full_frame_drop": 0.2977,
+        "subject_degraded_crop_drop": 0.7218,
+        "crop_sensitivity_ratio": 2.42,
+        "whole_frame_control_drop": 0.6467,
+        "monotonicity_check": {
+          "subject_full_spearman": -0.9767,
+          "subject_crop_spearman": -0.9945,
+          "whole_frame_spearman": -0.9996
+        }
+      },
+      "noise": {
+        "subject_degraded_full_frame_drop": 0.0224,
+        "subject_degraded_crop_drop": 0.3923,
+        "crop_sensitivity_ratio": 17.51,
+        "whole_frame_control_drop": 0.0936,
+        "monotonicity_check": {
+          "subject_full_spearman": -0.6627,
+          "subject_crop_spearman": -0.9758,
+          "whole_frame_spearman": -0.8356
+        }
+      }
+    },
+    "topiq": {
+      "blur": {
+        "subject_degraded_full_frame_drop": 0.1203,
+        "subject_degraded_crop_drop": 0.3495,
+        "crop_sensitivity_ratio": 2.91,
+        "whole_frame_control_drop": 0.4708,
+        "monotonicity_check": {
+          "subject_full_spearman": -0.9165,
+          "subject_crop_spearman": -0.9517,
+          "whole_frame_spearman": -1.0
+        }
+      },
+      "motion": {
+        "subject_degraded_full_frame_drop": 0.1671,
+        "subject_degraded_crop_drop": 0.5216,
+        "crop_sensitivity_ratio": 3.12,
+        "whole_frame_control_drop": 0.5674,
+        "monotonicity_check": {
+          "subject_full_spearman": -0.9581,
+          "subject_crop_spearman": -0.9856,
+          "whole_frame_spearman": -1.0
+        }
+      },
+      "noise": {
+        "subject_degraded_full_frame_drop": 0.0413,
+        "subject_degraded_crop_drop": 0.2891,
+        "crop_sensitivity_ratio": 7.0,
+        "whole_frame_control_drop": 0.1312,
+        "monotonicity_check": {
+          "subject_full_spearman": -0.9258,
+          "subject_crop_spearman": -0.9945,
+          "whole_frame_spearman": -0.972
+        }
+      }
+    },
+    "arniqa": {
+      "blur": {
+        "subject_degraded_full_frame_drop": 0.0238,
+        "subject_degraded_crop_drop": 0.0936,
+        "crop_sensitivity_ratio": 3.93,
+        "whole_frame_control_drop": 0.2072,
+        "monotonicity_check": {
+          "subject_full_spearman": -0.3398,
+          "subject_crop_spearman": -0.5047,
+          "whole_frame_spearman": -0.8475
+        }
+      },
+      "motion": {
+        "subject_degraded_full_frame_drop": 0.0369,
+        "subject_degraded_crop_drop": 0.1385,
+        "crop_sensitivity_ratio": 3.75,
+        "whole_frame_control_drop": 0.4347,
+        "monotonicity_check": {
+          "subject_full_spearman": -0.386,
+          "subject_crop_spearman": -0.5267,
+          "whole_frame_spearman": -0.9564
+        }
+      },
+      "noise": {
+        "subject_degraded_full_frame_drop": 0.0114,
+        "subject_degraded_crop_drop": 0.1345,
+        "crop_sensitivity_ratio": 11.8,
+        "whole_frame_control_drop": 0.0433,
+        "monotonicity_check": {
+          "subject_full_spearman": -0.414,
+          "subject_crop_spearman": -0.8119,
+          "whole_frame_spearman": -0.553
+        }
+      }
+    },
+    "laplacian_variance": {
+      "blur": {
+        "subject_degraded_full_frame_drop": 0.2405,
+        "subject_degraded_crop_drop": 0.7612,
+        "crop_sensitivity_ratio": 3.17,
+        "whole_frame_control_drop": 0.9473,
+        "monotonicity_check": {
+          "subject_full_spearman": -1.0,
+          "subject_crop_spearman": -0.9919,
+          "whole_frame_spearman": -1.0
+        }
+      },
+      "motion": {
+        "subject_degraded_full_frame_drop": 0.2143,
+        "subject_degraded_crop_drop": 0.7071,
+        "crop_sensitivity_ratio": 3.3,
+        "whole_frame_control_drop": 0.8369,
+        "monotonicity_check": {
+          "subject_full_spearman": -1.0,
+          "subject_crop_spearman": -0.9996,
+          "whole_frame_spearman": -1.0
+        }
+      },
+      "noise": {
+        "subject_degraded_full_frame_drop": 0.0033,
+        "subject_degraded_crop_drop": 0.0,
+        "crop_sensitivity_ratio": 0.0,
+        "whole_frame_control_drop": 0.0062,
+        "monotonicity_check": {
+          "subject_full_spearman": 0.0326,
+          "subject_crop_spearman": 0.9958,
+          "whole_frame_spearman": 0.597
+        }
+      }
+    },
+    "tenengrad": {
+      "blur": {
+        "subject_degraded_full_frame_drop": 0.142,
+        "subject_degraded_crop_drop": 0.6568,
+        "crop_sensitivity_ratio": 4.63,
+        "whole_frame_control_drop": 0.6279,
+        "monotonicity_check": {
+          "subject_full_spearman": -1.0,
+          "subject_crop_spearman": -1.0,
+          "whole_frame_spearman": -1.0
+        }
+      },
+      "motion": {
+        "subject_degraded_full_frame_drop": 0.1315,
+        "subject_degraded_crop_drop": 0.5843,
+        "crop_sensitivity_ratio": 4.44,
+        "whole_frame_control_drop": 0.5761,
+        "monotonicity_check": {
+          "subject_full_spearman": -1.0,
+          "subject_crop_spearman": -1.0,
+          "whole_frame_spearman": -1.0
+        }
+      },
+      "noise": {
+        "subject_degraded_full_frame_drop": 0.0144,
+        "subject_degraded_crop_drop": 0.0073,
+        "crop_sensitivity_ratio": 0.51,
+        "whole_frame_control_drop": 0.045,
+        "monotonicity_check": {
+          "subject_full_spearman": -0.9237,
+          "subject_crop_spearman": 0.422,
+          "whole_frame_spearman": -0.7186
+        }
+      }
+    },
+    "dog_energy": {
+      "blur": {
+        "subject_degraded_full_frame_drop": 0.0584,
+        "subject_degraded_crop_drop": 0.5137,
+        "crop_sensitivity_ratio": 8.8,
+        "whole_frame_control_drop": 0.3024,
+        "monotonicity_check": {
+          "subject_full_spearman": -1.0,
+          "subject_crop_spearman": -1.0,
+          "whole_frame_spearman": -1.0
+        }
+      },
+      "motion": {
+        "subject_degraded_full_frame_drop": 0.0639,
+        "subject_degraded_crop_drop": 0.4166,
+        "crop_sensitivity_ratio": 6.52,
+        "whole_frame_control_drop": 0.3268,
+        "monotonicity_check": {
+          "subject_full_spearman": -1.0,
+          "subject_crop_spearman": -1.0,
+          "whole_frame_spearman": -0.9979
+        }
+      },
+      "noise": {
+        "subject_degraded_full_frame_drop": 0.004,
+        "subject_degraded_crop_drop": 0.0019,
+        "crop_sensitivity_ratio": 0.47,
+        "whole_frame_control_drop": 0.0128,
+        "monotonicity_check": {
+          "subject_full_spearman": -0.5758,
+          "subject_crop_spearman": 0.7208,
+          "whole_frame_spearman": 0.0013
+        }
+      }
+    },
+    "haar_energy": {
+      "blur": {
+        "subject_degraded_full_frame_drop": 0.0545,
+        "subject_degraded_crop_drop": 0.3925,
+        "crop_sensitivity_ratio": 7.2,
+        "whole_frame_control_drop": 0.2947,
+        "monotonicity_check": {
+          "subject_full_spearman": -1.0,
+          "subject_crop_spearman": -1.0,
+          "whole_frame_spearman": -1.0
+        }
+      },
+      "motion": {
+        "subject_degraded_full_frame_drop": 0.0564,
+        "subject_degraded_crop_drop": 0.3579,
+        "crop_sensitivity_ratio": 6.35,
+        "whole_frame_control_drop": 0.3058,
+        "monotonicity_check": {
+          "subject_full_spearman": -1.0,
+          "subject_crop_spearman": -1.0,
+          "whole_frame_spearman": -0.9979
+        }
+      },
+      "noise": {
+        "subject_degraded_full_frame_drop": 0.0019,
+        "subject_degraded_crop_drop": 0.0002,
+        "crop_sensitivity_ratio": 0.11,
+        "whole_frame_control_drop": 0.0054,
+        "monotonicity_check": {
+          "subject_full_spearman": -0.0242,
+          "subject_crop_spearman": 0.9775,
+          "whole_frame_spearman": 0.4979
+        }
+      }
+    },
+    "_reading": "crop_sensitivity_ratio > 1 means the crop responds more strongly than the full frame to the *bird alone* being degraded, supporting the study's premise; ~1 would refute it. Spearman is only a direction check and saturates at -1.0, so it is not used for effect size. whole_frame_* is the harness self-check: it must be strongly negative and monotonic for every model regardless of framing."
+  }
+}

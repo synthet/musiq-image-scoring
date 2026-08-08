@@ -1,0 +1,2 @@
+rule,threshold_laplacian_variance_p10,ground_truth_kind,positive_class,precision_vs_reject,recall_vs_reject,base_reject_rate,precision_lift_vs_base,true_positives,false_positives,false_negatives,n_flagged,n_eligible,n_with_af,flag_rate,image_ids_file
+flag when crop laplacian_variance <= p10 AND the AF centre falls outside the bird box,327.7379,agent-derived,reject,0.1429,0.0156,0.2963,0.4821,1,6,63,7,216,216,0.0324,reports/bird-crop/study_image_ids.txt
