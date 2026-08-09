@@ -24,7 +24,15 @@ from modules.lens_folder_name import UNKNOWN_LENS_FOLDER, lens_folder_from_exif_
         (None, UNKNOWN_LENS_FOLDER),
         ("", UNKNOWN_LENS_FOLDER),
         ("   ", UNKNOWN_LENS_FOLDER),
+        # Unrecognised *marketing* names still sanitize — that is what sanitize is for.
         ("FTZ Adapter", "FTZ Adapter"),
+        # Recognisably invalid lens data must NOT become a folder name. Both of these were
+        # found as literal directories on a live backup destination (E:\\Photos\\Z6ii).
+        ("0mm", UNKNOWN_LENS_FOLDER),
+        ("0mm f/0", UNKNOWN_LENS_FOLDER),
+        ("0 0 0 0", UNKNOWN_LENS_FOLDER),
+        ("0 0 0.0 0", UNKNOWN_LENS_FOLDER),
+        ("NIKKOR 0mm f/1.8", UNKNOWN_LENS_FOLDER),
     ],
 )
 def test_lens_folder_from_exif_model(lens_model, expected):
