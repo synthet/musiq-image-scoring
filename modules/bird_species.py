@@ -227,6 +227,10 @@ class BioCLIPClassifier:
 
             # Localize the bird and crop to its box before classifying. Falls back
             # to the whole image when the detector is unavailable or finds no bird.
+            # Always set last_bbox so callers persist a scan outcome (never leave NULL
+            # after bird_species classifies — including detector_unavailable).
+            from modules.bird_detection import BBOX_NOT_DETECTED, bbox_scan_failed
+
             detector = self._ensure_detector()
             if detector is not None:
                 try:
@@ -234,8 +238,13 @@ class BioCLIPClassifier:
                     if box:
                         self.last_bbox = box
                         img = detector.crop_to_box(img, box)
+                    else:
+                        self.last_bbox = dict(BBOX_NOT_DETECTED)
                 except Exception as det_err:  # noqa: BLE001 — fall back to whole image
                     logger.debug("Bird detection failed for %s: %s", image_path, det_err)
+                    self.last_bbox = bbox_scan_failed(f"detect_error: {det_err}")
+            else:
+                self.last_bbox = bbox_scan_failed("detector_unavailable")
 
             img_tensor = self.preprocess(img).unsqueeze(0).to(self.device)
 
@@ -396,6 +405,16 @@ class BirdSpeciesRunner:
         inference_path = _resolve_inference_path(row, file_path)
 
         if not inference_path or not os.path.exists(inference_path):
+            try:
+                from modules.bird_detection import bbox_scan_failed
+
+                db.update_image_bird_bbox(int(row["id"]), bbox_scan_failed("file_missing"))
+            except Exception:
+                logger.warning(
+                    "bird_species: bird_bbox persist failed for image_id=%s",
+                    row.get("id"),
+                    exc_info=True,
+                )
             db.set_image_phase_status(
                 row["id"],
                 phase_code,
@@ -421,19 +440,21 @@ class BirdSpeciesRunner:
                     exc_info=True,
                 )
 
+            # classify() always sets last_bbox (box, not-detected, or scan-failed).
             bbox = getattr(self.classifier, "last_bbox", None)
-            try:
-                from modules.bird_detection import BBOX_NOT_DETECTED
-
-                db.update_image_bird_bbox(
-                    int(row["id"]),
-                    bbox if bbox is not None else BBOX_NOT_DETECTED,
-                )
-            except Exception:
-                logger.debug(
-                    "bird_species: bird_bbox persist failed for image_id=%s",
+            if bbox is not None:
+                try:
+                    db.update_image_bird_bbox(int(row["id"]), bbox)
+                except Exception:
+                    logger.warning(
+                        "bird_species: bird_bbox persist failed for image_id=%s",
+                        row.get("id"),
+                        exc_info=True,
+                    )
+            else:
+                logger.warning(
+                    "bird_species: classify left last_bbox unset for image_id=%s",
                     row.get("id"),
-                    exc_info=True,
                 )
 
             if predictions:
@@ -484,6 +505,18 @@ class BirdSpeciesRunner:
             return 0, 1
 
         except Exception as exc:
+            try:
+                from modules.bird_detection import bbox_scan_failed
+
+                db.update_image_bird_bbox(
+                    int(row["id"]), bbox_scan_failed(f"classify_error: {exc}")
+                )
+            except Exception:
+                logger.warning(
+                    "bird_species: bird_bbox persist failed for image_id=%s",
+                    row.get("id"),
+                    exc_info=True,
+                )
             db.set_image_phase_status(
                 row["id"],
                 phase_code,

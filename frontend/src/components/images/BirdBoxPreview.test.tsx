@@ -105,11 +105,11 @@ describe('BirdBoxPreview', () => {
     expect(overlay.style.border).toContain('rgba(')
   })
 
-  it('disables the checkbox when the image has no detection', () => {
+  it('disables the checkbox when the image has not been scanned', () => {
     render(<BirdBoxPreview src="/source-image?path=a.NEF" alt="a.NEF" bbox={null} />)
 
     expect(checkbox().disabled).toBe(true)
-    expect(screen.getByText('(no detection)')).not.toBeNull()
+    expect(screen.getByText('(not scanned)')).not.toBeNull()
     expect(screen.queryByTestId('bird-bbox-overlay')).toBeNull()
   })
 
@@ -119,8 +119,21 @@ describe('BirdBoxPreview', () => {
     )
 
     expect(checkbox().disabled).toBe(true)
-    expect(screen.getByText('(no detection)')).not.toBeNull()
+    expect(screen.getByText('(no bird)')).not.toBeNull()
     expect(screen.queryByTestId('bird-bbox-overlay')).toBeNull()
+  })
+
+  it('shows scan-failed label when the sentinel includes an error', () => {
+    render(
+      <BirdBoxPreview
+        src="/source-image?path=a.NEF"
+        alt="a.NEF"
+        bbox={{ detected: false, error: 'detector_unavailable' }}
+      />,
+    )
+
+    expect(checkbox().disabled).toBe(true)
+    expect(screen.getByText('(scan failed: detector_unavailable)')).not.toBeNull()
   })
 
   it('treats a box with zero reference dimensions as undrawable', () => {
@@ -129,6 +142,7 @@ describe('BirdBoxPreview', () => {
     )
 
     expect(checkbox().disabled).toBe(true)
+    expect(screen.getByText('(not scanned)')).not.toBeNull()
     expect(screen.queryByTestId('bird-bbox-overlay')).toBeNull()
   })
 })

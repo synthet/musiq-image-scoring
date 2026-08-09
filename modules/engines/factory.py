@@ -27,6 +27,9 @@ def ensure_production_registry(
 
     Shadow / LLM models (e.g. ``topiq``, ``cursor``) register at import time in
     ``modules.engines``. Idempotent for repeated calls with the same backend.
+    Student proxies register only when ``scoring.models`` already lists
+    ``vexlum_student_*`` keys (see ``config.example.json``), avoiding the
+    registry default that treats absent models as enabled.
     """
     reg = registry or get_registry()
     names = musiq_names if musiq_names is not None else list(_DEFAULT_MUSIQ_NAMES)
@@ -36,7 +39,25 @@ def ensure_production_registry(
     liqe = reg.get("liqe")
     if liqe is None or liqe_scorer is not None and getattr(liqe, "_scorer", None) is not liqe_scorer:
         reg.register(LiqeModelWrapper(scorer=liqe_scorer))
+
+    ensure_student_proxies_registered(registry=reg)
     return reg
+
+
+def ensure_student_proxies_registered(*, registry: ModelRegistry | None = None) -> bool:
+    """Register student proxies iff config already declares vexlum_student_* models."""
+    try:
+        from modules.config import get_config_value
+
+        models_cfg = get_config_value("scoring.models", default={}) or {}
+    except Exception:
+        models_cfg = {}
+    if not any(str(k).startswith("vexlum_student_") for k in models_cfg):
+        return False
+    from modules.engines.student_model import register_student_proxies
+
+    register_student_proxies(registry or get_registry())
+    return True
 
 
 def create_production_scoring_host(
@@ -88,5 +109,6 @@ def load_production_models(
 __all__ = [
     "create_production_scoring_host",
     "ensure_production_registry",
+    "ensure_student_proxies_registered",
     "load_production_models",
 ]

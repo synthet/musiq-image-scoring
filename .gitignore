@@ -282,6 +282,10 @@ graphify-out/
 .agent/scratch/
 brain/
 artifacts/brain/
+
+# Student scorer research artifacts (manifests, renders, caches, local bundles)
+artifacts/student_scorer/*
+!artifacts/student_scorer/.gitkeep
 .cache/
 .playwright-mcp/
 
