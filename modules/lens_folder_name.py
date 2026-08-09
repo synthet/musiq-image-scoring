@@ -49,6 +49,33 @@ def _parse_nikon_lens_quad(trimmed: str) -> str | None:
     return token
 
 
+def _is_degenerate_lens_spec(trimmed: str) -> bool:
+    """
+    True when the lens data is recognisably *invalid* rather than merely unrecognised.
+
+    Distinguishes "EXIF reports no usable lens" (``0mm``, ``0 0 0 0``) — where the image has
+    no real lens and must fall to :data:`UNKNOWN_LENS_FOLDER` so sync/backup skips it — from
+    an unrecognised *marketing* name, which is still meaningful once sanitized.
+
+    Without this, ``0 0 0 0`` and ``0mm f/0`` get sanitized into literal folder names; both
+    were observed on a live backup destination.
+    """
+    m = _FOCAL_MM_PATTERN.search(trimmed)
+    if m and m.group(1).lower() in _INVALID_LENS_TOKENS:
+        return True
+
+    quad = _NIKON_LENS_QUAD_PATTERN.match(trimmed)
+    if quad:
+        try:
+            min_f = float(quad.group(1))
+            max_f = float(quad.group(2))
+        except ValueError:
+            return False
+        return min_f <= 0 or max_f <= 0
+
+    return False
+
+
 def _sanitize_lens_name(raw: str) -> str:
     if not raw.strip():
         return UNKNOWN_LENS_FOLDER
@@ -77,6 +104,9 @@ def lens_folder_from_exif_model(lens_model: str | None) -> str:
     quad = _parse_nikon_lens_quad(trimmed)
     if quad:
         return quad
+
+    if _is_degenerate_lens_spec(trimmed):
+        return UNKNOWN_LENS_FOLDER
 
     return _sanitize_lens_name(trimmed)
 
