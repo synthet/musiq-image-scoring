@@ -1,0 +1,15 @@
+# Training / research extras for the student scorer program.
+# Do not install into the default runtime venv until shadow inference needs them.
+#
+#   pip install -r requirements/requirements_student_scorer.txt
+#
+# Runtime scoring continues to use requirements_wsl_gpu.txt / app deps.
+
+torch>=2.1.0
+timm>=0.9.12
+torchvision>=0.16.0
+numpy>=1.24
+pandas>=2.0
+pyarrow>=14.0
+Pillow>=10.0
+tqdm>=4.66

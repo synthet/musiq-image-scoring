@@ -28,7 +28,21 @@
       "topiq":  { "enabled": true,  "shadow": false },
       "arniqa": { "enabled": true,  "shadow": false },
       "cursor": { "enabled": false, "shadow": false },
-      "claude": { "enabled": false, "shadow": false }
+      "claude": { "enabled": false, "shadow": false },
+      "vexlum_student_v1_spaq_proxy":   { "enabled": false, "shadow": false },
+      "vexlum_student_v1_ava_proxy":    { "enabled": false, "shadow": false },
+      "vexlum_student_v1_liqe_proxy":   { "enabled": false, "shadow": false },
+      "vexlum_student_v1_topiq_proxy":  { "enabled": false, "shadow": false },
+      "vexlum_student_v1_arniqa_proxy": { "enabled": false, "shadow": false },
+      "vexlum_student_v1_general":     { "enabled": false, "shadow": false },
+      "vexlum_student_v1_technical":   { "enabled": false, "shadow": false },
+      "vexlum_student_v1_aesthetic":   { "enabled": false, "shadow": false },
+      "vexlum_student_v1_uncertainty": { "enabled": false, "shadow": false }
+    },
+    "student": {
+      "bundle_dir": "",
+      "device": "cuda",
+      "comment": "Shadow campaign: set each vexlum_student_v1_* to {enabled:false, shadow:true} and point bundle_dir at a local artifacts/.../bundles/v1 directory. Never add student names to scoring.fusion."
     },
     "arniqa": {
       "metric": "arniqa",
