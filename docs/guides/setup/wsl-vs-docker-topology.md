@@ -1,10 +1,10 @@
 ---
 type: Guide
 title: WSL vs Docker topology
-description: "Operator map of Ubuntu WSL vs docker-desktop: what runs where, Docker-only limits, shutdown safety, photo binds."
+description: "Operator map of Ubuntu vs docker-desktop, gpu-shell, shutdown safety, photo binds, and Ubuntu disk reclaim (compact / unregister)."
 resource: guides/setup/wsl-vs-docker-topology.md
 tags: [wsl, docker, setup, postgres, gpu]
-timestamp: 2026-08-09T04:39:52Z
+timestamp: 2026-08-09T16:15:00Z
 okf_version: 0.1
 ---
 
@@ -12,7 +12,7 @@ okf_version: 0.1
 
 On Windows, this project uses **two WSL2 distros** plus the Windows host. They are not interchangeable. Day-to-day scoring + Postgres + **GPU scripts/research** can run entirely under Docker (`db` / `webui` / `gpu-shell`). Ubuntu WSL remains optional for host Python and `pytest -m wsl`. Electron gallery stays on Windows.
 
-Related: [ENVIRONMENTS.md](ENVIRONMENTS.md) (Python venvs), [DOCKER_SETUP.md](DOCKER_SETUP.md) (compose build/run, GPU shell), [WINDOWS_WSL_DEPLOYMENT.md](WINDOWS_WSL_DEPLOYMENT.md).
+Related: [ENVIRONMENTS.md](ENVIRONMENTS.md) (Python venvs), [DOCKER_SETUP.md](DOCKER_SETUP.md) (compose build/run, GPU shell), [WINDOWS_WSL_DEPLOYMENT.md](WINDOWS_WSL_DEPLOYMENT.md). Disk reclaim when sunsetting Ubuntu: [below](#sunsetting-ubuntu--disk-reclaim).
 
 ## Distro map
 
@@ -81,6 +81,61 @@ flowchart TB
 After a full shutdown: start Docker Desktop, wait for containers (`docker ps`), then start Ubuntu only if needed.
 
 Never use `wsl --shutdown` to “fix” an Ubuntu-only problem — restart or re-enter Ubuntu instead.
+
+## Sunsetting Ubuntu — disk reclaim
+
+Two different goals:
+
+| Goal | What to do | Disk effect |
+|------|------------|-------------|
+| Keep Ubuntu but reclaim NTFS space after deleting files inside Linux | Compact the VHDX | Shrinks `ext4.vhdx` on the host; distro stays |
+| Remove Ubuntu entirely (Docker-first forever) | Export optional backup, then `wsl --unregister Ubuntu` | Deletes the distro + VHDX (e.g. `D:\WSL\Ubuntu\ext4.vhdx`) |
+
+Deleting files **inside** Ubuntu does **not** automatically shrink the Windows `.vhdx`. Compacting or unregistering does.
+
+### Compact (`Compact-WslVhdx.ps1`)
+
+Script: [`scripts/powershell/Compact-WslVhdx.ps1`](../../../scripts/powershell/Compact-WslVhdx.ps1).
+
+**Caveats:**
+
+1. Run from **elevated Windows PowerShell** (Administrator), **not** from WSL bash.
+2. The script always runs **`wsl --shutdown` first** — that stops **all** distros including **`docker-desktop`**. Expect **Postgres / webui / gpu-shell downtime** until Docker Desktop is restarted and containers are healthy again.
+3. Default `-DistroName Ubuntu`. Override with `-VhdPath` if the VHD lives elsewhere (registry resolves `BasePath` under `HKCU\...\Lxss`).
+4. Free space **inside** Linux first (delete caches/venvs you no longer need); then compact. If the VHD does not shrink, there was little reclaimable free space.
+5. Coordinate with anyone using the stack; prefer a maintenance window.
+
+```powershell
+# Elevated PowerShell
+cd D:\Projects\image-scoring-backend\scripts\powershell
+.\Compact-WslVhdx.ps1
+# or:
+.\Compact-WslVhdx.ps1 -DistroName Ubuntu -Force
+```
+
+Afterward: start **Docker Desktop**, wait for `docker ps`, then only start Ubuntu if you still need it.
+
+### Unregister Ubuntu (hard sunset)
+
+**Irreversible** without a prior export. Removes the distro and its VHDX.
+
+**Before `wsl --unregister Ubuntu`:**
+
+1. Confirm day-to-day work uses Compose only (`db` / `webui` / `gpu-shell`) — see decision table above.
+2. Accept loss of Ubuntu-only paths: `~/.venvs/tf`, `~/.venvs/image-scoring-tests`, anything only under that distro’s home, official `pytest -m wsl` / `run_webui.bat` until reinstall.
+3. Optional backup: `wsl --export Ubuntu D:\Backups\ubuntu-wsl.tar` (large; store outside the VHD).
+4. Quit Docker Desktop only if you will also touch other distros; unregister of **Ubuntu alone** does not require unregistering `docker-desktop`, but some operators shut Docker down for a clean state.
+5. Do **not** unregister **`docker-desktop`** — that is Docker Engine for this project.
+
+```powershell
+wsl.exe -l -v
+# optional: wsl --export Ubuntu D:\Backups\ubuntu-wsl.tar
+wsl --unregister Ubuntu
+```
+
+**After unregister:** Docker Desktop + Compose remain the primary path. Reinstall Ubuntu later with `wsl --install -d Ubuntu` only if you need host WSL Python again.
+
+Relocating distros (not reclaim): [`scripts/powershell/Move-WslToD.ps1`](../../../scripts/powershell/Move-WslToD.ps1) — also uses shutdown/export/unregister/import; quit Docker Desktop first per that script’s warnings.
 
 ## Photo library binds (`PHOTOS_BIND_SOURCE`)
 

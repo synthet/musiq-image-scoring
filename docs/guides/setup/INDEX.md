@@ -14,7 +14,7 @@ okf_version: 0.1
 
 | Document | Description |
 |----------|-------------|
-| [wsl-vs-docker-topology.md](wsl-vs-docker-topology.md) | Ubuntu vs docker-desktop: what runs where, Docker-only limits, shutdown safety, photo binds |
+| [wsl-vs-docker-topology.md](wsl-vs-docker-topology.md) | Ubuntu vs docker-desktop: what runs where, Docker-only limits, shutdown safety, photo binds, Ubuntu disk reclaim |
 | [DOCKER_SETUP.md](DOCKER_SETUP.md) | Docker installation (WSL2) + Compose Postgres/WebUI + gpu-shell |
 
 ## Agent / IDE
