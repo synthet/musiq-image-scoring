@@ -140,8 +140,30 @@ def test_process_batch_detected_not_detected_and_skip(backfill):
     assert summary["not_detected"] == 1
     assert summary["skipped"] == 1
     assert summary["errors"] == 0
-    assert summary["written"] == 2
-    assert writes == [(1, box), (2, BBOX_NOT_DETECTED)]
+    assert summary["written"] == 3
+    assert writes == [
+        (1, box),
+        (2, BBOX_NOT_DETECTED),
+        (3, {"detected": False, "error": "file_missing"}),
+    ]
+
+
+def test_apply_detection_result_writes_scan_failed(backfill):
+    from modules.bird_detection import bbox_scan_failed
+
+    writes = []
+
+    def update_fn(image_id, payload):
+        writes.append((image_id, payload))
+        return True
+
+    assert (
+        backfill.apply_detection_result(
+            11, None, dry_run=False, update_fn=update_fn, error="decode_error: bad"
+        )
+        == "scan_failed"
+    )
+    assert writes == [(11, bbox_scan_failed("decode_error: bad"))]
 
 
 def test_process_batch_dry_run_does_not_write(backfill):
@@ -168,3 +190,9 @@ def test_process_batch_dry_run_does_not_write(backfill):
     assert summary["not_detected"] == 1
     assert summary["written"] == 0
     assert writes == []
+
+
+def test_all_null_sql_omits_keyword_gate(backfill):
+    assert "keyword_norm" in backfill._SQL_MISSING_BBOX
+    assert "keyword_norm" not in backfill._SQL_MISSING_BBOX_ALL
+    assert "bird_bbox IS NULL" in backfill._SQL_MISSING_BBOX_ALL

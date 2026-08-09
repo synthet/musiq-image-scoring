@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { BirdBboxValue } from '@/types/api'
-import { isBirdBoundingBox } from '@/types/api'
+import { birdBboxStatusLabel, isBirdBoundingBox } from '@/types/api'
 import { birdBboxBorderCss } from './birdBboxStyle'
 
 /**
@@ -23,6 +23,7 @@ export function BirdBoxPreview({
   const [showBbox, setShowBbox] = useState(false)
   const drawable =
     isBirdBoundingBox(bbox) && bbox.img_w > 0 && bbox.img_h > 0 ? bbox : null
+  const statusLabel = birdBboxStatusLabel(bbox)
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -50,7 +51,7 @@ export function BirdBoxPreview({
           onChange={(e) => setShowBbox(e.target.checked)}
         />
         <span>Bounding box</span>
-        {!drawable && <span className="text-[var(--color-text-muted)]">(no detection)</span>}
+        {statusLabel && <span className="text-[var(--color-text-muted)]">{statusLabel}</span>}
       </label>
     </div>
   )

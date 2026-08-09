@@ -50,6 +50,24 @@ _DEFAULT_MAX_DET = 10
 BBOX_NOT_DETECTED = {"detected": False}
 
 
+def bbox_scan_failed(reason: str) -> dict:
+    """Sentinel when a scan was attempted but could not produce a box (decode/IO/etc.).
+
+    Distinct from ``NULL`` (never scanned) and ``BBOX_NOT_DETECTED`` (YOLO ran, no bird).
+    Undrawable in the UI (no ``img_w``/``img_h``).
+    """
+    return {"detected": False, "error": (reason or "scan_failed")[:200]}
+
+
+def bird_bbox_payload(box: Optional[dict], *, error: Optional[str] = None) -> dict:
+    """Normalize a detection outcome to a JSONB payload (never ``None``)."""
+    if error:
+        return bbox_scan_failed(error)
+    if box is not None:
+        return box
+    return dict(BBOX_NOT_DETECTED)
+
+
 def select_best_box(boxes: List[dict]) -> Optional[dict]:
     """Return the highest-confidence box from a list of ``{"xyxy", "conf"}`` dicts.
 

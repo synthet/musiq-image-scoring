@@ -323,6 +323,12 @@ def test_runner_missing_file_marks_skipped_not_failed(monkeypatch):
     monkeypatch.setattr(_db, "update_job_status", lambda *a, **kw: None)
     monkeypatch.setattr(_db, "job_should_stop_processing", lambda *a, **kw: False)
     monkeypatch.setattr(_db, "set_image_phase_status", _fake_set_status)
+    bbox_writes = []
+    monkeypatch.setattr(
+        _db,
+        "update_image_bird_bbox",
+        lambda image_id, bbox: bbox_writes.append((image_id, bbox)) or True,
+    )
     monkeypatch.setattr(bs, "_get_image_ids_with_species_keyword", lambda ids: set())
 
     from modules.events import event_manager
@@ -346,6 +352,7 @@ def test_runner_missing_file_marks_skipped_not_failed(monkeypatch):
     )
     assert c.get("skip_reason") == "file_missing"
     assert c.get("executor_version") == bs.BIRD_SPECIES_RUNNER_VERSION
+    assert bbox_writes == [(162932, {"detected": False, "error": "file_missing"})]
 
 
 def test_runner_writes_bioclip_species_confidence_maps(monkeypatch):
@@ -353,14 +360,17 @@ def test_runner_writes_bioclip_species_confidence_maps(monkeypatch):
 
     class _FakeClassifier:
         last_image_embedding = None
+        last_bbox = None
 
         def classify(self, *args, **kwargs):
+            self.last_bbox = {"detected": False}
             return [("American Robin", 0.82), ("Mallard", 0.09)]
 
     runner = BirdSpeciesRunner()
     runner.classifier = _FakeClassifier()
     helper_calls = []
     status_calls = []
+    bbox_writes = []
 
     import modules.db as _db
 
@@ -373,6 +383,11 @@ def test_runner_writes_bioclip_species_confidence_maps(monkeypatch):
     }])
     monkeypatch.setattr(_db, "update_image_keywords_for_image", lambda *args, **kw: helper_calls.append((args, kw)))
     monkeypatch.setattr(_db, "set_image_phase_status", lambda *args, **kw: status_calls.append((args, kw)))
+    monkeypatch.setattr(
+        _db,
+        "update_image_bird_bbox",
+        lambda image_id, bbox: bbox_writes.append((image_id, bbox)) or True,
+    )
 
     runner._run_batch_internal(
         input_path="/photos",
@@ -402,6 +417,142 @@ def test_runner_writes_bioclip_species_confidence_maps(monkeypatch):
         "species:mallard": "bioclip",
     }
     assert any(args[2] == "done" for args, _ in status_calls)
+    assert bbox_writes == [(42, {"detected": False})]
+
+
+def test_runner_persists_detector_unavailable_sentinel_with_species(monkeypatch):
+    """When YOLO is unavailable, species tags still write and bird_bbox is not left NULL."""
+    import modules.bird_species as bs
+
+    class _FakeClassifier:
+        last_image_embedding = None
+        last_bbox = None
+
+        def classify(self, *args, **kwargs):
+            self.last_bbox = {"detected": False, "error": "detector_unavailable"}
+            return [("Mourning Dove", 0.9847)]
+
+    runner = BirdSpeciesRunner()
+    runner.classifier = _FakeClassifier()
+    bbox_writes = []
+    helper_calls = []
+
+    import modules.db as _db
+
+    monkeypatch.setattr(bs.os.path, "exists", lambda p: True)
+    monkeypatch.setattr(bs, "_resolve_inference_path", lambda row, fp: fp)
+    monkeypatch.setattr(
+        _db,
+        "get_images_with_keyword",
+        lambda **kw: [{"id": 206163, "file_path": "/photos/dove.NEF", "keywords": "birds"}],
+    )
+    monkeypatch.setattr(
+        _db,
+        "update_image_keywords_for_image",
+        lambda *args, **kw: helper_calls.append((args, kw)),
+    )
+    monkeypatch.setattr(_db, "set_image_phase_status", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        _db,
+        "update_image_bird_bbox",
+        lambda image_id, bbox: bbox_writes.append((image_id, bbox)) or True,
+    )
+
+    runner._run_batch_internal(
+        input_path="/photos",
+        candidate_species=["Mourning Dove"],
+        threshold=0.1,
+        top_k=1,
+        overwrite=True,
+        job_id=None,
+    )
+
+    assert bbox_writes == [(206163, {"detected": False, "error": "detector_unavailable"})]
+    assert "species:Mourning Dove" in helper_calls[0][0][1]
+
+
+def test_classify_sets_detector_unavailable_when_ensure_returns_none(monkeypatch):
+    """classify() must set last_bbox even when the detector never loads."""
+    from PIL import Image
+
+    import modules.bird_species as bs
+    from modules.bird_detection import bbox_scan_failed
+
+    clf = bs.BioCLIPClassifier(device="cpu")
+    monkeypatch.setattr(clf, "_ensure_detector", lambda: None)
+    monkeypatch.setattr(clf, "load_model", lambda: None)
+    monkeypatch.setattr(
+        "modules.thumbnails.open_image_for_ml",
+        lambda path: Image.new("RGB", (64, 64)),
+    )
+    monkeypatch.setattr(
+        "modules.thumbnails.bake_orientation",
+        lambda img, path: img,
+    )
+
+    class _Feat:
+        def norm(self, dim=-1, keepdim=True):
+            return self
+
+        def __truediv__(self, other):
+            return self
+
+        def __matmul__(self, other):
+            return self
+
+        def __mul__(self, other):
+            return self
+
+        def softmax(self, dim=-1):
+            return self
+
+        def __getitem__(self, idx):
+            return self
+
+        def tolist(self):
+            return [0.99]
+
+        @property
+        def T(self):
+            return self
+
+    class _ModelOk:
+        def encode_image(self, t):
+            return _Feat()
+
+    class _Tensor:
+        def unsqueeze(self, n):
+            return self
+
+        def to(self, device):
+            return self
+
+    clf.model = _ModelOk()
+    monkeypatch.setattr(clf, "preprocess", lambda img: _Tensor())
+    monkeypatch.setattr(clf, "_get_text_features", lambda names: _Feat())
+    monkeypatch.setattr(
+        "modules.embeddings_extract.extract_bioclip_image_features",
+        lambda *a, **k: None,
+    )
+
+    import sys
+    import types
+
+    fake_torch = types.ModuleType("torch")
+
+    class _NoGrad:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    fake_torch.no_grad = lambda: _NoGrad()
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+    out = clf.classify("/tmp/x.jpg", ["Mourning Dove"], threshold=0.1, top_k=1)
+    assert out == [("Mourning Dove", 0.99)]
+    assert clf.last_bbox == bbox_scan_failed("detector_unavailable")
 
 
 # ──────────────────────────────────────────────────────────────────────────────

@@ -539,6 +539,8 @@ export interface BirdBoundingBox {
  */
 export interface BirdBboxNotDetected {
   detected: false
+  /** Present when the scan was attempted but could not produce a box (decode/IO/detector). */
+  error?: string
 }
 
 export type BirdBboxValue = BirdBoundingBox | BirdBboxNotDetected
@@ -546,6 +548,24 @@ export type BirdBboxValue = BirdBoundingBox | BirdBboxNotDetected
 /** True when `bird_bbox` is a drawable xyxy box (not a no-detection sentinel). */
 export function isBirdBoundingBox(bbox: BirdBboxValue | null | undefined): bbox is BirdBoundingBox {
   return !!bbox && 'x1' in bbox
+}
+
+/**
+ * Short parenthetical for the inspector checkbox when the box is not drawable.
+ * Drawable boxes return null (no suffix).
+ */
+export function birdBboxStatusLabel(bbox: BirdBboxValue | null | undefined): string | null {
+  if (bbox == null) return '(not scanned)'
+  if (isBirdBoundingBox(bbox)) {
+    if (!(bbox.img_w > 0) || !(bbox.img_h > 0)) return '(not scanned)'
+    return null
+  }
+  const err = typeof bbox.error === 'string' ? bbox.error.trim() : ''
+  if (err) {
+    const short = err.length > 40 ? `${err.slice(0, 37)}...` : err
+    return `(scan failed: ${short})`
+  }
+  return '(no bird)'
 }
 
 /** Payload from GET /api/images/{id}, by-uuid, or by-hash */

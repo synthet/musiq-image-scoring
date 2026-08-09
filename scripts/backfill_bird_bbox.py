@@ -5,9 +5,9 @@ Backfill ``images.bird_bbox`` for bird-tagged images that have never been scanne
 Detector-only: runs YOLO ``synthet/bird-detect-v0`` (via ``BirdDetector``) without
 BioCLIP, so species keywords and embeddings are not rewritten. Writes a real box
 when a bird is found, or the ``BBOX_NOT_DETECTED`` sentinel (``{"detected": false}``)
-when the detector runs and finds nothing. Rows that stay NULL (file missing /
-decode failure) are retried on the next run because selection filters on
-``bird_bbox IS NULL``.
+when the detector runs and finds nothing. Decode / detect failures write
+``{"detected": false, "error": "..."}`` so rows are not left ``NULL``. Only
+``NULL`` rows are selected on the next run.
 
 Usage (WSL, project root, per CLAUDE.md):
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/FirebirdLinux/Firebird-5.0.0.1306-0-linux-x64/opt/firebird/lib
@@ -19,8 +19,11 @@ Usage (WSL, project root, per CLAUDE.md):
   # Pilot one folder
   python scripts/backfill_bird_bbox.py --folder "/path/to/folder"
 
-  # Full library (detach with setsid/nohup for long runs)
+  # Full library, bird-tagged only (detach with setsid/nohup for long runs)
   python scripts/backfill_bird_bbox.py --workers 4
+
+  # Every image with bird_bbox IS NULL (no birds* keyword filter)
+  python scripts/backfill_bird_bbox.py --all-null --workers 4
 """
 from __future__ import annotations
 
@@ -54,6 +57,16 @@ WHERE i.bird_bbox IS NULL
 ORDER BY f.path, i.id
 """
 
+#: Same as ``_SQL_MISSING_BBOX`` but no keyword gate — every ``bird_bbox IS NULL`` row.
+_SQL_MISSING_BBOX_ALL = """
+SELECT i.id, i.file_path, i.thumbnail_path, i.thumbnail_path_win
+FROM images i
+JOIN folders f ON i.folder_id = f.id
+WHERE i.bird_bbox IS NULL
+  AND (? = '' OR f.path = ?)
+ORDER BY f.path, i.id
+"""
+
 # Set by SIGINT handler; main loop finishes the in-flight chunk then stops.
 _stop_requested = False
 
@@ -67,15 +80,22 @@ def _on_sigint(signum, frame) -> None:  # noqa: ARG001
     logger.warning("Interrupt received — finishing in-flight chunk then stopping.")
 
 
-def fetch_candidates(*, folder: str = "", limit: int = 0) -> List[dict]:
-    """Return bird-tagged images with ``bird_bbox IS NULL``."""
+def fetch_candidates(*, folder: str = "", limit: int = 0, all_null: bool = False) -> List[dict]:
+    """Return images with ``bird_bbox IS NULL``.
+
+    By default only bird-tagged rows (``keyword_norm LIKE '%birds%'``).
+    Pass ``all_null=True`` to include every null-bbox image (no keyword filter).
+    """
     from modules import db
 
     conn = db.get_db()
     try:
         c = conn.cursor()
         folder_arg = (folder or "").strip()
-        c.execute(_SQL_MISSING_BBOX, ("%birds%", folder_arg, folder_arg))
+        if all_null:
+            c.execute(_SQL_MISSING_BBOX_ALL, (folder_arg, folder_arg))
+        else:
+            c.execute(_SQL_MISSING_BBOX, ("%birds%", folder_arg, folder_arg))
         rows = c.fetchall()
     finally:
         conn.close()
@@ -132,17 +152,26 @@ def apply_detection_result(
     *,
     dry_run: bool,
     update_fn=None,
+    error: Optional[str] = None,
 ) -> str:
-    """Persist a box or the not-detected sentinel. Returns 'detected'|'not_detected'|'write_error'."""
-    from modules.bird_detection import BBOX_NOT_DETECTED
+    """Persist a box, not-detected sentinel, or scan-failed sentinel.
+
+    Returns ``'detected'|'not_detected'|'scan_failed'|'write_error'``.
+    """
+    from modules.bird_detection import bird_bbox_payload
 
     if update_fn is None:
         from modules import db
 
         update_fn = db.update_image_bird_bbox
 
-    payload = box if box is not None else BBOX_NOT_DETECTED
-    outcome = "detected" if box is not None else "not_detected"
+    payload = bird_bbox_payload(box, error=error)
+    if error:
+        outcome = "scan_failed"
+    elif box is not None:
+        outcome = "detected"
+    else:
+        outcome = "not_detected"
     if dry_run:
         return outcome
     if update_fn(image_id, payload):
@@ -191,9 +220,22 @@ def process_batch(
 
             if err or img is None:
                 skipped += 1
+                skip_reason = err or "decode_error"
                 if err and err != "file_missing":
                     errors += 1
                     logger.warning("Skip image_id=%s: %s", image_id, err)
+                outcome = apply_detection_result(
+                    image_id,
+                    None,
+                    dry_run=dry_run,
+                    update_fn=update_fn,
+                    error=skip_reason,
+                )
+                if outcome == "scan_failed" and not dry_run:
+                    written += 1
+                elif outcome == "write_error":
+                    errors += 1
+                    logger.error("Failed to write bird_bbox for image_id=%s", image_id)
                 continue
 
             try:
@@ -201,6 +243,18 @@ def process_batch(
             except Exception as det_err:  # noqa: BLE001
                 errors += 1
                 logger.warning("Detect failed image_id=%s: %s", image_id, det_err)
+                outcome = apply_detection_result(
+                    image_id,
+                    None,
+                    dry_run=dry_run,
+                    update_fn=update_fn,
+                    error=f"detect_error: {det_err}",
+                )
+                if outcome == "scan_failed" and not dry_run:
+                    written += 1
+                elif outcome == "write_error":
+                    errors += 1
+                    logger.error("Failed to write bird_bbox for image_id=%s", image_id)
                 continue
             finally:
                 try:
@@ -292,6 +346,11 @@ def main() -> int:
         default=None,
         help="Override detector device (cpu|cuda|auto); default from config",
     )
+    p.add_argument(
+        "--all-null",
+        action="store_true",
+        help="Include every bird_bbox IS NULL row (skip birds* keyword filter)",
+    )
     args = p.parse_args()
 
     if args.workers < 1:
@@ -300,10 +359,12 @@ def main() -> int:
 
     signal.signal(signal.SIGINT, _on_sigint)
 
-    rows = fetch_candidates(folder=args.folder, limit=args.limit)
+    rows = fetch_candidates(folder=args.folder, limit=args.limit, all_null=args.all_null)
+    scope = "image(s)" if args.all_null else "bird-tagged image(s)"
     logger.info(
-        "Found %s bird-tagged image(s) with bird_bbox IS NULL%s",
+        "Found %s %s with bird_bbox IS NULL%s",
         len(rows),
+        scope,
         f" in folder {args.folder!r}" if args.folder else "",
     )
 

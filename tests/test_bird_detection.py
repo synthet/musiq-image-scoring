@@ -13,7 +13,13 @@ Run with:
 import pytest
 from PIL import Image
 
-from modules.bird_detection import BirdDetector, select_best_box
+from modules.bird_detection import (
+    BBOX_NOT_DETECTED,
+    BirdDetector,
+    bird_bbox_payload,
+    bbox_scan_failed,
+    select_best_box,
+)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -22,6 +28,14 @@ from modules.bird_detection import BirdDetector, select_best_box
 
 def test_select_best_box_empty_returns_none():
     assert select_best_box([]) is None
+
+
+def test_bird_bbox_payload_box_and_sentinels():
+    box = {"x1": 1, "y1": 2, "x2": 3, "y2": 4, "conf": 0.9, "img_w": 10, "img_h": 10}
+    assert bird_bbox_payload(box) is box
+    assert bird_bbox_payload(None) == BBOX_NOT_DETECTED
+    assert bird_bbox_payload(None, error="file_missing") == bbox_scan_failed("file_missing")
+    assert "img_w" not in bbox_scan_failed("x")
 
 
 def test_select_best_box_picks_highest_confidence():

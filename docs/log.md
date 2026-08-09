@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-08-09] edit | Bird species bbox scan contract
+
+Updated technical/BIRD_SPECIES_WALKTHROUGH.md: detector unavailable now persists `{"detected": false, "error": "detector_unavailable"}` instead of leaving `bird_bbox` NULL after classify.
+
 ## [2026-08-05] ingest | Reconciled 2026-08-05 research session ingest (bird-crop + student scorer)
 
 Two agents ingested the same four session summaries concurrently, producing overlapping pages; this entry records the reconciled layout, which supersedes the path list in the earlier `[2026-08-05] ingest` entry above. Final shape: hub [`docs/reports/RESEARCH_SESSIONS_2026-08-05.md`](reports/RESEARCH_SESSIONS_2026-08-05.md) routes both arcs; bird-crop (#317) keeps two records — the Claude Code one ([`SESSION_BIRD_CROP_FOCUS_2026-08-05.md`](reports/SESSION_BIRD_CROP_FOCUS_2026-08-05.md)) and the Cursor close-out, now a standalone page ([`SESSION_BIRD_CROP_CLOSEOUT_2026-08-05.md`](reports/SESSION_BIRD_CROP_CLOSEOUT_2026-08-05.md)) rather than an addendum, so the two accounts cannot drift; student scorer (#323) consolidates both agent records into [`docs/research/SESSION_STUDENT_SCORER_E2_2026-08-05.md`](research/SESSION_STUDENT_SCORER_E2_2026-08-05.md). New [`docs/research/INDEX.md`](research/INDEX.md) — the folder had no index. Duplicate pages (`SESSIONS_2026-08-05.md`, `reports/SESSION_STUDENT_SCORER_E2_2026-08-05.md`) and duplicate raw copies under `docs/raw/sessions/` were removed; raw sources stay flat under `docs/raw/2026-08-*.md`. Nothing in production changed: `technical_failures.enabled` stays false, student scorer stays shadow-only. Both tracked jobs (Track A classical measures, E2 seed-42 train) were still in flight at the source pause, so no result is recorded.
