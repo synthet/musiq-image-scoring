@@ -140,6 +140,7 @@ Full categorized index for **image-scoring-backend**. Prefer small linked pages 
 |---|---|
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Local development environment. |
 | [guides/setup/INDEX.md](guides/setup/INDEX.md) | Setup guide index. |
+| [guides/setup/wsl-vs-docker-topology.md](guides/setup/wsl-vs-docker-topology.md) | Ubuntu vs docker-desktop topology; Docker-only limits. |
 | [guides/setup/DOCKER_SETUP.md](guides/setup/DOCKER_SETUP.md) | Docker setup. |
 | [guides/setup/agent-cull-review-gemini-cli.md](guides/setup/agent-cull-review-gemini-cli.md) | Agent cull review Gemini CLI (Docker/WSL). |
 | [guides/setup/GPU_SETUP.md](guides/setup/GPU_SETUP.md) | GPU setup. |

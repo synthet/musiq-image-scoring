@@ -121,6 +121,56 @@ services:
               count: all
               capabilities: [gpu]
 
+  # Interactive / one-shot GPU shell for scripts & research (WSL ~/.venvs/tf parity).
+  # Does not start WebUI. Opt-in: docker compose --profile gpu-shell up -d db gpu-shell
+  gpu-shell:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: image-scoring:latest
+    container_name: image-scoring-gpu-shell
+    profiles:
+      - gpu-shell
+    shm_size: 1gb
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DOCKER_CONTAINER=1
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=image_scoring
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - IMAGE_SCORING_HOST_PROJECT_WSL=${IMAGE_SCORING_HOST_PROJECT_WSL:-}
+      - IMAGE_SCORING_HOST_PROJECT_WIN=${IMAGE_SCORING_HOST_PROJECT_WIN:-}
+      # Optional: INSTALL_STUDENT_SCORER=1 with scripts/docker_gpu_shell_bootstrap.sh
+      - INSTALL_STUDENT_SCORER=${INSTALL_STUDENT_SCORER:-0}
+    volumes:
+      - .:/app
+      - ${PHOTOS_BIND_SOURCE:-/mnt/d/Photos}:/mnt/d/Photos:rw
+      # Persist pip venvs + caches on Linux volumes (not NTFS /mnt)
+      - gpu_shell_home:/root
+      - hf_cache:/root/.cache/huggingface
+      - torch_cache:/root/.cache/torch
+    # Override image entrypoint (webui launch.py) — idle so docker exec stays available
+    entrypoint: ["sleep", "infinity"]
+    gpus: all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   postgres_e2e_data:
+  gpu_shell_home:
+  hf_cache:
+  torch_cache:

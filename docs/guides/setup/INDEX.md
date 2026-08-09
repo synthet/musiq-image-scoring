@@ -1,10 +1,21 @@
+---
+type: Documentation Index
+title: "Setup & Deployment — Index"
+description: "Routes setup guides: Docker and gpu-shell, host topology, GPU, Postgres, agent/IDE, and Windows/WSL deployment."
+resource: guides/setup/INDEX.md
+tags: [setup, docker, wsl, gpu, index]
+timestamp: 2026-08-09T16:10:00Z
+okf_version: 0.1
+---
+
 # Setup & Deployment — Index
 
 ## Docker
 
 | Document | Description |
 |----------|-------------|
-| [DOCKER_SETUP.md](DOCKER_SETUP.md) | Docker installation (WSL2) + running the app |
+| [wsl-vs-docker-topology.md](wsl-vs-docker-topology.md) | Ubuntu vs docker-desktop: what runs where, Docker-only limits, shutdown safety, photo binds |
+| [DOCKER_SETUP.md](DOCKER_SETUP.md) | Docker installation (WSL2) + Compose Postgres/WebUI + gpu-shell |
 
 ## Agent / IDE
 

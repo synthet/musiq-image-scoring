@@ -1,15 +1,27 @@
+---
+type: Guide
+title: Docker Setup
+description: Install Docker Desktop / WSL tooling and run Postgres + WebUI via docker compose (Postgres primary).
+resource: guides/setup/DOCKER_SETUP.md
+tags: [docker, setup, postgres, gpu, wsl]
+timestamp: 2026-08-09T04:45:00Z
+okf_version: 0.1
+---
+
 # Docker Setup Guide
 
-This guide covers installing Docker in WSL2 and running the Vexlum Scoring Scoring application with Docker.
+This guide covers Docker Desktop (WSL2 backend) and running Vexlum Scoring with Compose: **PostgreSQL + pgvector**, optional **`image-scoring-webui`**, and optional **`gpu-shell`** for GPU scripts/research.
+
+For **Ubuntu vs `docker-desktop`**, Docker-only limits, and shutdown safety, see [wsl-vs-docker-topology.md](wsl-vs-docker-topology.md).
 
 ## Prerequisites
 
 - Windows 10/11 with WSL2 enabled
-- Ubuntu distribution installed in WSL2
+- Ubuntu distribution installed in WSL2 (optional if you use Docker WebUI + `gpu-shell` only; still useful for host tooling — see [topology](wsl-vs-docker-topology.md))
 - At least 10GB of free disk space
 - (Optional) NVIDIA GPU for hardware acceleration
 - **Docker Desktop**: Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/) — ensure it uses the WSL 2 backend
-- **Firebird SQL**: The Firebird service must be running on your Windows host when running the app
+- **PostgreSQL**: Provided by the Compose `db` service (`image-scoring-postgres`). No separate Windows DB install required for the default path.
 
 ---
 
@@ -80,30 +92,30 @@ This checks: WSL2 environment, Docker installation, service status, non-sudo acc
 
 ### Architecture
 
-The Docker container runs the FastAPI + Gradio web UI and connects back to the Firebird database server already running on your Windows host. Image files are accessed via volume mounts.
+Compose runs **Postgres (pgvector)** and optional **FastAPI + Gradio** WebUI. Image libraries are bind-mounted (see [Scope paths](#scope-paths-runs--preview--indexing)). The Electron gallery runs on the Windows host and talks to the API/DB — not inside the webui container.
 
 ```mermaid
 flowchart LR
-    subgraph docker [Docker container]
+    subgraph compose [Docker Compose]
         webui["image-scoring-webui\nFastAPI + Gradio :7860"]
+        db["image-scoring-postgres\npgvector :5432"]
     end
     subgraph windows [Windows host]
-        fb["Firebird 5 Server\n:3050"]
-        fdb["SCORING_HISTORY.FDB"]
         electron["Electron gallery"]
+        photos["Photo library\nPHOTOS_BIND_SOURCE"]
     end
-    webui -->|"host.docker.internal:3050"| fb
-    electron -->|"localhost:3050"| fb
-    fb --> fdb
-    webui -->|"/mnt/d volume mount"| fdb
+    webui --> db
+    electron -->|"localhost:7860 / :5432"| webui
+    electron --> db
+    photos -->|"bind → /mnt/d/Photos"| webui
 ```
 
 ### Prerequisites
 
 - **Docker Desktop for Windows** with the WSL 2 backend enabled
-- **Firebird 5 Server** running on Windows (port 3050). The service must be started before the container.
-- **NVIDIA GPU + drivers 470+** (optional — required only for ML scoring)
-- Project cloned on your machine (sibling layout with **image-scoring-gallery** is typical). If your path differs, see [Customising the FDB path](#customising-the-fdb-path) below.
+- **NVIDIA GPU + drivers 470+** (optional — required only for ML scoring in the container)
+- Project cloned on your machine (sibling layout with **image-scoring-gallery** is typical)
+- For Docker Desktop on Windows: set `PHOTOS_BIND_SOURCE` in `.env` (see [`.env.example`](../../../.env.example))
 
 ### First-time build
 
@@ -113,27 +125,49 @@ Build the Docker image once (and again whenever `requirements/requirements_wsl_g
 docker compose build
 ```
 
-### Customising the FDB path
-
-If your project lives somewhere other than the path you first configured, edit `FIREBIRD_WIN_DB_PATH` in `docker-compose.yml` (or set it in `.env`) to your actual host path. Use **forward slashes** — backslashes are not YAML-safe:
-
-```yaml
-- FIREBIRD_WIN_DB_PATH=E:/MyProject/image-scoring-backend/SCORING_HISTORY.FDB
-```
-
-After changing this value run `docker compose down && docker compose up` (full recreate) so the new env var is picked up.
-
 ### Running
 
 ```bash
 # Foreground — logs stream to the terminal
 docker compose up
 
-# Background (detached)
-docker compose up -d
+# Background (detached) — Postgres + WebUI
+docker compose up -d db webui
 ```
 
-Access the WebUI at **http://localhost:7860**.
+Access the WebUI at **http://localhost:7860**. Postgres is on **localhost:5432** (`image_scoring` / see compose env).
+
+### GPU shell (scripts / research)
+
+Compose service **`gpu-shell`** (profile **`gpu-shell`**) reuses `image-scoring:latest` with CUDA, but **does not** start the WebUI. Use it instead of Ubuntu `~/.venvs/tf` for scripts, studies, and student-scorer work.
+
+```bash
+# Start Postgres + idle GPU shell
+docker compose --profile gpu-shell up -d db gpu-shell
+
+# Interactive shell
+docker exec -it image-scoring-gpu-shell bash
+# Windows: scripts\batch\docker_gpu_shell.bat
+
+# One-shot Python (repo is /app)
+docker exec -i image-scoring-gpu-shell python scripts/doctor.py --no-gpu
+# Windows: scripts\batch\docker_gpu_run.bat scripts/doctor.py --no-gpu
+```
+
+**Mounts:** same `.:/app` and `PHOTOS_BIND_SOURCE` → `/mnt/d/Photos` as `webui`. Persistent Linux volumes: `gpu_shell_home` (`/root`), `hf_cache`, `torch_cache`.
+
+**Research extras** (not baked into the image):
+
+```bash
+docker exec -it image-scoring-gpu-shell bash /app/scripts/docker_gpu_shell_bootstrap.sh
+# Student scorer extras:
+docker exec -e INSTALL_STUDENT_SCORER=1 -it image-scoring-gpu-shell bash /app/scripts/docker_gpu_shell_bootstrap.sh
+# then: source /root/.venvs/research/bin/activate
+```
+
+**GPU contention:** avoid running heavy ML in `webui` and `gpu-shell` at the same time on an 8GB GPU — prefer one heavy job at a time.
+
+**Long jobs:** log under `/app/reports` (repo bind); use detached `docker exec` rather than fragile host WSL relays.
 
 ### Stopping
 
@@ -160,7 +194,7 @@ The WebUI only sees filesystem paths **inside the container**. `docker-compose.y
 `${PHOTOS_BIND_SOURCE:-/mnt/d/Photos}:/mnt/d/Photos:rw`
 
 - **Docker CLI in WSL**: Leaving `PHOTOS_BIND_SOURCE` unset uses `/mnt/d/Photos` on the WSL host, which matches typical drive mounts — paths like `/mnt/d/Photos/...` in **New Run** work.
-- **Docker Desktop for Windows**: The default left-hand path is **not** your Windows `D:\` tree. Create a `.env` in the repo root (see [`.env.example`](../../.env.example)) with e.g. `PHOTOS_BIND_SOURCE=D:/Photos` (forward slashes), then run `docker compose up -d --force-recreate webui`. Keep using `/mnt/d/Photos/...` in the UI; that is the path **inside** the container.
+- **Docker Desktop for Windows**: The default left-hand path is **not** your Windows `D:\` tree. Create a `.env` in the repo root (see [`.env.example`](../../../.env.example)) with e.g. `PHOTOS_BIND_SOURCE=D:/Photos` (forward slashes), then run `docker compose up -d --force-recreate webui`. Keep using `/mnt/d/Photos/...` in the UI; that is the path **inside** the container.
 
 1. Set `PHOTOS_BIND_SOURCE` in `.env` when on Docker Desktop, or adjust `webui.volumes` if needed (e.g. `/mnt/e/Pictures:/mnt/e/Pictures:rw`, or a custom target and matching UI paths).
 2. Run `docker compose up -d --force-recreate webui` after changing `.env` or compose volumes.
@@ -179,8 +213,9 @@ These are set in `docker-compose.yml` and control the container's behaviour:
 | `PHOTOS_BIND_SOURCE` | Optional; e.g. `D:/Photos` (Compose `.env`, not `config.json`) | **Host** folder bound to `/mnt/d/Photos` in `webui`; required for correct **New Run** paths on Docker Desktop for Windows |
 | `GEMINI_CONFIG_SOURCE` | Optional; e.g. `C:/Users/you/.gemini` (Compose `.env`) | Host Gemini CLI OAuth dir mounted to `/root/.gemini` for [agent cull review](agent-cull-review-gemini-cli.md) |
 | `GEMINI_CLI_TRUST_WORKSPACE` | `true` in `docker-compose.yml` | Allows headless Gemini CLI in the `webui` container |
-| `FIREBIRD_WIN_DB_PATH` | e.g. `/app/SCORING_HISTORY.FDB` (see `docker-compose.yml`) | Host path to the FDB file when using Firebird from the container |
-| `FIREBIRD_CLIENT_LIBRARY` | `/app/FirebirdLinux/.../libfbclient.so` | Path to the bundled Linux Firebird client library |
+| `POSTGRES_HOST` / `POSTGRES_*` | `db` / compose defaults | Primary database — Compose `db` service |
+| `FIREBIRD_WIN_DB_PATH` | Legacy optional | Only if deliberately using Firebird; **not** required for Postgres-primary Docker |
+| `FIREBIRD_CLIENT_LIBRARY` | Legacy optional | Bundled Linux `fbclient` path when Firebird is enabled |
 | `DOCKER_CONTAINER` | `1` | Tells the app it is running inside Docker |
 | `WEBUI_HOST` | `0.0.0.0` | Bind to all interfaces so port 7860 is reachable from Windows |
 
@@ -197,7 +232,7 @@ docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi
 docker compose up
 ```
 
-When the container starts you should see Firebird connectivity confirmed and then GPU detection in the logs (e.g., `NVIDIA GeForce RTX …`).
+When the container starts you should see Postgres connectivity (Compose `depends_on` healthcheck) and, if configured, GPU detection in the logs (e.g., `NVIDIA GeForce RTX …`).
 
 ---
 
@@ -213,12 +248,19 @@ sudo service docker start
 
 Complete Step 2 (post-installation) and restart WSL, or run `newgrp docker`.
 
-### Firebird connection failed
+### Postgres not reachable from WebUI / gallery
 
-1. Verify the Firebird service is running on Windows (port 3050).
-2. Ensure Windows Firewall permits port 3050. Run `setup_firewall.bat` as Administrator.
-3. Check that `FIREBIRD_WIN_DB_PATH` in `docker-compose.yml` (or `.env`) uses the correct path with **forward slashes** (match your clone location and `SCORING_HISTORY.FDB`).
-4. If you see `Docker: FIREBIRD_WIN_DB_PATH is not set` or `using computed path` in the container logs, the env var is wrong or was not applied. Fix the path and run `docker compose down && docker compose up` to recreate the container.
+1. Confirm `image-scoring-postgres` is up: `docker ps` / Docker Desktop.
+2. Check health: `docker exec image-scoring-postgres pg_isready -U postgres`.
+3. From the host, connect to `localhost:5432` with the compose credentials (`image_scoring` DB).
+4. Remember: `wsl --shutdown` stops **docker-desktop** and takes Postgres down — see [wsl-vs-docker-topology.md](wsl-vs-docker-topology.md#shutdown-safety).
+
+### Legacy Firebird connection failed (optional path only)
+
+Firebird is **decommissioned** for normal use. If you still force a Firebird path:
+
+1. Verify the Firebird service on Windows (port 3050) and firewall (`setup_firewall.bat` as Administrator if needed).
+2. Set `FIREBIRD_WIN_DB_PATH` with **forward slashes** and recreate: `docker compose down && docker compose up`.
 
 ### `duplicate key value violates unique constraint "jobs_pkey"` (`POST /api/runs/submit`)
 
@@ -250,7 +292,7 @@ You can pass `--pg-host`, `--pg-port`, `--pg-db`, `--pg-user`, `--pg-password` t
 
 The API checks paths **inside** the `webui` container. If the error mentions Docker and `PHOTOS_BIND_SOURCE`, the photos folder is not bind-mounted correctly.
 
-1. Add `PHOTOS_BIND_SOURCE=<Windows path to library root>` to `.env` (see [`.env.example`](../../.env.example)), e.g. `PHOTOS_BIND_SOURCE=D:/Photos`.
+1. Add `PHOTOS_BIND_SOURCE=<Windows path to library root>` to `.env` (see [`.env.example`](../../../.env.example)), e.g. `PHOTOS_BIND_SOURCE=D:/Photos`.
 2. Run `docker compose up -d --force-recreate webui`.
 3. Confirm: `docker exec image-scoring-webui ls /mnt/d/Photos` lists your top-level folders.
 
@@ -308,5 +350,7 @@ sudo groupdel docker
 
 ## Next Steps
 
+- [wsl-vs-docker-topology.md](wsl-vs-docker-topology.md) — Ubuntu vs docker-desktop, Docker-only limits
 - Review [docker-compose.yml](../../docker-compose.yml) for configuration options
 - See [README.md](../../README.md) for application documentation
+- [ENVIRONMENTS.md](ENVIRONMENTS.md) — WSL venvs when not using Docker WebUI
