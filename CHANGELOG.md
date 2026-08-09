@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.15.0] - 2026-08-09
+
+### Added
+- **Bird bbox preview and backfill** (#316): Inspector bounding-box overlay on bird detections; `scripts/backfill_bird_bbox.py` runs YOLO detector-only (no BioCLIP rewrite) and persists a box or `{"detected": false}` sentinel so `bird_bbox IS NULL` means never scanned. `--all-null` processes every null-bbox row without requiring a `birds*` keyword.
+- **Bird bbox scan-failed sentinel**: Decode/detect/unavailable outcomes persist `{"detected": false, "error": "..."}` (distinct from never-scanned `NULL` and no-bird `{"detected": false}`).
+
+### Fixed
+- **Species tag without bbox scan**: `bird_species` no longer leaves `bird_bbox` NULL when YOLO is disabled or fails to load — it stores `detector_unavailable` while still fail-opening to whole-image BioCLIP. Inspector labels are `(not scanned)` / `(no bird)` / `(scan failed: …)` instead of a single `(no detection)`.
+
 ## [8.14.0] - 2026-07-26
 
 ### Added
