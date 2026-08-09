@@ -13,6 +13,7 @@ from modules.engines.cursor_model import CursorModelWrapper
 from modules.engines.factory import (
     create_production_scoring_host,
     ensure_production_registry,
+    ensure_student_proxies_registered,
     load_production_models,
 )
 from modules.engines.host import MultiModelHost
@@ -29,6 +30,11 @@ from modules.engines.registry import (
     ModelRegistry,
     get_registry,
     reset_registry,
+)
+from modules.engines.student_model import (
+    StudentProxyWrapper,
+    make_student_proxies,
+    register_student_proxies,
 )
 from modules.engines.topiq_model import TopiqModelWrapper
 
@@ -50,12 +56,16 @@ __all__ = [
     "MultiModelHost",
     "MusiqModelWrapper",
     "QptV2ModelWrapper",
+    "StudentProxyWrapper",
     "TopiqModelWrapper",
     "create_production_scoring_host",
     "ensure_production_registry",
+    "ensure_student_proxies_registered",
     "get_registry",
     "load_production_models",
     "make_musiq_wrappers",
+    "make_student_proxies",
+    "register_student_proxies",
     "reset_registry",
 ]
 
@@ -78,3 +88,9 @@ get_registry().register(ArniqaModelWrapper())
 # registering them here is cheap and makes no network calls.
 get_registry().register(CursorModelWrapper())
 get_registry().register(ClaudeModelWrapper())
+
+# Student proxies are NOT registered at import time. Registry treats models
+# absent from scoring.models as enabled; auto-registering would activate them
+# on older config.json files. Call register_student_proxies() from
+# ensure_production_registry / an explicit shadow campaign setup once
+# scoring.models contains the vexlum_student_v1_* entries (see config.example.json).
