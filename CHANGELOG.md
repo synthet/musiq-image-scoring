@@ -14,9 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Bird bbox preview and backfill** (#316): Inspector bounding-box overlay on bird detections; `scripts/backfill_bird_bbox.py` runs YOLO detector-only (no BioCLIP rewrite) and persists a box or `{"detected": false}` sentinel so `bird_bbox IS NULL` means never scanned. `--all-null` processes every null-bbox row without requiring a `birds*` keyword.
 - **Bird bbox scan-failed sentinel**: Decode/detect/unavailable outcomes persist `{"detected": false, "error": "..."}` (distinct from never-scanned `NULL` and no-bird `{"detected": false}`).
+- **Student scorer shadow inference** (#331): `StudentScorerService` shares one backbone forward across nine `vexlum_student_v1_*` proxies. Registered only when `scoring.models` already declares them, so no existing `config.json` switches them on; never enters `scoring.fusion`. Ships disabled.
+- **Compose `gpu-shell` profile** (#326): opt-in GPU container for scripts and research, reusing `image-scoring:latest` — `docker compose --profile gpu-shell up -d db gpu-shell`, plus `scripts/batch/docker_gpu_{shell,run}.bat` and `scripts/docker_gpu_shell_bootstrap.sh`. Makes Ubuntu WSL optional for day-to-day Python/CUDA work.
 
 ### Fixed
 - **Species tag without bbox scan**: `bird_species` no longer leaves `bird_bbox` NULL when YOLO is disabled or fails to load — it stores `detector_unavailable` while still fail-opening to whole-image BioCLIP. Inspector labels are `(not scanned)` / `(no bird)` / `(scan failed: …)` instead of a single `(no detection)`.
+- **Degenerate lens specs became folder names** (#329): `0mm`, `0mm f/0`, and `0 0 0 0` were sanitized into literal directories instead of collecting in `_UnknownLens`. Unrecognised *marketing* names still sanitize.
+- **`/ui/` served a stale SPA bundle** (#333): `static/app/` had drifted behind `frontend/`, so merged UI work was not reaching the browser.
 
 ## [8.14.0] - 2026-07-26
 

@@ -6,6 +6,14 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-08-09] edit | Ubuntu disk reclaim caveats
+
+Expanded guides/setup/wsl-vs-docker-topology.md with Sunsetting Ubuntu — disk reclaim: Compact-WslVhdx.ps1 (Admin, wsl --shutdown downtime) vs wsl --unregister caveats; linked from DOCKER_SETUP and setup INDEX.
+
+## [2026-08-09] edit | Compose gpu-shell docs
+
+Documented gpu-shell profile (#326): topology decision table, DOCKER_SETUP GPU shell section, ENVIRONMENTS row, .env.example PHOTOS_BIND_SOURCE + INSTALL_STUDENT_SCORER.
+
 ## [2026-08-09] edit | Bird species bbox scan contract
 
 Updated technical/BIRD_SPECIES_WALKTHROUGH.md: detector unavailable now persists `{"detected": false, "error": "detector_unavailable"}` instead of leaving `bird_bbox` NULL after classify.

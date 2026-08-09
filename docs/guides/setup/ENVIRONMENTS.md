@@ -1,16 +1,30 @@
+---
+type: Guide
+title: Virtual Environments
+description: Python venvs for WebUI, WSL tests, and optional Windows/research; points at WSL vs Docker topology.
+resource: guides/setup/ENVIRONMENTS.md
+tags: [venv, wsl, python, setup]
+timestamp: 2026-08-09T04:45:00Z
+okf_version: 0.1
+---
+
 # Virtual Environments and Script Usage
 
 This document describes each Python environment referenced in the image-scoring project: where they live, what uses them, and which one the Web UI uses by default.
+
+**Host topology** (Ubuntu WSL vs `docker-desktop` vs Windows; Docker WebUI + **gpu-shell**): [wsl-vs-docker-topology.md](wsl-vs-docker-topology.md). You can run **Compose Postgres + `image-scoring-webui` + `gpu-shell`** without Ubuntu; the WSL/Windows venvs below apply when you use host Python instead.
 
 ## Summary
 
 | Environment | Location | Purpose | Used by |
 |-------------|----------|---------|---------|
-| **Web UI / app (default)** | `~/.venvs/tf` (WSL) | Main app: TensorFlow, Firebird, Gradio, MCP | `run_webui.bat`, all WSL-invoked scripts |
+| **Web UI / app (WSL default)** | `~/.venvs/tf` (WSL) | Main app: TensorFlow/PyTorch, Gradio, MCP, scripts | `run_webui.bat`, all WSL-invoked scripts |
+| **Web UI (Docker)** | Inside `image-scoring-webui` image | Same app stack in Compose | `docker compose up webui` — see [DOCKER_SETUP.md](DOCKER_SETUP.md) |
+| **GPU shell (Docker)** | `image-scoring-gpu-shell` (+ optional `/root/.venvs/research`) | Scripts / research / CUDA without Ubuntu | Compose profile `gpu-shell`; `scripts/batch/docker_gpu_shell.bat` |
 | **Tests** | `~/.venvs/image-scoring-tests` (WSL) | Pytest WSL-marked tests | `run_wsl_tests.sh`, `Run-WSLTests.ps1` |
 | **Project local (optional)** | `.venv` (project root) | Windows WebUI + CLI (CPU, no VILA); or WSL research env (SPAQ/AVA/LIQE) | `run_webui_windows.bat`, `scripts/setup_wsl_research_env.sh` |
 
-**Default for the Web UI:** The app is started by **`run_webui.bat`**, which runs in **WSL** and uses **`~/.venvs/tf`**. No project-local `.venv` is used for that path.
+**Default for the Web UI (non-Docker):** The app is started by **`run_webui.bat`**, which runs in **WSL** and uses **`~/.venvs/tf`**. No project-local `.venv` is used for that path.
 
 **Project-local venv:** The only conventional directory name at the repo root is **`.venv`** (gitignored). It is optional and used for Windows-native workflows and/or WSL research (see **section 3** below). It is excluded from pytest collection (`pytest.ini`).
 
@@ -97,9 +111,11 @@ See also the Cursor rule **Run Python in WSL (Webapp Environment)** (`.cursor/ru
 
 | Question | Answer |
 |----------|--------|
-| What does the Web UI use? | WSL + **`~/.venvs/tf`** (via `run_webui.bat`). |
+| What does the Web UI use (WSL path)? | WSL + **`~/.venvs/tf`** (via `run_webui.bat`). |
+| What does the Web UI use (Docker path)? | `image-scoring-webui` container — [DOCKER_SETUP.md](DOCKER_SETUP.md), [topology](wsl-vs-docker-topology.md). |
+| Scripts / research without Ubuntu? | Compose **`gpu-shell`** — [DOCKER_SETUP.md § GPU shell](DOCKER_SETUP.md#gpu-shell-scripts--research). |
 | Does default Web UI (`run_webui.bat`) use project `.venv`? | No — it uses `~/.venvs/tf`. |
 | Where do WSL pytest tests run? | In **`~/.venvs/image-scoring-tests`** (or custom `VENV_DIR`). |
 
 
-See also: [Python & Dependency Version Caveats](PYTHON_VERSION_CAVEATS.md).
+See also: [Python & Dependency Version Caveats](PYTHON_VERSION_CAVEATS.md), [WSL vs Docker topology](wsl-vs-docker-topology.md).
