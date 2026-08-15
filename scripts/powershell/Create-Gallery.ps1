@@ -46,29 +46,8 @@ Write-Host ""
 Write-Host "This may take a while depending on the number of images..." -ForegroundColor Yellow
 Write-Host ""
 
-# Check if we're in WSL environment or Windows
-try {
-    $wslCheck = Get-Command wsl -ErrorAction Stop
-    Write-Host "Using WSL environment for multi-model processing..." -ForegroundColor Green
-    
-    # Convert Windows path to WSL path
-    $wslPath = $InputFolder -replace '^([A-Z]):', '/mnt/$($matches[1].ToLower())' -replace '\\', '/'
-    
-    # Get project root dynamically (scripts/powershell -> project root)
-    $ProjectRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    $WSLProjectDir = $ProjectRoot -replace '\\', '/' -replace '^([A-Za-z]):', '/mnt/$1'
-    $WSLProjectDir = $WSLProjectDir.ToLower()
-    
-    # Run batch processing in WSL
-    wsl bash -c "source ~/.venvs/tf/bin/activate && cd $WSLProjectDir && python scripts/python/batch_process_images.py --input-dir '$wslPath' --output-dir '$wslPath'"
-}
-catch {
-    Write-Host "Using Windows Python environment for multi-model processing..." -ForegroundColor Green
-    
-    # Run batch processing in Windows
-    $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    python "$PSScriptRoot\..\..\scripts\python\batch_process_images.py" --input-dir $InputFolder --output-dir $InputFolder
-}
+Write-Host "Using image-scoring-gpu-shell for multi-model processing..." -ForegroundColor Green
+& "$PSScriptRoot\Invoke-GpuShell.ps1" python scripts/python/batch_process_images.py --input-dir $InputFolder --output-dir $InputFolder
 
 Write-Host ""
 Write-Host "Step 2: Generating HTML gallery..." -ForegroundColor Yellow

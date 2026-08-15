@@ -1,9 +1,9 @@
 ---
 name: agent-dev-tooling
 description: >-
-  Backend build, test, lint, and verify workflows via WSL pytest, ruff,
+  Backend build, test, lint, and verify workflows via gpu-shell, ruff,
   doctor, and docker compose. Use before claiming work complete or opening
-  a PR. Do not invent ad hoc Python commands outside documented venvs.
+  a PR. Do not invent ad hoc Python commands outside documented environments.
 ---
 
 # Agent dev tooling
@@ -12,7 +12,7 @@ Task runners, lint, and verification for **image-scoring-backend** (Vexlum Scori
 
 ## Purpose
 
-Run the correct project commands instead of inventing ad hoc toolchains. Primary stack: Python in WSL with documented venvs.
+Run the correct project commands instead of inventing ad hoc toolchains. Primary stack: Python in **image-scoring-gpu-shell**.
 
 ## When to use
 
@@ -23,7 +23,8 @@ Run the correct project commands instead of inventing ad hoc toolchains. Primary
 
 ## Required tools
 
-- **Backend (primary):** WSL2, `~/.venvs/tf` (app/scripts), `~/.venvs/image-scoring-tests` (pytest `-m wsl`)
+- **Backend (primary):** Compose **`image-scoring-gpu-shell`** for app/scripts
+- **WSL pytest `-m wsl`:** Ubuntu `~/.venvs/image-scoring-tests` when that distro exists
 - **Lint:** `ruff`, optional `pyright` via uv tools
 - **Ops:** `docker`, `docker compose`
 
@@ -33,14 +34,12 @@ Full command list: [AGENTS.md](../../../AGENTS.md), [`.agent/COMMANDS.md`](../..
 
 WSL venv selection: [`wsl-tf-python-runner`](../wsl-tf-python-runner/SKILL.md)
 
-## Common commands (backend — WSL first)
+## Common commands (backend — gpu-shell first)
 
-Fast CPU subset (from AGENTS.md):
+Fast CPU subset (from AGENTS.md), inside gpu-shell or documented test venv:
 
-```bash
-cd /mnt/d/Projects/image-scoring-backend
-source ~/.venvs/tf/bin/activate
-python -m pytest -m "not gpu and not db and not ml" --ignore=tests/test_probe.py -q
+```powershell
+scripts\batch\docker_gpu_run.bat -m pytest -m "not gpu and not db and not ml" --ignore=tests/test_probe.py -q
 ```
 
 Official WSL pytest suite (`-m wsl`):
@@ -51,8 +50,8 @@ bash ./scripts/wsl/run_wsl_tests.sh
 
 Doctor / diagnostics:
 
-```bash
-python scripts/doctor.py --no-gpu
+```powershell
+scripts\batch\docker_gpu_run.bat scripts/doctor.py --no-gpu
 ```
 
 Lint:

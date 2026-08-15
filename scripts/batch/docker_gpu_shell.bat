@@ -22,6 +22,8 @@ if errorlevel 1 (
 )
 
 echo [INFO] Entering image-scoring-gpu-shell. Exit with Ctrl+D or "exit".
+echo        One-shot python:    scripts\batch\docker_gpu_run.bat scripts\doctor.py --no-gpu
+echo        Arbitrary command:  scripts\batch\docker_gpu_exec.bat python scripts/doctor.py --no-gpu
 echo        Optional bootstrap: bash scripts/docker_gpu_shell_bootstrap.sh
 echo        Student extras:     set INSTALL_STUDENT_SCORER=1 then re-run bootstrap
 docker exec -it image-scoring-gpu-shell bash

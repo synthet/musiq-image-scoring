@@ -61,63 +61,8 @@ echo.
 echo This may take a while depending on the number of images...
 echo.
 
-REM Check if we're in WSL environment or Windows
-where wsl >nul 2>&1
-if %errorlevel% == 0 (
-    echo Using WSL environment for multi-model processing...
-    REM Convert Windows path to WSL path (handle any drive letter)
-    set "WSL_PATH=%INPUT_FOLDER%"
-    REM Convert C:\ to /mnt/c/, D:\ to /mnt/d/, etc.
-    for %%D in (A B C D E F G H I J K L M N O P Q R S T U V W X Y Z) do (
-        set "WSL_PATH=!WSL_PATH:%%D:\=/mnt/%%D/!"
-    )
-    REM Convert remaining backslashes to forward slashes
-    set "WSL_PATH=!WSL_PATH:\=/!"
-    REM Convert to lowercase for drive letter
-    set "WSL_PATH=!WSL_PATH:/mnt/A/=/mnt/a/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/B/=/mnt/b/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/C/=/mnt/c/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/D/=/mnt/d/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/E/=/mnt/e/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/F/=/mnt/f/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/G/=/mnt/g/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/H/=/mnt/h/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/I/=/mnt/i/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/J/=/mnt/j/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/K/=/mnt/k/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/L/=/mnt/l/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/M/=/mnt/m/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/N/=/mnt/n/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/O/=/mnt/o/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/P/=/mnt/p/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/Q/=/mnt/q/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/R/=/mnt/r/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/S/=/mnt/s/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/T/=/mnt/t/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/U/=/mnt/u/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/V/=/mnt/v/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/W/=/mnt/w/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/X/=/mnt/x/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/Y/=/mnt/y/!"
-    set "WSL_PATH=!WSL_PATH:/mnt/Z/=/mnt/z/!"
-    REM Get project root (scripts/batch -> project root)
-    for %%I in ("%~dp0..\..") do set "PROJECT_ROOT=%%~fI"
-    REM Convert to WSL path format
-    set "WSL_PROJECT=!PROJECT_ROOT:\=/!"
-    set "WSL_PROJECT=!WSL_PROJECT::=!"
-    set "WSL_PROJECT=/mnt/!WSL_PROJECT!"
-    set "WSL_PROJECT=!WSL_PROJECT:/mnt/C=/mnt/c!"
-    set "WSL_PROJECT=!WSL_PROJECT:/mnt/D=/mnt/d!"
-    set "WSL_PROJECT=!WSL_PROJECT:/mnt/E=/mnt/e!"
-    set "WSL_PROJECT=!WSL_PROJECT:/mnt/F=/mnt/f!"
-    set "WSL_PROJECT=!WSL_PROJECT:/mnt/G=/mnt/g!"
-    set "WSL_PROJECT=!WSL_PROJECT:/mnt/H=/mnt/h!"
-    
-    wsl bash -c "source ~/.venvs/tf/bin/activate && cd !WSL_PROJECT! && python scripts/python/batch_process_images.py --input-dir '!WSL_PATH!' --output-dir '!WSL_PATH!' --rate-nef"
-) else (
-    echo Using Windows Python environment for multi-model processing...
-    python "scripts\python\batch_process_images.py" --input-dir "%INPUT_FOLDER%" --output-dir "%INPUT_FOLDER%" --rate-nef
-)
+echo Using image-scoring-gpu-shell for multi-model processing...
+call "%~dp0docker_gpu_run.bat" scripts/python/batch_process_images.py --input-dir "%INPUT_FOLDER%" --output-dir "%INPUT_FOLDER%" --rate-nef
 
 echo.
 echo Step 2: Generating HTML gallery...

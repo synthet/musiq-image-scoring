@@ -13,44 +13,14 @@ Write-Host "   TensorFlow Hub + Kaggle Hub" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Build arguments
-$args = @()
-if ($TestKaggle) {
-    $args += "--test-kaggle"
-}
-if ($SkipDownload) {
-    $args += "--skip-download"
-}
-if ($Verbose) {
-    $args += "--verbose"
-}
+$pyArgs = @("python", "tests/test_model_sources.py")
+if ($TestKaggle) { $pyArgs += "--test-kaggle" }
+if ($SkipDownload) { $pyArgs += "--skip-download" }
+if ($Verbose) { $pyArgs += "--verbose" }
 
-# Check if we're in WSL environment or Windows
-try {
-    $wslCheck = Get-Command wsl -ErrorAction Stop
-    Write-Host "Using WSL environment for testing..." -ForegroundColor Green
-    Write-Host ""
-    
-    # Get project root dynamically (scripts/powershell -> project root)
-    $ProjectRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    $WSLProjectDir = $ProjectRoot -replace '\\', '/' -replace '^([A-Za-z]):', '/mnt/$1'
-    $WSLProjectDir = $WSLProjectDir.ToLower()
-    
-    # Run test in WSL with TensorFlow virtual environment
-    $argsString = $args -join " "
-    wsl bash -c "source ~/.venvs/tf/bin/activate && cd $WSLProjectDir && python tests/test_model_sources.py $argsString"
-}
-catch {
-    Write-Host "Using Windows Python environment for testing..." -ForegroundColor Yellow
-    Write-Host "Warning: TensorFlow may not be properly configured in Windows." -ForegroundColor Yellow
-    Write-Host "WSL is recommended for accurate testing." -ForegroundColor Yellow
-    Write-Host ""
-    
-    # Run test with Windows Python
-    $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    python "$PSScriptRoot\..\..\tests\test_model_sources.py" @args
-}
+Write-Host "Using image-scoring-gpu-shell..." -ForegroundColor Green
+Write-Host ""
+& "$PSScriptRoot\Invoke-GpuShell.ps1" @pyArgs
 
 Write-Host ""
 Read-Host "Press Enter to exit"
-

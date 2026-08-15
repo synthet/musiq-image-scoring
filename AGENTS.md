@@ -434,7 +434,7 @@ If you still see duplicate or legacy keys (`scoring`, `webui`, old `imgscore-*` 
 
 Users and docs sometimes overload **“E2E.”** Map phrases to suites as follows:
 
-| User / chat phrase | Canonical suite name | Paths | Marker / opt-in | How to run (WSL + `~/.venvs/tf` typical; see `.cursor/rules/python-wsl-webapp-env.mdc`) |
+| User / chat phrase | Canonical suite name | Paths | Marker / opt-in | How to run (gpu-shell typical for app scripts; see `.cursor/rules/python-wsl-webapp-env.mdc`) |
 |--------------------|----------------------|-------|-----------------|----------------------------------------------------------------------------------------|
 | **Integration E2E**, **API E2E**, **runs submit E2E**, **postgres E2E** | Postgres API E2E | `tests/integration/test_runs_*_e2e.py` | `@pytest.mark.postgres`; enable with **`RUN_POSTGRES_TESTS=1`** or **`pytest -m postgres`** | `pytest tests/integration/ -m postgres -v` (requires PostgreSQL reachable for `image_scoring_test`; see `tests/conftest.py`) |
 | **Docker E2E**, **inference E2E**, **GPU E2E in Docker**, **`e2e-inference` profile** | Docker inference E2E | `tests/e2e_docker/` | `@pytest.mark.inference_e2e` + **`IMAGE_SCORING_DOCKER_INFERENCE_E2E=1`** | `docker compose --profile e2e-inference run --rm inference-e2e` (runs `scripts/docker_inference_e2e.sh` → pytest `-m inference_e2e`). Not the same as integration E2E. |

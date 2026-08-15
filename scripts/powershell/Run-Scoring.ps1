@@ -2,8 +2,8 @@
 .SYNOPSIS
     Universal Vexlum scoring runner
     Accepts a File or a Folder.
-    - If Folder: Runs batch processing (WSL) + Gallery Generation.
-    - If File: Runs single image scoring (WSL).
+    - If Folder: Runs batch processing (gpu-shell) + Gallery Generation.
+    - If File: Runs single image scoring (gpu-shell).
 
 .PARAMETER InputPath
     The path to the file or folder to process.
@@ -29,36 +29,12 @@ catch {
 $ResolvedPath = $FullPath.Path
 $IsFolder = Test-Path $ResolvedPath -PathType Container
 
-# 2. Convert to WSL Path
-# E.g. D:\Photos -> /mnt/d/Photos
-if ($ResolvedPath -match "^([a-zA-Z]):\\(.*)") {
-    $drive = $matches[1].ToLower()
-    $rest = $matches[2] -replace "\\", "/"
-    $WslPath = "/mnt/$drive/$rest"
-}
-else {
-    Write-Error "Could not convert path to WSL format: $ResolvedPath"
-    exit 1
-}
-
-# 3. Define Project Paths (Dynamic Detection)
-# Get project root from script location (scripts/powershell -> project root)
-$ProjectRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-# Convert to WSL path format
-$WSL_PROJECT_DIR = $ProjectRoot -replace '\\', '/' -replace '^([A-Za-z]):', '/mnt/$1'
-$WSL_PROJECT_DIR = $WSL_PROJECT_DIR.ToLower()
-# Use simple string interpolation. The && is safe inside the double quotes.
-$WSL_PYTHON_CMD = "source ~/.venvs/tf/bin/activate && cd $WSL_PROJECT_DIR"
-
 if ($IsFolder) {
     Write-Host "FOLDER detected: $ResolvedPath"
-    Write-Host "Starting Batch Processing in WSL..."
+    Write-Host "Starting batch processing in image-scoring-gpu-shell..."
     Write-Host ""
-    
-    # Simple interpolation. We use single quotes for the inner arguments.
-    $cmd = "$WSL_PYTHON_CMD && python scripts/python/batch_process_images.py --input-dir '$WslPath' --output-dir '$WslPath' --skip-existing"
-    
-    wsl bash -c $cmd
+
+    & "$PSScriptRoot\Invoke-GpuShell.ps1" python scripts/python/batch_process_images.py --input-dir $ResolvedPath --output-dir $ResolvedPath --skip-existing
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host ""
@@ -76,13 +52,10 @@ if ($IsFolder) {
 }
 else {
     Write-Host "FILE detected: $ResolvedPath"
-    Write-Host "Scoring Single Image in WSL..."
+    Write-Host "Scoring single image in image-scoring-gpu-shell..."
     Write-Host ""
-    
-    # Simple interpolation.
-    $cmd = "$WSL_PYTHON_CMD && python scripts/python/run_all_musiq_models.py --image '$WslPath'"
-    
-    wsl bash -c $cmd
+
+    & "$PSScriptRoot\Invoke-GpuShell.ps1" python scripts/python/run_all_musiq_models.py --image $ResolvedPath
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Scoring Complete."

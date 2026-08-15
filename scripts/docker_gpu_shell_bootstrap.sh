@@ -19,6 +19,9 @@ source "$VENV_DIR/bin/activate"
 
 python -m pip install --upgrade pip
 
+# Persist extras on gpu_shell_home (/root) so they survive image rebuilds.
+python -m pip install --user "ultralytics>=8.0.0"
+
 if [[ "${INSTALL_STUDENT_SCORER:-0}" == "1" ]]; then
   echo "Installing student scorer extras..."
   python -m pip install -r "$APP_DIR/requirements/requirements_student_scorer.txt"

@@ -140,6 +140,7 @@ services:
         condition: service_healthy
     environment:
       - DOCKER_CONTAINER=1
+      - PYTHONPATH=/app
       - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
       - POSTGRES_DB=image_scoring

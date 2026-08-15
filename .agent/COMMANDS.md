@@ -1,25 +1,26 @@
 # Command quick reference — image-scoring-backend
 
-Verified patterns from [AGENTS.md](../AGENTS.md), [.agent/INFRA_QUICKSTART.md](INFRA_QUICKSTART.md), and [docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md). **Default for `modules.*` / DB / ML:** WSL + `source ~/.venvs/tf/bin/activate` ([.cursor/rules/python-wsl-webapp-env.mdc](../.cursor/rules/python-wsl-webapp-env.mdc)). On Windows host paths, translate to `/mnt/<drive>/Projects/...` inside WSL.
+Verified patterns from [AGENTS.md](../AGENTS.md), [.agent/INFRA_QUICKSTART.md](INFRA_QUICKSTART.md), and [docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md). **Default for `modules.*` / DB / ML:** Compose **`image-scoring-gpu-shell`** ([.cursor/rules/python-wsl-webapp-env.mdc](../.cursor/rules/python-wsl-webapp-env.mdc)). Ubuntu `~/.venvs/tf` is optional.
 
 ## Setup
 
-- Create / activate app venv (WSL): `source ~/.venvs/tf/bin/activate`
-- Install deps: see [docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md) and `requirements/`
-- PostgreSQL (typical): `docker compose up -d` from repo root (if your setup uses Compose)
-- DB migrations: `alembic upgrade head` (when schema changes)
+- GPU scripts: `docker compose --profile gpu-shell up -d db gpu-shell`
+- One-shot: `scripts\batch\docker_gpu_run.bat scripts/doctor.py --no-gpu`
+- Interactive: `scripts\batch\docker_gpu_shell.bat`
+- PostgreSQL (typical): `docker compose up -d` from repo root
+- DB migrations: `alembic upgrade head` (when schema changes) — run via gpu-shell if you need the app env
 
 ## Diagnostics
 
-- `python scripts/doctor.py` — config + DB + pgvector (+ optional GPU probe)
-- `python scripts/doctor.py --no-gpu` — skip GPU checks
-- `python scripts/doctor.py --json` — machine-readable output
+- `scripts\batch\docker_gpu_run.bat scripts/doctor.py` — config + DB + pgvector (+ optional GPU probe)
+- `scripts\batch\docker_gpu_run.bat scripts/doctor.py --no-gpu` — skip GPU checks
+- `scripts\batch\docker_gpu_run.bat scripts/doctor.py --json` — machine-readable output
 - Redacted support bundle: `python scripts/export_debug_bundle.py` (review zip before sharing)
 - Auto-drive monitor: `python scripts/diagnostics/monitor_drive.py --once` (poll `GET /api/runs/drive/status`; add `--local-diagnostics` in WSL app env)
 
 ## Development server
 
-- From Windows: `run_webui.bat` (WSL inside)
+- From Windows: `docker compose up -d db webui` (day-to-day) or `run_webui.bat` if Ubuntu is installed
 - From WSL (repo root, venv on): `python launch.py` or `python webui.py`
 - MCP beside WebUI: `ENABLE_MCP_SERVER=1 python webui.py` (Linux/WSL)
 

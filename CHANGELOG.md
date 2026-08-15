@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.15.1] - 2026-08-15
+
+### Changed
+- **Scripts default to `image-scoring-gpu-shell`**: Windows wrappers that used Ubuntu `~/.venvs/tf` now go through `scripts/powershell/Invoke-GpuShell.ps1` (`docker_gpu_run.bat` / `docker_gpu_exec.bat`). Agent env rule matches. `ultralytics` added to `requirements_wsl_gpu.txt` so the Docker image can run bird detection.
+
+### Fixed
+- **Multi-phase jobs skipped every other stage** (#337): `safe_runner_thread` no longer marks the next phase completed after an empty-phase skip. Snapshot the runner's own terminal `job_phases` codes instead of relying on `jobs.status`. Display order also keeps the submitted `stage_codes` sequence instead of rewriting `phase_order`.
+
 ## [8.15.0] - 2026-08-09
 
 ### Added

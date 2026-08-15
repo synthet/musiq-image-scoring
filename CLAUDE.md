@@ -64,7 +64,7 @@ Phase status: `not_started | running | done | skipped | failed`. User-facing lab
 
 ### Environment
 
-- **Hybrid:** Windows host + WSL 2 for GPU/ML — app scripts use WSL `~/.venvs/tf` (see `.cursor/rules/python-wsl-webapp-env.mdc`).
+- **Hybrid:** Windows host + Docker Desktop — app scripts use **`image-scoring-gpu-shell`**; WebUI uses **`image-scoring-webui`**. Ubuntu `~/.venvs/tf` is optional (see `.cursor/rules/python-wsl-webapp-env.mdc`).
 - **DB (primary):** PostgreSQL + pgvector (`database.engine: "postgres"` in `config.json`). **Firebird is decommissioned.**
 
 ## Key files

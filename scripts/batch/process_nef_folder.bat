@@ -35,48 +35,7 @@ if not exist "%INPUT_FOLDER%" (
 echo Step 1: Processing NEF files with MUSIQ models and rating...
 echo.
 
-REM Use WSL environment for processing
-set "WSL_PATH=%INPUT_FOLDER%"
-set "WSL_PATH=!WSL_PATH:\=/mnt/!"
-set "WSL_PATH=!WSL_PATH:C:=c!"
-set "WSL_PATH=!WSL_PATH:D:=d!"
-set "WSL_PATH=!WSL_PATH:E:=e!"
-set "WSL_PATH=!WSL_PATH:F:=f!"
-set "WSL_PATH=!WSL_PATH:G:=g!"
-set "WSL_PATH=!WSL_PATH:H:=h!"
-set "WSL_PATH=!WSL_PATH:I:=i!"
-set "WSL_PATH=!WSL_PATH:J:=j!"
-set "WSL_PATH=!WSL_PATH:K:=k!"
-set "WSL_PATH=!WSL_PATH:L:=l!"
-set "WSL_PATH=!WSL_PATH:M:=m!"
-set "WSL_PATH=!WSL_PATH:N:=n!"
-set "WSL_PATH=!WSL_PATH:O:=o!"
-set "WSL_PATH=!WSL_PATH:P:=p!"
-set "WSL_PATH=!WSL_PATH:Q:=q!"
-set "WSL_PATH=!WSL_PATH:R:=r!"
-set "WSL_PATH=!WSL_PATH:S:=s!"
-set "WSL_PATH=!WSL_PATH:T:=t!"
-set "WSL_PATH=!WSL_PATH:U:=u!"
-set "WSL_PATH=!WSL_PATH:V:=v!"
-set "WSL_PATH=!WSL_PATH:W:=w!"
-set "WSL_PATH=!WSL_PATH:X:=x!"
-set "WSL_PATH=!WSL_PATH:Y:=y!"
-set "WSL_PATH=!WSL_PATH:Z:=z!"
-
-REM Get project root (scripts/batch -> project root)
-for %%I in ("%~dp0..\..") do set "PROJECT_ROOT=%%~fI"
-REM Convert to WSL path format
-set "WSL_PROJECT=!PROJECT_ROOT:\=/!"
-set "WSL_PROJECT=!WSL_PROJECT::=!"
-set "WSL_PROJECT=/mnt/!WSL_PROJECT!"
-set "WSL_PROJECT=!WSL_PROJECT:/mnt/C=/mnt/c!"
-set "WSL_PROJECT=!WSL_PROJECT:/mnt/D=/mnt/d!"
-set "WSL_PROJECT=!WSL_PROJECT:/mnt/E=/mnt/e!"
-set "WSL_PROJECT=!WSL_PROJECT:/mnt/F=/mnt/f!"
-set "WSL_PROJECT=!WSL_PROJECT:/mnt/G=/mnt/g!"
-set "WSL_PROJECT=!WSL_PROJECT:/mnt/H=/mnt/h!"
-
-wsl bash -c "source ~/.venvs/tf/bin/activate && cd !WSL_PROJECT! && python scripts/python/batch_process_images.py --input-dir '!WSL_PATH!' --output-dir '!WSL_PATH!' --rate-nef"
+call "%~dp0docker_gpu_run.bat" scripts/python/batch_process_images.py --input-dir "%INPUT_FOLDER%" --output-dir "%INPUT_FOLDER%" --rate-nef
 
 echo.
 echo Step 2: Generating HTML gallery...

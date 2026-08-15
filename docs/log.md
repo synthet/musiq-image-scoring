@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-08-14] edit | gpu-shell is the default script runner
+
+Updated guides/setup/DOCKER_SETUP.md and ENVIRONMENTS.md: Windows script wrappers and agent env default to image-scoring-gpu-shell (`Invoke-GpuShell.ps1` / `docker_gpu_run.bat`); Ubuntu ~/.venvs/tf is optional.
+
 ## [2026-08-09] edit | Ubuntu disk reclaim caveats
 
 Expanded guides/setup/wsl-vs-docker-topology.md with Sunsetting Ubuntu — disk reclaim: Compact-WslVhdx.ps1 (Admin, wsl --shutdown downtime) vs wsl --unregister caveats; linked from DOCKER_SETUP and setup INDEX.

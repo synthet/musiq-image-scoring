@@ -4,7 +4,7 @@ title: Docker Setup
 description: Install Docker Desktop / WSL tooling and run Postgres + WebUI via docker compose (Postgres primary).
 resource: guides/setup/DOCKER_SETUP.md
 tags: [docker, setup, postgres, gpu, wsl]
-timestamp: 2026-08-09T04:45:00Z
+timestamp: 2026-08-14T21:10:00Z
 okf_version: 0.1
 ---
 
@@ -152,6 +152,9 @@ docker exec -it image-scoring-gpu-shell bash
 # One-shot Python (repo is /app)
 docker exec -i image-scoring-gpu-shell python scripts/doctor.py --no-gpu
 # Windows: scripts\batch\docker_gpu_run.bat scripts/doctor.py --no-gpu
+# Windows: .\scripts\powershell\Invoke-GpuShell.ps1 python scripts/doctor.py --no-gpu
+# Long jobs:  .\scripts\powershell\Invoke-GpuShell.ps1 -Detach python scripts/backfill_bird_bbox.py --all-null
+# Arbitrary:  scripts\batch\docker_gpu_exec.bat bash scripts/research/clip_culling/resume_recluster.sh
 ```
 
 **Mounts:** same `.:/app` and `PHOTOS_BIND_SOURCE` → `/mnt/d/Photos` as `webui`. Persistent Linux volumes: `gpu_shell_home` (`/root`), `hf_cache`, `torch_cache`.
@@ -167,7 +170,7 @@ docker exec -e INSTALL_STUDENT_SCORER=1 -it image-scoring-gpu-shell bash /app/sc
 
 **GPU contention:** avoid running heavy ML in `webui` and `gpu-shell` at the same time on an 8GB GPU — prefer one heavy job at a time.
 
-**Long jobs:** log under `/app/reports` (repo bind); use detached `docker exec` rather than fragile host WSL relays.
+**Long jobs:** log under `/app/reports` or `/app/.agent/scratch`; use `Invoke-GpuShell.ps1 -Detach` (or `GPU_SHELL_DETACH=1`) rather than a host WSL relay.
 
 ### Stopping
 

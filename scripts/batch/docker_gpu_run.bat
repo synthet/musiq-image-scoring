@@ -1,10 +1,11 @@
 @echo off
-setlocal EnableDelayedExpansion
+setlocal
 cd /d "%~dp0..\.."
 
-REM One-shot: run python inside the persistent gpu-shell container.
+REM One-shot: run python inside image-scoring-gpu-shell.
 REM Usage: scripts\batch\docker_gpu_run.bat scripts\doctor.py --no-gpu
 REM        scripts\batch\docker_gpu_run.bat -c "import torch; print(torch.cuda.is_available())"
+REM Long jobs: set GPU_SHELL_DETACH=1
 
 if "%~1"=="" (
     echo Usage: %~nx0 [python args...]
@@ -12,19 +13,5 @@ if "%~1"=="" (
     exit /b 1
 )
 
-docker info >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] Docker daemon not ready. Start Docker Desktop and retry.
-    exit /b 1
-)
-
-docker compose --profile gpu-shell up -d db gpu-shell
-if errorlevel 1 (
-    echo [ERROR] compose up failed. Build first: docker compose build webui
-    exit /b 1
-)
-
-REM Prefer exec against long-lived shell (named container + persistent /root volumes).
-REM Paths: use Linux-style under /app (compose mounts repo at /app).
-docker exec -i image-scoring-gpu-shell python %*
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& '%~dp0..\powershell\Invoke-GpuShell.ps1' python %*; exit $LASTEXITCODE"
 exit /b %ERRORLEVEL%

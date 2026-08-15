@@ -25,23 +25,7 @@ if (-not (Test-Path $FolderPath)) {
 Write-Host "Step 1: Processing NEF files with MUSIQ models and rating..."
 Write-Host ""
 
-# Convert Windows path to WSL path
-$WSLPath = $FolderPath -replace '\\', '/'
-if ($WSLPath -match '^([A-Z]):') {
-    $drive = $matches[1].ToLower()
-    $WSLPath = $WSLPath -replace "^$($matches[1]):", "/mnt/$drive"
-}
-
-Write-Host "WSL Path: $WSLPath"
-
-# Get project root dynamically (scripts/powershell -> project root)
-$ProjectRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$WSLProjectDir = $ProjectRoot -replace '\\', '/' -replace '^([A-Za-z]):', '/mnt/$1'
-$WSLProjectDir = $WSLProjectDir.ToLower()
-
-# Run the batch processor in WSL
-$command = "source ~/.venvs/tf/bin/activate && cd $WSLProjectDir && python scripts/python/batch_process_images.py --input-dir '$WSLPath' --output-dir '$WSLPath' --rate-nef --skip-existing"
-wsl bash -c $command
+& "$PSScriptRoot\Invoke-GpuShell.ps1" python scripts/python/batch_process_images.py --input-dir $FolderPath --output-dir $FolderPath --rate-nef --skip-existing
 
 Write-Host ""
 Write-Host "Step 2: Generating HTML gallery..."
