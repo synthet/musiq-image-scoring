@@ -215,16 +215,26 @@ def pipeline_prefix_through(phase: str) -> list[str]:
 
 
 def sort_job_phase_rows_for_display(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Sort job_phases rows for API/UI; renumbers phase_order to match display order."""
+    """Sort job_phases rows for API/UI in the run's own execution order.
+
+    A run's ``phase_order`` is the submitted plan, which need not be canonical —
+    ``pipeline_submit`` preserves the client's ``stage_codes`` sequence, so a
+    ``metadata, score, tag, cluster`` submit stores ``keywords`` before
+    ``culling``. Sorting by canonical pipeline order and renumbering would report
+    the stages in an order the run never executed. Keep the stored
+    ``phase_order`` and fall back to canonical order only for rows that lack one.
+    """
     if not rows:
         return []
-    sorted_rows = sorted(rows, key=lambda r: phase_string_sort_key(str(r.get("phase_code") or "")))
-    out: list[dict[str, Any]] = []
-    for i, r in enumerate(sorted_rows):
-        d = dict(r)
-        d["phase_order"] = i
-        out.append(d)
-    return out
+
+    def _key(row: dict[str, Any]) -> tuple[int, int]:
+        canonical = phase_string_sort_key(str(row.get("phase_code") or ""))
+        try:
+            return int(row["phase_order"]), canonical
+        except (KeyError, TypeError, ValueError):
+            return 999, canonical
+
+    return [dict(r) for r in sorted(rows, key=_key)]
 
 
 PHASE_CODE_ALIASES = {
