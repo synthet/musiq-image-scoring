@@ -65,6 +65,29 @@ def _runner_audit_phase_code(runner_obj) -> str | None:
     return mapping.get(str(jt).strip().lower(), str(jt).strip().lower())
 
 
+_TERMINAL_PHASE_STATES = {"completed", "skipped", "canceled", "cancelled", "failed"}
+
+
+def _terminal_phase_codes(job_id) -> set[str] | None:
+    """Phase codes of ``job_phases`` rows already in a terminal state.
+
+    Returns ``None`` when the plan cannot be read, so callers can tell "no
+    terminal phases" apart from "unknown".
+    """
+    if not job_id:
+        return None
+    try:
+        rows = db.get_job_phases(job_id) or []
+    except Exception:
+        logger.debug("Failed to read job_phases for job %s", job_id, exc_info=True)
+        return None
+    return {
+        str(p.get("phase_code") or "")
+        for p in rows
+        if str(p.get("state") or "").strip().lower() in _TERMINAL_PHASE_STATES
+    }
+
+
 def safe_runner_thread(runner_obj, job_id, run_func, *args, phase_code=None, **kwargs):
     """
     Executes a runner's core logic inside a try/finally block that guarantees
@@ -88,6 +111,8 @@ def safe_runner_thread(runner_obj, job_id, run_func, *args, phase_code=None, **k
         with audit_context(run_id=job_id, phase_code=eff_phase, source=source):
             run_func(*args, **kwargs)
 
+    terminal_phases_before = _terminal_phase_codes(job_id)
+
     try:
         _run_with_audit()
         if job_id:
@@ -97,8 +122,22 @@ def safe_runner_thread(runner_obj, job_id, run_func, *args, phase_code=None, **k
                     return
                 row = db.get_job(job_id)
                 current = (row or {}).get("status", "").strip().lower()
-                if current not in db.JOB_TERMINAL_STATES:
-                    db.update_job_status(job_id, "completed")
+                if current in db.JOB_TERMINAL_STATES:
+                    return
+                # A multi-phase job stays ``running`` after its stage completes (later
+                # stages remain), so ``jobs.status`` cannot distinguish "runner never
+                # finished" from "runner finished stage 1 of 4". Completing again here
+                # would land on the stage ``db.set_job_phase_state`` just auto-advanced
+                # to ``running``, marking it done with zero work. Detect the runner's own
+                # terminal write by looking for a newly terminal phase instead.
+                terminal_phases_after = _terminal_phase_codes(job_id)
+                if (
+                    terminal_phases_before is not None
+                    and terminal_phases_after is not None
+                    and terminal_phases_after - terminal_phases_before
+                ):
+                    return
+                db.update_job_status(job_id, "completed")
             except Exception:
                 logger.exception("safe_runner_thread: terminal write failed for job %s", job_id)
     except Exception as e:
