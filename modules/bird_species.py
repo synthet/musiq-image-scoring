@@ -95,6 +95,42 @@ def _get_image_ids_with_species_keyword(image_ids: list[int]) -> set:
         conn.close()
 
 
+def scan_bird_bbox_only(row: dict, detector) -> dict:
+    """Detect the bird box for one image row and return a ``bird_bbox`` payload.
+
+    Detector only: no BioCLIP inference, no keyword or embedding writes. Repairs images
+    whose species work is already done (or exhausted) but that never got a box. Always
+    returns a payload, so the row stops matching ``bbox_needs_scan`` and the auto-drive
+    queue converges instead of re-offering the same image every tick.
+    """
+    from modules.bird_detection import bbox_scan_failed, bird_bbox_payload
+    from modules.thumbnails import open_image_for_ml
+
+    file_path = row.get("file_path") or ""
+    inference_path = _resolve_inference_path(row, file_path)
+    if not inference_path or not os.path.exists(inference_path):
+        return bbox_scan_failed("file_missing")
+
+    try:
+        img = open_image_for_ml(inference_path).convert("RGB")
+    except Exception as exc:  # noqa: BLE001 — record the failure, don't abort the batch
+        return bbox_scan_failed(f"decode_error: {exc}")
+
+    # Bake EXIF orientation so the stored coordinates are in display orientation,
+    # matching the classify path in ``BioCLIPClassifier.classify``.
+    try:
+        from modules.thumbnails import bake_orientation
+
+        img = bake_orientation(img, inference_path)
+    except Exception as orient_err:  # noqa: BLE001 — orientation is best-effort
+        logger.debug("bake_orientation failed for %s: %s", inference_path, orient_err)
+
+    try:
+        return bird_bbox_payload(detector.detect_best_box(img))
+    except Exception as exc:  # noqa: BLE001 — record the failure, don't abort the batch
+        return bbox_scan_failed(f"detect_error: {exc}")
+
+
 class BioCLIPClassifier:
     """
     Zero-shot bird species classifier using BioCLIP 2 via OpenCLIP.
@@ -528,6 +564,61 @@ class BirdSpeciesRunner:
             logger.exception("BirdSpeciesRunner error on %s", file_path)
             return 0, 1
 
+    def _run_bbox_only_pass(self, rows: list, *, job_id, log) -> tuple[int, bool]:
+        """Rescan ``rows`` with the detector alone. Returns ``(rescanned, stopped)``.
+
+        Writes ``images.bird_bbox`` and nothing else — no BioCLIP, no keywords, no
+        embeddings, no phase-status changes. The rows are already species-complete;
+        only the box was missing.
+        """
+        from modules.events import event_manager
+
+        # Borrow the classifier's cached detector without loading BioCLIP: it is
+        # resolved lazily and independently of ``load_model``.
+        if not self.classifier:
+            self.classifier = BioCLIPClassifier()
+        detector = self.classifier._ensure_detector()
+        if detector is None:
+            log(
+                f"Bird detector unavailable; leaving {len(rows)} images unscanned "
+                f"(they stay queued for a later run).",
+                "WARNING",
+            )
+            self.total_count -= len(rows)
+            return 0, False
+
+        log(f"Rescanning {len(rows)} images for bird box only (no re-classification).")
+        rescanned = 0
+        for row in rows:
+            if self.stop_event.is_set():
+                log("Stopped by user.", "WARNING")
+                return rescanned, True
+            if job_id and db.job_should_stop_processing(job_id):
+                self.stop_event.set()
+                log("Paused (job status).", "WARNING")
+                return rescanned, True
+
+            bbox = scan_bird_bbox_only(row, detector)
+            try:
+                db.update_image_bird_bbox(int(row["id"]), bbox)
+                rescanned += 1
+            except Exception:
+                logger.warning(
+                    "bird_species: bird_bbox persist failed for image_id=%s",
+                    row.get("id"),
+                    exc_info=True,
+                )
+
+            self.current_count += 1
+            if self.current_count % 5 == 0:
+                event_manager.broadcast_threadsafe("job_progress", {
+                    "job_id": job_id,
+                    "job_type": "bird_species",
+                    "current": self.current_count,
+                    "total": self.total_count,
+                })
+        return rescanned, False
+
     def _run_batch_internal(
         self,
         input_path: str,
@@ -572,25 +663,32 @@ class BirdSpeciesRunner:
 
         log(f"Using {len(species_list)} candidate species.")
 
-        # --- Load model (lazy, cached on self.classifier) ---
-        if not self.classifier:
+        def load_classifier() -> bool:
+            """Load BioCLIP lazily. Returns False (and fails the job) on error.
+
+            Deferred until after the work partition so a batch that only needs a bird-box
+            rescan never pays for the BioCLIP model load.
+            """
+            if self.classifier:
+                return True
             try:
                 log("Loading BioCLIP 2 model (first run may take a while)...")
                 self.classifier = BioCLIPClassifier()
                 self.classifier.load_model()
                 log("Model loaded.")
+                return True
             except ImportError:
                 log("Error: open_clip not installed. Run: pip install open_clip_torch", "ERROR")
                 self.status_message = "Error: open_clip not installed"
                 if job_id:
                     db.update_job_status(job_id, "failed")
-                return
+                return False
             except Exception as exc:
                 log(f"Error loading BioCLIP 2: {exc}", "ERROR")
                 self.status_message = "Error loading model"
                 if job_id:
                     db.update_job_status(job_id, "failed")
-                return
+                return False
 
         # --- Fetch images that have "birds" keyword ---
         log("Querying images with 'birds' keyword...")
@@ -614,14 +712,30 @@ class BirdSpeciesRunner:
                 event_manager.broadcast_threadsafe("job_completed", {"job_id": job_id, "status": "completed"})
             return
 
-        # --- Skip images that are current per phase policy (unless overwrite) ---
+        # --- Partition: full classification vs bird-box-only rescan (unless overwrite) ---
+        # The bird box is a product of this phase, so an image whose species work is done
+        # (or exhausted) but that never got a box still owes work. Those need the detector
+        # only — re-running BioCLIP would rewrite species keywords for no reason.
+        #
+        # The bbox branch is decided from the row's own column plus a species-only
+        # completeness check, not from ``explain_phase_run_decision``: IPS-``skipped`` rows
+        # (the ``no_species_match`` path) short-circuit at ``already_skipped_current_executor``
+        # before data validation, so a policy-based split would leave exhausted images
+        # unrepairable while ``get_phase_incomplete_sql`` kept advertising them as work.
+        bbox_only: list = []
         if not overwrite:
+            from modules.bird_detection import bbox_needs_scan
             from modules.phases import PhaseCode
             from modules.phases_policy import explain_phase_run_decision
 
             filtered = []
             skipped_policy = 0
             for row in all_images:
+                if bbox_needs_scan(row.get("bird_bbox")) and db.is_image_bird_species_complete(
+                    int(row["id"]), include_bbox=False
+                ):
+                    bbox_only.append(row)
+                    continue
                 decision = explain_phase_run_decision(
                     int(row["id"]),
                     PhaseCode.BIRD_SPECIES,
@@ -639,7 +753,7 @@ class BirdSpeciesRunner:
                 )
             all_images = filtered
 
-        self.total_count = len(all_images)
+        self.total_count = len(all_images) + len(bbox_only)
         self.current_count = 0
 
         if self.total_count == 0:
@@ -650,9 +764,23 @@ class BirdSpeciesRunner:
                 event_manager.broadcast_threadsafe("job_completed", {"job_id": job_id, "status": "completed"})
             return
 
-        log(f"Classifying {self.total_count} images...")
         processed = 0
         skipped = 0
+        rescanned = 0
+
+        # --- Bird-box-only rescan pass (no BioCLIP, no keyword writes) ---
+        if bbox_only:
+            rescanned, stopped = self._run_bbox_only_pass(
+                bbox_only, job_id=job_id, log=log
+            )
+            if stopped:
+                all_images = []
+
+        if all_images and not load_classifier():
+            return
+
+        if all_images:
+            log(f"Classifying {len(all_images)} images...")
 
         # Track phase status for each image
         phase_code = "bird_species"
@@ -686,7 +814,8 @@ class BirdSpeciesRunner:
                     "total": self.total_count,
                 })
 
-        log(f"Done. Classified: {processed}, Skipped: {skipped}")
+        rescan_note = f", Box rescanned: {rescanned}" if rescanned else ""
+        log(f"Done. Classified: {processed}, Skipped: {skipped}{rescan_note}")
         self.status_message = f"Done ({processed} classified, {skipped} skipped)"
 
         if job_id:

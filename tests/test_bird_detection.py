@@ -16,6 +16,7 @@ from PIL import Image
 from modules.bird_detection import (
     BBOX_NOT_DETECTED,
     BirdDetector,
+    bbox_needs_scan,
     bird_bbox_payload,
     bbox_scan_failed,
     select_best_box,
@@ -36,6 +37,28 @@ def test_bird_bbox_payload_box_and_sentinels():
     assert bird_bbox_payload(None) == BBOX_NOT_DETECTED
     assert bird_bbox_payload(None, error="file_missing") == bbox_scan_failed("file_missing")
     assert "img_w" not in bbox_scan_failed("x")
+
+
+def test_bbox_needs_scan_truth_table():
+    box = {"x1": 1, "y1": 2, "x2": 3, "y2": 4, "conf": 0.9, "img_w": 10, "img_h": 10}
+    # NULL == never scanned.
+    assert bbox_needs_scan(None) is True
+    # Environment-transient failure: worth another attempt.
+    assert bbox_needs_scan(bbox_scan_failed("detector_unavailable")) is True
+    # Final answers — a real box, or the detector saying "no bird here".
+    assert bbox_needs_scan(box) is False
+    assert bbox_needs_scan(dict(BBOX_NOT_DETECTED)) is False
+    # Data-terminal failures must not be re-queued or auto-drive never converges.
+    for reason in ("file_missing", "decode_error: boom", "detect_error: boom",
+                   "classify_error: boom", "missing_decode_result"):
+        assert bbox_needs_scan(bbox_scan_failed(reason)) is False
+
+
+def test_bbox_needs_scan_accepts_json_text():
+    assert bbox_needs_scan('{"detected": false, "error": "detector_unavailable"}') is True
+    assert bbox_needs_scan('{"detected": false}') is False
+    assert bbox_needs_scan("") is True
+    assert bbox_needs_scan("not json") is False
 
 
 def test_select_best_box_picks_highest_confidence():
