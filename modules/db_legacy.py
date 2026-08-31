@@ -10017,6 +10017,26 @@ def _sql_bird_species_in_scope(table_alias: str = "i") -> str:
     return _sql_image_has_birds_keyword(table_alias)
 
 
+def _sql_bird_bbox_needs_scan(table_alias: str = "") -> str:
+    """``images.bird_bbox`` missing, or holding a retryable scan-failure sentinel.
+
+    Mirrors :func:`modules.bird_detection.bbox_needs_scan` in SQL so the folder-level
+    predicate and the per-image policy check agree. ``bird_bbox`` is a Postgres-only
+    JSONB column and ``->>`` is not translated for Firebird, so this yields ``1=0``
+    on any other engine.
+    """
+    if _get_db_engine() != "postgres":
+        return "1=0"
+    from modules.bird_detection import RETRYABLE_BBOX_ERRORS
+
+    prefix = f"{table_alias}." if table_alias else ""
+    retryable = ", ".join(f"'{err}'" for err in sorted(RETRYABLE_BBOX_ERRORS))
+    return (
+        f"({prefix}bird_bbox IS NULL "
+        f"OR {prefix}bird_bbox->>'error' IN ({retryable}))"
+    )
+
+
 def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
     """Return an image-level WHERE clause identifying images with missing data for a phase."""
     prefix = f"{table_alias}." if table_alias else ""
@@ -10079,10 +10099,17 @@ def get_phase_incomplete_sql(phase_code: str, table_alias: str = "") -> str:
         # Mirror the alias handling of the birds/species predicates above (unqualified columns
         # when no alias is given) so the exhausted clause never references a phantom ``i`` table.
         exhausted = _sql_exhausted_marker(table_alias)
+        # A missing (or retryably-failed) bird_bbox is real phase work too: the box is
+        # produced inside this phase, so without this clause a species-complete or
+        # exhausted image with no box stays invisible to auto-drive forever and can only
+        # be repaired by scripts/backfill_bird_bbox.py.
+        needs_bbox = _sql_bird_bbox_needs_scan(table_alias)
         return f"""(
             ({_sql_image_has_birds_keyword(table_alias or "")})
-            AND NOT ({species_present})
-            AND NOT ({exhausted})
+            AND (
+                (NOT ({species_present}) AND NOT ({exhausted}))
+                OR ({needs_bbox})
+            )
         )"""
 
     return "1=0"  # Default to no matches for unknown phase

@@ -59,6 +59,39 @@ def bbox_scan_failed(reason: str) -> dict:
     return {"detected": False, "error": (reason or "scan_failed")[:200]}
 
 
+#: Scan-failure reasons worth retrying — environment-transient, not data-terminal.
+#: Terminal reasons (``file_missing``, ``decode_error: …``, ``detect_error: …``,
+#: ``classify_error: …``) are deliberately excluded: re-queueing them would keep the
+#: image in the ``bird_species`` backlog forever.
+RETRYABLE_BBOX_ERRORS = frozenset({"detector_unavailable"})
+
+
+def bbox_needs_scan(bbox) -> bool:
+    """True when ``images.bird_bbox`` should be (re)scanned.
+
+    ``NULL`` means never scanned; a retryable sentinel means the detector could not
+    run for an environmental reason (see :data:`RETRYABLE_BBOX_ERRORS`). A real box
+    and ``BBOX_NOT_DETECTED`` are both final answers.
+
+    Accepts a ``dict`` (parsed JSONB), a JSON string, or ``None``.
+    """
+    if bbox is None:
+        return True
+    if isinstance(bbox, (str, bytes)):
+        text = bbox.decode() if isinstance(bbox, bytes) else bbox
+        if not text.strip():
+            return True
+        import json
+
+        try:
+            bbox = json.loads(text)
+        except ValueError:
+            return False
+    if not isinstance(bbox, dict):
+        return False
+    return str(bbox.get("error") or "") in RETRYABLE_BBOX_ERRORS
+
+
 def bird_bbox_payload(box: Optional[dict], *, error: Optional[str] = None) -> dict:
     """Normalize a detection outcome to a JSONB payload (never ``None``)."""
     if error:

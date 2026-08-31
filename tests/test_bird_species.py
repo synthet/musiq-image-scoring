@@ -621,3 +621,195 @@ def test_dispatcher_bird_species_runner_busy_blocks_dequeue(monkeypatch):
     assert dispatcher._any_runner_busy() is True
     assert dispatcher._get_active_runner() == "bird_species"
     dispatcher._tick()  # must not raise
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# bird-box-only repair pass — bbox is a product of the bird_species phase, so a
+# birds-tagged image that never got a box still owes work even when its species
+# are already assigned. That repair must not re-run BioCLIP or touch keywords.
+# ──────────────────────────────────────────────────────────────────────────────
+
+class _FakeDetector:
+    """Stand-in for BirdDetector: records the images it was handed."""
+
+    def __init__(self, box=None):
+        self.box = box
+        self.calls = 0
+
+    def detect_best_box(self, img):
+        self.calls += 1
+        return self.box
+
+
+class _NoClassifyClassifier:
+    last_image_embedding = None
+
+    def __init__(self, detector):
+        self._detector = detector
+
+    def _ensure_detector(self):
+        return self._detector
+
+    def load_model(self):
+        raise AssertionError("BioCLIP must not be loaded for a box-only rescan")
+
+    def classify(self, *a, **kw):
+        raise AssertionError("classify must not be called for a box-only rescan")
+
+
+def _patch_bbox_only_batch(monkeypatch, rows, *, species_complete=True):
+    """Wire up the minimum db/runtime surface for a box-only ``_run_batch_internal``."""
+    from PIL import Image
+
+    import modules.bird_species as bs
+    import modules.db as _db
+    from modules.events import event_manager
+
+    writes = {"bbox": [], "status": [], "keywords": []}
+
+    monkeypatch.setattr(bs, "_load_default_species", lambda: ["American Robin"])
+    monkeypatch.setattr(bs, "_resolve_inference_path", lambda row, fp: fp)
+    monkeypatch.setattr(bs.os.path, "exists", lambda p: True)
+    monkeypatch.setattr("modules.thumbnails.open_image_for_ml", lambda p: Image.new("RGB", (40, 30)))
+    monkeypatch.setattr("modules.thumbnails.bake_orientation", lambda img, p: img)
+
+    monkeypatch.setattr(_db, "get_images_with_keyword", lambda **kw: rows)
+    monkeypatch.setattr(_db, "update_job_status", lambda *a, **kw: None)
+    monkeypatch.setattr(_db, "job_should_stop_processing", lambda *a, **kw: False)
+    monkeypatch.setattr(
+        _db, "is_image_bird_species_complete", lambda image_id, **kw: species_complete
+    )
+    monkeypatch.setattr(
+        _db,
+        "update_image_bird_bbox",
+        lambda image_id, bbox: writes["bbox"].append((image_id, bbox)) or True,
+    )
+    monkeypatch.setattr(
+        _db,
+        "set_image_phase_status",
+        lambda *a, **kw: writes["status"].append((a, kw)),
+    )
+    monkeypatch.setattr(
+        _db,
+        "update_image_keywords_for_image",
+        lambda *a, **kw: writes["keywords"].append((a, kw)),
+    )
+    monkeypatch.setattr(event_manager, "broadcast_threadsafe", lambda *a, **kw: None)
+    return writes
+
+
+def test_bbox_gap_on_species_complete_image_takes_detector_only_path(monkeypatch):
+    """A classified image with no box is rescanned, not re-classified."""
+    box = {"x1": 1, "y1": 2, "x2": 9, "y2": 8, "conf": 0.8,
+           "img_w": 40, "img_h": 30, "area_frac": 0.04}
+    detector = _FakeDetector(box=box)
+    runner = BirdSpeciesRunner()
+    runner.classifier = _NoClassifyClassifier(detector)
+
+    rows = [{"id": 7, "file_path": "/mnt/d/Photos/a.jpg", "bird_bbox": None}]
+    writes = _patch_bbox_only_batch(monkeypatch, rows)
+
+    runner._run_batch_internal(
+        input_path="/mnt/d/Photos",
+        candidate_species=None,
+        threshold=0.1,
+        top_k=1,
+        overwrite=False,
+        job_id=None,
+    )
+
+    assert detector.calls == 1
+    assert writes["bbox"] == [(7, box)]
+    assert writes["keywords"] == [], "box-only rescan must not write keywords"
+    assert writes["status"] == [], "box-only rescan must not change phase status"
+
+
+def test_bbox_only_pass_skips_terminal_failures_and_retries_transient(monkeypatch):
+    """``detector_unavailable`` is retried; ``decode_error`` is left alone."""
+    detector = _FakeDetector(box=None)
+    runner = BirdSpeciesRunner()
+    runner.classifier = _NoClassifyClassifier(detector)
+
+    rows = [
+        {"id": 1, "file_path": "/a.jpg",
+         "bird_bbox": {"detected": False, "error": "detector_unavailable"}},
+        {"id": 2, "file_path": "/b.jpg",
+         "bird_bbox": {"detected": False, "error": "decode_error: boom"}},
+        {"id": 3, "file_path": "/c.jpg", "bird_bbox": {"detected": False}},
+    ]
+    writes = _patch_bbox_only_batch(monkeypatch, rows)
+    monkeypatch.setattr(
+        "modules.phases_policy.explain_phase_run_decision",
+        lambda *a, **kw: {"should_run": False, "reason": "already_done_current_executor"},
+    )
+
+    runner._run_batch_internal(
+        input_path="/mnt/d/Photos",
+        candidate_species=None,
+        threshold=0.1,
+        top_k=1,
+        overwrite=False,
+        job_id=None,
+    )
+
+    # Only the retryable row is rescanned, and it now holds a final answer so the
+    # auto-drive queue converges instead of re-offering it every tick.
+    assert detector.calls == 1
+    assert writes["bbox"] == [(1, {"detected": False})]
+
+
+def test_bbox_gap_on_unclassified_image_still_goes_to_classification(monkeypatch):
+    """A birds-tagged image that never got species must not be diverted to box-only."""
+    detector = _FakeDetector(box=None)
+    runner = BirdSpeciesRunner()
+    runner.classifier = _NoClassifyClassifier(detector)
+
+    rows = [{"id": 5, "file_path": "/a.jpg", "bird_bbox": None}]
+    _patch_bbox_only_batch(monkeypatch, rows, species_complete=False)
+    monkeypatch.setattr(
+        "modules.phases_policy.explain_phase_run_decision",
+        lambda *a, **kw: {"should_run": True, "reason": "missing_bird_species_data"},
+    )
+
+    processed = []
+    monkeypatch.setattr(
+        runner,
+        "_process_bird_species_image_row",
+        lambda row, **kw: (processed.append(row["id"]) or (1, 0)),
+    )
+
+    runner._run_batch_internal(
+        input_path="/mnt/d/Photos",
+        candidate_species=None,
+        threshold=0.1,
+        top_k=1,
+        overwrite=False,
+        job_id=None,
+    )
+
+    assert processed == [5]
+    assert detector.calls == 0
+
+
+def test_bbox_only_pass_without_detector_writes_nothing(monkeypatch):
+    """Fail-open must not stamp sentinels that would drop the row out of the queue."""
+    class _NoDetector(_NoClassifyClassifier):
+        def _ensure_detector(self):
+            return None
+
+    runner = BirdSpeciesRunner()
+    runner.classifier = _NoDetector(None)
+
+    rows = [{"id": 9, "file_path": "/a.jpg", "bird_bbox": None}]
+    writes = _patch_bbox_only_batch(monkeypatch, rows)
+
+    runner._run_batch_internal(
+        input_path="/mnt/d/Photos",
+        candidate_species=None,
+        threshold=0.1,
+        top_k=1,
+        overwrite=False,
+        job_id=None,
+    )
+
+    assert writes["bbox"] == [], "an unavailable detector must leave the row queued"
