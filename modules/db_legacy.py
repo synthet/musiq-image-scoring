@@ -4123,6 +4123,22 @@ def update_image_bird_bbox(image_id: int, bbox: dict) -> bool:
         get_connector().execute(
             "UPDATE images SET bird_bbox = ?::jsonb WHERE id = ?", (payload, image_id)
         )
+        # The folder rollup counts a missing box as outstanding bird_species work, so a
+        # box write changes the aggregate. Without this the cached ``phase_agg_json``
+        # would keep the folder in ``awaiting_bird_species`` after the repair and
+        # auto-drive would re-enqueue it until the loop guard fires.
+        try:
+            row = get_connector().query_one(
+                "SELECT folder_id FROM images WHERE id = ?", (image_id,)
+            )
+            if row and row.get("folder_id"):
+                invalidate_folder_phase_aggregates(folder_id=row["folder_id"])
+        except Exception:
+            logging.debug(
+                "bird_bbox: folder aggregate invalidation failed for image %s",
+                image_id,
+                exc_info=True,
+            )
         return True
     except Exception as e:
         logging.error(f"Failed to update bird_bbox for image {image_id}: {e}")
@@ -14918,6 +14934,20 @@ def get_folder_phase_summary(folder_path, force_refresh=False):
             bs_done_extra = (
                 f"(LOWER(TRIM(pp.code)) = 'bird_species' AND ips.status IS NULL AND {bs_classified})"
             )
+            # ``bird_bbox`` is a product of the bird_species phase, so an image still
+            # missing its box has not finished the phase even when IPS says ``done`` or
+            # ``skipped``. Excluding it from both terminal counts is what lets the folder
+            # rollup — and therefore the Dashboard bucket and auto-drive — see the gap.
+            # Mirrors ``get_phase_incomplete_sql('bird_species')``.
+            bbox_needs_scan_sql = _sql_bird_bbox_needs_scan("i")
+            if bbox_needs_scan_sql == "1=0":
+                bs_bbox_gap = "1=0"
+                agg_image_cols = "id"
+            else:
+                bs_bbox_gap = (
+                    f"(LOWER(TRIM(pp.code)) = 'bird_species' AND ({bbox_needs_scan_sql}))"
+                )
+                agg_image_cols = "id, bird_bbox"
             try:
                 rows = get_connector().query(
                     f"""
@@ -14926,18 +14956,18 @@ def get_folder_phase_summary(folder_path, force_refresh=False):
                         pp.name,
                         pp.sort_order,
                         COUNT(CASE WHEN {agg_scope} THEN i.id END) as total_images,
-                        COALESCE(SUM(CASE WHEN {agg_scope} AND (ips.status = 'done' OR {bs_done_extra}) THEN 1 ELSE 0 END), 0) as done_count,
+                        COALESCE(SUM(CASE WHEN {agg_scope} AND NOT ({bs_bbox_gap}) AND (ips.status = 'done' OR {bs_done_extra}) THEN 1 ELSE 0 END), 0) as done_count,
                         COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'failed' THEN 1 ELSE 0 END), 0) as failed_count,
                         COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'running' THEN 1 ELSE 0 END), 0) as running_count,
                         COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'queued' THEN 1 ELSE 0 END), 0) as queued_count,
                         COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'paused' THEN 1 ELSE 0 END), 0) as paused_count,
                         COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'cancel_requested' THEN 1 ELSE 0 END), 0) as cancel_requested_count,
                         COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'restarting' THEN 1 ELSE 0 END), 0) as restarting_count,
-                        COALESCE(SUM(CASE WHEN {agg_scope} AND ips.status = 'skipped' THEN 1 ELSE 0 END), 0) as skipped_count,
+                        COALESCE(SUM(CASE WHEN {agg_scope} AND NOT ({bs_bbox_gap}) AND ips.status = 'skipped' THEN 1 ELSE 0 END), 0) as skipped_count,
                         pp.optional
                     FROM pipeline_phases pp
                     CROSS JOIN (
-                        SELECT id FROM images
+                        SELECT {agg_image_cols} FROM images
                         WHERE folder_id IN (
                             SELECT id FROM folders
                             WHERE path = ? OR path LIKE ? OR path LIKE ?

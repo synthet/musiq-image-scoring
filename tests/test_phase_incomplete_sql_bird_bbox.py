@@ -49,3 +49,56 @@ def test_bird_bbox_needs_scan_sql_honours_empty_alias():
         sql = db._sql_bird_bbox_needs_scan("")
     assert "(bird_bbox IS NULL" in sql
     assert "i.bird_bbox" not in sql
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Folder rollup — the predicate above is only half the story. The Dashboard bucket
+# comes from get_folder_phase_summary, which counts IPS rows; without the same
+# bbox condition there a box gap stays invisible to Drive to Complete.
+# ──────────────────────────────────────────────────────────────────────────────
+
+class _CapturingConnector:
+    """Minimal connector stub that records the aggregate SQL."""
+
+    def __init__(self):
+        self.queries = []
+
+    def query_one(self, sql, params=None):
+        if "phase_agg_dirty" in sql:
+            return {"phase_agg_dirty": 1, "phase_agg_json": None}
+        return None
+
+    def query(self, sql, params=None):
+        self.queries.append(sql)
+        return []
+
+    def execute(self, sql, params=None):
+        return None
+
+
+def _aggregate_sql(monkeypatch, engine: str) -> str:
+    cap = _CapturingConnector()
+    monkeypatch.setattr(db, "get_connector", lambda: cap)
+    monkeypatch.setattr(db, "get_or_create_folder", lambda path: 1)
+    monkeypatch.setattr(db, "_get_db_engine", lambda: engine)
+    monkeypatch.setattr(db, "_images_table_has_legacy_keywords_column", lambda: False)
+    db.get_folder_phase_summary("/mnt/d/Photos/x")
+    assert cap.queries, "aggregate query was never issued"
+    return cap.queries[-1]
+
+
+def test_folder_rollup_excludes_bbox_gap_from_done_and_skipped(monkeypatch):
+    sql = _aggregate_sql(monkeypatch, "postgres")
+    # bird_bbox must be projected by the inner image subquery to be referenceable.
+    assert "SELECT id, bird_bbox FROM images" in sql
+    assert sql.count("i.bird_bbox IS NULL") == 2, (
+        "the gap must gate both done_count and skipped_count"
+    )
+    # Both terminal counters must be negated by the gap, not merely mention it.
+    assert sql.count("NOT ((LOWER(TRIM(pp.code)) = 'bird_species'") == 2
+
+
+def test_folder_rollup_leaves_firebird_untouched(monkeypatch):
+    sql = _aggregate_sql(monkeypatch, "firebird")
+    assert "bird_bbox" not in sql
+    assert "SELECT id FROM images" in sql
