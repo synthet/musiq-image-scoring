@@ -10047,9 +10047,13 @@ def _sql_bird_bbox_needs_scan(table_alias: str = "") -> str:
 
     prefix = f"{table_alias}." if table_alias else ""
     retryable = ", ".join(f"'{err}'" for err in sorted(RETRYABLE_BBOX_ERRORS))
+    # COALESCE is load-bearing: ``bird_bbox->>'error'`` is NULL for a real box and for
+    # ``{"detected": false}``, and ``NULL IN (...)`` yields NULL, not FALSE. Callers that
+    # negate this (the folder rollup's ``NOT (...)``) would then get NULL and silently
+    # stop counting those images as done.
     return (
         f"({prefix}bird_bbox IS NULL "
-        f"OR {prefix}bird_bbox->>'error' IN ({retryable}))"
+        f"OR COALESCE({prefix}bird_bbox->>'error', '') IN ({retryable}))"
     )
 
 

@@ -20,7 +20,7 @@ def _sql(engine: str, *, legacy_keywords: bool = False) -> str:
 def test_bird_species_incomplete_sql_includes_bbox_gap_on_postgres():
     sql = _sql("postgres")
     assert "i.bird_bbox IS NULL" in sql
-    assert "i.bird_bbox->>'error' IN ('detector_unavailable')" in sql
+    assert "COALESCE(i.bird_bbox->>'error', '') IN ('detector_unavailable')" in sql
     # Still the species predicate it always was.
     assert "species:%" in sql
     assert "birds:species-exhausted" in sql
@@ -42,6 +42,18 @@ def test_bird_species_incomplete_sql_retryable_list_tracks_the_module():
     # Data-terminal reasons must never be re-queued.
     assert "decode_error" not in sql
     assert "file_missing" not in sql
+
+
+def test_bird_bbox_needs_scan_sql_is_null_safe():
+    """``NOT (gap)`` must be FALSE, never NULL, for a row holding a real box.
+
+    ``bird_bbox->>'error'`` is NULL for a real box and for ``{"detected": false}``, and
+    ``NULL IN (...)`` evaluates to NULL. The folder rollup negates this expression, so
+    without COALESCE every boxed image silently stopped counting toward done_count.
+    """
+    with patch.object(db, "_get_db_engine", return_value="postgres"):
+        sql = db._sql_bird_bbox_needs_scan("i")
+    assert "COALESCE(i.bird_bbox->>'error', '')" in sql
 
 
 def test_bird_bbox_needs_scan_sql_honours_empty_alias():
