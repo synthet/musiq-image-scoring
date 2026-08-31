@@ -60,7 +60,7 @@ def _images_in_scope(scope_paths: list[str]) -> list[int]:
 
 
 def _apply_preflight(scope_paths: list[str]) -> dict[str, int]:
-    actions = {"reconciled_rows": 0, "backfilled_index_meta": 0}
+    actions = {"reconciled_rows": 0, "backfilled_index_meta": 0, "phantom_scores_finalized": 0}
     try:
         actions["reconciled_rows"] = int(
             db.reconcile_stale_running_phases_for_terminal_jobs(limit=5000)
@@ -72,6 +72,21 @@ def _apply_preflight(scope_paths: list[str]) -> dict[str, int]:
             actions["backfilled_index_meta"] += int(db.backfill_index_meta_for_folder(p))
     except Exception:
         logger.exception("run_phase_planner: backfill index/meta failed")
+    # Finalize phantom-scored images before the stage queues are built. Such an image has
+    # per-model rows but a NULL ``images.score_general`` and a non-terminal scoring phase
+    # row, which wedges auto-drive: the scoring predicate below reports no work (the model
+    # rows exist) so the phase is dropped from the run, while the folder bucketer keeps
+    # reading ``not_started`` and re-queues the folder — and culling then aborts with
+    # "missing score_general". Finalizing here recomputes the composites from the stored
+    # rows (no re-inference) and flips the phase, so the scope actually converges.
+    try:
+        from modules.phantom_score_finalize import finalize_phantom_scores
+
+        for p in scope_paths or []:
+            summary = finalize_phantom_scores(scope_path=p, dry_run=False)
+            actions["phantom_scores_finalized"] += int(summary.get("composites_backfilled") or 0)
+    except Exception:
+        logger.exception("run_phase_planner: phantom score finalize failed")
     return actions
 
 
@@ -118,7 +133,12 @@ def plan_scope(
     if not selected:
         selected = set(DEFAULT_STAGES)
 
-    actions = {"reconciled_rows": 0, "backfilled_index_meta": 0, "scoring_fix_targets": 0}
+    actions = {
+        "reconciled_rows": 0,
+        "backfilled_index_meta": 0,
+        "phantom_scores_finalized": 0,
+        "scoring_fix_targets": 0,
+    }
     if not dry_run:
         actions.update(_apply_preflight(scope_paths))
 
@@ -183,7 +203,13 @@ def plan_scope(
         "stage_queues": stage_queues,
         "actions": actions,
         "issue_hits": int(sum(issue_counts_by_reason.values())),
-        "repaired": actions["reconciled_rows"] + actions["backfilled_index_meta"] if not dry_run else 0,
+        "repaired": (
+            actions["reconciled_rows"]
+            + actions["backfilled_index_meta"]
+            + actions["phantom_scores_finalized"]
+        )
+        if not dry_run
+        else 0,
         "skipped": len(unique_issue_ids) if dry_run else 0,
         "failed": 0,
         "dry_run": bool(dry_run),
