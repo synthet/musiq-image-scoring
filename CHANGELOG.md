@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.17.0] - 2026-08-31
+
+### Added
+- **Self-healing culling reset** (#340): `reset_false_complete_culling_phases` runs in the auto-drive preflight and returns `culling` rows recorded complete on images that never actually clustered (no stack **and** no default-space embedding) to `not_started`. Backed by a new set-based `_sql_culling_similarity_artefacts_missing`, mirroring the existing metadata reset. `set_image_phase_status` marks the folder aggregate dirty in-transaction, so the drive re-buckets such folders to `awaiting_culling` unattended — no one-shot repair script.
+
+### Fixed
+- **Whole folders hidden from Drive by a phantom culling `done`** (#340): the auto-drive preflight ran `reconcile_phantom_complete_image_phases` over `culling`, whose predicate tests data shape (`cull_decision`, a default embedding, folder time-cohesion) — none of which proves clustering ran. On 2026-08-30 it flipped **672** never-clustered images `not_started` → `done` in a 23-second sweep, so the folder rollup read culling-complete and **Drive to Complete skipped those folders permanently**: 74 folders / 2,662 images with zero stacks, 1,916 of them with no `mobilenet_v2_imagenet_gap` embedding at all. `culling` is now excluded from the preflight tuple, and the reconciler additionally requires `not is_image_culling_similarity_artefacts_missing` so no caller can make the write.
+- **Drive wedged at `waiting_in_flight` after an interrupted run** (#341): `reconcile_stale_running_image_phases` reaped `running` → `failed` rows without invalidating `folders.phase_agg_json`, unlike its sibling `reconcile_stale_running_phases_for_jobs`. The cached rollup kept advertising the reaped rows as `running`, so the bucketer reported the folder `in_flight` and the drive waited on an already-finished job for eight hours — unrecoverable, since the repairing reconcile only runs once a run is planned. Affected folders are now collected before the update and invalidated after.
+- **Negative work-item durations on the run detail page** (#341): `set_image_phase_status` left the previous run's `finished_at` in place when a row re-entered `running`, so `finished_at < started_at` and `_duration_ms_from_phase_timestamps` returned values like `-121032.99s`. The stamp is now cleared alongside `started_at`.
+
 ## [8.16.0] - 2026-08-31
 
 ### Added
