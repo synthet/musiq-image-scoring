@@ -98,6 +98,27 @@ def _l2_normalize(arr):
     return arr / n
 
 
+def _unwrap_image_features(feats):
+    """Return the projected image-feature tensor from a ``get_image_features`` result.
+
+    Transformers >= 4.57 returns a ``BaseModelOutputWithPooling`` (projected features in
+    ``pooler_output``) where older versions returned a bare tensor. Mirrors the same
+    normalization ``similar_search._get_clip_text_embedding`` does for the text tower.
+    """
+    if hasattr(feats, "cpu"):
+        return feats
+    for attr in ("image_embeds", "pooler_output"):
+        val = getattr(feats, attr, None)
+        if val is not None:
+            return val
+    val = getattr(feats, "last_hidden_state", None)
+    if val is not None:
+        return val[:, 0]
+    if isinstance(feats, (list, tuple)) and feats:
+        return feats[0]
+    raise TypeError(f"Unexpected CLIP image features type: {type(feats)!r}")
+
+
 class CullingEmbedder:
     """Lazily-loaded image embedder for one culling space (fp16 on CUDA).
 
@@ -284,7 +305,9 @@ class CullingEmbedder:
             if self.fp16:
                 pixel_values = pixel_values.half()
             with torch.no_grad():
-                feats = self._model.get_image_features(pixel_values=pixel_values)
+                feats = _unwrap_image_features(
+                    self._model.get_image_features(pixel_values=pixel_values)
+                )
                 feats = feats / feats.norm(dim=-1, keepdim=True)
             out.append(feats.float().cpu().numpy())
         return np.concatenate(out, axis=0)
@@ -302,7 +325,9 @@ class CullingEmbedder:
                 pixel_values = pixel_values.half()
             with torch.no_grad():
                 if self.spec.loader == "hf_siglip2":
-                    feats = self._model.get_image_features(pixel_values=pixel_values)
+                    feats = _unwrap_image_features(
+                        self._model.get_image_features(pixel_values=pixel_values)
+                    )
                 else:
                     res = self._model(pixel_values=pixel_values)
                     if getattr(res, "pooler_output", None) is not None:

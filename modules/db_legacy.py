@@ -13148,6 +13148,9 @@ def _pg_vec_to_bytes(vec) -> "bytes | None":
     if vec is None:
         return None
     import numpy as np
+    if hasattr(vec, "to_numpy"):
+        # pgvector >= 0.3 returns a Vector object; older versions returned ndarray.
+        vec = vec.to_numpy()
     return np.array(vec, dtype=np.float32).tobytes()
 
 
