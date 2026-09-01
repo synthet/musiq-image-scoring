@@ -6379,6 +6379,29 @@ def reconcile_stale_running_image_phases(threshold_seconds: int | None = None, l
     if not ids:
         return 0
 
+    # Collect the affected folders *before* the update, while the rows are still
+    # ``running`` (issue #341). Mirrors reconcile_stale_running_phases_for_jobs. Without
+    # this the cached folder rollup keeps advertising the reaped rows as ``running``,
+    # ``_build_bucket_from_summary`` buckets the folder ``in_flight``, and the drive waits
+    # on a job that already finished — with no way out, because the reconcile that would
+    # fix it only runs once a run is planned.
+    folder_ids: list = []
+    try:
+        folder_rows = get_connector().query(
+            f"""
+            SELECT DISTINCT i.folder_id AS folder_id
+            FROM image_phase_status ips
+            JOIN images i ON i.id = ips.image_id
+            WHERE ips.id IN ({",".join(["?"] * len(ids))})
+            """,
+            ids,
+        )
+        folder_ids = [
+            r["folder_id"] for r in folder_rows or [] if r and r.get("folder_id") is not None
+        ]
+    except Exception:
+        logger.exception("reconcile_stale_running_image_phases: folder scan failed")
+
     chunk_size = 900
     updated_total = 0
     salvaged_total = 0
@@ -6443,6 +6466,15 @@ def reconcile_stale_running_image_phases(threshold_seconds: int | None = None, l
             updated_total += rc
         else:
             updated_total += len(chunk)
+
+    for fid in folder_ids:
+        try:
+            invalidate_folder_phase_aggregates(folder_id=fid)
+        except Exception:
+            logger.debug(
+                "invalidate_folder_phase_aggregates after stale-running reap failed "
+                "for folder_id=%s", fid,
+            )
 
     total = updated_total + salvaged_total
     if total:
@@ -13891,6 +13923,11 @@ def set_image_phase_status(image_id, phase_code, status,
             if status == PhaseStatus.RUNNING:
                 fields.append("started_at = ?")
                 params.append(now)
+                # Clear the previous run's completion stamp (issue #341). Leaving it makes
+                # ``finished_at < started_at`` for the whole re-run, and every consumer that
+                # subtracts the two — ``_duration_ms_from_phase_timestamps``, hence the run
+                # detail work-item list — reports a negative duration.
+                fields.append("finished_at = NULL")
             elif status in (PhaseStatus.DONE, PhaseStatus.FAILED, PhaseStatus.SKIPPED):
                 fields.append("finished_at = ?")
                 params.append(now)
