@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.16.0] - 2026-08-31
+
+### Added
+- **Detector-only bbox repair pass** (#338): `bird_species` now partitions its rows into a classify set and a bbox-only set, and repairs the latter with `scan_bird_bbox_only()` — YOLO only, no BioCLIP load, no keyword or embedding writes. `is_image_bird_species_complete(..., include_bbox=False)` answers the narrower "is the *species* work done?" question the partition needs. `BIRD_SPECIES_RUNNER_VERSION` is deliberately unchanged, so existing `done` rows are not re-classified.
+- **`bbox_needs_scan()` retryability contract** (#338): `modules/bird_detection.py` is now the single source of truth for whether a `bird_bbox` owes a (re)scan. `NULL` and the environment-transient `detector_unavailable` sentinel are retryable; a real box, `{"detected": false}`, and data-terminal failures (`file_missing`, `decode_error`, `detect_error`, `classify_error`) are not — so auto-drive always converges.
+
+### Fixed
+- **A missing `bird_bbox` was invisible work** (#338): `get_phase_incomplete_sql('bird_species')` and `is_image_bird_species_complete` tested only for a `species:*` keyword or the exhausted marker, so a species-complete image with `bird_bbox IS NULL` could never be reached by Drive to Complete — only by `scripts/backfill_bird_bbox.py`. The bbox gap now surfaces in the predicate, the per-image check, and the `folders.phase_agg_json` rollup, and `update_image_bird_bbox` invalidates the folder aggregate so the Dashboard bucket follows.
+- **NULL-unsafe bbox-gap SQL** (#338): `bird_bbox->>'error'` is NULL both for a real box and for `{"detected": false}`, and `NULL IN (…)` yields NULL, not FALSE — so the folder rollup's negated `NOT (gap)` never fired and 67,095 bird-tagged images with a valid box stopped counting toward `done_count` / `skipped_count`. Wrapped in `COALESCE(…, '')`.
+- **Auto-drive livelocked on phantom-scored folders** (#339): an image with per-model rows in `image_model_scores` but a NULL `images.score_general` and a non-terminal scoring phase row wedged the drive — the planner saw no scoring work, the folder bucketer kept reading `not_started` and re-queueing, and culling aborted on the missing composite until the loop guard stopped the drive as `stalled`. `_apply_preflight` now runs `finalize_phantom_scores` over the scope (recomputes composites from stored rows, no re-inference) before the stage queues are built, and reports the count as `phantom_scores_finalized`.
+
 ## [8.15.1] - 2026-08-15
 
 ### Changed
