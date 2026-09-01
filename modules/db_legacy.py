@@ -6379,6 +6379,29 @@ def reconcile_stale_running_image_phases(threshold_seconds: int | None = None, l
     if not ids:
         return 0
 
+    # Collect the affected folders *before* the update, while the rows are still
+    # ``running`` (issue #341). Mirrors reconcile_stale_running_phases_for_jobs. Without
+    # this the cached folder rollup keeps advertising the reaped rows as ``running``,
+    # ``_build_bucket_from_summary`` buckets the folder ``in_flight``, and the drive waits
+    # on a job that already finished — with no way out, because the reconcile that would
+    # fix it only runs once a run is planned.
+    folder_ids: list = []
+    try:
+        folder_rows = get_connector().query(
+            f"""
+            SELECT DISTINCT i.folder_id AS folder_id
+            FROM image_phase_status ips
+            JOIN images i ON i.id = ips.image_id
+            WHERE ips.id IN ({",".join(["?"] * len(ids))})
+            """,
+            ids,
+        )
+        folder_ids = [
+            r["folder_id"] for r in folder_rows or [] if r and r.get("folder_id") is not None
+        ]
+    except Exception:
+        logger.exception("reconcile_stale_running_image_phases: folder scan failed")
+
     chunk_size = 900
     updated_total = 0
     salvaged_total = 0
@@ -6443,6 +6466,15 @@ def reconcile_stale_running_image_phases(threshold_seconds: int | None = None, l
             updated_total += rc
         else:
             updated_total += len(chunk)
+
+    for fid in folder_ids:
+        try:
+            invalidate_folder_phase_aggregates(folder_id=fid)
+        except Exception:
+            logger.debug(
+                "invalidate_folder_phase_aggregates after stale-running reap failed "
+                "for folder_id=%s", fid,
+            )
 
     total = updated_total + salvaged_total
     if total:
@@ -10013,6 +10045,85 @@ def is_image_culling_work_complete(image_id: int) -> bool:
     return bool(row)
 
 
+def _sql_culling_similarity_artefacts_missing(table_alias: str = "i") -> str:
+    """Set-based mirror of :func:`is_image_culling_similarity_artefacts_missing`.
+
+    True for a row that reached pick/reject without any clustering fingerprint: a
+    ``cull_decision`` is set, ``stack_id`` is NULL, the row is clustering-eligible
+    (``image_hash`` present) and no default-space embedding was ever persisted.
+    Because ``ClusteringEngine`` computes and persists that embedding itself, its
+    absence proves the clustering pass never ran on the image.
+
+    Keep in step with the per-image version — they gate the same writes from
+    different directions (one filters a scan, the other guards a single row).
+    Postgres only: the default-space lookup is a registry join with no Firebird
+    equivalent, so this yields ``1=0`` on any other engine.
+    """
+    if _get_db_engine() != "postgres":
+        return "1=0"
+
+    ialias = (table_alias or "i").strip() or "i"
+    prefix = f"{ialias}."
+    return f"""(
+        {prefix}cull_decision IS NOT NULL
+        AND TRIM(CAST({prefix}cull_decision AS VARCHAR(20))) <> ''
+        AND {prefix}stack_id IS NULL
+        AND {prefix}image_hash IS NOT NULL
+        AND TRIM(CAST({prefix}image_hash AS VARCHAR(128))) <> ''
+        AND NOT ({_postgres_has_default_embedding_sql(ialias)})
+    )"""
+
+
+def reset_false_complete_culling_phases(*, limit: int = 500) -> int:
+    """Reset culling IPS rows recorded complete for images that never actually clustered.
+
+    Companion to :func:`reset_false_complete_metadata_phases`. Issue #340: the phantom
+    reconcile used to mark ``culling`` ``done`` on images whose data merely *looked*
+    complete, which made the folder rollup read complete and hid the folder from the
+    drive permanently. Those rows can only be found by the work product, so this sweeps
+    ``done``/``skipped`` rows whose image has neither a stack nor a default-space
+    embedding and returns them to ``not_started``.
+
+    ``set_image_phase_status`` marks the folder aggregate dirty in the same transaction,
+    so the drive re-buckets the folder to ``awaiting_culling`` without further prompting.
+    """
+    try:
+        limit = max(1, int(limit))
+    except (TypeError, ValueError):
+        limit = 500
+    if _get_db_engine() != "postgres":
+        return 0
+    artefacts_missing_sql = _sql_culling_similarity_artefacts_missing("i")
+    rows = get_connector().query(
+        f"""
+        SELECT i.id AS image_id
+        FROM images i
+        JOIN pipeline_phases pp ON LOWER(TRIM(pp.code)) = 'culling'
+        JOIN image_phase_status ips ON ips.image_id = i.id AND ips.phase_id = pp.id
+        WHERE LOWER(TRIM(ips.status)) IN ('done', 'skipped')
+          AND ({artefacts_missing_sql})
+        ORDER BY i.id
+        FETCH FIRST ? ROWS ONLY
+        """,
+        (limit,),
+    ) or []
+    reset = 0
+    for row in rows:
+        image_id = int(row["image_id"])
+        try:
+            set_image_phase_status(image_id, "culling", "not_started")
+            reset += 1
+        except Exception:
+            logger.debug(
+                "reset_false_complete_culling_phases failed image_id=%s",
+                image_id,
+                exc_info=True,
+            )
+    if reset:
+        logger.info("reset_false_complete_culling_phases: reset %s row(s)", reset)
+    return reset
+
+
 def _sql_image_has_birds_keyword(table_alias: str = "i") -> str:
     """True when the image has a birds keyword (normalized or legacy column)."""
     prefix = f"{table_alias}." if table_alias else ""
@@ -10206,6 +10317,16 @@ def reconcile_phantom_complete_image_phases(
             result[code] = 0
             continue
         ids = [r["id"] for r in rows or [] if r and r.get("id") is not None]
+        if code == "culling" and ids:
+            # Issue #340: the culling predicate tests data shape (cull_decision, embedding,
+            # folder cohesion), none of which proves clustering actually ran. Require the
+            # visual work product too, so an image that reached pick/reject without a stack
+            # or a default-space embedding can never be recorded complete here. Applied
+            # before the dry-run count so the reported number matches what would be written.
+            ids = [
+                iid for iid in ids
+                if not is_image_culling_similarity_artefacts_missing(iid)
+            ]
         if not dry_run:
             for iid in ids:
                 try:
@@ -13891,6 +14012,11 @@ def set_image_phase_status(image_id, phase_code, status,
             if status == PhaseStatus.RUNNING:
                 fields.append("started_at = ?")
                 params.append(now)
+                # Clear the previous run's completion stamp (issue #341). Leaving it makes
+                # ``finished_at < started_at`` for the whole re-run, and every consumer that
+                # subtracts the two — ``_duration_ms_from_phase_timestamps``, hence the run
+                # detail work-item list — reports a negative duration.
+                fields.append("finished_at = NULL")
             elif status in (PhaseStatus.DONE, PhaseStatus.FAILED, PhaseStatus.SKIPPED):
                 fields.append("finished_at = ?")
                 params.append(now)

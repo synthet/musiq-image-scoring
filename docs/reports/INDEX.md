@@ -46,6 +46,7 @@ Historical reports, research, reviews, and debugging sessions.
 |----------|-------------|
 | [GRADIO_SERVING_DECISION.md](GRADIO_SERVING_DECISION.md) | Why Gradio + FastAPI fits this product; when Triton/BentoML would matter |
 | [CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md](CULLING_NO_STACKS_INVESTIGATION_2026-03-15.md) | Culling phase done but no stacks — SelectionRunner phase-order bug (fixed) |
+| [PHANTOM_CULLING_DONE_2026-09-01.md](PHANTOM_CULLING_DONE_2026-09-01.md) | Culling phase done but no stacks, second cause — auto-drive phantom reconcile marked never-clustered images complete, hiding 74 folders from Drive (fixed, #340/#341) |
 | [AUTODRIVE_REPROCESSING_INVESTIGATION_2026-05-26.md](AUTODRIVE_REPROCESSING_INVESTIGATION_2026-05-26.md) | Auto-drive false reprocessing (run 3245) — `stale_executor` / executor_version policy |
 | [RUN_DATA_GAP_BADGES_FIX_2026-06-30.md](RUN_DATA_GAP_BADGES_FIX_2026-06-30.md) | Misleading "Data gaps" badge on completed runs (run 4555) — hash-based indexing completeness + phase-scoped post-run audit |
 | [AUTO_DRIVE_FIX_SUMMARY.md](AUTO_DRIVE_FIX_SUMMARY.md) | Operator summary — fixes for planner version gate + runs_autodrive buckets |
