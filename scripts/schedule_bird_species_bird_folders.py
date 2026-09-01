@@ -11,7 +11,7 @@ Two operating modes (select with --only-needing-species):
 
   Gap mode (--only-needing-species)
     List only folders that still have at least one image that has a birds keyword,
-    lacks any 'species:*' keyword, and is not marked birds:species-exhausted —
+    lacks any 'species:*' keyword, and does not have bird_species IPS skipped/no_species_match —
     i.e. classification is genuinely pending (see bird_species_eligibility).
     In this mode --chunk-size defaults to 1 so every folder becomes its own queued
     job, keeping the queue granular and resumable.
@@ -72,10 +72,22 @@ ORDER BY 1
 """
 
 # ── Gap SQL: folders with at least one image that needs species ID ────────────
-# Pending = birds keyword, no species:*, and not birds:species-exhausted
+# Pending = birds keyword, no species:*, and not IPS no_species_match skip
 # (see modules/bird_species_eligibility.py). PostgreSQL prefix via LIKE.
 
-_SQL_GAP_LIKE = """
+_IPS_NOT_EXHAUSTED = """
+AND NOT EXISTS (
+    SELECT 1
+    FROM image_phase_status ips_e
+    JOIN pipeline_phases pp_e ON pp_e.id = ips_e.phase_id
+    WHERE ips_e.image_id = i.id
+      AND LOWER(TRIM(pp_e.code)) = 'bird_species'
+      AND LOWER(TRIM(ips_e.status)) = 'skipped'
+      AND LOWER(TRIM(COALESCE(ips_e.skip_reason, ''))) = 'no_species_match'
+)
+"""
+
+_SQL_GAP_LIKE = f"""
 SELECT DISTINCT f.path
 FROM images i
 JOIN folders f ON i.folder_id = f.id
@@ -93,17 +105,11 @@ AND NOT EXISTS (
     WHERE ik2.image_id = i.id
       AND kd2.keyword_norm LIKE 'species:%'
 )
-AND NOT EXISTS (
-    SELECT 1
-    FROM image_keywords ik3
-    JOIN keywords_dim kd3 ON kd3.keyword_id = ik3.keyword_id
-    WHERE ik3.image_id = i.id
-      AND kd3.keyword_norm = 'birds:species-exhausted'
-)
+{_IPS_NOT_EXHAUSTED}
 ORDER BY 1
 """
 
-_SQL_GAP_EXACT = """
+_SQL_GAP_EXACT = f"""
 SELECT DISTINCT f.path
 FROM images i
 JOIN folders f ON i.folder_id = f.id
@@ -121,13 +127,7 @@ AND NOT EXISTS (
     WHERE ik2.image_id = i.id
       AND kd2.keyword_norm LIKE 'species:%'
 )
-AND NOT EXISTS (
-    SELECT 1
-    FROM image_keywords ik3
-    JOIN keywords_dim kd3 ON kd3.keyword_id = ik3.keyword_id
-    WHERE ik3.image_id = i.id
-      AND kd3.keyword_norm = 'birds:species-exhausted'
-)
+{_IPS_NOT_EXHAUSTED}
 ORDER BY 1
 """
 

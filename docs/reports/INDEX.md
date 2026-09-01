@@ -18,6 +18,7 @@ Historical reports, research, reviews, and debugging sessions.
 |----------|-------------|
 | [WORK_SUMMARY_2026-03-08.md](WORK_SUMMARY_2026-03-08.md) | Work summary |
 | [WORK_SUMMARY_2026-05-26.md](WORK_SUMMARY_2026-05-26.md) | Auto-drive run 3245 investigation + empty composite scores dry-run |
+| [bird-species-keywords-2026-08-31/summary.md](bird-species-keywords-2026-08-31/summary.md) | Preserve `birds` on species writes; IPS-only no-match state (replaces `birds:species-exhausted` keyword) |
 | [DEEP_RESEARCH_REPORT.md](DEEP_RESEARCH_REPORT.md) | Deep research report |
 | [CLIP_MODELS_CULLING_SCORING_2026-05-23.md](CLIP_MODELS_CULLING_SCORING_2026-05-23.md) | CLIP / OpenCLIP / MetaCLIP for culling and prompt-based scoring |
 | [CULLING_MODEL_RECOMMENDATION_2026-05-29.md](CULLING_MODEL_RECOMMENDATION_2026-05-29.md) | Model choice for grouping, mishot rejection, and stack selection (post L/14 spike) |

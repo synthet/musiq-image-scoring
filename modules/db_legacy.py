@@ -1724,17 +1724,19 @@ def get_images_paginated(page=1, page_size=None, sort_by="score", order="desc", 
 
     return list(get_connector().query(query, tuple(params)))
 
-def _parse_phase_status_filter(raw: str | None) -> tuple[str, str] | None:
-    """Parse ``phase_code:status`` (e.g. ``keywords:not_started``)."""
+def _parse_phase_status_filter(raw: str | None) -> tuple[str, str, str | None] | None:
+    """Parse ``phase_code:status`` or ``phase_code:status:skip_reason``."""
     text = str(raw or "").strip().lower()
     if not text or ":" not in text:
         return None
-    phase_code, status = text.split(":", 1)
-    phase_code = phase_code.strip()
-    status = status.strip()
+    parts = [p.strip() for p in text.split(":") if p.strip()]
+    if len(parts) < 2:
+        return None
+    phase_code, status = parts[0], parts[1]
+    skip_reason = parts[2] if len(parts) > 2 else None
     if not phase_code or not status:
         return None
-    return phase_code, status
+    return phase_code, status, skip_reason
 
 
 def _add_image_quality_filters(
@@ -1749,15 +1751,21 @@ def _add_image_quality_filters(
     """Optional IPS / data-quality predicates for image list queries."""
     parsed = _parse_phase_status_filter(phase_status_filter)
     if parsed:
-        phase_code, status = parsed
+        phase_code, status, skip_reason = parsed
+        skip_clause = ""
+        if skip_reason:
+            skip_clause = " AND LOWER(TRIM(COALESCE(ips.skip_reason, ''))) = ?"
         conditions.append(
             f"EXISTS (SELECT 1 FROM image_phase_status ips "
             f"JOIN pipeline_phases pp ON pp.id = ips.phase_id "
             f"WHERE ips.image_id = {tbl_prefix}id "
             f"AND LOWER(TRIM(pp.code)) = ? "
-            f"AND LOWER(TRIM(ips.status)) = ?)"
+            f"AND LOWER(TRIM(ips.status)) = ?{skip_clause})"
         )
-        params.extend([phase_code, status])
+        if skip_reason:
+            params.extend([phase_code, status, skip_reason])
+        else:
+            params.extend([phase_code, status])
 
     if unscored_only:
         conditions.append(
@@ -5647,6 +5655,12 @@ def get_images_with_keyword(folder_path=None, keyword="birds", resolved_image_id
     result = [dict(row) for row in rows]
     if resolved_ids_set is not None:
         result = [r for r in result if r["id"] in resolved_ids_set]
+    if result:
+        kw_map = get_batch_resolved_image_keywords([int(r["id"]) for r in result])
+        for row in result:
+            resolved = kw_map.get(int(row["id"]))
+            if resolved is not None:
+                row["keywords"] = resolved
     return result
 
 
@@ -10691,12 +10705,29 @@ def is_image_indexing_complete(image_id: int) -> bool:
     return h is not None and str(h).strip() != ""
 
 
-def get_resolved_image_keywords(image_id: int, legacy_fallback: str | None = None) -> str:
+def _strip_internal_keywords_for_display(keywords_csv: str) -> str:
+    """Hide internal markers from user-facing keyword strings."""
+    from modules.bird_species_eligibility import (
+        _keyword_list_from_csv,
+        strip_legacy_exhausted_keyword,
+    )
+
+    parts = strip_legacy_exhausted_keyword(_keyword_list_from_csv(keywords_csv))
+    return ",".join(parts)
+
+
+def get_resolved_image_keywords(
+    image_id: int,
+    legacy_fallback: str | None = None,
+    *,
+    hide_internal: bool = True,
+) -> str:
     """Return display keywords: normalized ``image_keywords`` first, legacy column fallback."""
     try:
         image_id = int(image_id)
     except (ValueError, TypeError):
-        return str(legacy_fallback or "").strip()
+        raw = str(legacy_fallback or "").strip()
+        return _strip_internal_keywords_for_display(raw) if hide_internal else raw
 
     conn = get_connector()
     if conn.type == "postgres":
@@ -10719,9 +10750,14 @@ def get_resolved_image_keywords(image_id: int, legacy_fallback: str | None = Non
         row = None
     normalized = str((row or {}).get("kw") or (row or {}).get("KW") or "").strip()
     if normalized:
-        return normalized
+        return (
+            _strip_internal_keywords_for_display(normalized)
+            if hide_internal
+            else normalized
+        )
     if legacy_fallback is not None:
-        return str(legacy_fallback or "").strip()
+        raw = str(legacy_fallback or "").strip()
+        return _strip_internal_keywords_for_display(raw) if hide_internal else raw
     if _images_table_has_legacy_keywords_column():
         try:
             leg_row = conn.query_one(
@@ -10729,7 +10765,8 @@ def get_resolved_image_keywords(image_id: int, legacy_fallback: str | None = Non
             )
         except Exception:
             leg_row = None
-        return str((leg_row or {}).get("keywords") or "").strip()
+        raw = str((leg_row or {}).get("keywords") or "").strip()
+        return _strip_internal_keywords_for_display(raw) if hide_internal else raw
     return ""
 
 
@@ -10760,7 +10797,9 @@ def get_batch_resolved_image_keywords(image_ids: list[int]) -> dict[int, str]:
         iid = r.get("image_id") or r.get("IMAGE_ID")
         if iid is None:
             continue
-        out[int(iid)] = str(r.get("kw") or r.get("KW") or "").strip()
+        out[int(iid)] = _strip_internal_keywords_for_display(
+            str(r.get("kw") or r.get("KW") or "").strip()
+        )
     return out
 
 

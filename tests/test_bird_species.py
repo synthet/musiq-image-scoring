@@ -420,6 +420,99 @@ def test_runner_writes_bioclip_species_confidence_maps(monkeypatch):
     assert bbox_writes == [(42, {"detected": False})]
 
 
+def test_runner_preserves_birds_when_legacy_keywords_empty(monkeypatch):
+    """Normalized birds tag must survive when images.keywords CSV is stale/empty."""
+    import modules.bird_species as bs
+
+    class _FakeClassifier:
+        last_image_embedding = None
+        last_bbox = None
+
+        def classify(self, *args, **kwargs):
+            self.last_bbox = {"detected": False}
+            return [("American Robin", 0.82)]
+
+    runner = BirdSpeciesRunner()
+    runner.classifier = _FakeClassifier()
+    helper_calls = []
+
+    import modules.db as _db
+
+    monkeypatch.setattr(bs.os.path, "exists", lambda p: True)
+    monkeypatch.setattr(bs, "_resolve_inference_path", lambda row, fp: fp)
+    monkeypatch.setattr(_db, "get_images_with_keyword", lambda **kw: [{
+        "id": 42,
+        "file_path": "/photos/bird.jpg",
+        "keywords": "",
+    }])
+    monkeypatch.setattr(
+        _db,
+        "get_resolved_image_keywords",
+        lambda image_id, legacy_fallback=None, hide_internal=True: "birds,travel",
+    )
+    monkeypatch.setattr(_db, "update_image_keywords_for_image", lambda *args, **kw: helper_calls.append((args, kw)))
+    monkeypatch.setattr(_db, "set_image_phase_status", lambda *args, **kw: None)
+    monkeypatch.setattr(_db, "update_image_bird_bbox", lambda *a, **k: True)
+
+    runner._run_batch_internal(
+        input_path="/photos",
+        candidate_species=["American Robin"],
+        threshold=0.1,
+        top_k=1,
+        overwrite=True,
+        job_id=None,
+    )
+
+    assert len(helper_calls) == 1
+    merged_keywords = helper_calls[0][0][1]
+    assert "birds" in merged_keywords
+    assert "travel" in merged_keywords
+    assert "species:American Robin" in merged_keywords
+
+
+def test_runner_no_match_writes_ips_only(monkeypatch):
+    import modules.bird_species as bs
+
+    class _FakeClassifier:
+        last_image_embedding = None
+        last_bbox = None
+
+        def classify(self, *args, **kwargs):
+            self.last_bbox = {"detected": False}
+            return []
+
+    runner = BirdSpeciesRunner()
+    runner.classifier = _FakeClassifier()
+    kw_calls = []
+    status_calls = []
+
+    import modules.db as _db
+
+    monkeypatch.setattr(bs.os.path, "exists", lambda p: True)
+    monkeypatch.setattr(bs, "_resolve_inference_path", lambda row, fp: fp)
+    monkeypatch.setattr(_db, "get_images_with_keyword", lambda **kw: [{
+        "id": 7,
+        "file_path": "/photos/bird.jpg",
+        "keywords": "birds",
+    }])
+    monkeypatch.setattr(_db, "update_image_keywords_for_image", lambda *a, **k: kw_calls.append((a, k)))
+    monkeypatch.setattr(_db, "set_image_phase_status", lambda *a, **k: status_calls.append((a, k)))
+    monkeypatch.setattr(_db, "update_image_bird_bbox", lambda *a, **k: True)
+
+    runner._run_batch_internal(
+        input_path="/photos",
+        candidate_species=["American Robin"],
+        threshold=0.1,
+        top_k=1,
+        overwrite=True,
+        job_id=None,
+    )
+
+    assert kw_calls == []
+    assert len(status_calls) == 1
+    assert status_calls[0][0][2] == "skipped"
+
+
 def test_runner_persists_detector_unavailable_sentinel_with_species(monkeypatch):
     """When YOLO is unavailable, species tags still write and bird_bbox is not left NULL."""
     import modules.bird_species as bs

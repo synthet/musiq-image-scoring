@@ -27,10 +27,7 @@ def _ensure_new_helpers(mod):
             that needs full classification from one that only needs a detector rescan.
             """
             from modules.bird_detection import bbox_needs_scan
-            from modules.bird_species_eligibility import (
-                BIRDS_SPECIES_EXHAUSTED_NORM,
-                _sql_exhausted_marker,
-            )
+            from modules.bird_species_eligibility import _sql_bird_species_exhausted_ips
 
             conn = mod.get_connector()
             cnt_birds = conn.query_one(
@@ -66,14 +63,14 @@ def _ensure_new_helpers(mod):
                 if row_bbox is not None and bbox_needs_scan(row_bbox.get("bird_bbox")):
                     return False
 
-            exhausted_sql = _sql_exhausted_marker("i")
+            exhausted_sql = _sql_bird_species_exhausted_ips("i")
             row_ex = conn.query_one(
                 f"SELECT 1 AS x FROM images i WHERE i.id = ? AND ({exhausted_sql})",
                 (image_id,),
             )
             if row_ex:
                 return True
-            if kw_str is not None and BIRDS_SPECIES_EXHAUSTED_NORM in kw_str:
+            if kw_str is not None and "birds:species-exhausted" in kw_str:
                 return True
 
             cnt_species = conn.query_one(

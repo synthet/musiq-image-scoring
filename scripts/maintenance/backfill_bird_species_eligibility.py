@@ -5,7 +5,7 @@ Classifies images into:
   - not_in_scope     — no birds keyword (bird phase N/A)
   - complete         — has species:* keyword
   - pending          — birds tag, still needs classification
-  - exhausted        — BioCLIP run found no species (marked birds:species-exhausted)
+  - exhausted        — BioCLIP run found no species (IPS skipped / no_species_match)
   - failed / skipped_other — IPS state worth manual review
 
 Gap mode (--mark-exhausted) targets images with IPS bird_species=done but no species:*
@@ -35,8 +35,13 @@ Usage (WSL, project root):
   # List folders that still have pending species work (for schedule_bird_species_bird_folders.py)
   python scripts/maintenance/backfill_bird_species_eligibility.py --list-pending-folders
 
-  # Enqueue one job per pending folder (requires WebUI)
-  python scripts/maintenance/backfill_bird_species_eligibility.py --enqueue --api-base http://127.0.0.1:7860
+  # Strip legacy birds:species-exhausted keywords; ensure IPS no_species_match row
+  python scripts/maintenance/backfill_bird_species_eligibility.py --migrate-exhausted-keywords --dry-run
+  python scripts/maintenance/backfill_bird_species_eligibility.py --migrate-exhausted-keywords
+
+  # Re-add missing birds tag on classified / exhausted images
+  python scripts/maintenance/backfill_bird_species_eligibility.py --restore-birds-tag --dry-run
+  python scripts/maintenance/backfill_bird_species_eligibility.py --restore-birds-tag
 """
 from __future__ import annotations
 
@@ -111,6 +116,41 @@ JOIN folders f ON f.id = i.folder_id
 WHERE ({pending})
   AND f.path IS NOT NULL AND TRIM(f.path) <> ''
 ORDER BY 1
+"""
+
+_SQL_LEGACY_EXHAUSTED_KEYWORD = """
+SELECT i.id AS image_id
+FROM images i
+WHERE EXISTS (
+    SELECT 1 FROM image_keywords ik
+    JOIN keywords_dim kd ON kd.keyword_id = ik.keyword_id
+    WHERE ik.image_id = i.id AND kd.keyword_norm = 'birds:species-exhausted'
+)
+"""
+
+_SQL_SPECIES_NO_BIRDS = """
+SELECT i.id AS image_id
+FROM images i
+WHERE (
+    EXISTS (
+        SELECT 1 FROM image_keywords ik
+        JOIN keywords_dim kd ON kd.keyword_id = ik.keyword_id
+        WHERE ik.image_id = i.id AND LOWER(kd.keyword_norm) LIKE 'species:%'
+    )
+    OR EXISTS (
+        SELECT 1 FROM image_phase_status ips
+        JOIN pipeline_phases pp ON pp.id = ips.phase_id
+        WHERE ips.image_id = i.id
+          AND LOWER(TRIM(pp.code)) = 'bird_species'
+          AND LOWER(TRIM(ips.status)) = 'skipped'
+          AND LOWER(TRIM(COALESCE(ips.skip_reason, ''))) = 'no_species_match'
+    )
+)
+AND NOT EXISTS (
+    SELECT 1 FROM image_keywords ik2
+    JOIN keywords_dim kd2 ON kd2.keyword_id = ik2.keyword_id
+    WHERE ik2.image_id = i.id AND kd2.keyword_norm = 'birds'
+)
 """
 
 
@@ -196,6 +236,45 @@ def _reconcile_classified(*, dry_run: bool, limit: int) -> int:
     return reconciled
 
 
+def _migrate_exhausted_keywords(*, dry_run: bool, limit: int) -> int:
+    from modules import db
+    from modules.bird_species_eligibility import mark_species_exhausted, strip_legacy_exhausted_keyword_csv
+
+    db.init_db()
+    sql = _SQL_LEGACY_EXHAUSTED_KEYWORD
+    if limit > 0:
+        sql += f" LIMIT {int(limit)}"
+    rows = db.get_connector().query(sql)
+    migrated = 0
+    for row in rows:
+        image_id = int(row["image_id"])
+        mark_species_exhausted(image_id, dry_run=dry_run)
+        if strip_legacy_exhausted_keyword_csv(image_id, dry_run=dry_run) or dry_run:
+            migrated += 1
+    return migrated
+
+
+def _restore_birds_tag(*, dry_run: bool, limit: int) -> int:
+    from modules import db
+    from modules.bird_species_eligibility import build_bird_species_keyword_csv
+
+    db.init_db()
+    sql = _SQL_SPECIES_NO_BIRDS
+    if limit > 0:
+        sql += f" LIMIT {int(limit)}"
+    rows = db.get_connector().query(sql)
+    restored = 0
+    for row in rows:
+        image_id = int(row["image_id"])
+        merged = build_bird_species_keyword_csv(image_id, new_species=[])
+        if dry_run:
+            restored += 1
+            continue
+        db.update_image_keywords_for_image(image_id, merged, source="auto")
+        restored += 1
+    return restored
+
+
 def _list_pending_folders() -> list[str]:
     from modules import db
 
@@ -242,7 +321,17 @@ def main() -> int:
     p.add_argument(
         "--mark-exhausted",
         action="store_true",
-        help="Mark done-without-species images as birds:species-exhausted",
+        help="Set IPS skipped/no_species_match for done-without-species images",
+    )
+    p.add_argument(
+        "--migrate-exhausted-keywords",
+        action="store_true",
+        help="Ensure IPS no_species_match and strip legacy birds:species-exhausted keywords",
+    )
+    p.add_argument(
+        "--restore-birds-tag",
+        action="store_true",
+        help="Re-add birds keyword on species-classified or exhausted images missing it",
     )
     p.add_argument(
         "--reconcile-classified",
@@ -262,7 +351,15 @@ def main() -> int:
     args = p.parse_args()
 
     if not any(
-        (args.report, args.mark_exhausted, args.reconcile_classified, args.list_pending_folders, args.enqueue)
+        (
+            args.report,
+            args.mark_exhausted,
+            args.reconcile_classified,
+            args.list_pending_folders,
+            args.enqueue,
+            args.migrate_exhausted_keywords,
+            args.restore_birds_tag,
+        )
     ):
         args.report = True
 
@@ -275,8 +372,24 @@ def main() -> int:
     if args.mark_exhausted:
         n = _mark_exhausted(dry_run=args.dry_run, limit=args.limit)
         logger.info(
-            "%s %d image(s) as species-exhausted (done IPS, no species:*)",
+            "%s %d image(s) as IPS no_species_match (done IPS, no species:*)",
             "Would mark" if args.dry_run else "Marked",
+            n,
+        )
+
+    if args.migrate_exhausted_keywords:
+        n = _migrate_exhausted_keywords(dry_run=args.dry_run, limit=args.limit)
+        logger.info(
+            "%s %d image(s) from legacy exhausted keyword to IPS-only",
+            "Would migrate" if args.dry_run else "Migrated",
+            n,
+        )
+
+    if args.restore_birds_tag:
+        n = _restore_birds_tag(dry_run=args.dry_run, limit=args.limit)
+        logger.info(
+            "%s %d image(s) with restored birds keyword",
+            "Would restore" if args.dry_run else "Restored",
             n,
         )
 

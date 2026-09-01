@@ -494,12 +494,14 @@ class BirdSpeciesRunner:
                 )
 
             if predictions:
-                existing_kw_str = (row.get("keywords") or "").strip()
-                existing_kws = [k.strip() for k in existing_kw_str.split(",") if k.strip()]
-                base_kws = [k for k in existing_kws if not k.lower().startswith("species:")]
+                from modules.bird_species_eligibility import build_bird_species_keyword_csv
+
                 new_species_kws = [f"species:{name}" for name, _ in predictions]
-                merged = base_kws + new_species_kws
-                merged_str = ",".join(merged)
+                merged_str = build_bird_species_keyword_csv(
+                    int(row["id"]),
+                    legacy_csv=(row.get("keywords") or ""),
+                    new_species=new_species_kws,
+                )
 
                 confidence_map = {
                     f"species:{name}".lower(): float(prob)
@@ -525,18 +527,12 @@ class BirdSpeciesRunner:
                 log(f"{os.path.basename(file_path)}: {', '.join(new_species_kws)}")
                 return 1, 0
 
-            from modules.bird_species_eligibility import (
-                BIRDS_SPECIES_EXHAUSTED_KEYWORD,
-                mark_species_exhausted,
-            )
+            from modules.bird_species_eligibility import mark_species_exhausted
 
-            mark_species_exhausted(
-                int(row["id"]),
-                existing_keywords_csv=(row.get("keywords") or ""),
-            )
+            mark_species_exhausted(int(row["id"]))
             log(
                 f"{os.path.basename(file_path)}: no species above threshold "
-                f"(marked {BIRDS_SPECIES_EXHAUSTED_KEYWORD})",
+                f"(bird_species IPS skipped / no_species_match)",
             )
             return 0, 1
 

@@ -23,7 +23,7 @@ def test_bird_species_incomplete_sql_includes_bbox_gap_on_postgres():
     assert "COALESCE(i.bird_bbox->>'error', '') IN ('detector_unavailable')" in sql
     # Still the species predicate it always was.
     assert "species:%" in sql
-    assert "birds:species-exhausted" in sql
+    assert "no_species_match" in sql
 
 
 def test_bird_species_incomplete_sql_omits_bbox_gap_on_firebird():

@@ -149,18 +149,36 @@ export function GalleryPage() {
             <div className="mt-2 flex flex-wrap gap-1">
               {(
                 [
-                  { label: 'Birds', value: 'birds' },
-                  { label: 'No species match', value: 'birds:species-exhausted' },
-                  { label: 'Has species', value: 'species:' },
+                  { label: 'Birds', kind: 'keyword' as const, value: 'birds' },
+                  {
+                    label: 'No species match',
+                    kind: 'phase_status' as const,
+                    value: 'bird_species:skipped:no_species_match',
+                  },
+                  { label: 'Has species', kind: 'keyword' as const, value: 'species:' },
                 ] as const
               ).map((preset) => (
                 <button
                   key={preset.label}
                   type="button"
-                  onClick={() => updateFilter({ keyword: preset.value })}
+                  onClick={() => {
+                    if (preset.kind === 'phase_status') {
+                      updateFilter({
+                        keyword: undefined,
+                        phase_status: preset.value,
+                      })
+                    } else {
+                      updateFilter({
+                        phase_status: undefined,
+                        keyword: preset.value,
+                      })
+                    }
+                  }}
                   className={clsx(
                     'rounded border px-1.5 py-0.5 text-[10px] transition-colors',
-                    baseFilters.keyword === preset.value
+                    (preset.kind === 'phase_status'
+                      ? baseFilters.phase_status === preset.value
+                      : baseFilters.keyword === preset.value)
                       ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent-bright)]'
                       : 'border-[#474747] text-[#9d9d9d] hover:bg-[#2a2a2a]',
                   )}

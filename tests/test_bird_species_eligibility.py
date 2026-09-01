@@ -4,16 +4,23 @@ from __future__ import annotations
 
 from modules import db_legacy
 from modules.bird_species_eligibility import (
+    BIRD_SPECIES_NO_MATCH_SKIP_REASON,
     BIRDS_SPECIES_EXHAUSTED_NORM,
     BirdSpeciesEligibility,
+    build_bird_species_keyword_csv,
     classify_image_row,
+    ensure_birds_discovery_keyword,
     mark_species_classified_done,
+    mark_species_exhausted,
+    strip_legacy_exhausted_keyword,
 )
 
 
-def test_bird_species_incomplete_sql_excludes_exhausted_marker():
+def test_bird_species_incomplete_sql_excludes_exhausted_ips():
     sql = db_legacy.get_phase_incomplete_sql("bird_species", "i")
-    assert "birds:species-exhausted" in sql
+    assert "image_phase_status" in sql
+    assert BIRD_SPECIES_NO_MATCH_SKIP_REASON in sql
+    assert "birds:species-exhausted" not in sql or "OR" in sql
 
 
 def test_classify_image_row_pending_vs_exhausted():
@@ -39,6 +46,17 @@ def test_classify_image_row_pending_vs_exhausted():
     )
     assert (
         classify_image_row(
+            image_id=4,
+            has_birds=True,
+            has_species=False,
+            has_exhausted_marker=False,
+            ips_status="skipped",
+            ips_skip_reason=BIRD_SPECIES_NO_MATCH_SKIP_REASON,
+        )
+        == BirdSpeciesEligibility.EXHAUSTED
+    )
+    assert (
+        classify_image_row(
             image_id=3,
             has_birds=False,
             has_species=False,
@@ -51,6 +69,61 @@ def test_classify_image_row_pending_vs_exhausted():
 
 def test_exhausted_keyword_constant():
     assert BIRDS_SPECIES_EXHAUSTED_NORM == "birds:species-exhausted"
+
+
+def test_ensure_birds_discovery_keyword_idempotent():
+    assert ensure_birds_discovery_keyword(["nature"]) == ["nature", "birds"]
+    assert ensure_birds_discovery_keyword(["birds", "nature"]) == ["birds", "nature"]
+
+
+def test_strip_legacy_exhausted_keyword():
+    out = strip_legacy_exhausted_keyword(["birds", BIRDS_SPECIES_EXHAUSTED_NORM, "nature"])
+    assert out == ["birds", "nature"]
+
+
+def test_build_bird_species_keyword_csv_preserves_birds(monkeypatch):
+    import modules.db as _db
+
+    monkeypatch.setattr(
+        _db,
+        "get_resolved_image_keywords",
+        lambda image_id, legacy_fallback=None, hide_internal=True: "birds,travel,species:Old Match",
+    )
+    merged = build_bird_species_keyword_csv(
+        42,
+        legacy_csv="",
+        new_species=["species:American Robin"],
+    )
+    assert "birds" in merged
+    assert "travel" in merged
+    assert "species:American Robin" in merged
+    assert "species:Old Match" not in merged
+    assert BIRDS_SPECIES_EXHAUSTED_NORM not in merged
+
+
+def test_mark_species_exhausted_ips_only(monkeypatch):
+    import modules.db as _db
+
+    kw_calls = []
+    status_calls = []
+    monkeypatch.setattr(
+        _db,
+        "update_image_keywords_for_image",
+        lambda *a, **k: kw_calls.append((a, k)),
+    )
+    monkeypatch.setattr(
+        _db,
+        "set_image_phase_status",
+        lambda *a, **k: status_calls.append((a, k)),
+    )
+    assert mark_species_exhausted(99) is True
+    assert kw_calls == []
+    assert len(status_calls) == 1
+    args, kwargs = status_calls[0]
+    assert args[0] == 99
+    assert args[1] == "bird_species"
+    assert args[2] == "skipped"
+    assert kwargs.get("skip_reason") == BIRD_SPECIES_NO_MATCH_SKIP_REASON
 
 
 def test_mark_species_classified_done_dry_run_skips_write():

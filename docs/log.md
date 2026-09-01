@@ -6,6 +6,10 @@ Parse with: `grep "^## \[" docs/log.md | tail -10`
 
 ---
 
+## [2026-08-31] edit | Bird keyword preservation + IPS exhausted state
+
+Session report: [`docs/reports/bird-species-keywords-2026-08-31/summary.md`](reports/bird-species-keywords-2026-08-31/summary.md). Preserve `birds` when BioCLIP writes `species:*`; terminal no-match uses `image_phase_status` (`skipped` / `no_species_match`) instead of keyword `birds:species-exhausted`. Backfill: `--migrate-exhausted-keywords`, `--restore-birds-tag` on `scripts/maintenance/backfill_bird_species_eligibility.py`.
+
 ## [2026-08-14] edit | gpu-shell is the default script runner
 
 Updated guides/setup/DOCKER_SETUP.md and ENVIRONMENTS.md: Windows script wrappers and agent env default to image-scoring-gpu-shell (`Invoke-GpuShell.ps1` / `docker_gpu_run.bat`); Ubuntu ~/.venvs/tf is optional.

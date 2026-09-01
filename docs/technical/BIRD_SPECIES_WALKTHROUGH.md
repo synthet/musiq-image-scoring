@@ -141,10 +141,10 @@ The dispatcher holds the same guarantee as for all other job types: **only one r
 | **Not in scope** | No `birds` keyword | Bird phase N/A |
 | **Pending** | `birds`, no `species:*`, not exhausted | Backlog / autodrive queue |
 | **Complete** | Has `species:…` | Done |
-| **Exhausted** | Run found no species above threshold | Keyword `birds:species-exhausted` — excluded from pending |
+| **Exhausted** | Run found no species above threshold | `image_phase_status`: `skipped`, `skip_reason=no_species_match` (internal; not a keyword) |
 | **Box gap** | Species done or exhausted, but `bird_bbox` is `NULL` / retryable | Detector-only rescan; counted as pending until the box is written |
 
-When BioCLIP returns no species above threshold, the runner writes `birds:species-exhausted` and sets IPS `skipped` / `no_species_match` so folders do not stay in `awaiting_bird_species` forever.
+When BioCLIP returns no species above threshold, the runner sets IPS `skipped` / `no_species_match` so folders do not stay in `awaiting_bird_species` forever. The `birds` tag is preserved for discovery.
 
 **Maintenance** (`scripts/maintenance/backfill_bird_species_eligibility.py`):
 
@@ -155,7 +155,7 @@ python scripts/maintenance/backfill_bird_species_eligibility.py --mark-exhausted
 python scripts/maintenance/backfill_bird_species_eligibility.py --enqueue
 ```
 
-**Gallery:** pending species work ≈ keyword `birds` and exclude `birds:species-exhausted`.
+**Gallery:** pending species work ≈ keyword `birds`, no `species:*`, and not IPS `no_species_match`. Filter no-match images via `phase_status=bird_species:skipped:no_species_match`.
 
 ### 3.3 Image filtering (the key constraint)
 
