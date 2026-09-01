@@ -191,9 +191,15 @@ def _reconcile_stale_ips_for_drive() -> None:
     # advanced to ``done`` make a folder look ``awaiting_scoring`` / ``awaiting_keywords``
     # while the planner correctly finds no work → nothing_to_queue / loop_detected churn.
     # Marking them done lets the drive reach genuinely-incomplete folders.
+    #
+    # ``culling`` is deliberately excluded (issue #340). Its work product is a *folder-level*
+    # grouping decision, so per-image data shape (a ``cull_decision``, an embedding) never
+    # proves clustering actually ran. Including it marked 672 never-clustered images ``done``
+    # in one 23-second sweep, which hid whole folders from the drive permanently — the
+    # folder rollup read culling complete and the bucketer advanced past it forever.
     try:
         db.reconcile_phantom_complete_image_phases(
-            ("indexing", "metadata", "scoring", "keywords", "culling"),
+            ("indexing", "metadata", "scoring", "keywords"),
             limit=5000,
         )
     except Exception:
@@ -202,6 +208,14 @@ def _reconcile_stale_ips_for_drive() -> None:
         db.reset_false_complete_metadata_phases(limit=500)
     except Exception:
         logger.debug("runs_autodrive: reset false-complete metadata IPS failed", exc_info=True)
+    # Heal rows poisoned by the pre-#340 sweep: culling ``done``/``skipped`` on images that
+    # provably never clustered (no stack and no default-space embedding). Resetting them to
+    # ``not_started`` marks the folder aggregate dirty in-transaction, so the drive re-buckets
+    # the folder to ``awaiting_culling`` by itself on the next tick.
+    try:
+        db.reset_false_complete_culling_phases(limit=500)
+    except Exception:
+        logger.debug("runs_autodrive: reset false-complete culling IPS failed", exc_info=True)
     try:
         db.reset_retryable_stale_phase_failures(limit=500)
     except Exception:

@@ -79,6 +79,74 @@ def test_reconcile_multiple_phases_independent_counts(monkeypatch):
     assert out == {"scoring": 2, "keywords": 2}
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Issue #340 — culling may never be recorded complete without a work product
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_culling_skips_images_missing_similarity_artefacts(monkeypatch):
+    """An image that reached pick/reject but never clustered must not be marked done."""
+    _patch(monkeypatch, [{"id": 1}, {"id": 2}, {"id": 3}])
+    captured = []
+    monkeypatch.setattr(
+        db_legacy, "set_image_phase_status",
+        lambda iid, code, status, **k: captured.append((iid, code, status)),
+    )
+    # 1 and 3 never clustered; only 2 carries the visual work product.
+    monkeypatch.setattr(
+        db_legacy, "is_image_culling_similarity_artefacts_missing",
+        lambda iid: iid in (1, 3),
+    )
+    out = db_legacy.reconcile_phantom_complete_image_phases(("culling",), dry_run=False)
+    assert out == {"culling": 1}
+    assert captured == [(2, "culling", "done")]
+
+
+def test_culling_dry_run_count_matches_what_would_be_written(monkeypatch):
+    """The guard applies before the dry-run count, so preview and apply agree."""
+    _patch(monkeypatch, [{"id": 1}, {"id": 2}])
+    monkeypatch.setattr(db_legacy, "set_image_phase_status", lambda *a, **k: None)
+    monkeypatch.setattr(
+        db_legacy, "is_image_culling_similarity_artefacts_missing", lambda iid: True
+    )
+    assert db_legacy.reconcile_phantom_complete_image_phases(
+        ("culling",), dry_run=True
+    ) == {"culling": 0}
+
+
+def test_guard_does_not_touch_other_phases(monkeypatch):
+    """Scoring/keywords keep their existing behaviour — the guard is culling-only."""
+    _patch(monkeypatch, [{"id": 7}])
+    captured = []
+    monkeypatch.setattr(
+        db_legacy, "set_image_phase_status",
+        lambda iid, code, status, **k: captured.append((iid, code, status)),
+    )
+    monkeypatch.setattr(
+        db_legacy, "is_image_culling_similarity_artefacts_missing",
+        lambda iid: (_ for _ in ()).throw(AssertionError("must not be consulted")),
+    )
+    out = db_legacy.reconcile_phantom_complete_image_phases(("scoring",), dry_run=False)
+    assert out == {"scoring": 1}
+    assert captured == [(7, "scoring", "done")]
+
+
+def test_auto_drive_preflight_no_longer_reconciles_culling():
+    """The drive preflight must not include culling — that is what caused #340."""
+    import inspect
+
+    from modules import runs_autodrive
+
+    src = inspect.getsource(runs_autodrive._reconcile_stale_ips_for_drive)
+    assert "reconcile_phantom_complete_image_phases" in src
+    tuple_start = src.index("reconcile_phantom_complete_image_phases")
+    tuple_src = src[tuple_start:tuple_start + 300]
+    assert '"culling"' not in tuple_src
+    for code in ("indexing", "metadata", "scoring", "keywords"):
+        assert f'"{code}"' in tuple_src
+    # The self-healing reset must run instead.
+    assert "reset_false_complete_culling_phases" in src
+
+
 class _FakeOneConn:
     def __init__(self, row):
         self._row = row
